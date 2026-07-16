@@ -164,7 +164,9 @@ src/app/
   everything else is on-demand. Concretely: **create flows name the artifact at SAVE time** (a save step
   asks Name — pre-filled `<type>_<host>`-style, unique, = the id — plus optional Description) and
   **rarely-used sections (tunnels/proxies/advanced) start collapsed even on edit**, with a chip hinting
-  what's configured. Reference: `connections/connection-form.dialog` (two-step create, collapsed Routing).
+  what's configured. Reference: `app/inspecto/connections/connection-form.dialog` (two-step create,
+  collapsed Routing; relocated from the connections feature to shared `inspecto/` 2026-07-16 so the
+  onboarding create-in-place can open it cross-feature).
   Since ui-design-review R9 the job / expectation / alert-rule / decision-rule create dialogs follow the
   same two-step pattern (a `step` signal + a `saveForm` asked only at save time, id pre-filled from the
   config via `suggestedName()`; the config step is `[hidden]`-wrapped — never `@if`'d — so schema-form

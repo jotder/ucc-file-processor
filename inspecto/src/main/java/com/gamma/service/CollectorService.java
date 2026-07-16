@@ -307,7 +307,8 @@ public final class CollectorService implements AutoCloseable {
         this.status            = statusStore != null ? statusStore : fileStatus;
         this.enrichment        = enrichJobs.isEmpty()
                 ? null
-                : new EnrichmentService(enrichJobs, bus, scheduler);
+                // Live pipeline view (method ref defers the registry read to recompute time).
+                : new EnrichmentService(enrichJobs, bus, scheduler, this::loadedPipelines);
         this.jobs              = jobConfigs.isEmpty()
                 ? null
                 : new JobService(jobConfigs, bus, scheduler, reports,
@@ -1025,6 +1026,11 @@ public final class CollectorService implements AutoCloseable {
      * ({@code GET /collectors}). Pure config read (no I/O) plus, for a {@code db} source bound to a connection,
      * the current row-level DB watermark derived from the acquisition ledger.
      */
+    /** The loaded Stage-1 pipelines — the live view by-name enrichment references resolve against. */
+    private List<PipelineConfig> loadedPipelines() {
+        return configRegistry.configs();
+    }
+
     public List<Map<String, Object>> collectors() {
         List<Map<String, Object>> out = new ArrayList<>();
         for (ConfigRegistry.Entry e : configRegistry.all()) {
@@ -1032,6 +1038,8 @@ public final class CollectorService implements AutoCloseable {
             if (s == null) continue;
             Map<String, Object> m = new java.util.LinkedHashMap<>();
             m.put("pipeline", e.id());
+            m.put("active", e.config().active());
+            m.put("produces", e.config().produces().name().toLowerCase(java.util.Locale.ROOT));
             m.put("id", s.id());
             m.put("connector", s.connector());
             m.put("connection", s.connection());

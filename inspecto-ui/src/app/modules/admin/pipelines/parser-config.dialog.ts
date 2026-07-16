@@ -47,7 +47,7 @@ export interface ParserConfigData {
  *
  * **Ask the minimum** (binding form rule): a fresh parser's config comes first; the grammar **name is asked
  * only at save time** (a save step, pre-filled `<type>_grammar`, unique) — mirrors
- * `connections/connection-form.dialog`. Editing an existing grammar (chosen from the Grammar dropdown, or
+ * `app/inspecto/connections/connection-form.dialog`. Editing an existing grammar (chosen from the Grammar dropdown, or
  * pre-bound via the node's `use`) saves straight through with its id locked.
  */
 @Component({

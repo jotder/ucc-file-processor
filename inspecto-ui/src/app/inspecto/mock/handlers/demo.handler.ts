@@ -1,6 +1,7 @@
 import { MockFlags } from '../mock-flags';
 import { error, json, match, MockHandler, MockRequest } from '../mock-http';
 import { MockStore } from '../mock-store';
+import { draftReferenceRows, draftStreamRows } from './onboarding.handler';
 import {
     NOTIFICATION_CHANNELS_COLL,
     NOTIFICATION_DELIVERIES_COLL,
@@ -496,10 +497,10 @@ export function demoHandler(flags: MockFlags): MockHandler {
             return json(Number.isFinite(limit) && limit > 0 ? all.slice(0, limit) : all);
         }
 
-        // ── catalog ──
+        // ── catalog ── (streams/references also carry the store-backed onboarding drafts)
         if (method === 'GET' && CATALOG_KPIS_RE.test(url)) return json(CATALOG_KPIS);
-        if (method === 'GET' && CATALOG_STREAMS_RE.test(url)) return json(CATALOG_STREAMS);
-        if (method === 'GET' && CATALOG_REFERENCES_RE.test(url)) return json(CATALOG_REFERENCES);
+        if (method === 'GET' && CATALOG_STREAMS_RE.test(url)) return json([...CATALOG_STREAMS, ...draftStreamRows(store, space)]);
+        if (method === 'GET' && CATALOG_REFERENCES_RE.test(url)) return json([...CATALOG_REFERENCES, ...draftReferenceRows(store, space)]);
         if (method === 'GET' && CATALOG_TABLES_RE.test(url)) return json(CATALOG_TABLES);
         if (method === 'GET' && (m = match(url, CATALOG_NODE))) {
             const id = m[1];

@@ -45,6 +45,8 @@ final class CatalogRoutes implements RouteModule {
     private List<Map<String, Object>> streams(ApiContext api) {
         List<Map<String, Object>> out = new ArrayList<>();
         for (Map<String, Object> s : api.service().collectors()) {
+            // produces:reference pipelines are dimension origins — they list under /catalog/references.
+            if ("reference".equals(s.get("produces"))) continue;
             Map<String, Object> node = new LinkedHashMap<>();
             node.put("id", s.get("id"));
             node.put("kind", "STREAM");
@@ -57,6 +59,7 @@ final class CatalogRoutes implements RouteModule {
             attrs.put("connection", s.get("connection"));
             attrs.put("pipeline", s.get("pipeline"));
             attrs.put("discovery", s.get("discovery"));
+            attrs.put("active", s.get("active"));   // draft (false) vs live (true) — onboarding lifecycle
             node.put("attrs", attrs);
             out.add(node);
         }

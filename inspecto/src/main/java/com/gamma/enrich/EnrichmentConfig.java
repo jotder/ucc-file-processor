@@ -67,8 +67,20 @@ public record EnrichmentConfig(String name,
     /** Stage-1 output to read. */
     public record Input(String database, String format, List<String> partitions) {}
 
-    /** A reference/dimension source registered as a view named {@code name}. */
-    public record Reference(String name, String path, String format) {}
+    /**
+     * A reference/dimension source registered as a view named {@code name} — either a direct
+     * {@code path} to a file, or (v5.1.0) {@code ref}: the name of a pipeline declaring
+     * {@code produces: reference}, whose Hive-partitioned output becomes the view (format taken
+     * from that pipeline). Exactly one of {@code path}/{@code ref} is set.
+     */
+    public record Reference(String name, String path, String format, String ref) {
+        /** Direct-path reference (the pre-5.1 shape). */
+        public Reference(String name, String path, String format) {
+            this(name, path, format, null);
+        }
+        /** Whether this reference binds by name to a pipeline-produced Reference Dataset. */
+        public boolean byName() { return ref != null && !ref.isBlank(); }
+    }
 
     /** Where and how enriched output is written, and at what partition grain. */
     public record Output(String database, String format, String compression, List<String> partitions) {}
@@ -147,8 +159,17 @@ public record EnrichmentConfig(String name,
                 Identifiers.validate(rname, "references.<name>");
                 if (e.getValue() instanceof Map<?, ?> rv) {
                     Object fmt = rv.get("format");
-                    refs.add(new Reference(rname, (String) rv.get("path"),
-                            (fmt == null ? "PARQUET" : fmt.toString()).toUpperCase()));
+                    String path = rv.get("path") == null ? null : rv.get("path").toString();
+                    String ref  = rv.get("ref")  == null ? null : rv.get("ref").toString().trim();
+                    boolean hasPath = path != null && !path.isBlank();
+                    boolean hasRef  = ref  != null && !ref.isBlank();
+                    if (hasPath == hasRef)
+                        throw new IllegalArgumentException(
+                                "references." + rname + " needs exactly one of 'path' or 'ref'");
+                    if (hasRef) Identifiers.validate(ref, "references." + rname + ".ref");
+                    refs.add(new Reference(rname, hasPath ? path : null,
+                            (fmt == null ? "PARQUET" : fmt.toString()).toUpperCase(),
+                            hasRef ? ref : null));
                 }
             }
         }

@@ -7,6 +7,7 @@ import com.gamma.enrich.EnrichmentConfig;
 import com.gamma.enrich.EnrichmentEngine;
 import com.gamma.etl.BatchEvent;
 import com.gamma.etl.PartitionOutput;
+import com.gamma.etl.PipelineConfig;
 import com.gamma.metrics.MetricRegistry;
 import com.gamma.util.LockingRunner;
 import org.slf4j.Logger;
@@ -23,6 +24,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Supplier;
 
 /**
  * Orchestrates Stage-2 {@link EnrichmentEngine} runs against the platform's two
@@ -66,15 +68,28 @@ public final class EnrichmentService implements AutoCloseable {
     private final List<EnrichmentConfig> jobs;
     private final BatchEventBus bus;
     private final Scheduler scheduler;
+    /** Live view of the loaded Stage-1 pipelines — resolves by-name references per recompute. */
+    private final Supplier<List<PipelineConfig>> pipelines;
     private final ExecutorService workers = Executors.newVirtualThreadPerTaskExecutor();
     private final LockingRunner runner = new LockingRunner();
     private final Map<String, EnrichmentAuditWriter> auditWriters = new ConcurrentHashMap<>();
     private final AtomicLong seq = new AtomicLong();
 
     public EnrichmentService(List<EnrichmentConfig> jobs, BatchEventBus bus, Scheduler scheduler) {
+        this(jobs, bus, scheduler, List::of);
+    }
+
+    /**
+     * @param pipelines live view of the loaded Stage-1 pipelines, consulted per recompute so
+     *                  by-name references ({@code references.<name>.ref:}) resolve against the
+     *                  current registry (hot-reload safe); {@code List::of} disables by-name refs
+     */
+    public EnrichmentService(List<EnrichmentConfig> jobs, BatchEventBus bus, Scheduler scheduler,
+                             Supplier<List<PipelineConfig>> pipelines) {
         this.jobs      = List.copyOf(jobs);
         this.bus       = bus;
         this.scheduler = scheduler;
+        this.pipelines = pipelines == null ? List::of : pipelines;
     }
 
     /** Wire the event subscriber and register scheduled completeness jobs. */
@@ -130,7 +145,7 @@ public final class EnrichmentService implements AutoCloseable {
         String startTime = EnrichmentAuditWriter.now();
         long startNanos = System.nanoTime();
         try {
-            EnrichmentEngine.Result res = EnrichmentEngine.runResult(job, filter);
+            EnrichmentEngine.Result res = EnrichmentEngine.runResult(job, filter, pipelines.get());
             List<PartitionOutput> outs = res.outputs();
             List<String> parts = outs.stream().map(PartitionOutput::partition).distinct().toList();
             long durationMs = (System.nanoTime() - startNanos) / 1_000_000L;

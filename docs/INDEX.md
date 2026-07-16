@@ -72,6 +72,9 @@ former root reference docs** (each index lists them):
 
 ## In-flight plans (`superpower/` — plans live here ONLY while active)
 
+- [`superpower/stream-onboarding-design.md`](superpower/stream-onboarding-design.md) — guided
+  **Stream/Reference onboarding** over Stage‑1 pipeline configs (Catalog CTAs, inactive-pipeline drafts,
+  sample-thread validation, `produces: reference` seam) — **ACTIVE, design agreed 2026-07-16, not started**.
 - [`superpower/embedded-intelligence-plan.md`](superpower/embedded-intelligence-plan.md) — AGT-5: P0
   spine shipped + hardened; **P1–P5 open** (§8 = live phasing).
 - [`superpower/storage-layout-and-sharing-plan.md`](superpower/storage-layout-and-sharing-plan.md) —

@@ -50,30 +50,35 @@ final class MetadataGraphBuilder {
             String outFormat = cfg.output() == null ? null : cfg.output().format();
             if (dbRoot != null) pipelineByDbRoot.put(normPath(dbRoot), pipeline);
 
+            // produces:reference ⇒ the origin registers as a standalone Reference Dataset (dimension
+            // origin, id ref:<pipeline>) instead of a Stream; schemas/tables hang off it identically.
+            boolean isReference = cfg.producesReference();
+            String originId = isReference ? IdScheme.producedReference(pipeline) : IdScheme.stream(pipeline);
             Map<String, Object> srcAttrs = new LinkedHashMap<>();
             srcAttrs.put("pipeline", pipeline);
             if (cfg.dirs().poll() != null) srcAttrs.put("pollDir", cfg.dirs().poll());
             if (dbRoot != null) srcAttrs.put("database", dbRoot);
-            nodes.put(IdScheme.stream(pipeline), new MetadataNode(
-                    IdScheme.stream(pipeline), NodeKind.STREAM, cfg.identity().name(),
-                    Description.EMPTY, srcAttrs));
+            if (isReference && outFormat != null && !outFormat.isBlank()) srcAttrs.put("format", outFormat);
+            nodes.put(originId, new MetadataNode(
+                    originId, isReference ? NodeKind.REFERENCE_DATASET : NodeKind.STREAM,
+                    cfg.identity().name(), Description.EMPTY, srcAttrs));
 
             PipelineConfig.Schemas s = cfg.schemas();
             if (s.segments() != null && !s.segments().isEmpty()) {
                 for (Map.Entry<String, Map<String, Object>> e : s.segments().entrySet()) {
-                    addSchemaAndEvent(pipeline, e.getKey(), e.getValue(), null, dbRoot, outFormat, nodes, edges);
+                    addSchemaAndEvent(originId, pipeline, e.getKey(), e.getValue(), null, dbRoot, outFormat, nodes, edges);
                 }
             } else if (s.selector() != null && s.selector().hasSchemas()) {
                 int i = 0;
                 for (SchemaSelector.Selection sel : s.selector().entries()) {
                     String key = firstNonBlank(sel.table(),
                             SchemaProjection.canonicalName(sel.schema()), "schema_" + i);
-                    addSchemaAndEvent(pipeline, key, sel.schema(), sel.table(), dbRoot, outFormat, nodes, edges);
+                    addSchemaAndEvent(originId, pipeline, key, sel.schema(), sel.table(), dbRoot, outFormat, nodes, edges);
                     i++;
                 }
             } else if (s.single() != null) {
                 String key = firstNonBlank(SchemaProjection.canonicalName(s.single()), "main");
-                addSchemaAndEvent(pipeline, key, s.single(), null, dbRoot, outFormat, nodes, edges);
+                addSchemaAndEvent(originId, pipeline, key, s.single(), null, dbRoot, outFormat, nodes, edges);
             }
         }
 
@@ -91,12 +96,22 @@ final class MetadataGraphBuilder {
                     Description.EMPTY, attrs));
 
             for (EnrichmentConfig.Reference r : en.references()) {
-                String rid = IdScheme.reference(en.name(), r.name());
-                Map<String, Object> rattrs = new LinkedHashMap<>();
-                rattrs.put("path", str(r.path()));
-                rattrs.put("format", str(r.format()));
-                nodes.put(rid, new MetadataNode(rid, NodeKind.REFERENCE_DATASET, r.name(),
-                        Description.EMPTY, rattrs));
+                String produced = r.byName() ? IdScheme.producedReference(r.ref()) : null;
+                String rid;
+                if (produced != null && nodes.containsKey(produced)) {
+                    rid = produced;   // bind to the pipeline-produced Reference Dataset node
+                } else {
+                    rid = IdScheme.reference(en.name(), r.name());
+                    Map<String, Object> rattrs = new LinkedHashMap<>();
+                    if (r.byName()) {
+                        rattrs.put("ref", r.ref());   // declared by name but that pipeline isn't loaded
+                    } else {
+                        rattrs.put("path", str(r.path()));
+                        rattrs.put("format", str(r.format()));
+                    }
+                    nodes.put(rid, new MetadataNode(rid, NodeKind.REFERENCE_DATASET, r.name(),
+                            Description.EMPTY, rattrs));
+                }
                 edges.add(new MetadataEdge(rid, xid, EdgeKind.JOINS_INTO));
             }
         }
@@ -210,10 +225,10 @@ final class MetadataGraphBuilder {
         }
     }
 
-    private void addSchemaAndEvent(String pipeline, String key, Map<String, Object> schema,
+    private void addSchemaAndEvent(String originId, String pipeline, String key, Map<String, Object> schema,
                                    String table, String dbRoot, String outputFormat,
                                    Map<String, MetadataNode> nodes, List<MetadataEdge> edges) {
-        String sourceId = IdScheme.stream(pipeline);
+        String sourceId = originId;
         String schemaId = IdScheme.schema(pipeline, key);
         String eventId = IdScheme.event(pipeline, key);
 

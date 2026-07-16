@@ -10,7 +10,7 @@ import { apiErrorMessage, ConnectionProfile, ConnectionTestResult, ConnectionsSe
 import { InspectoAlertComponent } from 'app/inspecto/components/alert.component';
 import { StatusBadgeComponent } from 'app/inspecto/components/status-badge.component';
 import { InspectoConfirmService } from 'app/inspecto/confirm.service';
-import { ConnectionFormDialog, ConnectionFormResult } from './connection-form.dialog';
+import { ConnectionFormDialog, ConnectionFormResult } from 'app/inspecto/connections/connection-form.dialog';
 
 /**
  * Connections — reusable remote-system connection profiles (Data Acquisition). Lists the profiles loaded

@@ -273,6 +273,51 @@ export interface ValidateResult {
   clean: boolean;
 }
 
+/** POST /config/write result. */
+export interface ConfigWriteResult {
+  type: string;
+  written: boolean;
+  /** Relative to the write root — feed it to {@link ConfigService.registerPipeline}. */
+  path: string;
+  name: string;
+  bytes: number;
+  overwritten: boolean;
+  findings: Finding[];
+}
+
+/** GET /config/{type}/{name} result — a config read back as its decoded map (onboarding resume). */
+export interface ConfigReadResult {
+  type: string;
+  name: string;
+  path: string;
+  config: Record<string, unknown>;
+}
+
+/** DELETE /config/{type}/{name} result (draft discard). */
+export interface ConfigDeleteResult {
+  type: string;
+  name: string;
+  deleted: boolean;
+  path: string;
+}
+
+/** POST /runs result — a written pipeline file registered with the running service. */
+export interface PipelineRegisterResult {
+  registered: boolean;
+  id: string;
+  path: string;
+  findings?: Finding[];
+}
+
+/** POST /config/preview/parsing result — a raw sample parsed with a draft's parsing settings. */
+export interface ParsingPreview {
+  frontend: 'delimited' | 'fixedwidth' | 'json' | 'text_regex' | 'plugin' | string;
+  columns: string[];
+  rowCount: number;
+  rows: Record<string, unknown>[];
+  rejectedRows: number;
+}
+
 // ── diagnoses + assist ───────────────────────────────────────────────────────
 export interface Citation {
   source: string;

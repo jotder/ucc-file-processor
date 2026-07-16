@@ -1,0 +1,112 @@
+<div class="flex min-w-0 flex-auto flex-col">
+    <!-- Header -->
+    <div class="bg-card border-b p-6 sm:px-10 sm:py-6 dark:bg-transparent">
+        <inspecto-breadcrumb [listLink]="['/catalog']" listLabel="Catalog" [current]="state.name()" />
+        <div class="mt-2 flex flex-wrap items-center gap-3">
+            <h1 class="m-0 text-3xl font-extrabold leading-none tracking-tight">{{ state.name() }}</h1>
+            <span class="text-secondary rounded border px-2 py-0.5 text-xs font-semibold uppercase tracking-wider">
+                {{ state.kind() === 'reference' ? 'Reference' : 'Stream' }}
+            </span>
+            <inspecto-status-badge [value]="state.lifecycle()" />
+            <span class="flex-1"></span>
+            @if (lens.canAuthorWorkbench() && !state.active() && !state.missing()) {
+                <button mat-stroked-button type="button" (click)="discard()">
+                    <mat-icon svgIcon="heroicons_outline:trash" class="icon-size-4"></mat-icon>
+                    <span class="ml-1">Discard draft</span>
+                </button>
+            }
+        </div>
+        <div class="text-secondary mt-1.5">
+            Guided onboarding — each stage writes the pipeline draft on the server, so you can leave
+            and resume any time. It runs only when you go live.
+        </div>
+    </div>
+
+    <!-- Body -->
+    @if (state.loading()) {
+        <div class="flex items-center gap-3 p-10">
+            <mat-progress-spinner diameter="24" mode="indeterminate" />
+            <span class="text-secondary">Loading draft…</span>
+        </div>
+    } @else if (state.missing()) {
+        <inspecto-empty-state
+            class="mt-10 block"
+            icon="heroicons_outline:document-magnifying-glass"
+            [message]="'No pipeline or draft named &quot;' + state.name() + '&quot; on this server.'"
+        />
+    } @else if (state.config()) {
+        @if (state.writesDisabled()) {
+            <inspecto-alert class="mx-6 mt-4 block sm:mx-10" variant="warning" icon="heroicons_outline:lock-closed">
+                Config writes are disabled on this server (no write root configured) — the draft is read-only.
+            </inspecto-alert>
+        }
+        @if (!lens.canAuthorWorkbench()) {
+            <inspecto-alert class="mx-6 mt-4 block sm:mx-10" variant="info" icon="heroicons_outline:eye">
+                Your lens is read-only — you can review every stage, but saves are disabled.
+            </inspecto-alert>
+        }
+
+        <div class="flex min-h-0 flex-auto">
+            <!-- Stage rail: the data path, jumpable, with computed readiness -->
+            <nav class="w-64 shrink-0 overflow-y-auto border-r p-4" aria-label="Onboarding stages">
+                <ul class="m-0 flex list-none flex-col gap-1 p-0">
+                    @for (s of state.stages(); track s.id) {
+                        <li>
+                            <button
+                                type="button"
+                                class="flex w-full items-start gap-3 rounded-lg p-3 text-left hover:bg-hover"
+                                [class.bg-hover]="s.id === state.activeStageId()"
+                                [attr.aria-current]="s.id === state.activeStageId() ? 'page' : null"
+                                (click)="select(s)"
+                            >
+                                <mat-icon [svgIcon]="s.icon" class="icon-size-5 mt-0.5 shrink-0"></mat-icon>
+                                <span class="min-w-0 flex-1">
+                                    <span class="flex items-center gap-2">
+                                        <span class="font-medium">{{ s.label }}</span>
+                                        @if (s.optional) {
+                                            <span class="text-secondary text-xs">optional</span>
+                                        }
+                                    </span>
+                                    <span class="text-secondary block text-xs">{{ s.hint }}</span>
+                                    <span class="mt-1 block text-xs">
+                                        @switch (state.stageStatus()[s.id]) {
+                                            @case ('validated') {
+                                                <span class="font-semibold">✓ Validated</span>
+                                            }
+                                            @case ('configured') {
+                                                <span class="font-semibold">● Configured</span>
+                                            }
+                                            @default {
+                                                <span class="text-secondary">○ Not configured</span>
+                                            }
+                                        }
+                                    </span>
+                                </span>
+                            </button>
+                        </li>
+                    }
+                </ul>
+            </nav>
+
+            <!-- Active stage pane -->
+            <main class="min-w-0 flex-1 overflow-y-auto p-6 sm:p-8">
+                <ng-container [ngComponentOutlet]="activeComponent()" />
+            </main>
+
+            <!-- Sample-as-thread panel (resizable) -->
+            <div
+                class="hidden lg:block"
+                inspectoSplit="onboard-sample"
+                #h="inspectoSplit"
+                pane="right"
+                [min]="240"
+                [max]="560"
+                [defaultWidth]="320"
+                aria-label="Resize sample panel"
+            ></div>
+            <aside class="hidden shrink-0 border-l lg:block" [style.width.px]="h.width()" aria-label="Sample panel">
+                <app-onboarding-sample-panel />
+            </aside>
+        </div>
+    }
+</div>

@@ -9,11 +9,13 @@ import { MatInputModule } from '@angular/material/input';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSelectModule } from '@angular/material/select';
 import { MatTabsModule } from '@angular/material/tabs';
+import { Router } from '@angular/router';
 import { ColDef } from 'ag-grid-community';
 import {
     CatalogService,
     GraphDirection,
     KpiCatalogEntry,
+    LensService,
     MetadataGraph,
     MetadataNode,
     NodeKind,
@@ -21,7 +23,9 @@ import {
 } from 'app/inspecto/api';
 import { DataTableComponent } from 'app/inspecto/data-table';
 import { InspectoEmptyStateComponent } from 'app/inspecto/components/empty-state.component';
-import { fmtDateTime } from 'app/inspecto/grid';
+import { statusBadgeHtml } from 'app/inspecto/components/status-badge.component';
+import { InspectoRowAction, fmtDateTime } from 'app/inspecto/grid';
+import { OnboardingCreateDialog, OnboardingCreateResult } from './onboarding/onboarding-create.dialog';
 import { RegistryComponent } from './registry.component';
 import { G6GraphData, legendFor, toG6Data } from './catalog-graph';
 import { GraphViewComponent } from './graph-view.component';
@@ -61,13 +65,17 @@ type CatTab = 'tables' | 'streams' | 'references' | 'kpis' | 'graph' | 'usage' |
 export class CatalogComponent implements OnInit {
     private api = inject(CatalogService);
     private dialog = inject(MatDialog);
+    private router = inject(Router);
+    protected lens = inject(LensService);
 
     // The two Exchange tabs appear only on a multi-space runtime (bootstrap.features.exchange —
     // resolved before the app initializes, so the list is stable for the component's lifetime).
+    // Streams leads and is the default tab (stream-onboarding D2): data origins are the Catalog's
+    // front door; Tables and the rest follow.
     readonly tabs: { id: CatTab; label: string }[] = [
-        { id: 'tables', label: 'Tables' },
         { id: 'streams', label: 'Streams' },
         { id: 'references', label: 'References' },
+        { id: 'tables', label: 'Tables' },
         { id: 'kpis', label: 'KPIs' },
         { id: 'graph', label: 'Lineage' },
         { id: 'usage', label: 'Usage' },
@@ -118,6 +126,12 @@ export class CatalogComponent implements OnInit {
 
     readonly streamColumns: ColDef[] = [
         { field: 'label', headerName: 'Stream', flex: 1 },
+        {
+            headerName: 'Lifecycle',
+            width: 110,
+            valueGetter: (p) => lifecycleOf((p.data as MetadataNode)?.attrs),
+            cellRenderer: (p: { value: string }) => (p.value ? statusBadgeHtml(p.value) : '—'),
+        },
         { field: 'attrs.connector', headerName: 'Connector', width: 130 },
         { field: 'attrs.connection', headerName: 'Connection', flex: 1, valueFormatter: (p) => p.value ?? '—' },
         { field: 'attrs.pipeline', headerName: 'Pipeline', flex: 1 },
@@ -130,6 +144,16 @@ export class CatalogComponent implements OnInit {
         { field: 'attrs.connection', headerName: 'Connection', flex: 1, valueFormatter: (p) => p.value ?? '—' },
         { field: 'attrs.pipeline', headerName: 'Pipeline', flex: 1 },
         { field: 'description.text', headerName: 'Description', flex: 2 },
+    ];
+
+    /** Resume/open the guided onboarding for a data-origin row (its backing pipeline). */
+    readonly originRowActions: InspectoRowAction<MetadataNode>[] = [
+        {
+            icon: 'heroicons_outline:pencil-square',
+            hint: (row) => (row.attrs?.['active'] === false ? 'Resume onboarding' : 'Open onboarding'),
+            visible: (row) => this.lens.canAuthorWorkbench() && !!row.attrs?.['pipeline'],
+            onClick: (row) => this.router.navigate(['/catalog', 'onboard', String(row.attrs?.['pipeline'])]),
+        },
     ];
 
     readonly kpiColumns: ColDef[] = [
@@ -209,4 +233,28 @@ export class CatalogComponent implements OnInit {
     onNodeRowClicked(row: MetadataNode): void {
         if (row) this.openNode(row.id);
     }
+
+    /** Header CTA (Streams/References tabs, authoring lenses): open the guided onboarding. */
+    onboard(kind: 'stream' | 'reference'): void {
+        if (!this.lens.canAuthorWorkbench()) return;
+        const existingNames = [...this.streams, ...this.references]
+            .map((n) => String(n.attrs?.['pipeline'] ?? ''))
+            .filter(Boolean);
+        this.dialog
+            .open<OnboardingCreateDialog, unknown, OnboardingCreateResult>(OnboardingCreateDialog, {
+                data: { kind, existingNames },
+                width: '560px',
+                maxWidth: '95vw',
+            })
+            .afterClosed()
+            .subscribe((res) => {
+                if (res?.name) this.router.navigate(['/catalog', 'onboard', res.name]);
+            });
+    }
+}
+
+/** Draft (`active:false`) / Live (`active:true`); blank when the row carries no active flag. */
+function lifecycleOf(attrs: Record<string, unknown> | undefined): string {
+    if (!attrs || attrs['active'] === undefined) return '';
+    return attrs['active'] === false ? 'Draft' : 'Live';
 }

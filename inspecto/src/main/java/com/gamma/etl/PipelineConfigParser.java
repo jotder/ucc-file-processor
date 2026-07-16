@@ -61,6 +61,12 @@ final class PipelineConfigParser {
         // OFF so a freshly-dropped or half-edited config never executes until explicitly armed.
         b.active = Boolean.parseBoolean(String.valueOf(raw.getOrDefault("active", "false")));
 
+        // ── catalog product (additive, v5.1.0; absent ⇒ stream = today's behaviour) ──
+        // 'produces: reference' registers this pipeline's output in the catalog as a standalone
+        // Reference Dataset (dimension/lookup origin) instead of a Stream; enrichments bind it by name.
+        Object produces = raw.get("produces");
+        b.produces = PipelineConfig.Produces.from(produces == null ? null : produces.toString());
+
         // ── entry-node trigger (T13 / §3.6; absent ⇒ default poll = today's behaviour) ──
         // Carried verbatim; the live loop (CollectorService) classifies it via PipelineTrigger into
         // schedule(every/cron) / event / manual. Absent leaves the pipeline on the global poll cycle.
@@ -293,16 +299,26 @@ final class PipelineConfigParser {
                     byCount.keySet().stream().map(String::valueOf)
                             .collect(java.util.stream.Collectors.joining(", ")));
         } else {
-            // Legacy single-schema
+            // Legacy single-schema. OPTIONAL since v5.1.0: a draft (active: false) may not have
+            // chosen its schema yet — it parses, indexes and shows in the catalog, but an armed
+            // pipeline without any schema still fails fast (clear error, formerly an NPE here).
             String schemaPath = (String) proc.get("schema_file");
-            if (schemaPath != null) b.referencedFiles.add(Paths.get(schemaPath));
-            if (!Files.exists(Paths.get(schemaPath)))
-                throw new FileNotFoundException("Schema file not found: " + schemaPath);
-            b.singleSchema = (Map<String, Object>)
-                    JToon.decode(Files.readString(Paths.get(schemaPath), StandardCharsets.UTF_8));
-            Identifiers.validateSchema(b.singleSchema, "schema_file");
-            validateFixedWidthSelectors(b.fixedWidth, b.singleSchema, "schema_file");
-            validateTextRegexSelectors(b.textRegex, b.singleSchema, "schema_file");
+            if (schemaPath == null || schemaPath.isBlank()) {
+                if (b.active)
+                    throw new IllegalArgumentException("Config error in " + sourceLabel
+                            + ": active: true but no schema is configured (processing.schema_file, "
+                            + "processing.schemas[], or a plugin ingester) — keep a draft inactive "
+                            + "until its schema is attached");
+            } else {
+                b.referencedFiles.add(Paths.get(schemaPath));
+                if (!Files.exists(Paths.get(schemaPath)))
+                    throw new FileNotFoundException("Schema file not found: " + schemaPath);
+                b.singleSchema = (Map<String, Object>)
+                        JToon.decode(Files.readString(Paths.get(schemaPath), StandardCharsets.UTF_8));
+                Identifiers.validateSchema(b.singleSchema, "schema_file");
+                validateFixedWidthSelectors(b.fixedWidth, b.singleSchema, "schema_file");
+                validateTextRegexSelectors(b.textRegex, b.singleSchema, "schema_file");
+            }
         }
 
         // ── source / connector (additive; absent ⇒ implicit LOCAL reading dirs.poll) ──────────────

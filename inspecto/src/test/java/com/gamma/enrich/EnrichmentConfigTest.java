@@ -164,4 +164,58 @@ class EnrichmentConfigTest {
                 """);
         assertThrows(IllegalArgumentException.class, () -> EnrichmentConfig.load(toon.toString()));
     }
+
+    // ── by-name references (v5.1.0): references.<name>.ref → a produces:reference pipeline ──
+
+    private static String withReferences(String referencesBlock) {
+        return """
+                name: T
+                version: 1
+                input:
+                  database: in
+                  format: PARQUET
+                  partitions[1]: day
+                references:
+                %s
+                output:
+                  database: out
+                  format: PARQUET
+                  partitions[1]: day
+                transform: "SELECT day, COUNT(*) AS n FROM input GROUP BY day"
+                """.formatted(referencesBlock);
+    }
+
+    @Test
+    void referenceBindsByNameToAProducedDataset(@TempDir Path dir) throws Exception {
+        Path toon = dir.resolve("byname.toon");
+        Files.writeString(toon, withReferences("""
+                \s\sregion_dim:
+                \s\s\s\sref: region_dim"""));
+        EnrichmentConfig cfg = EnrichmentConfig.load(toon.toString());
+        EnrichmentConfig.Reference r = cfg.references().get(0);
+        assertTrue(r.byName());
+        assertEquals("region_dim", r.ref());
+        assertNull(r.path());
+    }
+
+    @Test
+    void referenceWithBothPathAndRefThrows(@TempDir Path dir) throws Exception {
+        Path toon = dir.resolve("both.toon");
+        Files.writeString(toon, withReferences("""
+                \s\sregion_dim:
+                \s\s\s\spath: ref/region.parquet
+                \s\s\s\sref: region_dim"""));
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+                () -> EnrichmentConfig.load(toon.toString()));
+        assertTrue(ex.getMessage().contains("exactly one of 'path' or 'ref'"), ex.getMessage());
+    }
+
+    @Test
+    void referenceWithNeitherPathNorRefThrows(@TempDir Path dir) throws Exception {
+        Path toon = dir.resolve("neither.toon");
+        Files.writeString(toon, withReferences("""
+                \s\sregion_dim:
+                \s\s\s\sformat: CSV"""));
+        assertThrows(IllegalArgumentException.class, () -> EnrichmentConfig.load(toon.toString()));
+    }
 }

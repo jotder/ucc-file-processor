@@ -2,6 +2,7 @@ package com.gamma.enrich;
 
 import com.gamma.etl.PartitionOutput;
 import com.gamma.etl.PartitionWriter;
+import com.gamma.etl.PipelineConfig;
 import com.gamma.sql.SqlViews;
 import com.gamma.util.DuckDbUtil;
 import org.slf4j.Logger;
@@ -13,6 +14,7 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 /**
@@ -78,13 +80,24 @@ public final class EnrichmentEngine {
      */
     public static Result runResult(EnrichmentConfig cfg,
                                    List<Map<String, String>> partitionFilter) throws Exception {
+        return runResult(cfg, partitionFilter, List.of());
+    }
+
+    /**
+     * As {@link #runResult(EnrichmentConfig, List)}, additionally supplying the loaded pipelines so
+     * a by-name reference ({@code references.<name>.ref:} → a {@code produces: reference} pipeline)
+     * can resolve to that pipeline's partitioned output. Callers without a pipeline context pass an
+     * empty list — a by-name reference then fails with a clear error (use {@code path:} instead).
+     */
+    public static Result runResult(EnrichmentConfig cfg, List<Map<String, String>> partitionFilter,
+                                   List<PipelineConfig> pipelines) throws Exception {
         File db = DuckDbUtil.tempDbFile("enrich_");
         try (Connection conn = DuckDbUtil.openConnection(db); Statement st = conn.createStatement()) {
 
             // 1. reference views
             for (EnrichmentConfig.Reference r : cfg.references()) {
                 st.execute("CREATE VIEW \"" + r.name() + "\" AS SELECT * FROM "
-                        + SqlViews.reader(r.format(), r.path(), false));
+                        + referenceReader(r, pipelines));
             }
 
             // 2. input view over the selected Stage-1 partitions
@@ -119,6 +132,29 @@ public final class EnrichmentEngine {
     }
 
     // ── helpers ────────────────────────────────────────────────────────────────
+
+    /**
+     * The table-function expression for one reference view: a direct {@code path} reads the file
+     * as-is; a by-name {@code ref} resolves to the declaring {@code produces: reference} pipeline's
+     * Hive-partitioned Stage-1 output (its {@code dirs.database} glob, its output format).
+     */
+    private static String referenceReader(EnrichmentConfig.Reference r, List<PipelineConfig> pipelines) {
+        if (!r.byName()) return SqlViews.reader(r.format(), r.path(), false);
+        PipelineConfig p = (pipelines == null ? List.<PipelineConfig>of() : pipelines).stream()
+                .filter(c -> c.identity().pipelineName().equals(r.ref()))
+                .findFirst()
+                .orElseThrow(() -> new IllegalArgumentException(
+                        "reference '" + r.name() + "' binds ref: '" + r.ref()
+                                + "' but no such pipeline is loaded (by-name references need the "
+                                + "service's pipeline context; use path: for a plain file)"));
+        if (!p.producesReference())
+            throw new IllegalArgumentException("reference '" + r.name() + "' binds ref: '" + r.ref()
+                    + "' but that pipeline does not declare 'produces: reference'");
+        String format = (p.output() == null || p.output().format() == null)
+                ? "CSV" : p.output().format().toUpperCase(Locale.ROOT);
+        String glob = p.dirs().database() + "/**/*." + SqlViews.ext(format);
+        return SqlViews.reader(format, glob, true);
+    }
 
     /** {@code COUNT(*)} of the materialised transform result. */
     private static long countRows(Statement st, String table) throws SQLException {

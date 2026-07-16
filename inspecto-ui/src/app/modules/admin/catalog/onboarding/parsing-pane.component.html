@@ -1,0 +1,105 @@
+<div class="flex max-w-3xl flex-col gap-4">
+    @if (pluginManaged) {
+        <inspecto-alert variant="info" icon="heroicons_outline:puzzle-piece" title="Plugin ingester">
+            This pipeline parses through a Java plugin ingester with segment schemas — author that in
+            the pipeline TOON directly. The guided editor does not modify plugin parsing.
+        </inspecto-alert>
+    } @else {
+        <p class="text-secondary m-0">
+            How each collected file's raw bytes become rows. Pick a frontend, then test it against your
+            captured sample — the preview runs the same DuckDB reads the engine uses.
+        </p>
+
+        <mat-button-toggle-group
+            [value]="frontend()"
+            (change)="setFrontend($event.value)"
+            aria-label="Parsing frontend"
+        >
+            @for (f of frontends; track f.id) {
+                <mat-button-toggle [value]="f.id" [matTooltip]="f.hint">{{ f.label }}</mat-button-toggle>
+            }
+        </mat-button-toggle-group>
+
+        <inspecto-schema-form #sf [specs]="specs()" [initial]="initial" (submitted)="save()" />
+
+        @if (frontend() === 'fixedwidth') {
+            <div class="text-secondary text-xs font-semibold uppercase tracking-wider">Fields (name · start · length)</div>
+            <form [formGroup]="fwForm">
+                <div formArrayName="fields" class="flex flex-col gap-2">
+                    @for (g of fwFields.controls; track $index; let i = $index) {
+                        <div [formGroupName]="i" class="flex items-center gap-2">
+                            <mat-form-field class="flex-1" subscriptSizing="dynamic">
+                                <mat-label>Name</mat-label>
+                                <input matInput formControlName="name" />
+                                @if (g.get('name')?.hasError('required') && g.get('name')?.touched) {
+                                    <mat-error>A field name is required.</mat-error>
+                                }
+                            </mat-form-field>
+                            <mat-form-field class="w-28" subscriptSizing="dynamic">
+                                <mat-label>Start</mat-label>
+                                <input matInput type="number" min="0" formControlName="start" />
+                            </mat-form-field>
+                            <mat-form-field class="w-28" subscriptSizing="dynamic">
+                                <mat-label>Length</mat-label>
+                                <input matInput type="number" min="1" formControlName="length" />
+                            </mat-form-field>
+                            <button
+                                mat-icon-button
+                                type="button"
+                                (click)="removeField(i)"
+                                matTooltip="Remove field"
+                                aria-label="Remove field"
+                            >
+                                <mat-icon class="icon-size-5" svgIcon="heroicons_outline:x-mark"></mat-icon>
+                            </button>
+                        </div>
+                    }
+                    <button mat-stroked-button type="button" class="self-start" (click)="addField()">
+                        <mat-icon svgIcon="heroicons_outline:plus"></mat-icon>
+                        <span class="ml-1">Add field</span>
+                    </button>
+                </div>
+            </form>
+        }
+
+        <div class="flex flex-wrap items-center gap-3">
+            <button
+                mat-stroked-button
+                type="button"
+                [disabled]="testing() || !state.sample()"
+                (click)="testParse()"
+                [matTooltip]="state.sample() ? 'Parse the captured sample with these settings' : 'Capture a sample first (right panel)'"
+            >
+                @if (testing()) {
+                    <mat-progress-spinner diameter="16" mode="indeterminate" class="mr-2" />
+                }
+                Test parse
+            </button>
+            <button
+                mat-flat-button
+                color="primary"
+                [disabled]="saving() || !lens.canAuthorWorkbench()"
+                (click)="save()"
+            >
+                Save parsing
+            </button>
+            @if (!state.sample()) {
+                <span class="text-secondary text-sm">No sample captured yet — use the sample panel.</span>
+            }
+        </div>
+
+        @if (state.parseError(); as err) {
+            <inspecto-alert variant="error" title="Sample does not parse">{{ err }}</inspecto-alert>
+        }
+        @if (state.parsePreview(); as p) {
+            <div class="flex items-center gap-3 text-sm">
+                <span class="font-semibold">Parsed sample</span>
+                <span class="text-secondary">{{ p.frontend }} · {{ p.columns.length }} columns · {{ p.rowCount }} rows</span>
+                @if (p.rejectedRows > 0) {
+                    <span class="text-secondary">· {{ p.rejectedRows }} rejected</span>
+                }
+            </div>
+            <inspecto-query-panel [source]="parsedSource()" />
+        }
+    }
+</div>

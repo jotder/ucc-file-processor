@@ -17,6 +17,7 @@ import { expectationsHandler } from './handlers/expectations.handler';
 import { healthHandler } from './handlers/health.handler';
 import { invHandler } from './handlers/inv.handler';
 import { jobsHandler } from './handlers/jobs.handler';
+import { onboardingHandler } from './handlers/onboarding.handler';
 import { opsHandler } from './handlers/ops.handler';
 import { pipelinesHandler } from './handlers/pipelines.handler';
 import { requirementsHandler } from './handlers/requirements.handler';
@@ -58,6 +59,7 @@ const HANDLERS: MockHandler[] = [
     dbBrowserHandler(flags), // /db/* raw table browser — ahead of demoHandler (its /catalog$ regex also matches /db/catalog)
     accessHandler(flags), // /access/* lens access config — same /catalog$ collision, so also ahead of demoHandler
     demoHandler(flags),
+    onboardingHandler(flags), // /config/write|preview|pipeline/{name} + POST /runs — after demo's /config/spec + /validate
     connectionsHandler(flags),
     componentsHandler(flags),
     pipelinesHandler(flags),

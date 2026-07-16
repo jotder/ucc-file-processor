@@ -1,8 +1,9 @@
 import { TestBed } from '@angular/core/testing';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import { MatDialog } from '@angular/material/dialog';
+import { provideRouter } from '@angular/router';
 import { of, throwError } from 'rxjs';
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 import { GammaConfigService } from '@gamma/services/config';
 import { CatalogService, ExchangeService, MetadataGraph, MetadataNode, PipelinesService, SessionService, SpacesService } from 'app/inspecto/api';
 import { ToastrService } from 'ngx-toastr';
@@ -12,6 +13,10 @@ import { ComponentsDataProvider } from './components-data-provider';
 import { CatalogComponent } from './catalog.component';
 
 const TABLE: MetadataNode = { id: 'tbl/cdr', kind: 'TABLE', label: 'cdr' };
+const STREAM: MetadataNode = {
+    id: 'stream:orders', kind: 'STREAM', label: 'orders',
+    attrs: { connector: 'local', pipeline: 'orders', active: false },
+};
 const GRAPH: MetadataGraph = { nodes: [TABLE], edges: [] };
 const EMPTY_GRAPH: MetadataGraph = { nodes: [], edges: [] };
 
@@ -28,6 +33,7 @@ function create(overrides: Partial<CatalogService> = {}) {
         imports: [CatalogComponent],
         providers: [
             provideNoopAnimations(),
+            provideRouter([]),
             { provide: CatalogService, useValue: api },
             { provide: MatDialog, useValue: {} },
             { provide: InspectoGridThemeService, useValue: { theme: () => ({}) } },
@@ -48,10 +54,12 @@ function create(overrides: Partial<CatalogService> = {}) {
 }
 
 describe('CatalogComponent', () => {
-    it('loads the Tables tab on init', () => {
-        const c = create().componentInstance;
-        expect(c.activeTab).toBe('tables');
-        expect(c.nodes).toEqual([TABLE]);
+    beforeEach(() => localStorage.removeItem('inspecto.currentLens'));
+
+    it('loads the Streams tab on init (data origins are the default tab)', () => {
+        const c = create({ streams: () => of([STREAM]) }).componentInstance;
+        expect(c.activeTab).toBe('streams');
+        expect(c.streams).toEqual([STREAM]);
     });
 
     it('offers the two Exchange tabs when bootstrap.features.exchange is on', () => {
@@ -68,9 +76,9 @@ describe('CatalogComponent', () => {
         expect(c.kpis).toEqual([]);
     });
 
-    it('degrades gracefully when the tables call fails', () => {
-        const c = create({ tables: () => throwError(() => ({ status: 404 })) }).componentInstance;
-        expect(c.nodes).toEqual([]);
+    it('degrades gracefully when the streams call fails', () => {
+        const c = create({ streams: () => throwError(() => ({ status: 404 })) }).componentInstance;
+        expect(c.streams).toEqual([]);
         expect(c.loading).toBe(false);
     });
 

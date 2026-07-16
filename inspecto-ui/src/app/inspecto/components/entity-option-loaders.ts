@@ -1,6 +1,6 @@
 import { inject } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
-import { ComponentsService, JobsService, RunsService } from 'app/inspecto/api';
+import { ComponentsService, ConnectionsService, JobsService, RunsService } from 'app/inspecto/api';
 import { AttributeOption } from 'app/inspecto/component-model';
 import { AttributeOptionLoader } from './schema-form.component';
 
@@ -32,4 +32,10 @@ export function pipelineOrJobOptionLoader(targetTypeKey = 'targetType'): Attribu
 export function datasetOptionLoader(): AttributeOptionLoader {
     const components = inject(ComponentsService);
     return async () => toOptions((await firstValueFrom(components.list('dataset'))).map((d) => d.name));
+}
+
+/** Saved Connection profiles (by id) — the collector's `connection:` reference. */
+export function connectionOptionLoader(): AttributeOptionLoader {
+    const connections = inject(ConnectionsService);
+    return async () => toOptions((await firstValueFrom(connections.list())).map((c) => c.id));
 }

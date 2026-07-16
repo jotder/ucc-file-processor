@@ -67,6 +67,7 @@ export function statusTone(value: string | null | undefined): StatusTone {
         case 'RESOLVED':
         case 'CLOSED':
         case 'ACTIVE':
+        case 'LIVE':
             return 'success';
         default:
             return 'neutral';

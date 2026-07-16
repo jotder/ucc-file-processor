@@ -15,6 +15,8 @@ import java.util.Optional;
  *   <li>{@code col:<pipeline>/<key|table>/<column>}</li>
  *   <li>{@code xform:<enrichName>}</li>
  *   <li>{@code ref:<enrichName>/<refName>}</li>
+ *   <li>{@code ref:<pipeline>} — a pipeline-produced Reference Dataset ({@code produces: reference};
+ *       no {@code /}, which keeps it disjoint from the enrichment-scoped form above)</li>
  *   <li>{@code kpi:<name>}</li>
  *   <li>{@code report:<name>}</li>
  * </ul>
@@ -49,6 +51,11 @@ public final class IdScheme {
 
     public static String reference(String enrichName, String refName) {
         return "ref:" + enrichName + "/" + refName;
+    }
+
+    /** A Reference Dataset produced by a {@code produces: reference} pipeline (standalone, no slash). */
+    public static String producedReference(String pipeline) {
+        return "ref:" + pipeline;
     }
 
     public static String kpi(String name) {

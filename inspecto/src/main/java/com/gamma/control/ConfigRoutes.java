@@ -10,6 +10,7 @@ import com.gamma.config.spec.Finding;
 import com.gamma.config.spec.Severity;
 import com.gamma.etl.ConfigValidator;
 import com.gamma.etl.PipelineConfig;
+import com.gamma.pipeline.exec.ComponentPreview;
 import com.gamma.util.AtomicFiles;
 import com.sun.net.httpserver.HttpExchange;
 import org.slf4j.Logger;
@@ -25,10 +26,11 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Declarative-config routes ({@code /config/spec}, {@code /validate}, {@code /config/write};
- * v3.2.0/v4.1.0): describe a config type's spec, validate a saved file or an unsaved draft, and
- * persist a validated draft (write-root jailed, atomic). Extracted verbatim from {@link ControlApi}:
- * identical routes, statuses, gating order and on-disk behaviour.
+ * Declarative-config routes ({@code /config/spec}, {@code /validate}, {@code /config/write},
+ * {@code DELETE /config/&#123;type&#125;/&#123;name&#125;}; v3.2.0/v4.1.0/v5.1.0): describe a config
+ * type's spec, validate a saved file or an unsaved draft, persist a validated draft (write-root
+ * jailed, atomic), and discard one (draft delete; never an active pipeline). Extracted verbatim from
+ * {@link ControlApi}: identical routes, statuses, gating order and on-disk behaviour.
  *
  * <p>{@link #schemaFileFindings} is shared with the pipeline-registration route that stays on
  * {@link ControlApi}; it lives here with the rest of the config-validation logic.
@@ -45,8 +47,19 @@ final class ConfigRoutes implements RouteModule {
             return spec;
         });
         api.post("/validate", (e, m) -> validate(api.body(e)));
+        // Parse a raw sample with a draft's parsing: settings — stateless, scratch-only (stream
+        // onboarding's sample-as-thread; the raw→parsed hop).
+        api.post("/config/preview/parsing", (e, m) -> previewParsing(api.body(e)));
         // Requires canAuthorWorkbench (W6; a no-op on Personal — no Subject is ever attached there).
         api.post("/config/write", ApiContext.withCapability("canAuthorWorkbench", (e, m) -> writeConfig(api, e, api.body(e))));
+        // Draft discard (stream onboarding): delete a config file under the write root — never an
+        // active pipeline. Optional ?subdir= mirrors /config/write's subdir.
+        api.delete("/config/([^/]+)/([^/]+)", ApiContext.withCapability("canAuthorWorkbench",
+                (e, m) -> deleteConfig(api, e, ApiContext.name(m), ApiContext.param(m, 2))));
+        // Draft read-back (stream onboarding resume): return a config file's decoded content.
+        // Registered after /config/spec/…, which therefore keeps serving type="spec" lookups.
+        api.get("/config/([^/]+)/([^/]+)",
+                (e, m) -> readConfig(api, e, ApiContext.name(m), ApiContext.param(m, 2)));
     }
 
     private Object validate(Map<String, Object> body) throws IOException {
@@ -152,6 +165,129 @@ final class ConfigRoutes implements RouteModule {
         r.put("overwritten", exists);
         r.put("findings", findings);   // warnings only at this point (errors would have 422'd)
         return r;
+    }
+
+    /**
+     * {@code DELETE /config/{type}/{name}} — discard a config file under the write root (the
+     * onboarding draft-discard path, v5.1.0). Fail-closed gate order: write-root 503 → unknown type
+     * 404 → unsafe name 422 → path jail 403 → missing file 404 → active pipeline 409 → single
+     * atomic delete. An {@code active: true} pipeline is never deleted — deactivate it first.
+     */
+    private Object deleteConfig(ApiContext api, HttpExchange ex, String type, String name) throws IOException {
+        Path writeRoot = WriteGates.requireWriteRoot(api, "config delete");
+        if (ConfigSpecs.forType(type) == null) throw new ApiException(404, "unknown config type: " + type);
+        String fileName = WriteGates.safeName(name, "config name");
+
+        Path dir = writeRoot;
+        String subdir = ApiContext.query(ex, "subdir");
+        if (subdir != null && !subdir.isBlank()) {
+            Path sub = Path.of(subdir.trim());
+            if (sub.isAbsolute()) throw new ApiException(400, "subdir must be relative");
+            dir = WriteGates.jail(writeRoot, writeRoot.resolve(sub), "subdir");
+        }
+        Path target = WriteGates.jail(writeRoot, dir.resolve(fileName + ".toon"), "resolved path");
+        String rel = writeRoot.relativize(target).toString().replace('\\', '/');
+        if (!Files.isRegularFile(target)) throw new ApiException(404, "no such config: " + rel);
+
+        if ("pipeline".equals(type)) {
+            Map<String, Object> raw = ConfigLoader.filesystem().decode(target.toString());
+            WriteGates.conflictIf(
+                    Boolean.parseBoolean(String.valueOf(raw.getOrDefault("active", "false"))),
+                    "pipeline '" + fileName + "' is active; deactivate (active: false) before deleting");
+        }
+
+        Files.delete(target);
+        log.info("[CONFIG-DELETE] type={} deleted {}", type, rel);
+        Map<String, Object> r = new LinkedHashMap<>();
+        r.put("type", type);
+        r.put("name", fileName);
+        r.put("deleted", true);
+        r.put("path", rel);
+        return r;
+    }
+
+    /**
+     * {@code GET /config/{type}/{name}} — read a config file back as its decoded map (the
+     * onboarding resume path, v5.1.0). Same resolution and gate order as {@code DELETE}:
+     * write-root 503 → unknown type 404 → unsafe name 422 → path jail 403 → missing file 404.
+     * Ungated like the other reads; the write/delete mutations stay capability-gated.
+     */
+    private Object readConfig(ApiContext api, HttpExchange ex, String type, String name) throws IOException {
+        Path writeRoot = WriteGates.requireWriteRoot(api, "config read");
+        if (ConfigSpecs.forType(type) == null) throw new ApiException(404, "unknown config type: " + type);
+        String fileName = WriteGates.safeName(name, "config name");
+
+        Path dir = writeRoot;
+        String subdir = ApiContext.query(ex, "subdir");
+        if (subdir != null && !subdir.isBlank()) {
+            Path sub = Path.of(subdir.trim());
+            if (sub.isAbsolute()) throw new ApiException(400, "subdir must be relative");
+            dir = WriteGates.jail(writeRoot, writeRoot.resolve(sub), "subdir");
+        }
+        Path target = WriteGates.jail(writeRoot, dir.resolve(fileName + ".toon"), "resolved path");
+        String rel = writeRoot.relativize(target).toString().replace('\\', '/');
+        if (!Files.isRegularFile(target)) throw new ApiException(404, "no such config: " + rel);
+
+        Map<String, Object> config = ConfigLoader.filesystem().decode(target.toString());
+        Map<String, Object> r = new LinkedHashMap<>();
+        r.put("type", type);
+        r.put("name", fileName);
+        r.put("path", rel);
+        r.put("config", config);
+        return r;
+    }
+
+    /** Character cap on {@code sample_text} — a preview sample, not a data upload. */
+    private static final int MAX_SAMPLE_CHARS = 1_000_000;
+
+    /**
+     * {@code POST /config/preview/parsing} — parse a raw sample with a pipeline draft's
+     * {@code parsing:} settings and return the produced columns/rows (stream onboarding,
+     * v5.1.0). Stateless and scratch-only: body {@code {config:{…}, sample_text}} where
+     * {@code config} is a full pipeline draft map (the same shape {@code /validate} takes).
+     * The draft is interpreted by the real config parser and the sample is read with the same
+     * DuckDB idioms the ingest engine uses ({@link ComponentPreview#parsing}), so what the
+     * builder sees is what the engine would parse. Config/parse problems are the caller's
+     * (422 with the reason), never a server error.
+     */
+    private Object previewParsing(Map<String, Object> body) {
+        Object cfgObj = body.get("config");
+        String sample = ApiContext.str(body, "sample_text");
+        if (!(cfgObj instanceof Map<?, ?>) || sample == null || sample.isBlank())
+            throw new ApiException(400, "body must include 'config' (a pipeline draft map) and 'sample_text'");
+        if (sample.length() > MAX_SAMPLE_CHARS)
+            throw new ApiException(400, "sample_text too large (max " + MAX_SAMPLE_CHARS + " chars)");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> draft = (Map<String, Object>) cfgObj;
+        PipelineConfig cfg;
+        try {
+            cfg = PipelineConfig.fromMap(draft);
+        } catch (Exception invalid) {
+            throw new ApiException(422, "config is not a valid pipeline draft: " + invalid.getMessage());
+        }
+        try {
+            ComponentPreview.GrammarResult r = ComponentPreview.parsing(cfg, sample);
+            Map<String, Object> out = new LinkedHashMap<>();
+            out.put("frontend", frontendOf(cfg));
+            out.put("columns", r.columns());
+            out.put("rowCount", r.rowCount());
+            out.put("rows", r.rows());
+            out.put("rejectedRows", r.rejectedRows());
+            return out;
+        } catch (IllegalArgumentException unsupported) {
+            throw new ApiException(422, unsupported.getMessage());
+        } catch (Exception parseFail) {
+            throw new ApiException(422, "sample does not parse with these settings: " + parseFail.getMessage());
+        }
+    }
+
+    /** The parsing frontend a config resolves to (the same precedence the ingester applies). */
+    private static String frontendOf(PipelineConfig cfg) {
+        if (cfg.fixedWidth() != null) return "fixedwidth";
+        if (cfg.json() != null) return "json";
+        if (cfg.textRegex() != null) return "text_regex";
+        if (cfg.schemas().ingesterClass() != null) return "plugin";
+        return "delimited";
     }
 
     /**

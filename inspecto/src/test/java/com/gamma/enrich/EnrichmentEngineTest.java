@@ -1,6 +1,7 @@
 package com.gamma.enrich;
 
 import com.gamma.etl.PartitionOutput;
+import com.gamma.etl.PipelineConfig;
 import com.gamma.util.DuckDbUtil;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -177,6 +178,87 @@ class EnrichmentEngineTest {
         } finally {
             DuckDbUtil.deleteTempDb(vdb);
         }
+    }
+
+    /** A minimal {@code produces: reference} pipeline whose output tree is {@code refdb}. */
+    private static PipelineConfig referenceProducer(Path dir, Path refdb, String format) throws Exception {
+        return PipelineConfig.fromMap(Map.of(
+                "name", "REGION_DIM",
+                "produces", "reference",
+                "dirs", Map.of("poll", dir.resolve("ref_in").toString(), "database", refdb.toString()),
+                "output", Map.of("format", format),
+                "processing", Map.of("threads", 1)));
+    }
+
+    @Test
+    void joinsAgainstPipelineProducedReferenceByName(@TempDir Path dir) throws Exception {
+        Path in = dir.resolve("in"), out = dir.resolve("out"), refdb = dir.resolve("refdb");
+        seedInput(in);
+
+        // the "produced" Reference Dataset: a Hive-partitioned tree, as a reference pipeline writes it
+        File db = DuckDbUtil.tempDbFile("refseed_");
+        try (Connection c = DuckDbUtil.openConnection(db); Statement st = c.createStatement()) {
+            st.execute("COPY (SELECT * FROM (VALUES ('CALL','NA'),('SMS','EU')) t(event_type,region)) TO '"
+                    + refdb.toString().replace("\\", "/")
+                    + "' (FORMAT PARQUET, PARTITION_BY (region), OVERWRITE_OR_IGNORE 1)");
+        } finally {
+            DuckDbUtil.deleteTempDb(db);
+        }
+
+        String transform = "SELECT i.event_type, i.year, i.month, i.day, COUNT(*) AS event_count, "
+                + "ANY_VALUE(r.region) AS region FROM input i LEFT JOIN region_dim r "
+                + "ON i.event_type = r.event_type GROUP BY i.event_type, i.year, i.month, i.day";
+        EnrichmentConfig cfg = new EnrichmentConfig(
+                "EVENTS_DAILY_KPI",
+                new EnrichmentConfig.Input(in.toString().replace("\\", "/"), "PARQUET",
+                        List.of("event_type", "year", "month", "day")),
+                List.of(new EnrichmentConfig.Reference("region_dim", null, null, "region_dim")),
+                new EnrichmentConfig.Output(out.toString().replace("\\", "/"), "PARQUET", "snappy",
+                        List.of("event_type", "year", "month", "day")),
+                transform);
+
+        EnrichmentEngine.runResult(cfg, null, List.of(referenceProducer(dir, refdb, "PARQUET")));
+
+        File vdb2 = DuckDbUtil.tempDbFile("vfy2_");
+        try (Connection c = DuckDbUtil.openConnection(vdb2); Statement st = c.createStatement();
+             ResultSet rs = st.executeQuery(
+                     "SELECT event_type, region FROM read_parquet('" + out.toString().replace("\\", "/")
+                     + "/**/*.parquet', hive_partitioning=true, hive_types_autocast=0) "
+                     + "WHERE event_type='CALL' LIMIT 1")) {
+            assertTrue(rs.next());
+            assertEquals("NA", rs.getString("region"), "by-name reference resolved and joined");
+        } finally {
+            DuckDbUtil.deleteTempDb(vdb2);
+        }
+    }
+
+    @Test
+    void byNameReferenceWithoutPipelineContextFailsClearly(@TempDir Path dir) {
+        EnrichmentConfig cfg = new EnrichmentConfig("X",
+                new EnrichmentConfig.Input(dir.resolve("in").toString(), "PARQUET", List.of("day")),
+                List.of(new EnrichmentConfig.Reference("region_dim", null, null, "region_dim")),
+                new EnrichmentConfig.Output(dir.resolve("out").toString(), "PARQUET", null, List.of("day")),
+                "SELECT 1");
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+                () -> EnrichmentEngine.run(cfg));
+        assertTrue(ex.getMessage().contains("no such pipeline is loaded"), ex.getMessage());
+    }
+
+    @Test
+    void byNameReferenceToANonReferencePipelineFails(@TempDir Path dir) throws Exception {
+        PipelineConfig plainStream = PipelineConfig.fromMap(Map.of(
+                "name", "REGION_DIM",
+                "dirs", Map.of("poll", dir.resolve("ref_in").toString(),
+                        "database", dir.resolve("refdb").toString()),
+                "processing", Map.of("threads", 1)));
+        EnrichmentConfig cfg = new EnrichmentConfig("X",
+                new EnrichmentConfig.Input(dir.resolve("in").toString(), "PARQUET", List.of("day")),
+                List.of(new EnrichmentConfig.Reference("region_dim", null, null, "region_dim")),
+                new EnrichmentConfig.Output(dir.resolve("out").toString(), "PARQUET", null, List.of("day")),
+                "SELECT 1");
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+                () -> EnrichmentEngine.runResult(cfg, null, List.of(plainStream)));
+        assertTrue(ex.getMessage().contains("does not declare 'produces: reference'"), ex.getMessage());
     }
 
     @Test

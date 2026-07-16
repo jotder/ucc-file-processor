@@ -109,9 +109,11 @@ public final class PipelineConfig {
     public record Output(String format, String compression, Map<String, Object> duckLake) {}
 
     /**
-     * Schema resolution — exactly one of {@code selector} (multi-schema {@code schemas[]}),
+     * Schema resolution — at most one of {@code selector} (multi-schema {@code schemas[]}),
      * {@code single} (legacy {@code schema_file}), or {@code segments} (plugin path) is
-     * non-null. {@code ingesterClass} is the plugin FQCN ({@code null} for built-in CSV);
+     * non-null; all three are {@code null} for a schema-less <em>draft</em> (v5.1.0 — allowed
+     * only while {@code active: false}; arming without a schema is rejected at parse).
+     * {@code ingesterClass} is the plugin FQCN ({@code null} for built-in CSV);
      * {@code ingesterConfig} is the plugin's free-form settings map (empty, never null).
      */
     @PublicApi(since = "2.0.0")
@@ -478,6 +480,33 @@ public final class PipelineConfig {
         public boolean active() { return !"RETAIN".equals(onSuccess); }
     }
 
+    /**
+     * What this pipeline's output registers as in the Catalog ({@code produces:} top-level key,
+     * v5.1.0; absent ⇒ {@link #STREAM} — exactly the prior behaviour). A {@code reference}
+     * pipeline's partitioned output is a <b>Reference Dataset</b> (dimension/lookup data origin)
+     * rather than an event/fact Stream: the catalog registers it standalone (id
+     * {@code ref:<pipeline>}) and Stage-2 enrichments may bind it by name
+     * ({@code references.<name>.ref:}) instead of a raw path.
+     */
+    @PublicApi(since = "5.1.0")
+    public enum Produces {
+        /** Event/fact data origin — the default; the catalog registers a Stream. */
+        STREAM,
+        /** Dimension/lookup data origin — the catalog registers a standalone Reference Dataset. */
+        REFERENCE;
+
+        /** Parse the {@code produces:} value; blank/absent ⇒ {@link #STREAM}, anything else must match. */
+        public static Produces from(String s) {
+            if (s == null || s.isBlank()) return STREAM;
+            return switch (s.trim().toUpperCase(Locale.ROOT)) {
+                case "STREAM"    -> STREAM;
+                case "REFERENCE" -> REFERENCE;
+                default -> throw new IllegalArgumentException(
+                        "produces must be 'stream' or 'reference', got: '" + s + "'");
+            };
+        }
+    }
+
     // ── grouped state + accessors ──────────────────────────────────────────────
 
     private final Identity   identity;
@@ -502,6 +531,9 @@ public final class PipelineConfig {
      * deliberate fail-safe so a freshly-dropped or half-edited config never runs until explicitly armed.
      */
     private final boolean active;
+
+    /** What the output registers as in the Catalog ({@code produces:}, v5.1.0; default STREAM). */
+    private final Produces produces;
 
     /**
      * The optional entry-node {@code trigger:} block (T13 / §3.6) verbatim, or {@code null} when absent.
@@ -547,6 +579,10 @@ public final class PipelineConfig {
     public Collector      collector()  { return collector; }
     /** Whether this pipeline is activated for execution ({@code active:}, default {@code false}). */
     public boolean        active()     { return active; }
+    /** What the output registers as in the Catalog ({@code produces:}, default {@link Produces#STREAM}). */
+    public Produces       produces()   { return produces; }
+    /** Whether this pipeline's output is a Reference Dataset ({@code produces: reference}). */
+    public boolean producesReference() { return produces == Produces.REFERENCE; }
     /** The raw entry-node {@code trigger:} block (T13), or {@code null} when absent (⇒ default poll). */
     public Map<String, Object> triggerConfig() { return trigger; }
     /** The schema/grammar/segment files this config referenced at parse time (for change-watching). */
@@ -591,6 +627,7 @@ public final class PipelineConfig {
                 b.sourceDiscovery);
         this.statusDirToPrepare = b.statusDirToPrepare;
         this.active = b.active;
+        this.produces = b.produces;
         this.trigger = b.trigger;
         this.referencedFiles = List.copyOf(b.referencedFiles);
     }
@@ -631,6 +668,7 @@ public final class PipelineConfig {
         this.collector = src.collector;
         this.statusDirToPrepare = src.statusDirToPrepare;
         this.active = src.active;
+        this.produces = src.produces;
         this.trigger = src.trigger;
         this.referencedFiles = src.referencedFiles;
     }
@@ -700,6 +738,7 @@ public final class PipelineConfig {
         String pipelineName  = "";
         String runTimestamp  = "";
         boolean active       = false;   // opt-in: a pipeline runs only with `active: true`
+        Produces produces    = Produces.STREAM;   // catalog product; `produces: reference` ⇒ Reference Dataset
         Map<String, Object> trigger = null;   // optional entry-node trigger: block (T13); null ⇒ default poll
         final List<Path> referencedFiles = new ArrayList<>();   // schema/grammar/segment files read at parse
         String pollDir       = "";

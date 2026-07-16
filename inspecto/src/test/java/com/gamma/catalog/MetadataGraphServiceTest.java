@@ -6,6 +6,7 @@ import com.gamma.etl.PipelineConfigBatchTest;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.EnumSet;
@@ -191,5 +192,73 @@ class MetadataGraphServiceTest {
         MetadataGraphService svc = new MetadataGraphService(fullFixture(dir));
         assertEquals(0, svc.traverse("kpi:nope", 3, MetadataGraphService.Direction.BOTH, null, null, false)
                 .nodes().size());
+    }
+
+    // ── produces:reference (v5.1.0) — standalone Reference Datasets + by-name binding ──
+
+    /** A minimal {@code produces: reference} pipeline (dimension origin). */
+    private static PipelineConfig referencePipeline(Path dir) throws Exception {
+        Path toon = dir.resolve("region_dim_pipeline.toon");
+        Files.writeString(toon, """
+                name: REGION_DIM
+                produces: reference
+                version: 1
+                dirs:
+                  poll: %s/ref_inbox
+                  database: %s/refdb
+                output:
+                  format: CSV
+                processing:
+                  threads: 1
+                """.formatted(dir.toString().replace("\\", "/"), dir.toString().replace("\\", "/")));
+        return PipelineConfig.load(toon.toString());
+    }
+
+    private static EnrichmentConfig byNameEnrichment(String name) {
+        return new EnrichmentConfig(name,
+                new EnrichmentConfig.Input("database/y", "PARQUET", List.of("year")),
+                List.of(new EnrichmentConfig.Reference("region_dim", null, "CSV", "region_dim")),
+                new EnrichmentConfig.Output("reports/y", "PARQUET", null, List.of("year")),
+                "SELECT 1");
+    }
+
+    @Test
+    void producesReferenceRegistersStandaloneReferenceDataset(@TempDir Path dir) throws Exception {
+        Fixture f = new Fixture();
+        f.pipelines.add(referencePipeline(dir));
+        MetadataGraphService svc = new MetadataGraphService(f);
+        Set<String> ids = ids(svc.structural().nodes());
+
+        assertTrue(ids.contains("ref:region_dim"), ids.toString());
+        assertFalse(ids.contains("stream:region_dim"), "a reference pipeline is not a Stream origin");
+        assertEquals(NodeKind.REFERENCE_DATASET, svc.node("ref:region_dim").kind());
+        assertEquals("CSV", svc.node("ref:region_dim").attrs().get("format"));
+        assertEquals("region_dim", svc.node("ref:region_dim").attrs().get("pipeline"));
+    }
+
+    @Test
+    void byNameReferenceBindsToTheProducedNode(@TempDir Path dir) throws Exception {
+        Fixture f = new Fixture();
+        f.pipelines.add(referencePipeline(dir));
+        f.enrichments.add(byNameEnrichment("BY_NAME"));
+        MetadataGraph g = new MetadataGraphService(f).structural();
+
+        assertTrue(hasEdge(g, "ref:region_dim", "xform:BY_NAME", EdgeKind.JOINS_INTO),
+                "by-name ref binds to the produced node");
+        assertFalse(ids(g.nodes()).contains("ref:BY_NAME/region_dim"),
+                "no enrichment-scoped duplicate when the produced node exists");
+    }
+
+    @Test
+    void byNameReferenceFallsBackToScopedNodeWhenPipelineMissing(@TempDir Path dir) throws Exception {
+        Fixture f = new Fixture();
+        f.enrichments.add(byNameEnrichment("ORPHAN"));
+        MetadataGraphService svc = new MetadataGraphService(f);
+        MetadataGraph g = svc.structural();
+
+        assertTrue(ids(g.nodes()).contains("ref:ORPHAN/region_dim"), "scoped fallback node created");
+        assertEquals("region_dim", svc.node("ref:ORPHAN/region_dim").attrs().get("ref"),
+                "unresolved by-name declaration recorded");
+        assertTrue(hasEdge(g, "ref:ORPHAN/region_dim", "xform:ORPHAN", EdgeKind.JOINS_INTO));
     }
 }

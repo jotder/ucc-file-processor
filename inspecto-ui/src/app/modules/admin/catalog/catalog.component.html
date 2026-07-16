@@ -1,8 +1,19 @@
 <div class="flex min-w-0 flex-auto flex-col">
     <!-- Header -->
     <div class="bg-card border-b p-6 sm:px-10 sm:py-8 dark:bg-transparent">
-        <h1 class="text-3xl font-extrabold leading-none tracking-tight">Catalog</h1>
-        <div class="text-secondary mt-1.5">Metadata graph — tables, streams, references, KPIs and lineage traversal</div>
+        <div class="flex flex-wrap items-start justify-between gap-3">
+            <div>
+                <h1 class="text-3xl font-extrabold leading-none tracking-tight">Catalog</h1>
+                <div class="text-secondary mt-1.5">Metadata graph — streams, references, tables, KPIs and lineage traversal</div>
+            </div>
+            <!-- Contextual onboarding CTA — the guided path to a new data origin (authoring lenses). -->
+            @if (lens.canAuthorWorkbench() && (activeTab === 'streams' || activeTab === 'references')) {
+                <button mat-flat-button color="primary" (click)="onboard(activeTab === 'references' ? 'reference' : 'stream')">
+                    <mat-icon svgIcon="heroicons_outline:plus" class="icon-size-4"></mat-icon>
+                    <span class="ml-1">{{ activeTab === 'references' ? 'Onboard Reference' : 'Onboard Stream' }}</span>
+                </button>
+            }
+        </div>
     </div>
 
     <!-- Main -->
@@ -44,8 +55,9 @@
                 exportName="catalog-streams"
                 [rows]="streams"
                 [columns]="streamColumns"
+                [rowActions]="originRowActions"
                 noRowsTitle="No streams found"
-                noRowsHint="No data-origin streams are registered in the catalog."
+                noRowsHint="No data-origin streams are registered — Onboard Stream creates the first one."
                 (rowClick)="onNodeRowClicked($any($event))"
             />
         }
@@ -59,8 +71,9 @@
                 exportName="catalog-references"
                 [rows]="references"
                 [columns]="referenceColumns"
+                [rowActions]="originRowActions"
                 noRowsTitle="No references found"
-                noRowsHint="No data-origin references are registered in the catalog."
+                noRowsHint="No data-origin references are registered — Onboard Reference creates the first one."
                 (rowClick)="onNodeRowClicked($any($event))"
             />
         }

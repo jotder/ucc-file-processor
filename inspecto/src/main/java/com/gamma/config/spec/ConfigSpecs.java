@@ -51,6 +51,9 @@ public final class ConfigSpecs {
         List<FieldSpec> fields = List.of(
                 FieldSpec.required("name", "Pipeline name", FieldType.STRING,
                         "Display name; the lowercased, underscored form is the pipeline's stable id."),
+                FieldSpec.enumField("produces", "Produces", List.of("stream", "reference"), "stream",
+                        "What the output registers as in the Catalog: an event/fact Stream (default) or a "
+                                + "Reference Dataset (dimension/lookup) that enrichments can bind by name."),
                 FieldSpec.required("dirs.poll", "Poll directory", FieldType.FILEPATH,
                         "Directory watched for incoming files. All managed dirs must live outside it."),
                 FieldSpec.required("dirs.database", "Output database directory", FieldType.FILEPATH,

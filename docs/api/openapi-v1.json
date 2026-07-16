@@ -141,6 +141,86 @@
         }
       }
     },
+    "/config/preview/parsing": {
+      "post": {
+        "tags": ["Metadata & Catalog"],
+        "summary": "Parse a raw sample with a draft's parsing settings",
+        "description": "Stateless, scratch-only sample preview (v5.1.0, stream onboarding's raw→parsed hop): the pipeline draft map is interpreted by the real config parser and the sample is read with the same DuckDB idioms the ingest engine uses (delimited dialect, fixed-width slices, read_json, regexp named groups). Schema-less by design — this is the parse step, before names/types attach. Plugin ingesters and binary fixed-width records are not previewable (422). Config or parse problems return 422 with the reason.",
+        "operationId": "previewParsing",
+        "requestBody": { "required": true, "content": { "application/json": { "schema": {
+          "type": "object",
+          "required": ["config", "sample_text"],
+          "properties": {
+            "config": { "type": "object", "description": "A full pipeline draft map (the same shape POST /validate takes)." },
+            "sample_text": { "type": "string", "description": "Raw sample to parse (max 1,000,000 chars)." }
+          }
+        } } } },
+        "responses": {
+          "200": {
+            "description": "The parsed sample.",
+            "content": { "application/json": { "schema": { "allOf": [
+              { "$ref": "#/components/schemas/Envelope" },
+              { "properties": { "data": { "$ref": "#/components/schemas/ParsingPreviewResult" } } }
+            ] } } }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "422": { "$ref": "#/components/responses/ValidationFailed" }
+        }
+      }
+    },
+    "/config/{type}/{name}": {
+      "get": {
+        "tags": ["Metadata & Catalog"],
+        "summary": "Read a config file back (decoded)",
+        "description": "Returns one config .toon under the write root as its decoded map — the stream-onboarding resume path (v5.1.0): the guided editor reopens a draft from server state. Same resolution and gate chain as DELETE: write-root 503 CONTROL_PLANE_READ_ONLY → unknown type 404 → unsafe name 422 → subdir path jail 403 → missing file 404.",
+        "operationId": "readConfig",
+        "parameters": [
+          { "name": "type", "in": "path", "required": true, "schema": { "type": "string" }, "description": "A /config/spec type (pipeline, enrichment, job, schema, meta, alert, expectation)." },
+          { "name": "name", "in": "path", "required": true, "schema": { "type": "string" }, "description": "The config's identity-derived filename (without .toon)." },
+          { "name": "subdir", "in": "query", "required": false, "schema": { "type": "string" }, "description": "Optional subdirectory under the write root (must stay inside — path jail); mirrors /config/write." }
+        ],
+        "responses": {
+          "200": {
+            "description": "The decoded config.",
+            "content": { "application/json": { "schema": { "allOf": [
+              { "$ref": "#/components/schemas/Envelope" },
+              { "properties": { "data": { "$ref": "#/components/schemas/ConfigReadResult" } } }
+            ] } } }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "403": { "$ref": "#/components/responses/PathJail" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "422": { "$ref": "#/components/responses/ValidationFailed" },
+          "503": { "$ref": "#/components/responses/WriteDisabled" }
+        }
+      },
+      "delete": {
+        "tags": ["Metadata & Catalog"],
+        "summary": "Discard a config file (draft delete)",
+        "description": "Deletes one config .toon under the write root — the stream-onboarding draft-discard path (v5.1.0). Same fail-closed gate chain as /config/write: write-root 503 CONTROL_PLANE_READ_ONLY → unknown type 404 → unsafe name 422 → subdir path jail 403 → missing file 404 → active pipeline 409 → single atomic delete. An active:true pipeline is never deleted — deactivate it first.",
+        "operationId": "deleteConfig",
+        "parameters": [
+          { "name": "type", "in": "path", "required": true, "schema": { "type": "string" }, "description": "A /config/spec type (pipeline, enrichment, job, schema, meta, alert, expectation)." },
+          { "name": "name", "in": "path", "required": true, "schema": { "type": "string" }, "description": "The config's identity-derived filename (without .toon)." },
+          { "name": "subdir", "in": "query", "required": false, "schema": { "type": "string" }, "description": "Optional subdirectory under the write root (must stay inside — path jail); mirrors /config/write." }
+        ],
+        "responses": {
+          "200": {
+            "description": "Deleted.",
+            "content": { "application/json": { "schema": { "allOf": [
+              { "$ref": "#/components/schemas/Envelope" },
+              { "properties": { "data": { "$ref": "#/components/schemas/ConfigDeleteResult" } } }
+            ] } } }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "403": { "$ref": "#/components/responses/PathJail" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "409": { "$ref": "#/components/responses/Conflict" },
+          "422": { "$ref": "#/components/responses/ValidationFailed" },
+          "503": { "$ref": "#/components/responses/WriteDisabled" }
+        }
+      }
+    },
     "/connections": {
       "get": {
         "tags": ["Acquisition"],
@@ -612,6 +692,37 @@
           "bytes": { "type": "integer" },
           "overwritten": { "type": "boolean" },
           "findings": { "type": "array", "items": { "$ref": "#/components/schemas/Finding" }, "description": "Warnings only — errors would have 422'd." }
+        }
+      },
+      "ConfigDeleteResult": {
+        "type": "object",
+        "required": ["type", "name", "deleted", "path"],
+        "properties": {
+          "type": { "type": "string" },
+          "name": { "type": "string" },
+          "deleted": { "type": "boolean" },
+          "path": { "type": "string", "description": "Relative to the write root." }
+        }
+      },
+      "ConfigReadResult": {
+        "type": "object",
+        "required": ["type", "name", "path", "config"],
+        "properties": {
+          "type": { "type": "string" },
+          "name": { "type": "string" },
+          "path": { "type": "string", "description": "Relative to the write root." },
+          "config": { "type": "object", "description": "The decoded config map (the same shape /config/write accepts)." }
+        }
+      },
+      "ParsingPreviewResult": {
+        "type": "object",
+        "required": ["frontend", "columns", "rowCount", "rows", "rejectedRows"],
+        "properties": {
+          "frontend": { "type": "string", "enum": ["delimited", "fixedwidth", "json", "text_regex", "plugin"], "description": "The parsing frontend the draft resolves to." },
+          "columns": { "type": "array", "items": { "type": "string" } },
+          "rowCount": { "type": "integer" },
+          "rows": { "type": "array", "items": { "type": "object" }, "description": "Parsed rows (bounded)." },
+          "rejectedRows": { "type": "integer" }
         }
       },
       "ConnectionProfile": {

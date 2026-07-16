@@ -1,6 +1,7 @@
 package com.gamma.pipeline.exec;
 
 import com.gamma.api.PublicApi;
+import com.gamma.etl.PipelineConfig;
 import com.gamma.pipeline.PipelineNode;
 import com.gamma.util.DuckDbUtil;
 
@@ -117,6 +118,187 @@ public final class ComponentPreview {
             java.nio.file.Files.deleteIfExists(sample);
             DuckDbUtil.deleteTempDb(db);
         }
+    }
+
+    // ── pipeline parsing frontend (parse raw sample text with a draft's parsing: settings) ──
+
+    /**
+     * Preview a pipeline draft's <b>parsing frontend</b> over raw {@code sampleText} (stream
+     * onboarding, v5.1.0): write the sample to a scratch file and read it with the same DuckDB
+     * idioms {@link com.gamma.etl.DuckDbCsvIngester} uses per frontend — delimited
+     * {@code read_csv} with the draft's dialect, fixed-width {@code substring} slices,
+     * {@code read_json}, or {@code regexp_extract} named groups. Schema-less by design: this
+     * is the parse step, before names/types are attached — delimited/json columns come from
+     * the header/keys (auto-detected), fixed-width slices and regex groups project under their
+     * own declared names. Plugin ingesters and binary fixed-width records cannot run over
+     * pasted text and are rejected with {@link IllegalArgumentException}.
+     */
+    public static GrammarResult parsing(PipelineConfig cfg, String sampleText)
+            throws SQLException, java.io.IOException {
+        if (sampleText == null || sampleText.isBlank())
+            throw new IllegalArgumentException("sample text is required");
+        if (cfg.fixedWidth() != null && cfg.fixedWidth().binary())
+            throw new IllegalArgumentException(
+                    "binary fixed-width records cannot be previewed from pasted text");
+        if (cfg.fixedWidth() == null && cfg.json() == null && cfg.textRegex() == null
+                && cfg.schemas().ingesterClass() != null)
+            throw new IllegalArgumentException("parsing preview is not supported for the plugin frontend ("
+                    + cfg.schemas().ingesterClass() + ") — run the pipeline against a real file instead");
+
+        File db = DuckDbUtil.tempDbFile("preview_");
+        java.nio.file.Path sample = java.nio.file.Files.createTempFile("preview_parsing_", ".txt");
+        try {
+            java.nio.file.Files.writeString(sample, sampleText);
+            String path = sample.toAbsolutePath().toString().replace("\\", "/");
+            try (Connection conn = DuckDbUtil.openConnection(db)) {
+                if (cfg.json() != null && cfg.json().newlineDelimited())
+                    return ndjsonPreview(conn, cfg, path, sampleText);
+                try (java.sql.Statement st = conn.createStatement()) {
+                    st.execute("CREATE TABLE preview_parsed AS " + parsingSelect(cfg, path));
+                }
+                return new GrammarResult(
+                        ScratchTables.columnNames(conn, "preview_parsed"),
+                        ScratchTables.count(conn, "preview_parsed"),
+                        ScratchTables.readRows(conn, "preview_parsed", MAX_ROWS),
+                        rejectCount(conn));
+            }
+        } finally {
+            java.nio.file.Files.deleteIfExists(sample);
+            DuckDbUtil.deleteTempDb(db);
+        }
+    }
+
+    /**
+     * The frontend-specific {@code SELECT} reading {@code path} — the same read specs
+     * {@code DuckDbCsvIngester} builds, minus the schema projection (which does not exist yet
+     * at the parsing stage). NDJSON is handled separately ({@link #ndjsonPreview}).
+     */
+    private static String parsingSelect(PipelineConfig cfg, String path) {
+        if (cfg.fixedWidth() != null) return fixedWidthSelect(cfg, path);
+        if (cfg.textRegex() != null)  return textRegexSelect(cfg, path);
+        if (cfg.json() != null)       return jsonSelect(cfg, path);
+        return delimitedSelect(cfg, path);
+    }
+
+    /**
+     * NDJSON preview, mirroring the engine's newline path exactly: the single-column line
+     * reader (header-skip semantics included), a {@code json_valid} filter — a malformed line
+     * is routed away, never null-padded — then {@code json_extract_string} per top-level key.
+     * Keys are discovered from the valid records in first-seen order (schema-less: the keys
+     * ARE the columns). {@code rejectedRows} counts the dropped invalid lines.
+     */
+    private static GrammarResult ndjsonPreview(Connection conn, PipelineConfig cfg,
+                                               String path, String sampleText) throws SQLException {
+        try (java.sql.Statement st = conn.createStatement()) {
+            st.execute("CREATE TABLE js_lines AS SELECT \"line\" FROM " + lineReader(cfg, path)
+                    + " WHERE json_valid(\"line\")");
+        }
+        int skip = cfg.csv().skipHeaderLines() + (cfg.csv().hasHeader() ? 1 : 0);
+        long totalAfterSkip = Math.max(0, sampleText.lines().count() - skip);
+        int valid = ScratchTables.count(conn, "js_lines");
+        int invalid = (int) Math.max(0, totalAfterSkip - valid);
+
+        java.util.LinkedHashSet<String> keys = new java.util.LinkedHashSet<>();
+        try (java.sql.Statement st = conn.createStatement();
+             java.sql.ResultSet rs = st.executeQuery("SELECT json_keys(\"line\") FROM js_lines")) {
+            while (rs.next()) {
+                java.sql.Array arr = rs.getArray(1);
+                if (arr != null) for (Object k : (Object[]) arr.getArray()) keys.add(String.valueOf(k));
+            }
+        }
+        if (keys.isEmpty())
+            return new GrammarResult(List.of(), 0, List.of(), invalid + rejectCount(conn));
+
+        StringBuilder proj = new StringBuilder();
+        boolean first = true;
+        for (String k : keys) {
+            if (!first) proj.append(", ");
+            first = false;
+            proj.append("json_extract_string(\"line\", '$.\"").append(k.replace("'", "''"))
+                .append("\"') AS ").append(quoteIdent(k));
+        }
+        try (java.sql.Statement st = conn.createStatement()) {
+            st.execute("CREATE TABLE preview_parsed AS SELECT " + proj + " FROM js_lines");
+        }
+        return new GrammarResult(
+                ScratchTables.columnNames(conn, "preview_parsed"),
+                ScratchTables.count(conn, "preview_parsed"),
+                ScratchTables.readRows(conn, "preview_parsed", MAX_ROWS),
+                invalid + rejectCount(conn));
+    }
+
+    private static String delimitedSelect(PipelineConfig cfg, String path) {
+        String delim = (cfg.csv().delimiter() == null || cfg.csv().delimiter().isEmpty())
+                ? "," : cfg.csv().delimiter();
+        return "SELECT * FROM read_csv(" + ScratchTables.sqlStr(path)
+                + ", delim=" + ScratchTables.sqlStr(delim)
+                + ", header=" + cfg.csv().hasHeader()
+                + ", skip=" + cfg.csv().skipHeaderLines()
+                + ", auto_detect=true, ignore_errors=true, store_rejects=true)";
+    }
+
+    /** The engine's single-column line reader: each physical line intact as VARCHAR {@code line}. */
+    private static String lineReader(PipelineConfig cfg, String path) {
+        int skip = cfg.csv().skipHeaderLines() + (cfg.csv().hasHeader() ? 1 : 0);
+        return "read_csv(" + ScratchTables.sqlStr(path)
+                + ", columns={'line':'VARCHAR'}, delim='', quote='', escape=''"
+                + ", header=false, skip=" + skip
+                + ", ignore_errors=true, null_padding=true, auto_detect=false, store_rejects=true)";
+    }
+
+    private static String fixedWidthSelect(PipelineConfig cfg, String path) {
+        PipelineConfig.FixedWidth fw = cfg.fixedWidth();
+        List<PipelineConfig.FixedWidth.Slice> slices = fw.slices();
+        StringBuilder proj = new StringBuilder();
+        for (int i = 0; i < slices.size(); i++) {
+            PipelineConfig.FixedWidth.Slice s = slices.get(i);
+            String name = (s.name() == null || s.name().isBlank()) ? "field_" + i : s.name();
+            if (i > 0) proj.append(", ");
+            proj.append(trimmed(fw.trim(), "substring(\"line\", " + (s.start() + 1) + ", " + s.length() + ")"))
+                .append(" AS ").append(quoteIdent(name));
+        }
+        return "SELECT " + proj + " FROM (SELECT \"line\" FROM " + lineReader(cfg, path)
+                + " WHERE length(\"line\") >= " + fw.minRecordLength() + ") AS fw";
+    }
+
+    private static String textRegexSelect(PipelineConfig cfg, String path) {
+        PipelineConfig.TextRegex tr = cfg.textRegex();
+        StringBuilder names = new StringBuilder("[");
+        StringBuilder proj = new StringBuilder();
+        for (int i = 0; i < tr.groupNames().size(); i++) {
+            String g = tr.groupNames().get(i);
+            if (i > 0) { names.append(", "); proj.append(", "); }
+            names.append(ScratchTables.sqlStr(g));
+            proj.append("rec[").append(ScratchTables.sqlStr(g)).append("] AS ").append(quoteIdent(g));
+        }
+        names.append(']');
+        return "SELECT " + proj + " FROM (SELECT regexp_extract(\"line\", "
+                + ScratchTables.sqlStr(tr.pattern()) + ", " + names + ") AS rec FROM "
+                + lineReader(cfg, path)
+                + " WHERE regexp_matches(\"line\", " + ScratchTables.sqlStr(tr.pattern()) + ")) AS tr";
+    }
+
+    /** {@code format: array | auto} only ({@code newline} goes through {@link #ndjsonPreview}).
+     *  Like the engine's {@code read_json}, a malformed document fails the whole file. */
+    private static String jsonSelect(PipelineConfig cfg, String path) {
+        String format = "array".equals(cfg.json().format()) ? "array" : "auto";
+        return "SELECT * FROM read_json(" + ScratchTables.sqlStr(path)
+                + ", format='" + format + "')";
+    }
+
+    /** Quote a projection identifier, escaping embedded quotes. */
+    private static String quoteIdent(String name) {
+        return '"' + name.replace("\"", "\"\"") + '"';
+    }
+
+    /** Wrap an expression in the configured fixed-width trim function (mirrors the ingester). */
+    private static String trimmed(PipelineConfig.FixedWidth.Trim trim, String inner) {
+        return switch (trim) {
+            case NONE  -> inner;
+            case LEFT  -> "ltrim(" + inner + ")";
+            case RIGHT -> "rtrim(" + inner + ")";
+            case BOTH  -> "trim(" + inner + ")";
+        };
     }
 
     // ── schema (TRY_CAST each field to its declared type; split data / rejected) ────
