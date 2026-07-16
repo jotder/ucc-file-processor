@@ -6,6 +6,14 @@
 
     @if (loading()) {
         <inspecto-skeleton [lines]="3" height="4rem" />
+    } @else if (loadError()) {
+        <inspecto-empty-state
+            icon="heroicons_outline:exclamation-triangle"
+            title="Couldn't load dashboards"
+            message="Something went wrong reaching the server. Check your connection and try again."
+            actionLabel="Retry"
+            (action)="load()"
+        />
     } @else if (dashboards().length === 0) {
         <inspecto-empty-state
             icon="heroicons_outline:document-chart-bar"

@@ -3,7 +3,7 @@ import { TestBed } from '@angular/core/testing';
 import { MatDialog } from '@angular/material/dialog';
 import { provideRouter } from '@angular/router';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
-import { of } from 'rxjs';
+import { of, throwError } from 'rxjs';
 import { describe, expect, it, vi } from 'vitest';
 import { JobDetail, JobsService, LensService } from 'app/inspecto/api';
 import { InspectoConfirmService } from 'app/inspecto/confirm.service';
@@ -29,7 +29,7 @@ const REPORT_JOB: JobDetail = {
     params: { dashboardId: 'cdr_overview', format: 'csv', recipients: ['ops@x.com'] },
 };
 
-function create(opts: { dashboards?: Dashboard[]; reportJobs?: JobDetail[]; canAuthor?: boolean } = {}) {
+function create(opts: { dashboards?: Dashboard[]; reportJobs?: JobDetail[]; canAuthor?: boolean; dashboardsError?: boolean } = {}) {
     const dashboards = opts.dashboards ?? DASHBOARDS;
     const reportJobs = opts.reportJobs ?? [];
     const toastr = { success: vi.fn(), warning: vi.fn(), error: vi.fn() };
@@ -46,7 +46,10 @@ function create(opts: { dashboards?: Dashboard[]; reportJobs?: JobDetail[]; canA
         providers: [
             provideRouter([]),
             provideNoopAnimations(),
-            { provide: DashboardsService, useValue: { list: () => of(dashboards) } },
+            {
+                provide: DashboardsService,
+                useValue: { list: () => (opts.dashboardsError ? throwError(() => new Error('boom')) : of(dashboards)) },
+            },
             { provide: JobsService, useValue: jobsApi },
             { provide: MatDialog, useValue: { open: vi.fn() } },
             { provide: ToastrService, useValue: toastr },
@@ -70,6 +73,14 @@ describe('KpiReportsComponent', () => {
     it('shows the empty state when there are no dashboards', () => {
         const text = create({ dashboards: [] }).fixture.nativeElement.textContent as string;
         expect(text).toContain('No dashboards yet');
+    });
+
+    it('shows an error state (not the empty state) when the dashboards fetch fails', () => {
+        const { fixture } = create({ dashboardsError: true });
+        const text = fixture.nativeElement.textContent as string;
+        expect(fixture.componentInstance.loadError()).toBe(true);
+        expect(text).toContain("Couldn't load dashboards");
+        expect(text).not.toContain('No dashboards yet');
     });
 
     it('renders with no a11y violations', async () => {

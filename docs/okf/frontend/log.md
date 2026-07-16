@@ -1,6 +1,12 @@
 # Log
 
 ## 2026-07-17
+* **BACKLOG §4 quick wins shipped**: (1) the **space switcher** now reloads at the current lens's
+  home route (`LENS_HOME[currentLens]`) instead of the hard-coded `/overview` — a Business user
+  switching space lands on KPI & Reports, not a page their lens never uses; (2) **KPI & Reports**
+  (the Business-lens home) now renders a distinct **error state** ("Couldn't load dashboards" +
+  Retry) when the dashboards fetch fails, instead of masquerading as the "No dashboards yet" empty
+  state (new `loadError` signal + spec). No design-system change.
 * **ui-design-review residuals shipped** (R2/R3 leftovers): per-target **column suggestions**
   (`columnOptionLoader` — expectation `column`/`refColumn`; decision-rule when-clause columns now
   probed per target, hardcoded CDR shape deleted), object-create **tag chips** (registry-suggested) +

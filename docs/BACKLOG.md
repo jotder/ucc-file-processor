@@ -22,7 +22,6 @@ that closes/opens an item)
 |---|---|---|
 | Full `package.ps1` bundle (npm+jlink) not smoke-tested since the `spaces/` migration + bundle-prune fix | Smoke the built artifact before any release | `HANDOVER-multi-space.md`, `SESSION_STATUS.local.md` |
 | **Dataset glob vs pipeline sink nesting** — a `physicalRef` Dataset reads `<dataRoot>/<ref>/**/*.parquet` recursively, but an authored pipeline `sink.persistent` store can nest INSIDE a source store's tree → silent double-count (UAT-proven, +72%). Demo symptom-fixed; the real contract is undecided: sink stores resolve under the data root, and/or dataset globs default to `database/`? | **Open — decide the contract, then align engine/docs/demo** | `docs/ops/uat-seeding.md` forensics |
-| `environment.ts` `mockStudio` comment stale ("gated pending backend storage enum widened" — routes are complete) | Trivial doc fix in code | 2026-07-10 CRUD audit |
 
 ## 2. Product remainder (MoSCoW of record: `REQUIREMENTS.md` §5)
 
@@ -70,8 +69,6 @@ that closes/opens an item)
 | Config pane schema-form port — the last `ngModel` pane (`FieldSpec`→`AttributeSpec` onto `<inspecto-schema-form>`) | review sweep 2026-07-16 |
 | ui-design-review residuals — R2 column suggestions, R2 object-create chips, R3 command registry + `/`-focus + j/k nav all SHIPPED 2026-07-17; remaining: R6 true offset paging per pane (revisit if a pane outgrows widen-and-refetch) · R8 pivot-bar (design-only until demanded twice) | `archived-documents/plans-archive/ui-design-review.md` · `okf/frontend/log.md` |
 | Requirements "Delivered via" is free text — should be a real Component link (cross-kind picker + Registry reuse edge) | review sweep |
-| Space switcher lands hard-coded on `/overview` — should route through `LENS_HOME` | same |
-| Business home renders fetch-failure as the "No dashboards yet" empty state — needs an error variant | same |
 | `ComponentKind.deriveParts` seam — formalize when a 3rd composite kind needs it | same |
 | Minor: shared chip primitive (sources/widgets/events) · mock audit trail seed-only · mock `POST /alerts/evaluate` always breaches · events live-tail cadence hardcoded 5 s · parser/node attribute tiers best-guess pending firm backend specs · pipeline-editor dry-run panel extraction (may be moot) · dataset editor `save()` create-on-edit — backend PUT exists, verify | same |
 

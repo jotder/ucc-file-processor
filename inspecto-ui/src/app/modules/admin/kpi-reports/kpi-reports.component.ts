@@ -53,6 +53,9 @@ export class KpiReportsComponent implements OnInit {
     readonly dashboards = signal<Dashboard[]>([]);
     readonly reportJobs = signal<JobDetail[]>([]);
     readonly loading = signal(true);
+    /** True when the dashboards fetch itself failed — distinguishes a load error from a genuinely
+     *  empty gallery so the template can offer Retry instead of the "create one" empty state. */
+    readonly loadError = signal(false);
     readonly statusBadgeHtml = statusBadgeHtml;
     readonly fmtDateTime = fmtDateTime;
 
@@ -66,12 +69,16 @@ export class KpiReportsComponent implements OnInit {
 
     load(): void {
         this.loading.set(true);
+        this.loadError.set(false);
         this.dashboardsApi.list().subscribe({
             next: (d) => {
                 this.dashboards.set(d);
                 this.loading.set(false);
             },
-            error: () => this.loading.set(false),
+            error: () => {
+                this.loadError.set(true);
+                this.loading.set(false);
+            },
         });
         this.loadReportDetails();
     }

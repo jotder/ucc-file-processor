@@ -4,16 +4,17 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatMenuModule } from '@angular/material/menu';
 import { MatTooltipModule } from '@angular/material/tooltip';
-import { Space, SpacesService } from 'app/inspecto/api';
+import { LensService, Space, SpacesService } from 'app/inspecto/api';
+import { LENS_HOME } from 'app/app.routes';
 
 /**
  * Header control that shows the active space and switches between them. Only rendered on a
  * multi-space (discover) server with spaces to switch between ({@link SpacesService.showSwitcher}).
  *
  * Switching persists the new space ({@link SpacesService.selectSpace}) and then hard-reloads at the
- * dashboard: every feature component fetches on init and holds its own state, so a reload is the
- * simplest correct way to re-scope the whole app to the new space (and a deep link valid in the old
- * space may not exist in the new one).
+ * current lens's home route ({@link LENS_HOME}): every feature component fetches on init and holds
+ * its own state, so a reload is the simplest correct way to re-scope the whole app to the new space
+ * (and a deep link valid in the old space may not exist in the new one).
  */
 @Component({
     selector: 'inspecto-space-switcher',
@@ -57,6 +58,7 @@ import { Space, SpacesService } from 'app/inspecto/api';
 })
 export class SpaceSwitcherComponent implements OnInit {
     readonly spaces = inject(SpacesService);
+    private lens = inject(LensService);
     private router = inject(Router);
 
     ngOnInit(): void {
@@ -72,6 +74,7 @@ export class SpaceSwitcherComponent implements OnInit {
     switch(s: Space): void {
         if (s.id === this.spaces.currentSpaceId()) return;
         this.spaces.selectSpace(s.id);
-        this.router.navigateByUrl('/overview').then(() => window.location.reload());
+        const home = LENS_HOME[this.lens.currentLens()];
+        this.router.navigateByUrl('/' + home).then(() => window.location.reload());
     }
 }
