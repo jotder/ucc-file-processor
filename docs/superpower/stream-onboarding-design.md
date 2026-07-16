@@ -219,7 +219,7 @@ stage chains the existing scratch-test endpoints so the builder always sees *the
   by-name join) / `ControlApiStreamsTest` (draft visibility + produces filtering)). graphify updated.
 - **P1 — Shell + Collection + Parsing**: U1–U3 + parsing pane; draft lifecycle end-to-end. *Verify:*
   create → close → reopen (draft resumes from server state); sample threads raw→parsed; connection
-  create-in-place + test.
+  create-in-place + test. **✅ SHIPPED 2026-07-16**
 
   **P1 as-built (2026-07-16).** Backend: B4 read route + B5 parsing preview (§5) +
   `ControlApiOnboardingLifecycleTest` (write→register→streams-shows-Draft→read→overwrite→discard,
@@ -283,6 +283,7 @@ stage chains the existing scratch-test endpoints so the builder always sees *the
     P2.
 - **P2 — Schema & Mapping + Dataset & Go-live**: U4 + gate. *Verify (live):* onboard a demo CSV Stream in
   `spaces/demo` end-to-end from the UI, activate, drop a file, confirm rows land + Catalog shows **Live**.
+  **✅ SHIPPED 2026-07-16**
 
   **P2 as-built (2026-07-16).** Backend: B6 schema preview + `output.compression` spec +
   PipelineLift null-tolerance test (§5). UI (under `modules/admin/catalog/onboarding/`):
