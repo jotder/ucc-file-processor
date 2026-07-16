@@ -56,6 +56,9 @@ final class MetadataGraphBuilder {
             String originId = isReference ? IdScheme.producedReference(pipeline) : IdScheme.stream(pipeline);
             Map<String, Object> srcAttrs = new LinkedHashMap<>();
             srcAttrs.put("pipeline", pipeline);
+            // Lifecycle for the Catalog origin tabs (Draft/Live) — mirrors /catalog/streams'
+            // collector projection so the References tab can show the same column.
+            srcAttrs.put("active", cfg.active());
             if (cfg.dirs().poll() != null) srcAttrs.put("pollDir", cfg.dirs().poll());
             if (dbRoot != null) srcAttrs.put("database", dbRoot);
             if (isReference && outFormat != null && !outFormat.isBlank()) srcAttrs.put("format", outFormat);

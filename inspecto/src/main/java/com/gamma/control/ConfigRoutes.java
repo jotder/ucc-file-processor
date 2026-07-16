@@ -372,13 +372,16 @@ final class ConfigRoutes implements RouteModule {
 
     /**
      * The on-disk base name for a config. The service bootstrap scan indexes pipelines by the
-     * {@code *_pipeline.toon} suffix ({@code MultiCollectorProcessor.resolveConfigs}), so a
-     * guided write MUST follow it — otherwise a draft silently drops out of the registry on the
-     * next service restart (found by the P2 live walk). Other types keep the bare name (their
-     * identity fields, e.g. {@code raw.name}, already carry the scan suffix by convention).
+     * {@code *_pipeline.toon} suffix ({@code MultiCollectorProcessor.resolveConfigs}) and Stage-2
+     * enrichments by {@code *_enrich.toon} ({@code ServiceBootstrap.resolveBySuffix}), so a
+     * guided write MUST follow them — otherwise a draft silently drops out on the next service
+     * restart (found by the P2 live walk for pipelines; same trap for enrichments). Other types
+     * keep the bare name (their identity fields, e.g. {@code raw.name}, already carry the scan
+     * suffix by convention).
      */
     private static String fileBase(String type, String safeName) {
         if ("pipeline".equals(type) && !safeName.endsWith("_pipeline")) return safeName + "_pipeline";
+        if ("enrichment".equals(type) && !safeName.endsWith("_enrich")) return safeName + "_enrich";
         return safeName;
     }
 

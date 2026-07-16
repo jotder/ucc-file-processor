@@ -1,8 +1,11 @@
 # Stream & Reference Onboarding — guided authoring over Stage‑1 pipelines
 
-**Status: ACTIVE — design agreed with product owner 2026-07-16 (interview). P0 (backend seams)
-SHIPPED 2026-07-16: reactor 1491/0/0/3 (baseline 1467/0; +24 new tests), UNCOMMITTED. P1+ awaiting
-operator go ("wait after P0").**
+**Status: COMPLETE — ALL PHASES (P0–P4) SHIPPED 2026-07-16.** Design agreed with product owner
+2026-07-16 (interview); P0–P2 committed (`c4087ed`, `68533d9`), P3+P4 shipped the same day (final
+GAUNTLET: reactor 1515/0/0/3 · UI 1366/0 · lint/build PASS; two live end-to-end walks). Durable
+knowledge distilled to `okf/frontend/features/onboarding.md` +
+`okf/backend/control-plane/onboarding-authoring.md`; open items → `BACKLOG.md` §3 "Onboarding";
+GLOSSARY §2/§6-B updated. This plan is ARCHIVED per the three-tier doc lifecycle.
 Owner surface: Catalog ▸ Streams / References. Vocabulary per `docs/GLOSSARY.md` (§2 Connectivity, §3 Schema
 & Catalog, §5 Pipeline). Companion ground-truth: `okf/backend/` (Stage‑1 architecture, pipeline-graph),
 `okf/frontend/` (pipelines editor, catalog).
@@ -166,6 +169,14 @@ stage chains the existing scratch-test endpoints so the builder always sees *the
   ⚠️ was closed: `PipelineLift.lift()` of a schema-less draft is null-tolerant (test:
   `liftsASchemaLessDraftWithoutThrowing` — the single-schema branch handles `s.single()==null`
   and the sink falls back to the pipeline name as its store).
+- **B7 — Enrichment authoring pair (added in P3; U6's missing seams):** `/config/write
+  type=enrichment` writes `<name>_enrich.toon` (boot-scan suffix) and `POST /enrichment
+  {configPath}` hot-registers/replaces the job on the running service (`EnrichmentService.register`
+  upsert over a live list; schedule timers re-read the config by name at fire time;
+  `CollectorService` always constructs the service so a fresh space can register its first one —
+  `GET /enrichment` is now 200-`[]` when no jobs, not 404). Full detail in §7 P3 as-built.
+- **B8 — Origin lifecycle attrs (added in P3):** `MetadataGraphBuilder` origin nodes carry
+  `attrs.active`, giving `/catalog/references` rows the producer's Draft/Live lifecycle.
 - **P2 recon corrections (bind future work):** (a) **`raw.fields[].selector` semantics differ by
   frontend** — delimited/fixedwidth address the parsed column by 0-based POSITION (stringified
   index), json/text_regex by the VERBATIM key/group name; the Schema pane derives selectors
@@ -355,6 +366,89 @@ stage chains the existing scratch-test endpoints so the builder always sees *the
     timestamp serialization edge (above).
 - **P3 — Reference flow + Enrichment stage**: U5 rows/CTAs + U6. *Verify (live):* onboard `region_dim`
   as a Reference via the guided flow; bind it by name in an enrichment; enriched output verified.
+  **✅ SHIPPED 2026-07-16**
+
+  **P3 as-built (2026-07-16).** Backend (B7/B8 below, discovered-by-recon — the design's §5 list
+  had no enrichment authoring seams because none were needed until U6):
+  - **B7 — enrichment authoring pair:** `/config/write type=enrichment` now names files
+    `<name>_enrich.toon` (the `ServiceBootstrap.resolveBySuffix` scan convention — the SAME trap
+    P2 hit for pipelines; read/delete resolve suffix-first with bare fallback), and a new
+    **`POST /enrichment {configPath}`** hot-registers (or replaces, keyed by `name`) the job on
+    the running service — enrichments never had mtime hot-reload OR a register route (GET-only
+    `EnrichmentRoutes`), so a newly authored enrichment used to need a full service restart, and
+    the `POST /jobs type=enrich` workaround breaks by-name refs (2-arg `runResult` overload passes
+    no pipelines). Gates mirror `POST /runs`: 503 → 400 → 403 → 404 → 422 (spec+safety, re-validated
+    for files that bypassed the write route); replace is the documented upsert (the guided editor
+    re-registers on every save), so no 409. `EnrichmentService.jobs` became a live
+    `CopyOnWriteArrayList` + `register()`; schedule timers resolve their config **by name at fire
+    time** (armed once per name — the `Scheduler` has no cancel), so a replacement applies to the
+    next scheduled fire too; `CollectorService` **always constructs** the service (empty-list
+    tolerant) so a fresh space can register its FIRST enrichment — `GET /enrichment` on a
+    no-jobs space is now 200-`[]` (was 404; one stale `ControlApiTest` updated), per-job routes
+    still 404. Tests: `ControlApiEnrichmentRegisterTest` (every gate + scan-suffix + upsert) +
+    `EnrichmentServiceTest` hot-register/upsert cases proving a registered job FIRES on the next
+    bus event with the replacement config.
+  - **B8 — references lifecycle:** origin nodes (`stream:`/`ref:`) in `MetadataGraphBuilder` now
+    carry `attrs.active`, so `GET /catalog/references` rows expose the producer's lifecycle
+    (path/dangling enrichment-scoped rows stay bare → render '—').
+  - **UI:** Reference `keys` stage = the SAME schema pane (required now, NOT optional — a
+    schema-less pipeline can't arm; status mirrors `schema`) + an honest **full-replace
+    load-policy** note; publish pane tells a Reference author the dataset becomes bindable
+    (`ref: <normalized-id>`); **Enrichment pane** (opt-in empty state → references FormArray
+    rows {alias, by-name select | path+format} + CodeMirror SQL + derived-never-asked wiring
+    summary; save writes `<pipeline>_enrich` then **re-registers on every save**; register
+    failure = warning, save survives) — the by-name picker offers only pipeline-produced
+    references (`attrs.pipeline`, minus self); `triggers.on_pipeline` auto-set to the engine's
+    normalized id (`name.toLowerCase().replace(' ','_')` — the `BatchEvent.pipeline()` gotcha);
+    References tab gained the Lifecycle column; dead `implemented` stage flag dropped (nothing
+    read it). State service: `enrichmentConfig` signal (companion read on stream load; hydrate
+    effect tolerates the async race), `normalizedName`, `enrichName()`.
+  - **Walk-found fix 4 (real product gap, silent-no-op dedup):** the guided draft's collection
+    defaults (`collector.duplicate.mode: path` + `post_action.on_success: RETAIN`) are
+    **collection-engine** keys — a `connector: local` pipeline runs the LEGACY poll path
+    (`CollectorProcessor`), which honors `processing.duplicate_check` (marker files) instead, so
+    an onboarded pipeline **re-ingested the same file every poll cycle** (idempotent output —
+    same deterministic filename, `OVERWRITE_OR_IGNORE` — but CPU churn + a spurious BatchEvent
+    per cycle, which would have re-fired enrichments every minute; P2's walk never watched
+    cycle+2 so it went unseen). Also: the minimal draft had no `dirs.status_dir`, so **no batch
+    audit ever landed** — `/runs/{name}/batches` (and the Runs page) stayed empty for every
+    onboarded pipeline. Fix: the create dialog now derives the full orders-convention dir set
+    (backup/temp/errors/quarantine/markers/status_dir/log_dir) + `processing.duplicate_check
+    {enabled, .processed, 30d}` — all silent, ask-the-minimum intact. Live-proven: the
+    `.processed` marker appears, re-ingest stops, batches audit rows land.
+  - **Mocks/specs:** onboarding.handler covers `type=enrichment` (scan-suffix path, register
+    flips a stored flag) + `POST /enrichment`; 8-case enrichment-pane spec (axe on both
+    opt-in/form states), state-service keys/enrichment/normalized cases, create-dialog full-dirs
+    assertion, load-policy + bindable-note cases.
+  - **Live walk (real dev backend, demo space):** **A — Reference:** Onboard Reference →
+    `p3_region_dim` → Save collection → paste 4-row region dump → Test parse (2 cols · 4 rows)
+    → **Keys & Load** (derived fields, load-policy note, Validate types 4 ok, Save) → Publish
+    (bindable note `ref: p3_region_dim`) → Save output → Go live → **Live** badge → dropped a
+    dump → batch SUCCESS 4 rows → Parquet under `year=1900/…` (a date-less dump takes the
+    engine's default event-date partition — cosmetic; consumers read the whole glob). Then the
+    churn finding + fix above, re-verified: marker written, audit row `4 in → 4 out`. **B —
+    Stream + by-name enrichment:** Onboard Stream `p3_orders_feed` through the FIXED create
+    dialog (full dirs + duplicate_check on disk verified) → parse (4 cols · 3 rows) → schema
+    (ORDER_DATE DATE, AMOUNT DOUBLE, partition key ORDER_DATE; 3 ok) → **Enrichment stage**:
+    picker offered exactly `p3_region_dim` (the demo's path-based ref correctly absent), alias
+    `region_dim`, join SQL, Save → `p3_orders_feed_enrich.toon` on disk byte-shaped like the
+    orders convention + **hot-registered** (`GET /enrichment` shows it, `eventTriggered:true`,
+    no restart) → Go live → dropped 3 orders → batch SUCCESS → **enrichment fired on the event**
+    (`reason: event:p3_orders_feed`, scoped to 1 input partition) SUCCESS 2 rows → enriched
+    Parquet verified by direct DuckDB read: `NORTH | zone=N1 | orders=2 | revenue=162.5`,
+    `SOUTH | zone=S1 | orders=1 | revenue=89.9` — the ZONE came through the **by-name** binding.
+    References tab: `p3_region_dim → Live` badge vs path-based `region_dim → —`. All walk
+    artifacts removed; `spaces/` byte-clean.
+  - **P3 verification (2026-07-16):** reactor `mvn -o clean test` **1515/0/0/3** (6/6 modules; +5
+    over P2's 1510) · `lint:tokens` PASS · `test:ci` **1366/0** (+5 skipped; +13 over P2's 1353)
+    · production build PASS. (The known `widget.kind.spec.ts` flake did not manifest.)
+  - **Deferred within P3 scope:** replacing a job keeps its original schedule *interval* until
+    restart (scheduler has no cancel; config content DOES hot-apply via the by-name lookup);
+    a deleted-on-disk enrichment keeps running until restart (no deregister); draft discard
+    removes only the pipeline file (companion `_schema`/`_enrich` TOONs stay — harmless for
+    schemas, an enrich file re-registers at next boot → consider a cascading discard in P4);
+    enrichment stage has no `Validated` state (no enrichment preview endpoint; `configured`
+    only); date-less dumps partition as `year=1900` (cosmetic).
 - **P4 — Polish + docs**: readiness columns everywhere, empty-state CTAs, optional templates entry
   (space-template-gallery precedent); USER_GUIDE section; okf concept files (frontend feature + backend
   seam); `FEATURE_INVENTORY.md` row; GLOSSARY updates (§8 below); `graphify update .`.

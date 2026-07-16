@@ -8,12 +8,14 @@ import { MockStore } from '../mock-store';
  * overwrite → delete, plus the stateless `POST /config/preview/parsing` / `.../schema` sample
  * previews (tiny JS parsers that mimic the DuckDB frontends' behaviour: header skip,
  * min-record-length drop, named regex groups, NDJSON validity filter, TRY_CAST-alike type
- * checks). Pipeline + schema configs only; `/config/spec` + `/validate` stay with the demo
+ * checks). Pipeline + schema + enrichment configs (enrichment registration mirrors pipelines:
+ * `POST /enrichment` flips the stored flag); `/config/spec` + `/validate` stay with the demo
  * handler (registered ahead of this one).
  */
 
 export const PIPELINE_CONFIGS_COLL = 'pipeline-config';
 export const SCHEMA_CONFIGS_COLL = 'schema-config';
+export const ENRICHMENT_CONFIGS_COLL = 'enrichment-config';
 
 /** One stored draft/config file: the decoded map + its write-root-relative path. */
 export interface StoredPipelineConfig {
@@ -30,11 +32,26 @@ export interface StoredSchemaConfig {
     config: Record<string, unknown>;
 }
 
+/** One stored enrichment file — registration mirrors pipelines (POST /enrichment hot-registers). */
+export interface StoredEnrichmentConfig {
+    id: string;
+    path: string;
+    config: Record<string, unknown>;
+    registered: boolean;
+}
+
 const WRITE = /\/config\/write$/;
 const PREVIEW_PARSING = /\/config\/preview\/parsing$/;
 const PREVIEW_SCHEMA = /\/config\/preview\/schema$/;
-const CONFIG_FILE = /\/config\/(pipeline|schema)\/([^/?]+)$/;
+const CONFIG_FILE = /\/config\/(pipeline|schema|enrichment)\/([^/?]+)$/;
 const RUNS = /\/runs$/;
+const ENRICHMENT = /\/enrichment$/;
+
+function collFor(type: string): string {
+    return type === 'schema' ? SCHEMA_CONFIGS_COLL
+        : type === 'enrichment' ? ENRICHMENT_CONFIGS_COLL
+        : PIPELINE_CONFIGS_COLL;
+}
 
 export function onboardingHandler(flags: MockFlags): MockHandler {
     return (req: MockRequest, store: MockStore) => {
@@ -76,6 +93,24 @@ export function onboardingHandler(flags: MockFlags): MockHandler {
                     bytes: JSON.stringify(body.config).length, overwritten: !!existing, findings: [],
                 });
             }
+            if (body.type === 'enrichment') {
+                const name = String(body.config['name'] ?? '').trim();
+                if (!name) return error(422, "config is missing its identity field 'name'");
+                const existing = store.get<StoredEnrichmentConfig>(space, ENRICHMENT_CONFIGS_COLL, name);
+                if (existing && !body.overwrite) return error(409, `file exists: ${name}.toon (pass overwrite:true to replace)`);
+                // The real route writes `<name>_enrich.toon` — the bootstrap-scan convention.
+                const path = name.endsWith('_enrich') ? `${name}.toon` : `${name}_enrich.toon`;
+                store.put(space, ENRICHMENT_CONFIGS_COLL, name, {
+                    id: name,
+                    path,
+                    config: body.config,
+                    registered: existing?.registered ?? false,
+                } satisfies StoredEnrichmentConfig);
+                return json({
+                    type: 'enrichment', written: true, path, name,
+                    bytes: JSON.stringify(body.config).length, overwritten: !!existing, findings: [],
+                });
+            }
             return undefined; // other types: not mocked here
         }
 
@@ -105,21 +140,19 @@ export function onboardingHandler(flags: MockFlags): MockHandler {
 
         if (method === 'GET' && (m = match(url, CONFIG_FILE))) {
             const [, type, name] = m;
-            const coll = type === 'schema' ? SCHEMA_CONFIGS_COLL : PIPELINE_CONFIGS_COLL;
-            const rec = store.get<StoredPipelineConfig | StoredSchemaConfig>(space, coll, name);
+            const rec = store.get<StoredPipelineConfig | StoredSchemaConfig>(space, collFor(type), name);
             if (!rec) return error(404, `no such config: ${name}.toon`);
             return json({ type, name: rec.id, path: rec.path, config: rec.config });
         }
 
         if (method === 'DELETE' && (m = match(url, CONFIG_FILE))) {
             const [, type, name] = m;
-            const coll = type === 'schema' ? SCHEMA_CONFIGS_COLL : PIPELINE_CONFIGS_COLL;
-            const rec = store.get<StoredPipelineConfig | StoredSchemaConfig>(space, coll, name);
+            const rec = store.get<StoredPipelineConfig | StoredSchemaConfig>(space, collFor(type), name);
             if (!rec) return error(404, `no such config: ${name}.toon`);
             if (type === 'pipeline' && (rec as StoredPipelineConfig).config['active'] === true) {
                 return error(409, `pipeline '${rec.id}' is active; deactivate (active: false) before deleting`);
             }
-            store.delete(space, coll, rec.id);
+            store.delete(space, collFor(type), rec.id);
             return json({ type, name: rec.id, deleted: true, path: rec.path });
         }
 
@@ -132,6 +165,17 @@ export function onboardingHandler(flags: MockFlags): MockHandler {
             if (!rec) return error(404, `no config file at ${configPath}`);
             store.put(space, PIPELINE_CONFIGS_COLL, rec.id, { ...rec, registered: true });
             return json({ registered: true, id: rec.id, path: rec.path, findings: [] });
+        }
+
+        if (method === 'POST' && ENRICHMENT.test(url)) {
+            const configPath = String((req.body as { configPath?: string } | null)?.configPath ?? '').trim();
+            if (!configPath) return error(400, "body must include 'configPath'");
+            const rec = store
+                .list<StoredEnrichmentConfig>(space, ENRICHMENT_CONFIGS_COLL)
+                .find((r) => r.path === configPath || `${r.id}.toon` === configPath);
+            if (!rec) return error(404, `no config file at ${configPath}`);
+            store.put(space, ENRICHMENT_CONFIGS_COLL, rec.id, { ...rec, registered: true });
+            return json({ registered: true, name: rec.id, path: rec.path, findings: [] });
         }
 
         return undefined;

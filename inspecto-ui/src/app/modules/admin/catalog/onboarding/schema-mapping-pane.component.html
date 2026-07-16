@@ -68,6 +68,13 @@
             <mat-hint>Drives Hive-style output partitioning — a DATE/TIMESTAMP field is typical.</mat-hint>
         </mat-form-field>
 
+        @if (state.kind() === 'reference') {
+            <inspecto-alert variant="info" icon="heroicons_outline:arrow-path" title="Load policy: full replace">
+                Every dump replaces what consumers see — enrichments re-read this dataset on each
+                run. Incremental loads, row-level dedup and versioning are roadmap, not yet applied.
+            </inspecto-alert>
+        }
+
         <div class="flex flex-wrap items-center gap-3">
             <button
                 mat-stroked-button

@@ -353,9 +353,13 @@ class ControlApiTest {
     }
 
     @Test
-    void enrichmentEndpointsAre404WhenNoEnrichmentRegistered(@TempDir Path dir) throws Exception {
+    void enrichmentListIsEmptyAndJobRoutes404WhenNoEnrichmentRegistered(@TempDir Path dir) throws Exception {
         try (Ctx c = open(dir)) {
-            assertEquals(404, send(c.port, "GET", "/enrichment", null).statusCode());
+            // Since v5.1.0 the service always exists (so POST /enrichment can hot-register the
+            // first job on a fresh space): the list is 200-empty, per-job routes still 404.
+            HttpResponse<String> list = send(c.port, "GET", "/enrichment", null);
+            assertEquals(200, list.statusCode(), list.body());
+            assertEquals(0, json(list).size(), "no jobs hosted yet");
             assertEquals(404, send(c.port, "GET", "/enrichment/any/runs", null).statusCode());
         }
     }

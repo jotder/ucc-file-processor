@@ -305,10 +305,10 @@ public final class CollectorService implements AutoCloseable {
         this.pollSeconds       = Math.max(1, pollSeconds);
         this.maxConcurrentRuns = Math.max(1, maxConcurrentRuns);
         this.status            = statusStore != null ? statusStore : fileStatus;
-        this.enrichment        = enrichJobs.isEmpty()
-                ? null
-                // Live pipeline view (method ref defers the registry read to recompute time).
-                : new EnrichmentService(enrichJobs, bus, scheduler, this::loadedPipelines);
+        // Always constructed (empty-list tolerant) so a fresh space can hot-register its FIRST
+        // enrichment via POST /enrichment without a restart. Live pipeline view: the method ref
+        // defers the registry read to recompute time.
+        this.enrichment        = new EnrichmentService(enrichJobs, bus, scheduler, this::loadedPipelines);
         this.jobs              = jobConfigs.isEmpty()
                 ? null
                 : new JobService(jobConfigs, bus, scheduler, reports,
@@ -331,7 +331,7 @@ public final class CollectorService implements AutoCloseable {
         ConfigSource configSource = new ConfigSource() {
             public List<PipelineConfig> pipelines() { return configRegistry.configs(); }
             public List<EnrichmentConfig> enrichments() {
-                return enrichment != null ? enrichment.configs() : List.of();
+                return enrichment.configs();
             }
             public List<SemanticModel> semantics() { return CollectorService.this.semanticModels; }
         };
@@ -386,7 +386,7 @@ public final class CollectorService implements AutoCloseable {
         this.eventLog.addSubscriber(notificationSubscriber);
         String viewsFile = System.getProperty("events.views.file");
         this.savedViews = new SavedViewStore(viewsFile == null ? null : Path.of(viewsFile));
-        CatalogOverlay.Stage2Reads stage2 = enrichment == null ? null : new CatalogOverlay.Stage2Reads() {
+        CatalogOverlay.Stage2Reads stage2 = new CatalogOverlay.Stage2Reads() {
             public boolean hosts(String job) { return enrichment.config(job).isPresent(); }
             public List<Map<String, String>> runs(String job) { return enrichment.runs(job); }
             public List<Map<String, String>> lineage(String job, String runId) {
@@ -622,7 +622,7 @@ public final class CollectorService implements AutoCloseable {
         // subscribes + schedules its completeness jobs. Both wire up before the first
         // poll cycle so no commit event from that cycle is missed.
         metrics.start();
-        if (enrichment != null) enrichment.start();
+        enrichment.start();
         if (jobs != null) jobs.start();
         if (agent != null) {
             try { agent.start(); }
@@ -965,9 +965,23 @@ public final class CollectorService implements AutoCloseable {
         return names;
     }
 
-    /** The Stage-2 enrichment service, or empty when no enrichment jobs are registered (v2.9.0). */
+    /** The Stage-2 enrichment service — always present since v5.1.0 (hosts zero jobs on a space
+     *  with no {@code *_enrich.toon} configs, so the first one can hot-register). */
     public Optional<EnrichmentService> enrichmentService() {
         return Optional.ofNullable(enrichment);
+    }
+
+    /**
+     * Hot-register (or replace by name) a Stage-2 enrichment job — pairs with
+     * {@code POST /config/write type=enrichment} the way {@link #registerPipeline} pairs with a
+     * pipeline write (v5.1.0). The catalog is invalidated so the job's reference/lineage nodes
+     * appear on the next graph read. Persistence caveat mirrors pipelines: the registration is
+     * in-memory; the job survives a restart only because its {@code *_enrich.toon} file lies
+     * under a scanned config dir.
+     */
+    public void registerEnrichment(EnrichmentConfig cfg) {
+        enrichment.register(cfg);
+        invalidateCatalog();
     }
 
     /** The metadata graph / data catalog (M2, v3.2.0): always present (core, zero-AI by default). */
@@ -1191,7 +1205,7 @@ public final class CollectorService implements AutoCloseable {
         }
         if (jobs != null) jobs.close();               // drain in-flight job runs first
         triggerWorkers.close();                        // drain in-flight event-triggered flow runs (T13)
-        if (enrichment != null) enrichment.close();   // drain in-flight recomputes first
+        enrichment.close();   // drain in-flight recomputes first
         this.eventLog.removeSubscriber(eventObjectBridge);   // de-register the D2 gap→ALERT bridge
         this.eventLog.removeSubscriber(notificationSubscriber);   // de-register the B2 event→feed engine
         try { notificationService.close(); } catch (Exception e) { log.warn("Error closing notification service: {}", e.getMessage()); }

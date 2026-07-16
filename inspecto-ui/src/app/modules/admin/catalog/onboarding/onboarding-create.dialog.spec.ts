@@ -51,6 +51,18 @@ describe('OnboardingCreateDialog', () => {
         expect(config['dirs']).toEqual({
             poll: 'spaces/demo/data/inbox/orders_feed',
             database: 'spaces/demo/data/orders_feed/database',
+            // Derived silently (never asked): without status_dir the Runs history stays empty.
+            backup: 'spaces/demo/data/orders_feed/backup',
+            temp: 'spaces/demo/data/orders_feed/temp',
+            errors: 'spaces/demo/data/orders_feed/errors',
+            quarantine: 'spaces/demo/data/orders_feed/quarantine',
+            markers: 'spaces/demo/data/orders_feed/markers',
+            status_dir: 'spaces/demo/data/orders_feed/status',
+            log_dir: 'spaces/demo/data/orders_feed/logs',
+        });
+        // The LOCAL poll path's real dedup — collector-level `duplicate:` is engine-only.
+        expect((config['processing'] as Record<string, unknown>)['duplicate_check']).toEqual({
+            enabled: true, marker_extension: '.processed', retention_days: 30,
         });
         expect(api.registerPipeline).toHaveBeenCalledWith('x.toon');
         expect(ref.close).toHaveBeenCalledWith({ name: 'orders_feed' });

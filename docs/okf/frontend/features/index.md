@@ -38,6 +38,7 @@ documented as concepts.
 # Platform — Catalog
 
 * [Catalog](catalog.md) - the data catalog (Datasets, KPIs, and a graph view).
+* [Stream & Reference Onboarding](onboarding.md) - guided, resumable data-origin authoring over the server-held pipeline draft.
 * [Components](components.md) - the reusable component registry.
 
 # Business

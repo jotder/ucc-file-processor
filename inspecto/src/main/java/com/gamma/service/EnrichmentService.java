@@ -21,6 +21,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicLong;
@@ -65,6 +66,7 @@ public final class EnrichmentService implements AutoCloseable {
 
     private static final Logger log = LoggerFactory.getLogger(EnrichmentService.class);
 
+    /** Live, hot-registrable job list — iterated per bus event, mutated only by {@link #register}. */
     private final List<EnrichmentConfig> jobs;
     private final BatchEventBus bus;
     private final Scheduler scheduler;
@@ -74,6 +76,9 @@ public final class EnrichmentService implements AutoCloseable {
     private final LockingRunner runner = new LockingRunner();
     private final Map<String, EnrichmentAuditWriter> auditWriters = new ConcurrentHashMap<>();
     private final AtomicLong seq = new AtomicLong();
+    /** Job names whose completeness schedule is armed — the scheduler has no cancel-by-name,
+     *  so each name is armed at most once and the task resolves its config at fire time. */
+    private final Set<String> armedSchedules = ConcurrentHashMap.newKeySet();
 
     public EnrichmentService(List<EnrichmentConfig> jobs, BatchEventBus bus, Scheduler scheduler) {
         this(jobs, bus, scheduler, List::of);
@@ -86,7 +91,7 @@ public final class EnrichmentService implements AutoCloseable {
      */
     public EnrichmentService(List<EnrichmentConfig> jobs, BatchEventBus bus, Scheduler scheduler,
                              Supplier<List<PipelineConfig>> pipelines) {
-        this.jobs      = List.copyOf(jobs);
+        this.jobs      = new CopyOnWriteArrayList<>(jobs);
         this.bus       = bus;
         this.scheduler = scheduler;
         this.pipelines = pipelines == null ? List::of : pipelines;
@@ -98,16 +103,42 @@ public final class EnrichmentService implements AutoCloseable {
         int events = 0, scheduled = 0;
         for (EnrichmentConfig job : jobs) {
             if (job.triggers().hasEvent()) events++;
-            if (job.triggers().hasSchedule()) {
-                long s = job.triggers().scheduleSeconds();
-                // initialDelay = interval so the timer (not an immediate run) drives this path
-                scheduler.everySeconds("enrich-" + job.name(), s, s,
-                        () -> recompute(job, null, "schedule"));
-                scheduled++;
-            }
+            if (armSchedule(job)) scheduled++;
         }
         log.info("EnrichmentService started: {} job(s) — {} event-triggered, {} scheduled",
                 jobs.size(), events, scheduled);
+    }
+
+    /**
+     * Arm a job's completeness schedule once per name. The task resolves the config by name at
+     * fire time, so a later {@link #register} replacement is picked up by the existing timer.
+     */
+    private boolean armSchedule(EnrichmentConfig job) {
+        if (!job.triggers().hasSchedule() || !armedSchedules.add(job.name())) return false;
+        long s = job.triggers().scheduleSeconds();
+        String name = job.name();
+        // initialDelay = interval so the timer (not an immediate run) drives this path
+        scheduler.everySeconds("enrich-" + name, s, s,
+                () -> config(name).ifPresent(j -> recompute(j, null, "schedule")));
+        return true;
+    }
+
+    /**
+     * Hot-register (or replace, keyed by {@code name}) an enrichment job — the
+     * {@code POST /enrichment} authoring seam (v5.1.0). Event triggers apply from the next
+     * committed batch; a NEW name's schedule is armed now. Two documented limits, both from the
+     * scheduler having no cancel-by-name: replacing a job keeps the original schedule
+     * <em>interval</em> (the timer re-reads the config, so everything else applies), and a
+     * removed-on-disk job keeps running until restart.
+     */
+    public synchronized void register(EnrichmentConfig job) {
+        boolean replaced = jobs.removeIf(j -> j.name().equals(job.name()));
+        jobs.add(job);
+        armSchedule(job);
+        log.info("EnrichmentService {} job '{}' (event={}, schedule={}s)",
+                replaced ? "replaced" : "registered", job.name(),
+                job.triggers().hasEvent() ? job.triggers().onPipeline() : "-",
+                job.triggers().hasSchedule() ? job.triggers().scheduleSeconds() : 0);
     }
 
     /** Dispatch a committed-batch event to any job listening on its pipeline. */
@@ -189,9 +220,9 @@ public final class EnrichmentService implements AutoCloseable {
                           boolean eventTriggered, boolean scheduled, int runCount,
                           String lastStatus, String lastRunTime) {}
 
-    /** The enrichment jobs hosted here (read-only). */
+    /** The enrichment jobs hosted here (read-only snapshot). */
     public List<EnrichmentConfig> configs() {
-        return jobs;
+        return List.copyOf(jobs);
     }
 
     /** Look up a hosted enrichment job by its (case-sensitive) name. */

@@ -353,13 +353,23 @@ come from **Settings → Map Settings**.
 
 ### 4.3 Catalog
 
-**Data Catalog** — The map of your data assets and how they connect. It indexes every **Schema**,
-**Table**, **Derived Table**, and **View** in the Space, with search and metadata, grouped by
-**Stream** — a named data origin (one feed: a database, a file drop) as the Catalog sees it; a
-Stream is what a **Connection** plus its **Sources** populate. A **Graph** tab
-renders the read-only **lineage** — which Stream feeds which Table, which Transform derives
-which Derived Table, which Widgets read which Datasets — so you can trace where any piece of data
-came from and what depends on it. Click a node for its detail.
+**Data Catalog** — The map of your data assets and how they connect. Its front door is the two
+data-origin tabs: **Streams** (event/fact origins — one feed: a database, a file drop) and
+**References** (dimension origins that publish a **Reference Dataset**); an origin is what a
+**Connection** plus its **Collectors** populate. Behind them it indexes every **Schema**,
+**Table**, **Derived Table**, and **View** in the Space, with search and metadata. A **Lineage**
+tab renders the read-only graph — which Stream feeds which Table, which Transform derives which
+Derived Table, which Widgets read which Datasets — so you can trace where any piece of data came
+from and what depends on it. Click a node for its detail.
+
+**Onboarding a data origin** — *Onboard Stream / Onboard Reference* (the header button on those
+tabs, authoring lenses) opens the guided editor: a stage rail — Collection → Parsing → Schema &
+Mapping (References: **Keys & Load**) → Enrichment *(Streams, optional)* → Go-live — over a
+server-held draft, so you can leave and resume any time (the rows appear in the Catalog as
+**Draft** until you go live). Capture one sample and each stage shows *your* data after that step:
+parse it, type it (only honestly-cast types are offered), and for Streams optionally join in a
+published Reference **by name** with transform SQL — the enrichment then runs after every
+committed batch. Go-live flips the pipeline active; an activity glance shows the inbox working.
 
 **Datasets** — The queryable relations themselves, the umbrella over **Table** (a partitioned root
 of Parquet files described by a Schema), **Derived Table** (materialized by a Transform or cube),

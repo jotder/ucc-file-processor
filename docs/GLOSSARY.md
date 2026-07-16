@@ -129,6 +129,12 @@ Stream/Reference §3. ⛔ "Poller" — too narrow, it misses push/event inputs.)
 **Feed** *(optional)* — A Collector bound to a recurring inbound delivery cadence. Use only when the recurring
 delivery itself must be named.
 
+**Onboard / Onboarding** — The **guided end-to-end creation of a data origin** (a Stream or a Reference, §3):
+Catalog ▸ *Onboard Stream / Onboard Reference* opens a stage rail (Collection → Parsing → Schema/Keys →
+[Enrichment] → Go-live) that authors the real Stage-1 pipeline config server-side; a draft is just an
+`active: false` pipeline. One "onboard" verb product-wide. ⛔ never "wizard" in UI copy. *(Shipped 2026-07-16;
+seams: `docs/okf/backend/control-plane/onboarding-authoring.md`.)*
+
 **Batch** — A set of one or more files ingested and processed together as one unit of work.
 
 **File** — A single collected file. Carries a **File status** (see *Run* for the status hierarchy).
@@ -248,7 +254,10 @@ OLAP cube.)
 **Reference Dataset** — A **Dataset produced from a Reference origin** (§3): cached / versioned **dimension**
 data (SCD), deduplicated from incremental or full-dump loads. It is the **lookup side of a join** — a
 Transform / Enrichment joins it into a Stream's facts. (Lineage NodeKind `REFERENCE_DATASET`; ≈ dimension
-table.)
+table.) *Production seam (2026-07-16):* a pipeline may **produce** one (`produces: reference` in its TOON,
+node id `ref:<pipeline>`), and an Enrichment then binds it **by name** (`references.<alias>.ref:`) instead of
+a file path — v1 load semantics are full-replace; the cached/SCD nature above remains the Phase-2 engine
+backlog.
 
 **Matrix** — The **user-facing name** for a summary / cube / roll-up data asset. It **is a Derived Table**
 (so it lives inside the **Dataset** umbrella) — "Matrix" is the label the Catalog and Studio show, not a new

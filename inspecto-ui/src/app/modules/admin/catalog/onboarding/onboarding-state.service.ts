@@ -16,23 +16,23 @@ export interface OnboardingStage {
     icon: string;
     hint: string;
     optional?: boolean;
-    /** Panes for these land in a later phase; the rail still shows the whole journey. */
-    implemented: boolean;
 }
 
 const STREAM_STAGES: OnboardingStage[] = [
-    { id: 'collection', label: 'Collection', icon: 'heroicons_outline:inbox-arrow-down', hint: 'Where the files come from', implemented: true },
-    { id: 'parsing', label: 'Parsing', icon: 'heroicons_outline:code-bracket', hint: 'How raw bytes become rows', implemented: true },
-    { id: 'schema', label: 'Schema & Mapping', icon: 'heroicons_outline:table-cells', hint: 'Names, types and casts', implemented: false },
-    { id: 'enrichment', label: 'Enrichment', icon: 'heroicons_outline:sparkles', hint: 'Joins and aggregations', optional: true, implemented: false },
-    { id: 'publish', label: 'Dataset & Go-live', icon: 'heroicons_outline:rocket-launch', hint: 'Output format and activation', implemented: false },
+    { id: 'collection', label: 'Collection', icon: 'heroicons_outline:inbox-arrow-down', hint: 'Where the files come from' },
+    { id: 'parsing', label: 'Parsing', icon: 'heroicons_outline:code-bracket', hint: 'How raw bytes become rows' },
+    { id: 'schema', label: 'Schema & Mapping', icon: 'heroicons_outline:table-cells', hint: 'Names, types and casts' },
+    { id: 'enrichment', label: 'Enrichment', icon: 'heroicons_outline:sparkles', hint: 'Joins and aggregations', optional: true },
+    { id: 'publish', label: 'Dataset & Go-live', icon: 'heroicons_outline:rocket-launch', hint: 'Output format and activation' },
 ];
 
 const REFERENCE_STAGES: OnboardingStage[] = [
-    { id: 'collection', label: 'Collection', icon: 'heroicons_outline:inbox-arrow-down', hint: 'Where the dumps come from', implemented: true },
-    { id: 'parsing', label: 'Parsing', icon: 'heroicons_outline:code-bracket', hint: 'How raw bytes become rows', implemented: true },
-    { id: 'keys', label: 'Keys & Load', icon: 'heroicons_outline:key', hint: 'Full-replace load policy', optional: true, implemented: false },
-    { id: 'publish', label: 'Publish', icon: 'heroicons_outline:rocket-launch', hint: 'Make it bindable by name', implemented: false },
+    { id: 'collection', label: 'Collection', icon: 'heroicons_outline:inbox-arrow-down', hint: 'Where the dumps come from' },
+    { id: 'parsing', label: 'Parsing', icon: 'heroicons_outline:code-bracket', hint: 'How raw bytes become rows' },
+    // Required, not optional: a pipeline cannot arm without a schema — the keys stage IS where a
+    // Reference gets its columns/types (plus the honest full-replace load-policy note).
+    { id: 'keys', label: 'Keys & Load', icon: 'heroicons_outline:key', hint: 'Columns, types and the full-replace load' },
+    { id: 'publish', label: 'Publish', icon: 'heroicons_outline:rocket-launch', hint: 'Make it bindable by name' },
 ];
 
 /**
@@ -61,6 +61,9 @@ export class OnboardingStateService {
     readonly parseError = signal<string | null>(null);
     readonly schemaPreview = signal<SchemaPreview | null>(null);
     readonly schemaError = signal<string | null>(null);
+    /** The companion `EnrichmentConfig` (Streams only, `<name>_enrich`) — server-held like the
+     *  draft itself; null = none authored yet (the stage is optional). */
+    readonly enrichmentConfig = signal<Record<string, unknown> | null>(null);
 
     /** The active pane's unsaved-changes probe (registered on init, cleared on destroy). */
     private dirtyCheck: (() => boolean) | null = null;
@@ -72,6 +75,15 @@ export class OnboardingStateService {
     readonly stages = computed<OnboardingStage[]>(() =>
         this.kind() === 'reference' ? REFERENCE_STAGES : STREAM_STAGES,
     );
+    /** The engine's normalized pipeline id (`Identity.pipelineName`) — what `BatchEvent.pipeline()`
+     *  carries and what an enrichment's `triggers.on_pipeline` must therefore use. */
+    readonly normalizedName = computed(() =>
+        String((this.config() ?? {})['name'] ?? this.name()).toLowerCase().replace(/ /g, '_'),
+    );
+    /** Companion enrichment identity, mirroring the schema convention (`<pipeline>_schema`). */
+    enrichName(): string {
+        return `${this.name()}_enrich`;
+    }
 
     readonly stageStatus = computed<Record<OnboardingStageId, StageStatus>>(() => {
         const cfg = this.config() ?? {};
@@ -82,16 +94,18 @@ export class OnboardingStateService {
             (Array.isArray(proc['schemas']) && proc['schemas'].length > 0) ||
             !!proc['ingester'] || !!parsing['plugin'];
         const parsingConfigured = 'parsing' in cfg;
+        const schemaStatus: StageStatus = hasSchema
+            ? this.schemaPreview() && !this.schemaError() ? 'validated' : 'configured'
+            : 'empty';
         return {
             collection: 'collector' in cfg ? 'configured' : 'empty',
             parsing: parsingConfigured
                 ? this.parsePreview() && !this.parseError() ? 'validated' : 'configured'
                 : 'empty',
-            schema: hasSchema
-                ? this.schemaPreview() && !this.schemaError() ? 'validated' : 'configured'
-                : 'empty',
-            enrichment: 'empty', // companion EnrichmentConfig — P3
-            keys: 'empty', // Reference load policy — P3 (full-replace is today's only semantics)
+            schema: schemaStatus,
+            // The Reference "Keys & Load" stage authors the same schema artifact.
+            keys: schemaStatus,
+            enrichment: this.enrichmentConfig() ? 'configured' : 'empty',
             publish: 'output' in cfg || this.active() ? 'configured' : 'empty',
         };
     });
@@ -117,10 +131,18 @@ export class OnboardingStateService {
         this.name.set(name);
         this.loading.set(true);
         this.missing.set(false);
+        this.enrichmentConfig.set(null);
         this.configApi.read('pipeline', name).subscribe({
             next: (r) => {
                 this.config.set(r.config);
                 this.loading.set(false);
+                // Streams may carry a companion enrichment; 404 just means none authored yet.
+                if (this.kind() === 'stream') {
+                    this.configApi.read('enrichment', this.enrichName()).subscribe({
+                        next: (er) => this.enrichmentConfig.set(er.config),
+                        error: () => this.enrichmentConfig.set(null),
+                    });
+                }
             },
             error: (e) => {
                 this.loading.set(false);

@@ -140,6 +140,14 @@ export class CatalogComponent implements OnInit {
 
     readonly referenceColumns: ColDef[] = [
         { field: 'label', headerName: 'Reference', flex: 1 },
+        {
+            // Pipeline-produced references carry the producer's active flag (P3); path/dangling
+            // enrichment-scoped rows have no lifecycle and render '—'.
+            headerName: 'Lifecycle',
+            width: 110,
+            valueGetter: (p) => lifecycleOf((p.data as MetadataNode)?.attrs),
+            cellRenderer: (p: { value: string }) => (p.value ? statusBadgeHtml(p.value) : '—'),
+        },
         { field: 'attrs.connector', headerName: 'Connector', width: 130 },
         { field: 'attrs.connection', headerName: 'Connection', flex: 1, valueFormatter: (p) => p.value ?? '—' },
         { field: 'attrs.pipeline', headerName: 'Pipeline', flex: 1 },

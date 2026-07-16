@@ -309,6 +309,14 @@ export interface PipelineRegisterResult {
   findings?: Finding[];
 }
 
+/** POST /enrichment result — a written enrichment hot-registered (or replaced by name). */
+export interface EnrichmentRegisterResult {
+  registered: boolean;
+  name: string;
+  path: string;
+  findings?: Finding[];
+}
+
 /** POST /config/preview/parsing result — a raw sample parsed with a draft's parsing settings. */
 export interface ParsingPreview {
   frontend: 'delimited' | 'fixedwidth' | 'json' | 'text_regex' | 'plugin' | string;

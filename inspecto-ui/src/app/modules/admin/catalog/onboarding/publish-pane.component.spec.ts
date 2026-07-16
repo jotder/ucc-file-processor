@@ -89,6 +89,13 @@ describe('OnboardingPublishPaneComponent', () => {
         expect(fixture.nativeElement.textContent).toContain('pending in spaces/demo');
     });
 
+    it('tells a Reference author the dataset becomes bindable by name', () => {
+        const { fixture, state } = create({ ...READY_CONFIG, produces: 'reference' });
+        expect(state.kind()).toBe('reference');
+        expect(fixture.nativeElement.textContent).toContain('Reference Dataset');
+        expect(fixture.nativeElement.textContent).toContain('ref: orders_feed');
+    });
+
     it('has no a11y violations', async () => {
         const { fixture } = create({ name: 'x' });
         await expectNoA11yViolations(fixture.nativeElement);

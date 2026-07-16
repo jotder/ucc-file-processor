@@ -127,6 +127,12 @@ describe('OnboardingSchemaMappingPaneComponent', () => {
         expect(TOASTR.warning).toHaveBeenCalled();
     });
 
+    it('shows the honest full-replace load-policy note when serving the Reference keys stage', () => {
+        const { fixture, state } = create({ name: 'region_dim', produces: 'reference' });
+        expect(state.kind()).toBe('reference');
+        expect(fixture.nativeElement.textContent).toContain('Load policy: full replace');
+    });
+
     it('has no a11y violations', async () => {
         const { fixture } = create({ name: 'orders_feed' });
         await expectNoA11yViolations(fixture.nativeElement);

@@ -150,6 +150,61 @@ class EnrichmentServiceTest {
         }
     }
 
+    // ── hot registration (POST /enrichment, v5.1.0): no restart needed ───────────────
+
+    @Test
+    void hotRegisteredJobFiresOnTheNextBatchEvent(@TempDir Path dir) throws Exception {
+        Path in = dir.resolve("in"), out = dir.resolve("out");
+        seedInput(in);
+        BatchEventBus bus = new BatchEventBus();
+        List<BatchEvent> seen = Collections.synchronizedList(new ArrayList<>());
+        bus.subscribe(seen::add);
+        Scheduler sched = new Scheduler();
+        // A fresh space: the service starts hosting ZERO jobs (always constructed since v5.1.0).
+        EnrichmentService es = new EnrichmentService(List.of(), bus, sched);
+        try {
+            es.start();
+            es.register(dailyKpi("DAILY_HOT", in, out, new Triggers("EVENTS", 0)));
+            assertEquals(1, es.configs().size(), "hosted immediately, no restart");
+
+            bus.publish(new BatchEvent("EVENTS", "b1", "SUCCESS",
+                    List.of("event_type=CALL/year=2020/month=04/day=03"), 2, 100L, 0));
+            assertTrue(await(seen, "DAILY_HOT", 10_000), "hot-registered job fires on the next event");
+            assertEquals(Map.of("CALL|03", 2L), readCounts(out, "event_count"));
+        } finally {
+            sched.close();
+            es.close();
+        }
+    }
+
+    @Test
+    void reRegisterReplacesByNameSoTheNewConfigFires(@TempDir Path dir) throws Exception {
+        Path in = dir.resolve("in"), out1 = dir.resolve("out1"), out2 = dir.resolve("out2");
+        seedInput(in);
+        BatchEventBus bus = new BatchEventBus();
+        List<BatchEvent> seen = Collections.synchronizedList(new ArrayList<>());
+        bus.subscribe(seen::add);
+        Scheduler sched = new Scheduler();
+        EnrichmentService es = new EnrichmentService(List.of(), bus, sched);
+        try {
+            es.start();
+            es.register(dailyKpi("DAILY_UPSERT", in, out1, new Triggers("EVENTS", 0)));
+            // Stage save re-registers the same name — the replacement's output dir proves which ran.
+            es.register(dailyKpi("DAILY_UPSERT", in, out2, new Triggers("EVENTS", 0)));
+            assertEquals(1, es.configs().size(), "replaced, not duplicated");
+
+            bus.publish(new BatchEvent("EVENTS", "b1", "SUCCESS",
+                    List.of("event_type=CALL/year=2020/month=04/day=03"), 2, 100L, 0));
+            assertTrue(await(seen, "DAILY_UPSERT", 10_000));
+            assertEquals(Map.of("CALL|03", 2L), readCounts(out2, "event_count"),
+                    "the replacement config ran");
+            assertTrue(readCounts(out1, "event_count").isEmpty(), "the replaced config did not");
+        } finally {
+            sched.close();
+            es.close();
+        }
+    }
+
     // ── T2.3 chains: a Stage-2 commit triggers a downstream Stage-2 job ──────────────
 
     @Test

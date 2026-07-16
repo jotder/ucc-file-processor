@@ -80,4 +80,37 @@ describe('OnboardingStateService', () => {
         expect(s.missing()).toBe(true);
         expect(s.loading()).toBe(false);
     });
+
+    it('the Reference keys stage mirrors the schema readiness and is required for Ready', () => {
+        const s = create();
+        s.config.set({
+            name: 'region_dim', produces: 'reference',
+            collector: { connector: 'local' }, parsing: { frontend: 'delimited' }, output: { format: 'CSV' },
+        });
+        expect(s.stageStatus().keys).toBe('empty');
+        expect(s.lifecycle()).toBe('Draft'); // no schema yet — a schema-less pipeline cannot arm
+        s.config.set({ ...(s.config() as Record<string, unknown>), processing: { schema_file: 's.toon' } });
+        expect(s.stageStatus().keys).toBe('configured');
+        expect(s.lifecycle()).toBe('Ready');
+    });
+
+    it('the enrichment stage reads the companion config and loads it for streams', () => {
+        const read = vi.fn((type: string) => type === 'enrichment'
+            ? of({ config: { name: 'x_enrich', transform: 'SELECT 1' } })
+            : of({ config: { name: 'x' } }));
+        const s = create({ read } as unknown as Partial<ConfigService>);
+        expect(s.stageStatus().enrichment).toBe('empty');
+        s.load('x');
+        expect(read).toHaveBeenCalledWith('enrichment', 'x_enrich');
+        expect(s.enrichmentConfig()).toEqual({ name: 'x_enrich', transform: 'SELECT 1' });
+        expect(s.stageStatus().enrichment).toBe('configured');
+        // Optional: a missing companion never blocks Ready (covered by lifecycle's optional filter).
+        expect(s.stages().find((x) => x.id === 'enrichment')?.optional).toBe(true);
+    });
+
+    it('exposes the engine-normalized pipeline id for on_pipeline wiring', () => {
+        const s = create();
+        s.config.set({ name: 'Orders Feed' });
+        expect(s.normalizedName()).toBe('orders_feed');
+    });
 });

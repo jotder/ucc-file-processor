@@ -8,6 +8,7 @@ import {
   ConfigSpec,
   ConfigType,
   ConfigWriteResult,
+  EnrichmentRegisterResult,
   ParsingPreview,
   PipelineRegisterResult,
   SchemaPreview,
@@ -64,6 +65,14 @@ export class ConfigService {
    */
   registerPipeline(configPath: string): Observable<PipelineRegisterResult> {
     return this.http.post<PipelineRegisterResult>(apiUrl('/runs'), { configPath });
+  }
+  /**
+   * Hot-register (or replace by name) a written enrichment file with the running service
+   * (`POST /enrichment` — the Stage-2 sibling of {@link registerPipeline}; enrichments do NOT
+   * hot-reload by mtime, so every save re-registers).
+   */
+  registerEnrichment(configPath: string): Observable<EnrichmentRegisterResult> {
+    return this.http.post<EnrichmentRegisterResult>(apiUrl('/enrichment'), { configPath });
   }
   /** Parse a raw sample with a draft's parsing settings — stateless, scratch-only (raw→parsed hop). */
   previewParsing(config: Record<string, unknown>, sampleText: string): Observable<ParsingPreview> {

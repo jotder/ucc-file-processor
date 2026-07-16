@@ -19,6 +19,14 @@
     <div class="flex flex-col gap-3">
         <h2 class="m-0 text-lg font-semibold">Go live</h2>
 
+        @if (state.kind() === 'reference') {
+            <inspecto-alert variant="info" icon="heroicons_outline:link">
+                This pipeline publishes a <strong>Reference Dataset</strong> — once live, enrichments
+                can bind it by name (<code>ref: {{ state.normalizedName() }}</code>) instead of a file
+                path.
+            </inspecto-alert>
+        }
+
         @if (state.active()) {
             <inspecto-alert variant="success" icon="heroicons_outline:signal">
                 This {{ state.kind() }} is live — it collects on every poll cycle.

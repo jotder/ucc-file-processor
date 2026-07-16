@@ -1,0 +1,134 @@
+<div class="flex max-w-3xl flex-col gap-4">
+    @if (!started()) {
+        <inspecto-empty-state
+            icon="heroicons_outline:sparkles"
+            message="Optional — join this stream with reference datasets on every committed batch."
+        />
+        <p class="text-secondary mx-auto m-0 max-w-lg text-center text-sm">
+            Skip it if the raw dataset is all you need; you can add an enrichment any time, even
+            after going live.
+        </p>
+        <button
+            mat-flat-button
+            color="primary"
+            class="self-center"
+            [disabled]="!lens.canAuthorWorkbench()"
+            (click)="start()"
+        >
+            Add enrichment
+        </button>
+    } @else {
+        <p class="text-secondary m-0">
+            Bind the reference datasets to join with, then write the transform. It runs after every
+            committed batch of this stream.
+        </p>
+
+        <!-- References -->
+        <div class="flex flex-col gap-2">
+            <div class="flex items-center gap-2">
+                <h2 class="m-0 text-lg font-semibold">References</h2>
+                <span class="flex-1"></span>
+                <button mat-stroked-button type="button" (click)="addReference()">
+                    <mat-icon svgIcon="heroicons_outline:plus" class="icon-size-4"></mat-icon>
+                    <span class="ml-1">Add reference</span>
+                </button>
+            </div>
+
+            @if (referenceRows.length === 0) {
+                <p class="text-secondary m-0 text-sm">
+                    None yet — pure aggregations over <code>input</code> don't need one.
+                </p>
+            }
+
+            <form [formGroup]="referencesForm">
+                <div formArrayName="references" class="flex flex-col gap-2">
+                    @for (g of referenceRows.controls; track $index; let i = $index) {
+                        <div [formGroupName]="i" class="flex flex-wrap items-center gap-2 rounded border p-2">
+                            <mat-form-field class="w-40" subscriptSizing="dynamic">
+                                <mat-label>Alias in SQL</mat-label>
+                                <input matInput formControlName="name" placeholder="region_dim" />
+                                @if (g.get('name')?.hasError('pattern') && g.get('name')?.touched) {
+                                    <mat-error>Letters, digits, _ — start with a letter or _.</mat-error>
+                                }
+                            </mat-form-field>
+                            <mat-form-field class="w-36" subscriptSizing="dynamic">
+                                <mat-label>Bind</mat-label>
+                                <mat-select formControlName="mode">
+                                    <mat-option value="ref">By name</mat-option>
+                                    <mat-option value="path">File path</mat-option>
+                                </mat-select>
+                            </mat-form-field>
+                            @if (g.get('mode')?.value === 'ref') {
+                                <mat-form-field class="min-w-52 flex-1" subscriptSizing="dynamic">
+                                    <mat-label>Published Reference</mat-label>
+                                    <mat-select formControlName="ref">
+                                        @for (o of referenceOptions(); track o.id) {
+                                            <mat-option [value]="o.id">{{ o.label }}</mat-option>
+                                        }
+                                    </mat-select>
+                                    @if (referenceOptions().length === 0) {
+                                        <mat-hint>No live Reference Datasets published yet.</mat-hint>
+                                    }
+                                </mat-form-field>
+                            } @else {
+                                <mat-form-field class="min-w-52 flex-1" subscriptSizing="dynamic">
+                                    <mat-label>File path</mat-label>
+                                    <input matInput formControlName="path" placeholder="spaces/demo/data/ref/region_dim.csv" />
+                                </mat-form-field>
+                                <mat-form-field class="w-32" subscriptSizing="dynamic">
+                                    <mat-label>Format</mat-label>
+                                    <mat-select formControlName="format">
+                                        <mat-option value="CSV">CSV</mat-option>
+                                        <mat-option value="PARQUET">Parquet</mat-option>
+                                    </mat-select>
+                                </mat-form-field>
+                            }
+                            <button
+                                mat-icon-button
+                                type="button"
+                                (click)="removeReference(i)"
+                                [attr.aria-label]="'Remove reference ' + (g.get('name')?.value || i + 1)"
+                                matTooltip="Remove"
+                            >
+                                <mat-icon svgIcon="heroicons_outline:trash" class="icon-size-4"></mat-icon>
+                            </button>
+                        </div>
+                    }
+                </div>
+            </form>
+        </div>
+
+        <!-- Transform SQL -->
+        <div class="flex flex-col gap-2">
+            <h2 class="m-0 text-lg font-semibold">Transform</h2>
+            <p class="text-secondary m-0 text-sm">
+                Views available: @for (v of availableViews(); track v; let last = $last) {<code>{{ v }}</code>@if (!last) {, }}.
+            </p>
+            <div class="rounded border" role="group" aria-label="Transform SQL editor">
+                <inspecto-sql-codemirror [value]="sql()" (valueChange)="onSqlChange($event)" />
+            </div>
+        </div>
+
+        <!-- Derived plumbing: shown, never asked -->
+        <div class="text-secondary flex flex-col gap-1 rounded border p-3 text-sm">
+            <span class="text-xs font-semibold uppercase tracking-wider">Wiring (derived)</span>
+            <span>Trigger — after every committed batch of <code>{{ state.normalizedName() }}</code></span>
+            <span>Input — <code>{{ inputBlock()['database'] }}</code> ({{ inputBlock()['format'] }})</span>
+            <span>Output — <code>{{ outputBlock()['database'] }}</code> ({{ outputBlock()['format'] }}, partitioned year/month/day)</span>
+        </div>
+
+        <div class="flex items-center gap-3">
+            <button
+                mat-flat-button
+                color="primary"
+                [disabled]="saving() || !lens.canAuthorWorkbench()"
+                (click)="save()"
+            >
+                @if (saving()) {
+                    <mat-progress-spinner diameter="16" mode="indeterminate" class="mr-2" />
+                }
+                Save enrichment
+            </button>
+        </div>
+    }
+</div>

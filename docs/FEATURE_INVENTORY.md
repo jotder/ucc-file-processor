@@ -19,7 +19,11 @@
 > **agent-kernel → eoiagent** replacement (vendored kernel layer + `com.eoiagent` model transport);
 > component-model persistence (writable `dataset`/`widget`/`dashboard`/`query` kinds); **Studio**
 > (Query Library / Viz Library / Dashboard Builder), **Link Analysis** and **Geo Map Analysis**
-> studios; the **Decision Rule** kind + **Signal** ledger (R4/R5); **Metadata Bundle** import/export.
+> studios; the **Decision Rule** kind + **Signal** ledger (R4/R5); **Metadata Bundle** import/export;
+> **guided Stream/Reference onboarding** (2026-07-16: Catalog ▸ Onboard — draft = `active:false`
+> pipeline, stage rail, sample previews `POST /config/preview/parsing|schema`, `produces: reference`
+> origins + by-name enrichment binding, `POST /enrichment` hot-register; seams in
+> [`okf/backend/control-plane/onboarding-authoring.md`](okf/backend/control-plane/onboarding-authoring.md)).
 > Current status lives in [`REQUIREMENTS.md`](REQUIREMENTS.md) §3 and the OKF bundle.
 
 ---

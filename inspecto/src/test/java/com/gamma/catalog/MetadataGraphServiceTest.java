@@ -234,6 +234,8 @@ class MetadataGraphServiceTest {
         assertEquals(NodeKind.REFERENCE_DATASET, svc.node("ref:region_dim").kind());
         assertEquals("CSV", svc.node("ref:region_dim").attrs().get("format"));
         assertEquals("region_dim", svc.node("ref:region_dim").attrs().get("pipeline"));
+        // Lifecycle for the Catalog References tab (Draft/Live) — same column as Streams.
+        assertEquals(false, svc.node("ref:region_dim").attrs().get("active"));
     }
 
     @Test

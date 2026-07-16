@@ -174,11 +174,30 @@ export class OnboardingCreateDialog {
         }
         const v = this.form.getRawValue();
         const name = String(v.name ?? '').trim();
+        // Beyond the two asked-for dirs, the whole space-convention dir set is derived silently —
+        // without dirs.status_dir the run audit never lands (Runs history stays empty), and
+        // without processing.duplicate_check the LOCAL poll path re-ingests the same file every
+        // cycle (the collector-level `duplicate:` block only drives the collection engine, not
+        // the legacy local path) — both found by the P3 live walk.
+        const home = (v.database || `data/${name}/database`).replace(/\/database$/, '');
         const config: Record<string, unknown> = {
             name,
             active: false,
-            dirs: { poll: v.poll || `data/inbox/${name}`, database: v.database || `data/${name}/database` },
-            processing: { threads: 1 },
+            dirs: {
+                poll: v.poll || `data/inbox/${name}`,
+                database: v.database || `data/${name}/database`,
+                backup: `${home}/backup`,
+                temp: `${home}/temp`,
+                errors: `${home}/errors`,
+                quarantine: `${home}/quarantine`,
+                markers: `${home}/markers`,
+                status_dir: `${home}/status`,
+                log_dir: `${home}/logs`,
+            },
+            processing: {
+                threads: 1,
+                duplicate_check: { enabled: true, marker_extension: '.processed', retention_days: 30 },
+            },
         };
         if (String(v.description ?? '').trim()) config['description'] = String(v.description).trim();
         if (this.kind() === 'reference') config['produces'] = 'reference';

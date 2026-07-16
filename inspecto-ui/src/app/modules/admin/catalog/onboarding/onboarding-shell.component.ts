@@ -15,6 +15,7 @@ import { InspectoBreadcrumbComponent } from 'app/inspecto/components/breadcrumb.
 import { InspectoSplitDirective } from 'app/inspecto/components/split.directive';
 import { InspectoConfirmService } from 'app/inspecto/confirm.service';
 import { OnboardingCollectionPaneComponent } from './collection-pane.component';
+import { OnboardingEnrichmentPaneComponent } from './enrichment-pane.component';
 import { OnboardingParsingPaneComponent } from './parsing-pane.component';
 import { OnboardingPlaceholderPaneComponent } from './placeholder-pane.component';
 import { OnboardingPublishPaneComponent } from './publish-pane.component';
@@ -76,7 +77,10 @@ export class OnboardingShellComponent {
             case 'parsing':
                 return OnboardingParsingPaneComponent;
             case 'schema':
+            case 'keys': // the Reference "Keys & Load" stage authors the same schema artifact
                 return OnboardingSchemaMappingPaneComponent;
+            case 'enrichment':
+                return OnboardingEnrichmentPaneComponent;
             case 'publish':
                 return OnboardingPublishPaneComponent;
             default:
