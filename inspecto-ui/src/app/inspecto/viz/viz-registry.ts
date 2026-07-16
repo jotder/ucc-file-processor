@@ -22,7 +22,17 @@ export function allViz(): VizPlugin[] {
     return [...PLUGINS.values()];
 }
 
-/** Test-only: reset the registry between specs. */
-export function clearViz(): void {
+/**
+ * Test-only: empty the registry for an isolated spec, returning a function that restores the prior
+ * contents. Spec files share a per-worker module graph and plugins register via one-shot module side
+ * effects, so a bare clear would starve every later spec file in the worker — clearing without
+ * restoring is deliberately not offered.
+ */
+export function isolateViz(): () => void {
+    const saved = [...PLUGINS.values()];
     PLUGINS.clear();
+    return () => {
+        PLUGINS.clear();
+        for (const p of saved) PLUGINS.set(p.meta.type, p);
+    };
 }

@@ -26,7 +26,17 @@ export function allKinds(): ComponentKind[] {
     return [...KINDS.values()];
 }
 
-/** Test-only: reset the registry between specs. */
-export function clearKinds(): void {
+/**
+ * Test-only: empty the registry for an isolated spec, returning a function that restores the prior
+ * contents. Spec files share a per-worker module graph and kinds register via one-shot module side
+ * effects, so a bare clear would starve every later spec file in the worker — clearing without
+ * restoring is deliberately not offered.
+ */
+export function isolateKinds(): () => void {
+    const saved = [...KINDS.values()];
     KINDS.clear();
+    return () => {
+        KINDS.clear();
+        for (const k of saved) KINDS.set(k.id, k);
+    };
 }
