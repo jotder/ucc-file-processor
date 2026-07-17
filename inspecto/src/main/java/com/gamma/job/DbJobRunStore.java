@@ -53,17 +53,8 @@ public final class DbJobRunStore implements AutoCloseable, com.gamma.util.Browsa
     /** Wrap an already-open JDBC connection; the schema is created if absent. Takes ownership (closed in {@link #close()}). */
     public DbJobRunStore(Connection conn) {
         this.conn = conn;
-        this.postgres = detectPostgres(conn);
+        this.postgres = JdbcDrivers.isPostgres(conn);
         initSchema();
-    }
-
-    private static boolean detectPostgres(Connection conn) {
-        try {
-            String product = conn.getMetaData().getDatabaseProductName();
-            return product != null && product.toLowerCase().contains("postgresql");
-        } catch (SQLException e) {
-            return false; // default to the bundled DuckDB dialect
-        }
     }
 
     /** Dialect-correct continuous-percentile expression for {@code duration_ms}, aliased to {@code alias}. */

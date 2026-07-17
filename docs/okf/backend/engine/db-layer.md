@@ -267,9 +267,10 @@ don't collide).
 
 ### 5.2 Dialect notes & landmines
 
-- **Only `DbJobRunStore` has a dialect branch** — `detectPostgres()` swaps DuckDB `quantile_cont(col,p)`
-  for Postgres `percentile_cont(p) WITHIN GROUP (ORDER BY col)`. Everything else is ANSI SQL (incl.
-  `FILTER (WHERE …)`, supported by both engines).
+- **Only `DbJobRunStore` has a dialect branch** — it swaps DuckDB `quantile_cont(col,p)` for Postgres
+  `percentile_cont(p) WITHIN GROUP (ORDER BY col)`. The probe behind it is the shared
+  `JdbcDrivers.isPostgres(Connection)` (also backs `BrowsableStore.browseEngine()`'s catalog label).
+  Everything else is ANSI SQL (incl. `FILTER (WHERE …)`, supported by both engines).
 - **`CHECKPOINT` in `maintenance()`** (`DbJobRunStore`, `DbAcquisitionLedger`) is superuser-only on
   Postgres — currently caught-and-logged, so it degrades to a no-op VACUUM cycle. Verify that's acceptable.
 - Reserved words already quoted: `"owner"`, `"trigger"`; `object_version` deliberately avoids `version`.
@@ -286,11 +287,11 @@ don't collide).
    (`BackupTask` is a filesystem zip, not a DB-row mover). Either write a one-off per-table
    `SELECT → INSERT` script, or accept a clean cutover with empty Postgres tables that the writers
    repopulate going forward.
-4. Before relying on it: add a `DbAcquisitionLedger` Postgres test (mirror `PostgresStateStoreTest`;
-   it's the one store not yet covered) and confirm the `CHECKPOINT` no-op is fine.
+4. Before relying on it: confirm the `CHECKPOINT` no-op is fine. (All seven JDBC stores now have a
+   Postgres round-trip in `PostgresStateStoreTest`, including `DbAcquisitionLedger`.)
 5. Events cannot move — `ParquetEventStore` has no DB sibling; moving events off Parquet needs new code.
 
-For the 6 covered stores this is essentially a **configuration change** — flags + URLs + driver + a
+For the 7 covered stores this is essentially a **configuration change** — flags + URLs + driver + a
 Postgres instance — not a code change.
 
 ---

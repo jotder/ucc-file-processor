@@ -1,5 +1,7 @@
 package com.gamma.service;
 
+import com.gamma.acquire.DbAcquisitionLedger;
+import com.gamma.acquire.LedgerEntry;
 import com.gamma.etl.PipelineConfig;
 import com.gamma.etl.PipelineConfigBatchTest;
 import com.gamma.etl.TestConfigs;
@@ -26,15 +28,16 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.OptionalLong;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * DAT-6 — proves the six JDBC operational-state stores actually run on <b>real PostgreSQL</b>, not just
- * the bundled DuckDB. A single embedded Postgres (io.zonky, test-scope only — never shipped) is booted
+ * DAT-6 — proves the seven JDBC-backed stores actually run on <b>real PostgreSQL</b>, not just the
+ * bundled DuckDB. A single embedded Postgres (io.zonky, test-scope only — never shipped) is booted
  * once and every store opens against it, runs {@code initSchema}, and does a write→read round-trip. The
- * six stores use distinct table names, so they coexist in one database without collision.
+ * stores use distinct table names, so they coexist in one database without collision.
  *
  * <p>The critical case is {@link DbJobRunStore#metrics} (p50/p95): those percentiles are the one piece of
  * non-portable SQL — DuckDB's {@code quantile_cont} vs Postgres's {@code percentile_cont(..) WITHIN GROUP}
@@ -139,6 +142,28 @@ class PostgresStateStoreTest {
             List<Map<String, Object>> rows = store.query("flow-1", "batch-1");
             assertEquals(2, rows.size(), "both provenance cells read back from Postgres");
             assertFalse(store.batches("flow-1", 10).isEmpty(), "batch summary (max/sum/group by) works on Postgres");
+        }
+    }
+
+    @Test
+    void acquisitionLedger_recordFindAndWatermarkRoundTrip() throws Exception {
+        try (DbAcquisitionLedger ledger = DbAcquisitionLedger.open(url, null, null)) {
+            ledger.record(new LedgerEntry("sftp-src", "2026/07/data.csv", "data.csv", 4096,
+                    "sha256:abc", "etag-1", "v3", 1_000L, 2_000L, LedgerEntry.PROCESSED));
+
+            Optional<LedgerEntry> got = ledger.find("sftp-src", "2026/07/data.csv");
+            assertTrue(got.isPresent(), "ledger entry read back from Postgres");
+            assertEquals(4096, got.get().size(), "size round-tripped");
+            assertEquals("etag-1", got.get().etag(), "etag round-tripped");
+            assertEquals("v3", got.get().version(), "object_version round-tripped (reserved-word-safe column)");
+
+            OptionalLong hw = ledger.highWatermark("sftp-src");
+            assertTrue(hw.isPresent() && hw.getAsLong() == 1_000L, "MAX(last_modified) watermark on Postgres");
+            assertTrue(ledger.highWatermark("nobody").isEmpty(), "MAX over an empty set is SQL NULL → empty");
+
+            ledger.recordDbWatermark("jdbc-src", "2026-07-17T00:00:00Z");
+            assertEquals(Optional.of("2026-07-17T00:00:00Z"), ledger.dbWatermark("jdbc-src"),
+                    "db-watermark upsert round-tripped through Postgres");
         }
     }
 

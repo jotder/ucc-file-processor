@@ -8,7 +8,6 @@ import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 
 /**
@@ -52,12 +51,7 @@ public interface BrowsableStore {
     /** {@code "postgres"} or {@code "duckdb"} — for the catalog engine label. Best-effort. */
     default String browseEngine() {
         synchronized (browseMonitor()) {
-            try {
-                String p = browseConnection().getMetaData().getDatabaseProductName();
-                return p != null && p.toLowerCase(Locale.ROOT).contains("postgres") ? "postgres" : "duckdb";
-            } catch (SQLException e) {
-                return "duckdb";
-            }
+            return JdbcDrivers.isPostgres(browseConnection()) ? "postgres" : "duckdb";
         }
     }
 
