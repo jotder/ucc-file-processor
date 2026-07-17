@@ -57,6 +57,11 @@ public final class ConnectionRegistry {
         if (m != null) m.remove(id.trim());
     }
 
+    /** Drop every profile for {@code spaceId} (on space deletion), mirroring {@link AcquisitionLedgers#unregister}. */
+    public static void forget(String spaceId) {
+        if (spaceId != null) PROFILES.remove(spaceId);
+    }
+
     /** Clear the registry across all spaces (tests). */
     public static void clear() {
         PROFILES.clear();

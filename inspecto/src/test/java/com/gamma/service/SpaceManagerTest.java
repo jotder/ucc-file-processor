@@ -1,11 +1,17 @@
 package com.gamma.service;
 
+import com.gamma.acquire.ConnectionProfile;
+import com.gamma.acquire.ConnectionRegistry;
+import com.gamma.acquire.StabilityGate;
+import com.gamma.event.EventLog;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.slf4j.MDC;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -91,6 +97,35 @@ class SpaceManagerTest {
             assertTrue(mgr.delete(SpaceId.of("acme"), true));
             assertEquals(0, mgr.size());
             assertFalse(Files.exists(root.resolve("acme")), "purge removed the space directory tree");
+        }
+    }
+
+    @Test
+    void deleteForgetsThePerSpaceConnectionRegistryAndStabilityGate(@TempDir Path root) throws Exception {
+        try (SpaceManager mgr = SpaceManager.discover(root)) {
+            mgr.create(SpaceId.of("acme"), null, null);
+            StabilityGate firstGate;
+            MDC.put(EventLog.SPACE_MDC_KEY, "acme");   // route the static registries to the acme space
+            try {
+                ConnectionRegistry.register(new ConnectionProfile(
+                        "src-a", "sftp", "host", 22, null, null, null, null, Map.of(), null));
+                assertTrue(ConnectionRegistry.find("src-a").isPresent(), "profile registered under acme");
+                firstGate = StabilityGate.shared();   // lazily mints acme's gate
+            } finally {
+                MDC.remove(EventLog.SPACE_MDC_KEY);
+            }
+
+            assertTrue(mgr.delete(SpaceId.of("acme"), true));
+
+            MDC.put(EventLog.SPACE_MDC_KEY, "acme");
+            try {
+                assertTrue(ConnectionRegistry.find("src-a").isEmpty(), "delete forgot the space's connection profiles");
+                assertNotSame(firstGate, StabilityGate.shared(),
+                        "delete forgot the space's gate — shared() mints a fresh one instead of the evicted cache");
+            } finally {
+                MDC.remove(EventLog.SPACE_MDC_KEY);
+                StabilityGate.forget("acme");   // don't leak the fresh gate our assertion just minted
+            }
         }
     }
 

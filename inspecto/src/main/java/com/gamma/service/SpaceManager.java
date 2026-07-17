@@ -1,6 +1,8 @@
 package com.gamma.service;
 
 import com.gamma.acquire.AcquisitionLedgers;
+import com.gamma.acquire.ConnectionRegistry;
+import com.gamma.acquire.StabilityGate;
 import com.gamma.event.EventLog;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -338,6 +340,8 @@ public final class SpaceManager implements AutoCloseable {
         if (ctx == null) return false;
         ctx.close();
         AcquisitionLedgers.unregister(id.value());   // release the per-space ledger SpaceBootstrap registered (+ its DB handle)
+        ConnectionRegistry.forget(id.value());        // drop the space's connection profiles (process-wide static map)
+        StabilityGate.forget(id.value());             // drop the space's file-stability gate + its retained sightings
         if (purge) {
             Path base = spacesRoot.resolve(id.value()).normalize();   // SpaceId is jailed: no separators/.. can escape
             if (base.startsWith(spacesRoot) && Files.isDirectory(base)) deleteRecursively(base);
