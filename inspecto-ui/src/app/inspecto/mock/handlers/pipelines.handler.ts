@@ -88,6 +88,11 @@ export function pipelinesHandler(flags: MockFlags): MockHandler {
         }
         if (method === 'POST' && AUTHORED.test(url)) {
             const f = req.body as AuthoredPipeline;
+            // Mirrors the real backend: create 409s on an existing id (PipelineRoutes.createFlow) —
+            // update is PUT, same split as components (components.handler.ts).
+            if (store.get<AuthoredPipeline>(space, PIPELINES_COLL, f.name)) {
+                return error(409, `authored flow "${f.name}" already exists (use PUT to update)`);
+            }
             return json(store.put(space, PIPELINES_COLL, f.name, f));
         }
         if (method === 'PUT' && (m = match(url, AUTHORED_ID))) {

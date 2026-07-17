@@ -75,6 +75,12 @@ export function componentsHandler(flags: MockFlags): MockHandler {
             const coll = componentCollection(kind);
             if (method === 'GET') return json(store.get<ComponentDef>(space, coll, id) ?? null);
             if (method === 'PUT') {
+                // Mirrors the real backend: update requires the id to already exist (404 otherwise —
+                // create is POST). Without this check the mock silently upserted on PUT, masking the
+                // same class of offline/live divergence the POST-409 fix (item 3) was written to catch.
+                if (!store.get<ComponentDef>(space, coll, id)) {
+                    return error(404, `${kind} "${id}" not found`);
+                }
                 const saved = putComponent(store, space, kind, req.body, id);
                 emitAudit(store, space, {
                     action: `${kind}.updated`, category: 'config', targetType: kind, targetId: id,

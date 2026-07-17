@@ -51,6 +51,13 @@ describe('componentsHandler', () => {
         expect((handler(req('GET', '/api/components/grammar/tsv'), store)?.body as ComponentDef).content['delimiter']).toBe(';');
     });
 
+    it('404s a PUT to an id that does not exist — update requires the id to already exist, mirrors the real backend', () => {
+        const store = seededStore();
+        const put = handler(req('PUT', '/api/components/grammar/does_not_exist', { delimiter: ';' }), store);
+        expect(put?.status).toBe(404);
+        expect(handler(req('GET', '/api/components/grammar/does_not_exist'), store)?.body).toBeNull();
+    });
+
     it('409s deleting a widget a dashboard tiles, and a dataset a widget binds (R1 generic rules)', () => {
         const store = seededStore();
         // Seeded: dashboard investigation_overview tiles cost_by_tariff, which binds dataset cdr_sample.

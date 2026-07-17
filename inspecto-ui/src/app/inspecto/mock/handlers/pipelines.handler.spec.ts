@@ -39,3 +39,24 @@ describe('pipelinesHandler — authored DELETE referential integrity (R2)', () =
         expect(store.get('default', 'authored-pipeline', 'subscriber_load')).toBeUndefined();
     });
 });
+
+describe('pipelinesHandler — authored create/update split (mirrors PipelineRoutes)', () => {
+    const handler = pipelinesHandler({ mockFlows: true, mockStudio: true });
+
+    it('409s a create on an existing id (update is PUT) — mirrors the real backend', () => {
+        const store = seededStore();
+        const dup = handler(req('POST', '/api/pipelines/authored', { name: 'cdr_ingest', nodes: [], edges: [] }), store);
+        expect(dup?.status).toBe(409);
+    });
+
+    it('creates via POST and upserts via PUT (URL id authoritative, create-or-replace)', () => {
+        const store = seededStore();
+        handler(req('POST', '/api/pipelines/authored', { name: 'new_flow', nodes: [], edges: [] }), store);
+        expect(store.get('default', 'authored-pipeline', 'new_flow')).toBeDefined();
+        handler(req('PUT', '/api/pipelines/authored/new_flow', { nodes: [{ id: 'n1' }], edges: [] }), store);
+        expect((store.get<{ nodes: unknown[] }>('default', 'authored-pipeline', 'new_flow'))?.nodes).toHaveLength(1);
+        // PUT to an id that never existed also succeeds (backend: "create or replace, URL id is authoritative").
+        handler(req('PUT', '/api/pipelines/authored/put_only_flow', { nodes: [], edges: [] }), store);
+        expect(store.get('default', 'authored-pipeline', 'put_only_flow')).toBeDefined();
+    });
+});

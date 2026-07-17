@@ -1,6 +1,22 @@
 # Log
 
 ## 2026-07-17
+* **Mock PUT/POST parity — two silent-upsert gaps closed** (follow-through on the Studio
+  create-on-edit fix `4dac986`, whose lesson was "the mock upserting silently is exactly what hides
+  create/update bugs offline"): (1) `components.handler` PUT `/components/{kind}/{id}` upserted
+  unconditionally, but the real backend's `ComponentRoutes.updateComponent` **404s when the id
+  doesn't exist** (create is POST only; verified at `ComponentRoutes.java:125-136` via a
+  backend-explorer trace) — the mock now 404s the same way. (2) `pipelines.handler` POST
+  `/pipelines/authored` upserted on an existing name, but `PipelineRoutes.createFlow` **409s**
+  ("use PUT to update") — mock now 409s; note authored-pipeline PUT genuinely IS create-or-replace
+  in the backend (`updateFlow`, "URL id is authoritative"), so pipelines PUT stays an upsert —
+  the two families deliberately differ and now both mirror their real routes. New specs: PUT-to-
+  missing-component 404s; authored POST-duplicate 409s; authored PUT create-or-replace both ways.
+  Only caller of components `update()` is `ComponentsService.update` (edit paths only since
+  `4dac986`). Mock-only paths (dev preview runs against the real backend) — verified by the
+  handler-level specs, 13/13 green scoped run. One backend If-Match nuance NOT mirrored: the real
+  PUT also enforces optimistic-locking (409 on stale version); the mock doesn't model versions —
+  acceptable until the UI sends If-Match.
 * **Mock audit trail records authoring mutations** (BACKLOG §4 minor — "audit trail seed-only"):
   offline, the Audit-log pane only ever showed the 10 canned seed rows — nothing the operator did
   appended to it. New `emitAudit()` in `mock/signals.ts` (an AUDIT signal in the seed's exact shape —
