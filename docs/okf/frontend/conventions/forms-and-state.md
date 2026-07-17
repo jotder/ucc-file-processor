@@ -27,6 +27,8 @@ timestamp: 2026-06-28T00:00:00Z
   store the sibling field names, labels carrying the column type (expectation `column`/`refColumn`;
   the decision-rule when-clause fetches the same columns per target — no hardcoded record shape).
   Suggestions assist, they never constrain: a missing/unreadable store degrades to free text.
+  A field referencing *any* component uses `componentRefOptionLoader()` — cross-kind `<kind>/<id>`
+  suggestions (requirements "Delivered via"; the ref-list note becomes Registry `delivered-by` edges).
 * **Tag chips**: the object-create dialog's tags are `MatChipGrid` chips suggested from the tag
   registry (`GET /tags`), assignee autocompletes over me + the mailbox's known assignees.
 * **Name-at-save**: create dialogs ask config first and name/id last (two-step `saveForm` + `step`

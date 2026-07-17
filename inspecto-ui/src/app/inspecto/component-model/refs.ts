@@ -96,6 +96,26 @@ export function pipelineRefs(config: Record<string, unknown>): Ref[] {
     });
 }
 
+/** One `<kind>/<id>` token (no spaces, single slash) — the shape a delivered-note ref must have. */
+const DELIVERED_REF_RE = /^[A-Za-z][A-Za-z0-9-]*\/[^\s/]+$/;
+
+/**
+ * A requirement is `delivered-by` the component(s) its delivered-note names (C1 follow-up: the note
+ * doubles as component ref(s) when the deliver picker filled it). Edges derive only when the whole
+ * note is a pure ref list — `<kind>/<id>` tokens separated by whitespace, `+` or `,` — so prose
+ * ("delivered in Q3 via pipelines/orders rework") never becomes an edge.
+ */
+export function requirementRefs(config: Record<string, unknown>): Ref[] {
+    const note = (config['deliveredNote'] as string | undefined)?.trim();
+    if (!note) return [];
+    const tokens = note.split(/[\s,+]+/).filter(Boolean);
+    if (!tokens.length || !tokens.every((t) => DELIVERED_REF_RE.test(t))) return [];
+    return tokens.flatMap((t, i) => {
+        const ref = parseUseRef(t);
+        return ref ? [{ ...ref, rel: 'delivered-by' as const, via: `deliveredNote${i}` }] : [];
+    });
+}
+
 /** Kinds with a structural derivation. `authored-pipeline` (the store name) aliases the `pipeline` kind. */
 const STRUCTURAL: Record<string, (config: Record<string, unknown>) => Ref[]> = {
     widget: widgetRefs,
@@ -107,6 +127,7 @@ const STRUCTURAL: Record<string, (config: Record<string, unknown>) => Ref[]> = {
     'authored-pipeline': pipelineRefs,
     job: jobRefs,
     'decision-rule': decisionRuleRefs,
+    requirement: requirementRefs,
 };
 
 /**

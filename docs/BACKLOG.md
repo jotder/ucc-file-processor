@@ -67,7 +67,6 @@ that closes/opens an item)
 | Item | Source |
 |---|---|
 | ui-design-review residuals — R2 column suggestions, R2 object-create chips, R3 command registry + `/`-focus + j/k nav all SHIPPED 2026-07-17; remaining: R6 true offset paging per pane (revisit if a pane outgrows widen-and-refetch) · R8 pivot-bar (design-only until demanded twice) | `archived-documents/plans-archive/ui-design-review.md` · `okf/frontend/log.md` |
-| Requirements "Delivered via" is free text — should be a real Component link (cross-kind picker + Registry reuse edge) | review sweep |
 | `ComponentKind.deriveParts` seam — formalize when a 3rd composite kind needs it | same |
 | Minor: shared chip primitive (sources/widgets/events) · mock audit trail seed-only · mock `POST /alerts/evaluate` always breaches · events live-tail cadence hardcoded 5 s · parser/node attribute tiers best-guess pending firm backend specs · pipeline-editor dry-run panel extraction (may be moot) · dataset editor `save()` create-on-edit — backend PUT exists, verify | same |
 

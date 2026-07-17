@@ -7,6 +7,7 @@ import { RouterLink } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
 import type { ColDef } from 'ag-grid-community';
 import { DecisionRulesService, JobsService, PipelinesService } from 'app/inspecto/api';
+import { RequirementsService } from 'app/inspecto/requirement';
 import { Component as ModelComponent, Part, deriveComponentGraph, refsForComponent } from 'app/inspecto/component-model';
 import { G6GraphData } from 'app/inspecto/graph';
 import { DataTableComponent } from 'app/inspecto/data-table';
@@ -63,6 +64,7 @@ export class RegistryComponent implements OnInit {
     private flows = inject(PipelinesService);
     private jobs = inject(JobsService);
     private decisionRules = inject(DecisionRulesService);
+    private requirements = inject(RequirementsService);
 
     readonly components = signal<ModelComponent[]>([]);
     readonly loading = signal(false);
@@ -103,11 +105,12 @@ export class RegistryComponent implements OnInit {
     async load(): Promise<void> {
         this.loading.set(true);
         this.selectedId.set(null);
-        const [compResults, pipelines, jobs, decisionRules] = await Promise.all([
+        const [compResults, pipelines, jobs, decisionRules, requirements] = await Promise.all([
             Promise.allSettled(REGISTRY_KINDS.map((k) => this.provider.list(k))),
             this.loadPipelines(),
             this.loadJobs(),
             this.loadDecisionRules(),
+            this.loadRequirements(),
         ]);
         const comps: ModelComponent[] = [];
         for (const r of compResults) {
@@ -115,9 +118,23 @@ export class RegistryComponent implements OnInit {
                 comps.push(...r.value.map((c) => ({ ...c, parts: refParts(c.kind, c.config as Record<string, unknown>) })));
             }
         }
-        comps.push(...pipelines, ...jobs, ...decisionRules);
+        comps.push(...pipelines, ...jobs, ...decisionRules, ...requirements);
         this.components.set(comps);
         this.loading.set(false);
+    }
+
+    /** Load requirements as `requirement` components (own store, C1 follow-up) — a delivered requirement
+     *  whose note is a pure `<kind>/<id>` ref list contributes its `delivered-by` edge(s) to the graph. */
+    private async loadRequirements(): Promise<ModelComponent[]> {
+        try {
+            const reqs = await firstValueFrom(this.requirements.list());
+            return reqs.map((r) => {
+                const config = r as unknown as Record<string, unknown>;
+                return { kind: 'requirement', id: r.id, name: r.title, config, parts: refParts('requirement', config) };
+            });
+        } catch {
+            return [];
+        }
     }
 
     /** Load decision rules as `decision-rule` components (own store, R5) — their `binds` (target) + `invokes`
@@ -177,6 +194,7 @@ export class RegistryComponent implements OnInit {
         if (c.kind === 'pipeline') return ['/pipelines']; // the Pipelines editor page
         if (c.kind === 'job') return ['/jobs']; // the Jobs pane (dialog-based editing, no /:id route)
         if (c.kind === 'decision-rule') return ['/decision-rules']; // the Decision Rules pane (dialog-based editing)
+        if (c.kind === 'requirement') return ['/requirements']; // the Requirements pane (dialog-based detail)
         const path = EDITOR_PATH[c.kind];
         return path ? [path, c.id] : null;
     }

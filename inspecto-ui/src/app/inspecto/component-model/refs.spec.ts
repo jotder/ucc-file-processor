@@ -7,6 +7,7 @@ import {
     pipelineRefs,
     queryRefs,
     refsForComponent,
+    requirementRefs,
     widgetRefs,
 } from './refs';
 
@@ -85,6 +86,21 @@ describe('structural derivations', () => {
             { kind: 'connection', id: 'cdr_sftp_prod', rel: 'binds', via: 'c' },
             { kind: 'grammar', id: 'cdr_asn1_ber', rel: 'binds', via: 'p' },
         ]);
+    });
+
+    it('requirement: delivered-by edges only when the note is a pure <kind>/<id> ref list', () => {
+        expect(requirementRefs({ deliveredNote: 'dashboard/churn_kpi' })).toEqual([
+            { kind: 'dashboard', id: 'churn_kpi', rel: 'delivered-by', via: 'deliveredNote0' },
+        ]);
+        // A ref LIST (the seeds' shape) — one edge per token, `+`/`,`/space separated.
+        expect(requirementRefs({ deliveredNote: 'reconciliation/gl_vs_payments + dashboard/audit_overview' })).toEqual([
+            { kind: 'reconciliation', id: 'gl_vs_payments', rel: 'delivered-by', via: 'deliveredNote0' },
+            { kind: 'dashboard', id: 'audit_overview', rel: 'delivered-by', via: 'deliveredNote1' },
+        ]);
+        // Prose never becomes an edge — even prose containing a slash token.
+        for (const prose of [undefined, '', 'shipped in Q3', 'reused pipelines/orders rework', 'a/b then c', 'kind/', '/id', 'kind/a/b']) {
+            expect(requirementRefs({ deliveredNote: prose })).toEqual([]);
+        }
     });
 });
 

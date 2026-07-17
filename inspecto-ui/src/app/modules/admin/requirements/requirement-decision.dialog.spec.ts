@@ -1,8 +1,9 @@
 import { TestBed } from '@angular/core/testing';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import { MAT_DIALOG_DATA, MatDialogRef } from '@angular/material/dialog';
+import { of } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { LensService } from 'app/inspecto/api';
+import { ComponentsService, DecisionRulesService, JobsService, LensService, RunsService } from 'app/inspecto/api';
 import { expectNoA11yViolations } from 'app/inspecto/testing/a11y';
 import { buildRequirement, decideRequirement } from 'app/inspecto/requirement';
 import { RequirementDecisionDialog, RequirementDecisionResult } from './requirement-decision.dialog';
@@ -15,6 +16,11 @@ function create(requirement = buildRequirement('Daily churn KPI', 'kpi', 'Track 
             provideNoopAnimations(),
             { provide: MAT_DIALOG_DATA, useValue: requirement },
             { provide: MatDialogRef, useValue: ref },
+            // The "Delivered via" picker's cross-kind suggestion sources.
+            { provide: ComponentsService, useValue: { list: (kind: string) => of(kind === 'dashboard' ? [{ name: 'churn_kpi' }] : []) } },
+            { provide: RunsService, useValue: { list: () => of([{ name: 'cdr_ingest' }]) } },
+            { provide: JobsService, useValue: { list: () => of([]) } },
+            { provide: DecisionRulesService, useValue: { list: () => of([]) } },
         ],
     });
     const fixture = TestBed.createComponent(RequirementDecisionDialog);
@@ -38,6 +44,21 @@ describe('RequirementDecisionDialog', () => {
         const el = fixture.nativeElement as HTMLElement;
         Array.from(el.querySelectorAll('button')).find((b) => b.textContent?.includes('Mark delivered'))?.click();
         expect(ref.close).toHaveBeenCalledWith({ action: 'deliver', note: undefined });
+    });
+
+    it('suggests cross-kind component refs on focus and delivers the picked/typed value', async () => {
+        const { fixture, c, ref } = create(decideRequirement(buildRequirement('x', 'kpi', 'y'), true));
+        c.loadOptions();
+        await new Promise((r) => setTimeout(r, 0)); // flush the loader's allSettled chain
+        expect(c.filteredOptions().map((o) => o.value)).toEqual(['dashboard/churn_kpi', 'pipeline/cdr_ingest']);
+
+        c.note.setValue('dash'); // typing narrows; the value is never constrained to the list
+        expect(c.filteredOptions().map((o) => o.value)).toEqual(['dashboard/churn_kpi']);
+
+        c.note.setValue('dashboard/churn_kpi');
+        Array.from((fixture.nativeElement as HTMLElement).querySelectorAll('button'))
+            .find((b) => b.textContent?.includes('Mark delivered'))?.click();
+        expect(ref.close).toHaveBeenCalledWith({ action: 'deliver', note: 'dashboard/churn_kpi' });
     });
 
     it('hides decision inputs in the Business (read-only) lens', () => {

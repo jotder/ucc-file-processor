@@ -1,6 +1,18 @@
 # Log
 
 ## 2026-07-17
+* **Requirements "Delivered via" is now a real Component link** (BACKLOG §4, the C1 follow-up the
+  requirements-intake review flagged): the deliver dialog's note field became a **cross-kind
+  autocomplete** (`componentRefOptionLoader` in `entity-option-loaders` — datasets/queries/widgets/
+  dashboards/rules/reconciliations + pipelines/jobs/decision-rules, in the house `<kind>/<id>` form;
+  suggestions assist, free text stays valid). A delivered note that is a **pure ref list**
+  (`<kind>/<id>` tokens split on space/`+`/`,` — prose never becomes an edge) now derives Registry
+  **`delivered-by` edges**: new `requirementRefs` structural derivation + `RefRel += 'delivered-by'`;
+  requirements join the Catalog ▸ Usage reuse graph as nodes (`loadRequirements`, `REQUIREMENT_KIND`
+  registered). No backend change — the note stays the transport; the existing mock seeds'
+  ref-list notes (`reconciliation/x + dashboard/y`) now light up as edges. The dialog also moved
+  `ngModel` → reactive `FormControl`. Live-verified: submit → accept → deliver with picker →
+  `requirement/churn_kpi_req → dashboard/default_overview` renders in the Usage graph.
 * **Config pane ported to `<inspecto-schema-form>`** (BACKLOG §4 — the last spec-driven `ngModel`
   authoring form): the dynamic `FieldSpec` grid is now mapped to `AttributeSpec[]` and rendered by the
   shared schema-form (three-tier disclosure: required visible, the rest under "Optional settings").

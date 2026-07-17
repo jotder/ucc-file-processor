@@ -6,6 +6,7 @@ import { describe, expect, it } from 'vitest';
 import { GammaConfigService } from '@gamma/services/config';
 import { expectNoA11yViolations } from 'app/inspecto/testing/a11y';
 import { AuthoredPipeline, PipelineSummary, PipelinesService } from 'app/inspecto/api';
+import { RequirementsService } from 'app/inspecto/requirement';
 import { Component as ModelComponent } from 'app/inspecto/component-model';
 import { ComponentsDataProvider } from './components-data-provider';
 import { RegistryComponent } from './registry.component';
@@ -71,6 +72,26 @@ describe('RegistryComponent', () => {
         const c = TestBed.createComponent(RegistryComponent).componentInstance;
         await c.load();
         expect(c.graph().nodes.find((n) => n.id === 'dataset/missing')?.data.missing).toBe(true);
+    });
+
+    it('loads requirements and derives the delivered-by edge from a <kind>/<id> delivered-note', async () => {
+        configure({ dashboard: [{ kind: 'dashboard', id: 'churn_kpi', name: 'churn_kpi', config: {} }] });
+        TestBed.overrideProvider(RequirementsService, {
+            useValue: {
+                list: () =>
+                    of([
+                        { id: 'churn_req', title: 'Churn KPI', kind: 'kpi', description: '', status: 'delivered', submittedAt: '', deliveredNote: 'dashboard/churn_kpi' },
+                        { id: 'prose_req', title: 'Prose', kind: 'report', description: '', status: 'delivered', submittedAt: '', deliveredNote: 'shipped in Q3' },
+                    ]),
+            },
+        });
+        const c = TestBed.createComponent(RegistryComponent).componentInstance;
+        await c.load();
+        const edges = c.graph().edges.map((e) => `${e.source}->${e.target}`);
+        expect(edges).toContain('requirement/churn_req->dashboard/churn_kpi');
+        // Prose stays a note — the prose requirement joins as a node but contributes no edge.
+        expect(c.graph().nodes.some((n) => n.id === 'requirement/prose_req')).toBe(true);
+        expect(edges.filter((e) => e.startsWith('requirement/prose_req'))).toEqual([]);
     });
 
     it('renders the empty (no-graph) state with no a11y violations', async () => {
