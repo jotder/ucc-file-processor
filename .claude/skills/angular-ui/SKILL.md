@@ -98,7 +98,11 @@ src/app/
   feature-unavailable, test-result banners; message is content-projected, announces `status`/`alert` by
   variant), `<inspecto-empty-state>`, `<inspecto-skeleton>`,
   `InspectoConfirmService.confirm()/confirmDestructive()`, the grid helpers, `<inspecto-connectivity-banner>`
-  (the app-wide offline/backend-down strip, already mounted in the layout — distinct from `<inspecto-alert>`).
+  (the app-wide offline/backend-down strip, already mounted in the layout — distinct from `<inspecto-alert>`),
+  `<inspecto-chip variant=outline|soft tone=neutral|primary [removable]>` (the shared tag/token/filter
+  pill — never hand-roll a `rounded-full … text-xs` span; content is projected, `(removed)` emits on
+  the optional ✕; a clickable filter toggle keeps its own `<button>` around the chip for
+  `aria-pressed`/keyboard).
 - **Tabular surfaces → `<inspecto-data-table [tier]>`** (`app/inspecto/data-table`), the consolidation of
   every ag-Grid host. Tiers: **mini** (grid) · **standard** (+ icon-only toolbar: column chooser · search ·
   CSV export) · **pro** (+ an **icon-toggled CodeMirror SQL editor — hidden by default** — that runs real SQL
