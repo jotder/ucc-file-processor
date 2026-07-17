@@ -11,6 +11,8 @@ v1 contract, queries, observability, the job scheduler, and multi-space hosting.
   ETag/`contentHash`, bootstrap, async runs, OpenAPI enforcement.
 * [Queries](queries.md) - Query as a Component: the Query Library, `$`-Parameters, Result Set, and
   `POST /queries/{id}/run` on DuckDB.
+* [Decision rules](decision-rules.md) - `/decision-rules` CRUD + sample-driven `simulate` over the
+  `query-types` condition tree, evaluated by the shared `ConditionTree` engine (query-eval.ts parity).
 * [Events & metrics](events-metrics.md) - `EventLog` (synchronous bus), `MetricRegistry`, `StabilityGate`.
 * [Jobs](jobs.md) - `JobService` cron/event/manual scheduling, the off-bus trigger handoff, and the
   v1 async run model (202 + `runId`).

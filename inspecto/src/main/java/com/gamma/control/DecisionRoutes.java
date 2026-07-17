@@ -4,6 +4,7 @@ import com.gamma.event.EventLog;
 import com.gamma.job.JobService;
 import com.gamma.pipeline.ComponentRegistry;
 import com.gamma.pipeline.ComponentStore;
+import com.gamma.query.ConditionTree;
 import com.gamma.signal.Severity;
 import com.gamma.signal.Signal;
 
@@ -24,18 +25,22 @@ import java.util.UUID;
  * {@code <write-root>/registry} exactly like {@link ExpectationRoutes} — same store, same fail-closed
  * gates (503 no write root, 422 bad body, 409 duplicate create, 404 unknown).
  *
- * <p><b>Scope of this first cut</b> (mirrors the mock reference implementation,
- * {@code decision-rules.handler.ts} / {@code decision.ts}, which this replaces): {@code simulate} is a
- * dry-run stub — it does not evaluate {@code when} against live records (no condition-tree evaluator
- * exists yet, client or server side); it records a structurally-valid {@link
- * DecisionSimulationResult 0-matched} result so the UI's simulate action has a real endpoint to call.
+ * <p><b>Scope of this cut.</b> CRUD + {@code apply} mirror the mock reference implementation
+ * ({@code decision-rules.handler.ts} / {@code decision.ts}, which this replaces). {@code simulate}
+ * goes beyond the mock (which still returns canned demo counts): it evaluates the rule's {@code when}
+ * condition tree over a caller-supplied {@code sampleRows} batch via
+ * {@link com.gamma.query.ConditionTree} (the same semantics the authoring UI previews offline) and
+ * returns the real {@code matched}/{@code total} counts. A request with no {@code sampleRows} yields
+ * {@code 0/0} — there is no ambient record source for a rule whose target is a pipeline/job, so the
+ * sample is the row source (see {@code docs/okf/backend/control-plane/decision-rules.md}).
  * {@code apply} executes each consequence against the platform primitive that already exists —
  * {@code emit-signal} onto this space's Signal Ledger, {@code start-job} via {@link JobService},
  * {@code trigger-pipeline} via {@code CollectorService#triggerRunAsync} — and emits a descriptive stub
  * signal for the remaining platform actions ({@code create-alert}, {@code render-widget},
  * {@code generate-report}, {@code invoke-api}), matching the mock's own scope; the routing actions
- * ({@code route}/{@code tag}/{@code quarantine}/{@code drop}) are record-level and have no immediate
- * side effect to execute (they only affect simulate counts once a real evaluator exists).
+ * ({@code route}/{@code tag}/{@code quarantine}/{@code drop}) are record-level — {@code simulate}
+ * now counts the rows they would affect, but applying them takes effect only once wired into live
+ * pipeline execution (a separate, still-open piece of work).
  */
 final class DecisionRoutes implements RouteModule {
 
@@ -51,7 +56,7 @@ final class DecisionRoutes implements RouteModule {
         api.delete("/decision-rules/([^/]+)", ApiContext.withCapability("canAuthorWorkbench",
                 (e, m) -> delete(api, ApiContext.name(m))));
         api.post("/decision-rules/([^/]+)/simulate", ApiContext.withCapability("canAuthorWorkbench",
-                (e, m) -> simulate(api, ApiContext.name(m))));
+                (e, m) -> simulate(api, ApiContext.name(m), api.body(e))));
         api.post("/decision-rules/([^/]+)/apply", ApiContext.withCapability("canOperateRuns",
                 (e, m) -> apply(api, ApiContext.name(m))));
     }
@@ -101,14 +106,16 @@ final class DecisionRoutes implements RouteModule {
 
     // ── simulate / apply ─────────────────────────────────────────────────────────
 
-    /** Dry-run stub (see class doc): records a 0-matched result so the editor's Simulate action has a
-     *  real endpoint. No side effects. */
-    private Object simulate(ApiContext api, String name) throws IOException {
+    /** Dry-run preview (see class doc): evaluate the rule's {@code when} tree over the request's
+     *  {@code sampleRows} via {@link ConditionTree} and stamp the real {@code matched}/{@code total}.
+     *  No sample ⇒ {@code 0/0}. Not an authoring edit (MET-5 parity — no version archived). */
+    private Object simulate(ApiContext api, String name, Map<String, Object> body) throws IOException {
         ComponentStore store = store(api);
         Map<String, Object> rule = existing(store, name);
+        List<Map<String, Object>> sample = ApiContext.sampleRows(body);
         Map<String, Object> sim = new LinkedHashMap<>();
-        sim.put("matched", 0);
-        sim.put("total", 0);
+        sim.put("matched", ConditionTree.matched(rule.get("when"), sample));
+        sim.put("total", sample.size());
         sim.put("checkedAt", System.currentTimeMillis());
         Map<String, Object> next = new LinkedHashMap<>(rule);
         next.put("lastSimulation", sim);
@@ -218,7 +225,8 @@ final class DecisionRoutes implements RouteModule {
     /** Validate + default a rule body (mirrors the mock's {@code normalize()} exactly, for parity):
      *  {@code targetType} clamped to pipeline|job (default pipeline), {@code consequences} required
      *  non-empty, {@code priority} default 100, {@code enabled} default true, {@code when} default an
-     *  empty AND-group. */
+     *  empty AND-group in the canonical {@code query-types} shape ({@code kind/op/items}) so a rule
+     *  with no filter reads identically to what the UI authors and {@link ConditionTree} evaluates. */
     @SuppressWarnings("unchecked")
     private static Map<String, Object> normalize(Map<String, Object> body) {
         if (!(body.get("consequences") instanceof List<?> cs) || cs.isEmpty())
@@ -228,7 +236,7 @@ final class DecisionRoutes implements RouteModule {
         rule.put("targetType", "job".equals(targetType) ? "job" : "pipeline");
         rule.putIfAbsent("description", "");
         rule.putIfAbsent("target", "");
-        rule.putIfAbsent("when", Map.of("op", "and", "conditions", List.of()));
+        rule.putIfAbsent("when", Map.of("kind", "group", "op", "AND", "items", List.of()));
         Object priority = rule.get("priority");
         rule.put("priority", priority instanceof Number num ? num.intValue() : 100);
         rule.put("enabled", !"false".equalsIgnoreCase(String.valueOf(rule.getOrDefault("enabled", true))));
