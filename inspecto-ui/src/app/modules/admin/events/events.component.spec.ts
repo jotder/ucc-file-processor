@@ -108,6 +108,34 @@ describe('EventsComponent', () => {
         expect(c.loading).toBe(false);
     });
 
+    it('live-tail polls at the selected cadence and re-arms when the cadence changes', async () => {
+        const { fixture, api } = await create();
+        const c = fixture.componentInstance;
+        vi.useFakeTimers();
+        try {
+            (api.search as ReturnType<typeof vi.fn>).mockClear();
+
+            c.liveSeconds = 2;
+            c.toggleLive(true);
+            vi.advanceTimersByTime(2000);
+            expect(api.search).toHaveBeenCalledTimes(1); // first tick at 2s
+
+            // slow it down — the old 2s timer is torn down, no poll until the new 10s elapses
+            c.liveSeconds = 10;
+            c.restartLiveTail();
+            vi.advanceTimersByTime(2000);
+            expect(api.search).toHaveBeenCalledTimes(1);
+            vi.advanceTimersByTime(8000);
+            expect(api.search).toHaveBeenCalledTimes(2);
+
+            c.toggleLive(false); // off → no further polling
+            vi.advanceTimersByTime(30000);
+            expect(api.search).toHaveBeenCalledTimes(2);
+        } finally {
+            vi.useRealTimers();
+        }
+    });
+
     it('renders the empty state with no a11y violations', async () => {
         const { fixture } = await create({ search: () => of([]) });
         fixture.detectChanges();

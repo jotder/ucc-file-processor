@@ -6,9 +6,19 @@
             <div class="text-secondary mt-1.5">The unified signal stream — every run, job, alert, expectation and operator action, with its emitting source and severity</div>
         </div>
         <div class="mt-4 flex items-center gap-3 sm:mt-0">
-            <mat-slide-toggle [checked]="live" (change)="toggleLive($event.checked)" matTooltip="Auto-refresh the newest events every 5s">
+            <mat-slide-toggle [checked]="live" (change)="toggleLive($event.checked)" [matTooltip]="'Auto-refresh the newest events every ' + liveSeconds + 's'">
                 Live tail
             </mat-slide-toggle>
+            @if (live) {
+                <mat-form-field class="gamma-mat-dense w-24" subscriptSizing="dynamic">
+                    <mat-label>Every</mat-label>
+                    <mat-select [(ngModel)]="liveSeconds" (ngModelChange)="restartLiveTail()" aria-label="Live-tail refresh cadence">
+                        @for (s of liveSecondsOptions; track s) {
+                            <mat-option [value]="s">{{ s }}s</mat-option>
+                        }
+                    </mat-select>
+                </mat-form-field>
+            }
             <button mat-icon-button (click)="load()" matTooltip="Refresh" aria-label="Refresh">
                 <mat-icon svgIcon="heroicons_outline:arrow-path"></mat-icon>
             </button>

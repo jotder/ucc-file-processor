@@ -1,6 +1,15 @@
 # Log
 
 ## 2026-07-17
+* **Events live-tail cadence is operator-selectable** (BACKLOG §4 minor — "cadence hardcoded 5 s"):
+  the `LIVE_TAIL_MS = 5000` const became a `LIVE_TAIL_SECONDS` options array (2/5/10/30/60 s) + a
+  `liveSeconds` field (default 5); a small "Every" `mat-select` appears next to the Live-tail toggle
+  only while it's on (`@if (live)`), and changing it calls `restartLiveTail()` (tears down the old
+  `visibleInterval` sub and re-arms at the new cadence). The toggle tooltip is now dynamic. No change
+  to the visibility-pause behavior (`visibleInterval` still stops polling while the tab is hidden).
+  New fake-timer spec proves the poll fires at the chosen cadence and re-arms when it changes;
+  reactor UI 1393/0. Live-verified through the real `/events/search` path (polls recur at the
+  selected 2 s while visible, zero while hidden).
 * **Mock `POST /alerts/evaluate` computes real ledger math** (BACKLOG §4 minor — "mock always
   breaches"): the manual "Evaluate now" sweep used to fabricate exactly one breach off whichever
   rule happened to be first in the store, regardless of its actual metric/threshold. It now mirrors

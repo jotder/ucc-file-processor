@@ -28,8 +28,8 @@ import { fmtDateTime, InspectoRowAction } from 'app/inspecto/grid';
 import { ToastrService } from 'ngx-toastr';
 import { EventDetailDialog, EventDrilldown } from './event-detail.dialog';
 
-/** Live-tail poll cadence (ms) — pauses while the tab is hidden via {@link visibleInterval}. */
-const LIVE_TAIL_MS = 5000;
+/** Selectable live-tail poll cadences (seconds) — polling pauses while the tab is hidden via {@link visibleInterval}. */
+const LIVE_TAIL_SECONDS = [2, 5, 10, 30, 60] as const;
 
 /**
  * Events / Activity — the Operational Intelligence event stream (GET /events/search), newest-first. A
@@ -71,6 +71,9 @@ export class EventsComponent implements OnInit, OnDestroy {
     events: EventRow[] = [];
     loading = false;
     live = false;
+    /** Live-tail cadence in seconds (operator-selectable); the toggle uses whatever is chosen here. */
+    readonly liveSecondsOptions = LIVE_TAIL_SECONDS;
+    liveSeconds: number = 5;
     private liveSub?: Subscription;
 
     // ── filter toolbar ─────────────────────────────────────────────────────────
@@ -177,9 +180,14 @@ export class EventsComponent implements OnInit, OnDestroy {
 
     toggleLive(on: boolean): void {
         this.live = on;
+        this.restartLiveTail();
+    }
+
+    /** Re-arm the poll at the current cadence — called on toggle and when the cadence select changes. */
+    restartLiveTail(): void {
         this.liveSub?.unsubscribe();
         this.liveSub = undefined;
-        if (on) this.liveSub = visibleInterval(LIVE_TAIL_MS).subscribe(() => this.load(true));
+        if (this.live) this.liveSub = visibleInterval(this.liveSeconds * 1000).subscribe(() => this.load(true));
     }
 
     openDetail(row: EventRow): void {
