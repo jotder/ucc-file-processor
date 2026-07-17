@@ -1,6 +1,20 @@
 # Log
 
 ## 2026-07-17
+* **Mock audit trail records authoring mutations** (BACKLOG §4 minor — "audit trail seed-only"):
+  offline, the Audit-log pane only ever showed the 10 canned seed rows — nothing the operator did
+  appended to it. New `emitAudit()` in `mock/signals.ts` (an AUDIT signal in the seed's exact shape —
+  attributes actor/action/action_category/target_type/target_id; actor is the mock's `'operator'`
+  fallback since a `MockRequest` carries no X-Actor) wired into the `components.handler` mutation
+  routes — the one seam every Studio/Registry authoring action flows through: POST create →
+  `<kind>.created` (config), PUT → `<kind>.updated` (config), DELETE → `<kind>.deleted`
+  (destructive), version restore → `<kind>.restored` (config). Rejected mutations (409 duplicate
+  create, 409 referenced delete) audit nothing. Seeds are unchanged — they call the exported
+  `putComponent` helper directly, which deliberately doesn't audit (auditing lives in the routes, so
+  seeding isn't self-auditing). Deliberate scope: ops-side rule authoring (alert/tag/case rules in
+  `ops.handler`) can adopt the same `emitAudit` seam later if wanted — noted in BACKLOG. Reactor UI
+  1394/0; mock-only path (dev preview runs against the real backend), verified by the new
+  handler-level spec.
 * **Events live-tail cadence is operator-selectable** (BACKLOG §4 minor — "cadence hardcoded 5 s"):
   the `LIVE_TAIL_MS = 5000` const became a `LIVE_TAIL_SECONDS` options array (2/5/10/30/60 s) + a
   `liveSeconds` field (default 5); a small "Every" `mat-select` appears next to the Live-tail toggle

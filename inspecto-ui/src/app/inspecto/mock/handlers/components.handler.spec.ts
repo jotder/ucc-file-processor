@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import type { ComponentDef } from '../../api/components.service';
+import type { Signal } from '../../signal/signal';
 import { registerIntegrityRules } from '../integrity';
 import { MockRequest } from '../mock-http';
 import { MockStore } from '../mock-store';
 import { seedDefaultSpace } from '../seeds/default-space.seed';
+import { SIGNALS_COLL } from '../signals';
 import { componentCollection, componentsHandler } from './components.handler';
 
 const req = (method: string, url: string, body: unknown = null): MockRequest => ({
@@ -83,6 +85,30 @@ describe('componentsHandler', () => {
         expect(res?.status).toBe(409);
         expect(String((res?.body as { error: string }).error)).toContain('uses_grammar');
         expect(store.get('default', componentCollection('grammar'), 'cdr_csv')).toBeDefined();
+    });
+
+    it('appends an AUDIT signal per mutation — the audit trail grows with mock authoring, not seed-only', () => {
+        const store = seededStore();
+        const audits = (): Signal[] =>
+            store.list<Signal>('default', SIGNALS_COLL).filter((s) => s.type === 'AUDIT');
+        const seeded = audits().length;
+
+        handler(req('POST', '/api/components/grammar', { id: 'tsv', delimiter: '\t' }), store);
+        handler(req('PUT', '/api/components/grammar/tsv', { delimiter: ';' }), store);
+        handler(req('DELETE', '/api/components/grammar/tsv'), store);
+
+        const mine = audits().filter((s) => (s.payload['attributes'] as Record<string, string>)['target_id'] === 'tsv');
+        expect(audits().length).toBe(seeded + 3);
+        expect(mine.map((s) => (s.payload['attributes'] as Record<string, string>)['action']).sort())
+            .toEqual(['grammar.created', 'grammar.deleted', 'grammar.updated']);
+        // Rejected mutations audit nothing: a 409 create and a referenced delete leave no trace.
+        handler(req('POST', '/api/components/dataset/x', null), store); // no route match — sanity no-op
+        handler(req('POST', '/api/components/widget', { id: 'cost_by_tariff' }), store); // 409 duplicate
+        handler(req('DELETE', '/api/components/dataset/cdr_sample'), store); // 409 referenced
+        expect(audits().length).toBe(seeded + 3);
+        // The Audit-log pane's read path sees them: category + destructive classification carried.
+        const del = mine.find((s) => (s.payload['attributes'] as Record<string, string>)['action'] === 'grammar.deleted')!;
+        expect((del.payload['attributes'] as Record<string, string>)['action_category']).toBe('destructive');
     });
 
     it('respects the per-kind flag gating (studio kinds vs registry kinds)', () => {

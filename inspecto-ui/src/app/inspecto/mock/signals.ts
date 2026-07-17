@@ -30,6 +30,40 @@ export function emitSignal(store: MockStore, space: string, signal: Signal): Sig
     return signal;
 }
 
+let auditSeq = 0;
+
+/**
+ * Append one AUDIT signal for a mock mutation — so the Audit-log pane grows with what the operator
+ * actually does offline instead of staying a canned seed. Shape mirrors the seeded audit entries
+ * (attributes: actor/action/action_category/target_type/target_id); the actor is the mock's local
+ * `'operator'` fallback (a MockRequest carries no X-Actor header).
+ */
+export function emitAudit(
+    store: MockStore,
+    space: string,
+    opts: { action: string; category: 'config' | 'operate' | 'read' | 'destructive'; targetType: string; targetId: string; message: string },
+): Signal {
+    const at = Date.now();
+    return emitSignal(store, space, {
+        signalId: `audit-${at}-${auditSeq++}`,
+        type: 'AUDIT',
+        at,
+        source: { kind: 'audit', id: 'audit', rel: 'emits' },
+        correlationId: null,
+        severity: 'info',
+        payload: {
+            message: opts.message,
+            attributes: {
+                actor: 'operator',
+                action: opts.action,
+                action_category: opts.category,
+                target_type: opts.targetType,
+                target_id: opts.targetId,
+            },
+        },
+    });
+}
+
 function trimOldest(store: MockStore, space: string, max: number): void {
     const rows = store.entries<Signal>(space, SIGNALS_COLL);
     if (rows.length <= max) return;

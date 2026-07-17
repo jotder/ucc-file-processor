@@ -2,6 +2,7 @@ import type { ComponentDef, ComponentVersion, ParserPreview, ParserTreeNode } fr
 import { MockFlags } from '../mock-flags';
 import { error, json, match, MockHandler, MockRequest } from '../mock-http';
 import { MockStore } from '../mock-store';
+import { emitAudit } from '../signals';
 
 /**
  * Unified `/components/*` + `/asn1/*` mock domain — the merge of the old `studio-mock` (dataset /
@@ -73,7 +74,14 @@ export function componentsHandler(flags: MockFlags): MockHandler {
             const [, kind, id] = m;
             const coll = componentCollection(kind);
             if (method === 'GET') return json(store.get<ComponentDef>(space, coll, id) ?? null);
-            if (method === 'PUT') return json(putComponent(store, space, kind, req.body, id));
+            if (method === 'PUT') {
+                const saved = putComponent(store, space, kind, req.body, id);
+                emitAudit(store, space, {
+                    action: `${kind}.updated`, category: 'config', targetType: kind, targetId: id,
+                    message: `Updated ${kind} ${id}`,
+                });
+                return json(saved);
+            }
             if (method === 'DELETE') {
                 const refs = store.referencesTo(space, coll, id);
                 if (refs.length) {
@@ -81,6 +89,10 @@ export function componentsHandler(flags: MockFlags): MockHandler {
                     return error(409, `${kind} "${id}" is still referenced by: ${by}`);
                 }
                 deleteComponent(store, space, kind, id);   // purges archived versions too (MET-5)
+                emitAudit(store, space, {
+                    action: `${kind}.deleted`, category: 'destructive', targetType: kind, targetId: id,
+                    message: `Deleted ${kind} ${id}`,
+                });
                 return json({ deleted: true });
             }
         }
@@ -94,7 +106,12 @@ export function componentsHandler(flags: MockFlags): MockHandler {
                 if (store.get<ComponentDef>(space, componentCollection(kind), id)) {
                     return error(409, `${kind} "${id}" already exists`);
                 }
-                return json(putComponent(store, space, kind, req.body));
+                const created = putComponent(store, space, kind, req.body);
+                emitAudit(store, space, {
+                    action: `${kind}.created`, category: 'config', targetType: kind, targetId: created.name,
+                    message: `Created ${kind} ${created.name}`,
+                });
+                return json(created);
             }
         }
         return undefined;
@@ -158,7 +175,12 @@ function restoreVersion(store: MockStore, space: string, kind: string, id: strin
     if (!store.get<ComponentDef>(space, componentCollection(kind), id)) return error(404, `no ${kind} '${id}'`);
     const v = store.get<StoredVersion>(space, historyCollection(kind), `${id}~v${version}`);
     if (!v) return error(404, `no version ${version} of ${kind} '${id}'`);
-    return json(putComponent(store, space, kind, { ...v.content, id }, id));
+    const restored = putComponent(store, space, kind, { ...v.content, id }, id);
+    emitAudit(store, space, {
+        action: `${kind}.restored`, category: 'config', targetType: kind, targetId: id,
+        message: `Restored ${kind} ${id} to version ${version}`,
+    });
+    return json(restored);
 }
 
 function componentTest(type: string, idRef: string): unknown {
