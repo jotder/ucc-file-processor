@@ -17,6 +17,7 @@ import { MockFlags } from '../mock-flags';
 import { error, json, match, MockHandler, MockRequest } from '../mock-http';
 import { MockStore } from '../mock-store';
 import { emitSignal, SIGNALS_COLL } from '../signals';
+import { batches, PIPELINES } from './demo.handler';
 
 /**
  * The operational-intelligence mock domain (events · alerts · objects · enrichment) — the port of
@@ -180,24 +181,36 @@ export function opsHandler(flags: MockFlags): MockHandler {
             return json({ deleted: name });
         }
         if (method === 'POST' && ALERTS_EVAL.test(url)) {
-            // Manual sweep: breach the first armed rule so the button visibly does something in mock dev.
-            const rule = store.list<AlertRule>(space, ALERT_RULES_COLL)[0];
-            if (!rule) return json([]);
-            const fired: FiredAlert = {
-                rule: rule.name,
-                severity: rule.severity,
-                pipeline: rule.onPipeline ?? 'cdr_ingest',
-                metric: rule.metric,
-                value: rule.threshold + 1,
-                comparator: rule.comparator,
-                threshold: rule.threshold,
-                window: rule.window,
-                epochMillis: Date.now(),
-                message: `Manual sweep: ${rule.metric} ${rule.comparator} ${rule.threshold} breached (${rule.name})`,
-            };
-            // Emit to the one ledger; emitSignal fans out the notification. /alerts reads it back as a FiredAlert.
-            emitSignal(store, space, alertToSignal(fired, `fired-${fired.epochMillis}`));
-            return json([fired]);
+            // Manual sweep: real ledger math per armed rule (mirrors AlertService.evaluate — ledger
+            // rows -> metricValue -> comparator), not a fabricated breach. A rule with no `onPipeline`
+            // is checked against every pipeline (each breaching pipeline fires its own alert).
+            const now = Date.now();
+            const fired: FiredAlert[] = [];
+            for (const rule of store.list<AlertRule>(space, ALERT_RULES_COLL)) {
+                const targets = rule.onPipeline ? [rule.onPipeline] : PIPELINES;
+                for (const pipeline of targets) {
+                    const rows = rowsInWindow(batches(pipeline), rule.window, now);
+                    if (!rows.length) continue;
+                    const value = ledgerMetric(rule.metric, rows);
+                    if (!breaches(rule, value)) continue;
+                    const alert: FiredAlert = {
+                        rule: rule.name,
+                        severity: rule.severity,
+                        pipeline,
+                        metric: rule.metric,
+                        value,
+                        comparator: rule.comparator,
+                        threshold: rule.threshold,
+                        window: rule.window,
+                        epochMillis: now,
+                        message: `${rule.metric} ${rule.comparator} ${rule.threshold} breached on ${pipeline} (${rule.name})`,
+                    };
+                    // Emit to the one ledger; emitSignal fans out the notification. /alerts reads it back.
+                    emitSignal(store, space, alertToSignal(alert, `fired-${now}-${fired.length}`));
+                    fired.push(alert);
+                }
+            }
+            return json(fired);
         }
         if (method === 'GET' && ALERTS.test(url)) {
             const sorted = projectAlerts(store, space).sort((a, b) => b.epochMillis - a.epochMillis);
@@ -647,6 +660,51 @@ function objectAnalytics(rows: OperationalObject[], type: string | undefined): R
         cycleTime: { count: cycleCount, avgMs: cycleCount === 0 ? 0 : Math.floor(cycleSum / cycleCount) },
         impact: { impactAmount, recordsAffected },
     };
+}
+
+/**
+ * Ledger-metric math for `/alerts/evaluate` — mirrors `AlertService.metricValue` /
+ * `AlertService.inWindow` (window grammar `Ns|Nm|Nh|Nd` duration or `Nb` last-N-batches; metric ∈
+ * error_rate|failed_batches|rejected_files|duration_ms over the pipeline's committed-batch ledger).
+ * A rule whose metric isn't one of these (e.g. a BI-5 dataset/measure rule, unsupported offline)
+ * evaluates to 0 rather than crashing — it simply never breaches via this sweep.
+ */
+function rowsInWindow(rows: Record<string, string>[], window: string, nowMs: number): Record<string, string>[] {
+    const m = /^(\d+)([smhdb])$/.exec(window);
+    if (!m) return rows;
+    const n = Number(m[1]);
+    if (m[2] === 'b') return rows.slice(0, n); // rows are newest-first already
+    const spanMs = n * ({ s: 1000, m: 60_000, h: 3_600_000, d: 86_400_000 } as Record<string, number>)[m[2]];
+    const cutoff = nowMs - spanMs;
+    return rows.filter((r) => new Date(r['committed_at']).getTime() >= cutoff);
+}
+
+function ledgerMetric(metric: string, rows: Record<string, string>[]): number {
+    switch (metric) {
+        case 'error_rate': {
+            const totalIn = rows.reduce((s, r) => s + Number(r['input_rows']), 0);
+            const totalOut = rows.reduce((s, r) => s + Number(r['output_rows']), 0);
+            return totalIn === 0 ? 0 : 1 - Math.min(totalOut, totalIn) / totalIn;
+        }
+        case 'failed_batches':
+            return rows.filter((r) => r['status'] === 'FAILED').length;
+        case 'rejected_files':
+            return rows.reduce((s, r) => s + Number(r['rejected_files']), 0);
+        case 'duration_ms':
+            return rows.reduce((s, r) => s + Number(r['duration_ms']), 0) / rows.length;
+        default:
+            return 0;
+    }
+}
+
+function breaches(rule: AlertRule, value: number): boolean {
+    switch (rule.comparator) {
+        case 'gt': return value > rule.threshold;
+        case 'gte': return value >= rule.threshold;
+        case 'lt': return value < rule.threshold;
+        case 'lte': return value <= rule.threshold;
+        default: return false;
+    }
 }
 
 /** Evaluate a Case Rule (C5) — mirrors ObjectService.evaluateCaseRule (open/attach, idempotent). */

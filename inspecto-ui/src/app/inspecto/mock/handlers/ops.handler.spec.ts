@@ -123,18 +123,27 @@ describe('opsHandler', () => {
         expect(lines.slice(1).every((l) => l.includes('ERROR'))).toBe(true);
     });
 
-    it('a manual evaluation sweep fires and persists one alert off the first armed rule', () => {
+    it('a manual evaluation sweep computes real ledger math per rule — no fabricated breach', () => {
         const store = seededStore();
         const before = (handler(req('GET', '/api/alerts'), store)?.body as FiredAlert[]).length;
         const fired = handler(req('POST', '/api/alerts/evaluate'), store)?.body as FiredAlert[];
-        expect(fired.length).toBe(1);
-        expect(fired[0].value).toBeGreaterThan(fired[0].threshold);
+        // The 3 seeded rules are calibrated (onPipeline + threshold/window) against the deterministic
+        // batches() ledger so all 3 genuinely breach — not a hardcoded "first rule always fires".
+        expect(fired.map((f) => f.rule).sort()).toEqual(['high_error_rate', 'rejected_spike', 'slow_batch']);
+        for (const f of fired) {
+            expect(f.value).toBeGreaterThan(f.threshold);
+        }
+        expect(fired.find((f) => f.rule === 'high_error_rate')?.pipeline).toBe('cdr_ingest');
         const after = handler(req('GET', '/api/alerts'), store)?.body as FiredAlert[];
-        expect(after.length).toBe(before + 1);
-        expect(after[0].rule).toBe(fired[0].rule);
+        expect(after.length).toBe(before + fired.length);
 
         const limited = handler(req('GET', '/api/alerts', null, { limit: '3' }), store)?.body as FiredAlert[];
         expect(limited.length).toBe(3);
+    });
+
+    it('a manual evaluation sweep reports no breaches honestly when no rule is armed', () => {
+        const store = new MockStore();
+        expect(handler(req('POST', '/api/alerts/evaluate'), store)?.body).toEqual([]);
     });
 
     it('filters operational objects by the type query param', () => {
@@ -407,8 +416,10 @@ describe('opsHandler', () => {
         handler(req('POST', '/api/objects', { type: 'INCIDENT', title: 'Late feed' }), store);
         handler(req('POST', '/api/objects', { type: 'CASE', title: 'No fan-out for cases' }), store);
 
+        // The evaluate() sweep can fire more than one rule (real ledger math, not a single canned
+        // breach) — assert both trigger KINDS fan out, not an exact count.
         const deliveries = store.list<{ trigger: string }>('default', NOTIFICATION_DELIVERIES_COLL);
-        expect(deliveries.map((d) => d.trigger).sort()).toEqual(['ALERT_FIRED', 'INCIDENT_OPENED']);
+        expect([...new Set(deliveries.map((d) => d.trigger))].sort()).toEqual(['ALERT_FIRED', 'INCIDENT_OPENED']);
     });
 
     it('falls through entirely when mockOps is off', () => {

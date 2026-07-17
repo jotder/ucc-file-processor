@@ -38,7 +38,7 @@ interface Notification {
 }
 
 const NOW = Date.now();
-const PIPELINES = ['cdr_ingest', 'subscriber_load', 'voucher_etl', 'billing_daily', 'fraud_events'];
+export const PIPELINES = ['cdr_ingest', 'subscriber_load', 'voucher_etl', 'billing_daily', 'fraud_events'];
 
 // ── health / status / report ────────────────────────────────────────────────
 
@@ -181,7 +181,8 @@ const PIPELINE_VIEWS = PIPELINES.map((name, i) => ({
     committedBatches: 120 + i * 37,
 }));
 
-function batches(pipeline: string): Record<string, string>[] {
+/** One pipeline's committed-batch ledger, newest-first — also the alert-evaluation metric source. */
+export function batches(pipeline: string): Record<string, string>[] {
     return Array.from({ length: 25 }, (_, i) => {
         const ts = NOW - i * 3_600_000;
         return {

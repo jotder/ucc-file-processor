@@ -1,6 +1,33 @@
 # Log
 
 ## 2026-07-17
+* **Mock `POST /alerts/evaluate` computes real ledger math** (BACKLOG §4 minor — "mock always
+  breaches"): the manual "Evaluate now" sweep used to fabricate exactly one breach off whichever
+  rule happened to be first in the store, regardless of its actual metric/threshold. It now mirrors
+  the real `AlertService.evaluate` (per the backend trace: ledger rows → `metricValue` →
+  comparator) — `ops.handler.ts` gained `rowsInWindow` (the `Ns|Nm|Nh|Nd` duration / `Nb`
+  last-N-batches window grammar) + `ledgerMetric` (`error_rate` / `failed_batches` /
+  `rejected_files` / `duration_ms` over the pipeline's committed-batch ledger, now exported from
+  `demo.handler.ts` as `batches()`/`PIPELINES` since both handlers need the same rows) + `breaches`
+  (`gt`/`gte`/`lt`/`lte`). A rule with no `onPipeline` sweeps every pipeline (each breaching pipeline
+  fires its own alert); an unrecognized metric (the 4 domain-specific seeded rules —
+  `long_calls_per_msisdn_15m`, `irsf_dest_minutes_pct`, `billing_delta_pct`, `quarantined_files` —
+  aren't ledger metrics) evaluates to 0 rather than crashing, so it simply never breaches — honest
+  "we don't compute this yet", not a fake pass. The 3 generic seeded rules
+  (`operations.seed.ts`) gained `onPipeline` + recalibrated `threshold`/`window` so they still
+  genuinely breach against the deterministic mock ledger (unrecalibrated, none of the old
+  thresholds — 0.1 error rate, 5 rejected files, 30s duration — are ever reachable by the generator,
+  confirming the old "always breaches" was pure fiction). Windows are deliberately offset to a
+  half-hour mark (`30m`/`510m`/`750m`, not `1h`/`8h`/`24h`) since the ledger's batches are spaced
+  exactly 1h apart — landing a window exactly on that grid makes row-count inclusion a knife's-edge
+  race against the few-ms clock drift between seed generation and evaluate-time `Date.now()` (caught
+  by the rewritten spec, which failed intermittently on the on-the-hour windows before the offset).
+  Rewrote `ops.handler.spec.ts`'s sweep test for the real 3-rule fire + an explicit "no rules armed
+  → honestly empty" case; relaxed the notification fan-out test to assert trigger *kinds* (a Set)
+  since the sweep can now fire more than one alert. Reactor UI 1392/0. Not live-verified in-browser
+  this session — the shared dev preview's `environment.ts` has `mockOps: false` (talks to the real
+  backend), so this mock-only path isn't reachable without flipping a build-time flag shared by the
+  whole team; verification rests on the rewritten unit tests, which exercise the handler directly.
 * **Shared chip primitive `<inspecto-chip>`** (BACKLOG §4 minor — "shared chip primitive
   (sources/widgets/events)"): the per-component hand-rolled `rounded-full … text-xs` tag/token/filter
   pills are now one presentational component (`inspecto/components/chip.component.ts`) — two

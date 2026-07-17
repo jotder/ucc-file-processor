@@ -134,10 +134,15 @@ export function seedOperations(store: MockStore, space: string): void {
         };
         store.put(space, SIGNALS_COLL, `alert-${1000 + i}`, alertToSignal(alert, `alert-${1000 + i}`));
     }
+    // Thresholds/windows are calibrated against the deterministic `batches()` ledger (demo.handler)
+    // so a manual "Evaluate now" sweep — real ledger math, no fabricated breach — genuinely fires.
+    // Batches are spaced exactly 1h apart; windows are deliberately offset to a half-hour mark (not
+    // an exact multiple of the grid) so the row count is robust to the few-ms clock drift between
+    // when this deterministic ledger was generated and when `evaluate()` reads `Date.now()`.
     const rules: AlertRule[] = [
-        { name: 'high_error_rate', metric: 'error_rate', comparator: 'gt', threshold: 0.1, window: '15m', severity: 'CRITICAL' },
-        { name: 'rejected_spike', metric: 'rejected_files', comparator: 'gt', threshold: 5, window: '1h', severity: 'WARNING' },
-        { name: 'slow_batch', metric: 'duration_ms', comparator: 'gt', threshold: 30_000, window: '15m', severity: 'WARNING' },
+        { name: 'high_error_rate', metric: 'error_rate', comparator: 'gt', threshold: 0.05, window: '30m', severity: 'CRITICAL', onPipeline: 'cdr_ingest' },
+        { name: 'rejected_spike', metric: 'rejected_files', comparator: 'gt', threshold: 1, window: '510m', severity: 'WARNING', onPipeline: 'subscriber_load' },
+        { name: 'slow_batch', metric: 'duration_ms', comparator: 'gt', threshold: 1500, window: '750m', severity: 'WARNING', onPipeline: 'voucher_etl' },
     ];
     for (const r of rules) store.put(space, ALERT_RULES_COLL, r.name, r);
 
