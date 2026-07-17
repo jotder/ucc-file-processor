@@ -7,6 +7,7 @@ in-app [`/design` route](../features/design-system-gallery.md).
 # Presentational components
 
 * [Status badge](status-badge.md) - the only place status/severity/level → color. `<inspecto-status-badge>` / `statusBadgeHtml()`.
+* [Chip](chip.md) - the shared tag/token/filter pill (`<inspecto-chip variant=… tone=… [removable]>`).
 * [Alert](alert.md) - inline per-screen notice banner (`<inspecto-alert variant=…>`).
 * [Empty state](empty-state.md) - `<inspecto-empty-state>` for "nothing here yet".
 * [Skeleton](skeleton.md) - `<inspecto-skeleton>` loading placeholders.

@@ -21,6 +21,7 @@ import {
     visibleInterval,
 } from 'app/inspecto/api';
 import { InspectoConfirmService } from 'app/inspecto/confirm.service';
+import { ChipComponent } from 'app/inspecto/components/chip.component';
 import { InspectoEmptyStateComponent } from 'app/inspecto/components/empty-state.component';
 import { DataTableComponent } from 'app/inspecto/data-table';
 import { fmtDateTime, InspectoRowAction } from 'app/inspecto/grid';
@@ -50,6 +51,7 @@ const LIVE_TAIL_MS = 5000;
         MatSelectModule,
         MatSlideToggleModule,
         MatTooltipModule,
+        ChipComponent,
         InspectoEmptyStateComponent,
         DataTableComponent,
     ],

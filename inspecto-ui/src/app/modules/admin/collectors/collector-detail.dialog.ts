@@ -5,6 +5,7 @@ import { MAT_DIALOG_DATA, MatDialogModule, MatDialogRef } from '@angular/materia
 import { MatIconModule } from '@angular/material/icon';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { InboxStatus, RunsService, CollectorView } from 'app/inspecto/api';
+import { ChipComponent } from 'app/inspecto/components/chip.component';
 
 /**
  * Collector detail dialog — the full `/collectors` config for one collector, a link to its bound
@@ -14,7 +15,7 @@ import { InboxStatus, RunsService, CollectorView } from 'app/inspecto/api';
 @Component({
     selector: 'app-collector-detail-dialog',
     standalone: true,
-    imports: [RouterLink, MatDialogModule, MatButtonModule, MatIconModule, MatProgressSpinnerModule],
+    imports: [RouterLink, MatDialogModule, MatButtonModule, MatIconModule, MatProgressSpinnerModule, ChipComponent],
     template: `
         <h2 mat-dialog-title>
             <span class="font-mono">{{ data.id }}</span>
@@ -80,9 +81,11 @@ import { InboxStatus, RunsService, CollectorView } from 'app/inspecto/api';
                 <div>
                     <span class="text-secondary font-medium">includes:</span>
                     @if (data.includes.length) {
-                        @for (g of data.includes; track g) {
-                            <span class="mr-1 inline-block rounded bg-gray-200 px-2 py-0.5 font-mono text-xs dark:bg-gray-700">{{ g }}</span>
-                        }
+                        <span class="inline-flex flex-wrap gap-1 align-middle">
+                            @for (g of data.includes; track g) {
+                                <inspecto-chip variant="soft"><span class="font-mono">{{ g }}</span></inspecto-chip>
+                            }
+                        </span>
                     } @else {
                         <span class="text-secondary">— (all)</span>
                     }
@@ -90,9 +93,11 @@ import { InboxStatus, RunsService, CollectorView } from 'app/inspecto/api';
                 <div>
                     <span class="text-secondary font-medium">excludes:</span>
                     @if (data.excludes.length) {
-                        @for (g of data.excludes; track g) {
-                            <span class="mr-1 inline-block rounded bg-gray-200 px-2 py-0.5 font-mono text-xs dark:bg-gray-700">{{ g }}</span>
-                        }
+                        <span class="inline-flex flex-wrap gap-1 align-middle">
+                            @for (g of data.excludes; track g) {
+                                <inspecto-chip variant="soft"><span class="font-mono">{{ g }}</span></inspecto-chip>
+                            }
+                        </span>
                     } @else {
                         <span class="text-secondary">—</span>
                     }

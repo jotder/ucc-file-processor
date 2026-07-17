@@ -1,6 +1,19 @@
 # Log
 
 ## 2026-07-17
+* **Shared chip primitive `<inspecto-chip>`** (BACKLOG §4 minor — "shared chip primitive
+  (sources/widgets/events)"): the per-component hand-rolled `rounded-full … text-xs` tag/token/filter
+  pills are now one presentational component (`inspecto/components/chip.component.ts`) — two
+  `variant`s (`outline` / `soft`) × two `tone`s (`neutral` / `primary`), optional `removable` ✕ that
+  emits `(removed)`, content projected (a leading `<mat-icon>` or mono span just goes inside).
+  `removable` uses `transform: booleanAttribute` so the bare attribute compiles under strict template
+  checking. Adopted on the three named surfaces: **widgets** (the Type/Tag filter toggles now wrap a
+  chip in the real `<button>` so `aria-pressed` + keyboard stay on the button; the per-card tag pills),
+  **events** (the correlation-filter chip = `soft`+`primary`+`removable`), **collectors** (the detail
+  dialog's include/exclude glob pills). Added to the `/design` gallery (live examples + copy snippet).
+  The interactive filter toggles keep their own `<button>` — the chip is the visual, not the control.
+  Spec covers class computation, remove emit, and axe. Reactor UI 1391/0 · live-verified (gallery chips
+  render every variant/tone; a widgets toggle flips `neutral`→`primary` on click).
 * **Create-on-edit fixed across every Studio save path** (BACKLOG §4 "dataset editor save()" row —
   the verify found the whole family): the four Studio services (datasets/widgets/dashboards/queries)
   and the shared `SavedViewStore` (geo/link views) always POSTed `components.create`, which the real

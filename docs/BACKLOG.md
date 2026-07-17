@@ -68,7 +68,7 @@ that closes/opens an item)
 |---|---|
 | ui-design-review residuals — R2 column suggestions, R2 object-create chips, R3 command registry + `/`-focus + j/k nav all SHIPPED 2026-07-17; remaining: R6 true offset paging per pane (revisit if a pane outgrows widen-and-refetch) · R8 pivot-bar (design-only until demanded twice) | `archived-documents/plans-archive/ui-design-review.md` · `okf/frontend/log.md` |
 | `ComponentKind.deriveParts` seam — formalize when a 3rd composite kind needs it | same |
-| Minor: shared chip primitive (sources/widgets/events) · mock audit trail seed-only · mock `POST /alerts/evaluate` always breaches · events live-tail cadence hardcoded 5 s · parser/node attribute tiers best-guess pending firm backend specs · pipeline-editor dry-run panel extraction (may be moot) | same |
+| Minor: mock audit trail seed-only · mock `POST /alerts/evaluate` always breaches · events live-tail cadence hardcoded 5 s · parser/node attribute tiers best-guess pending firm backend specs · pipeline-editor dry-run panel extraction (may be moot) *(shared chip primitive `<inspecto-chip>` SHIPPED 2026-07-17)* | same |
 | Dev-mode mount flake: the vendored `GammaLoadingBarComponent` NG0100 (progress −1→0 mid-tick) intermittently aborts the CD pass that activates routed content on fresh loads (dev `checkNoChanges` only — prod unaffected; vendored code, out of audit scope) | observed 2026-07-17 preview walks |
 
 ## 5. Engineering / tech-debt

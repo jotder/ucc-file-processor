@@ -7,6 +7,7 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { Router, RouterLink } from '@angular/router';
 import { ToastrService } from 'ngx-toastr';
 import { apiErrorMessage, ExchangeService, parseSharedRef, SessionService, SpacesService } from 'app/inspecto/api';
+import { ChipComponent } from 'app/inspecto/components/chip.component';
 import { InspectoEmptyStateComponent } from 'app/inspecto/components/empty-state.component';
 import { OfferShareDialog, OfferShareResult } from 'app/inspecto/components/offer-share.dialog';
 import { StatusBadgeComponent } from 'app/inspecto/components/status-badge.component';
@@ -36,6 +37,7 @@ import { DashboardsService } from '../dashboards/dashboards.service';
         MatProgressSpinnerModule,
         MatTooltipModule,
         RouterLink,
+        ChipComponent,
         InspectoEmptyStateComponent,
         StatusBadgeComponent,
         WidgetHostComponent,

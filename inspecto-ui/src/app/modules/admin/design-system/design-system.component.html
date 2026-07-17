@@ -43,6 +43,37 @@
             <pre class="bg-default text-secondary mt-3 overflow-x-auto rounded-lg p-4 text-xs leading-relaxed"><code>{{ snippets.badge }}</code></pre>
         </section>
 
+        <!-- ── Chip ─────────────────────────────────────────────────────────────────────── -->
+        <section>
+            <div class="mb-3 flex items-center justify-between">
+                <h2 class="text-xl font-semibold">Chip</h2>
+                <button mat-stroked-button (click)="copy(snippets.chip)">
+                    <mat-icon class="icon-size-4" svgIcon="heroicons_outline:clipboard"></mat-icon>
+                    <span class="ml-1">Copy snippet</span>
+                </button>
+            </div>
+            <p class="text-secondary mb-4 text-sm">
+                <code>&lt;inspecto-chip&gt;</code> — the shared tag / token / filter pill (widget tags &
+                type/tag toggles, the events correlation filter, glob patterns, query tokens). Two
+                <code>variant</code>s (<code>outline</code> / <code>soft</code>) × two
+                <code>tone</code>s (<code>neutral</code> / <code>primary</code>), with an optional
+                <code>removable</code> ✕. Content is projected — drop a <code>&lt;mat-icon&gt;</code> or
+                mono span inside.
+            </p>
+            <div class="bg-card flex flex-col gap-4 rounded-2xl p-6 shadow">
+                <div class="flex flex-wrap items-center gap-2">
+                    <inspecto-chip>outline neutral</inspecto-chip>
+                    <inspecto-chip tone="primary">outline primary</inspecto-chip>
+                    <inspecto-chip variant="soft">soft neutral</inspecto-chip>
+                    <inspecto-chip variant="soft" tone="primary">soft primary</inspecto-chip>
+                    <inspecto-chip variant="soft" tone="primary" removable removeLabel="Clear demo filter">
+                        correlation: <span class="font-mono">abc-123</span>
+                    </inspecto-chip>
+                </div>
+            </div>
+            <pre class="bg-default text-secondary mt-3 overflow-x-auto rounded-lg p-4 text-xs leading-relaxed"><code>{{ snippets.chip }}</code></pre>
+        </section>
+
         <!-- ── Alert / banner ───────────────────────────────────────────────────────────── -->
         <section>
             <div class="mb-3 flex items-center justify-between">

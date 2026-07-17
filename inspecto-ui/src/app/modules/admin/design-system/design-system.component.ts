@@ -11,6 +11,7 @@ import { ColDef, GridApi } from 'ag-grid-community';
 import { ToastrService } from 'ngx-toastr';
 
 import { InspectoAlertComponent } from 'app/inspecto/components/alert.component';
+import { ChipComponent } from 'app/inspecto/components/chip.component';
 import { InspectoEmptyStateComponent } from 'app/inspecto/components/empty-state.component';
 import { InspectoSchemaFormComponent } from 'app/inspecto/components/schema-form.component';
 import { AttributeSpec } from 'app/inspecto/component-model';
@@ -59,6 +60,7 @@ interface DemoRow {
         AgGridAngular,
         StatusBadgeComponent,
         InspectoAlertComponent,
+        ChipComponent,
         InspectoEmptyStateComponent,
         InspectoSchemaFormComponent,
         InspectoSkeletonComponent,
@@ -213,6 +215,7 @@ export class DesignSystemComponent {
     // ── Snippets (copy-paste) ────────────────────────────────────────────────────────────────
     readonly snippets = {
         badge: `<inspecto-status-badge [value]="event.level" />\n// in an ag-Grid cellRenderer:\ncellRenderer: (p) => statusBadgeHtml(p.value)`,
+        chip: `<!-- tag / token / filter pill — variant: outline | soft, tone: neutral | primary -->\n<inspecto-chip variant="soft">{{ tag }}</inspecto-chip>\n<!-- selectable filter toggle: -->\n<button (click)="toggle(t)" [attr.aria-pressed]="active(t)">\n  <inspecto-chip [tone]="active(t) ? 'primary' : 'neutral'">{{ t }}</inspecto-chip>\n</button>\n<!-- removable active filter: -->\n<inspecto-chip variant="soft" tone="primary" removable (removed)="clear()">correlation: {{ id }}</inspecto-chip>`,
         alert: `<inspecto-alert variant="warning" title="Read-only">\n  Editing is disabled (no write root configured).\n</inspecto-alert>`,
         empty: `<inspecto-empty-state\n  icon="heroicons_outline:queue-list"\n  title="Nothing yet"\n  message="No events match the current filters."\n  actionLabel="Clear filters"\n  (action)="reset()" />`,
         skeleton: `<inspecto-skeleton width="40%" height="0.875rem" />   <!-- a label -->\n<inspecto-skeleton [lines]="4" />                     <!-- a paragraph -->\n<inspecto-skeleton height="12rem" />                  <!-- a block -->`,
