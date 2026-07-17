@@ -140,12 +140,28 @@ export type AttributeOptionLoader = (
                                 <mat-error>{{ errorFor(spec) }}</mat-error>
                             </mat-form-field>
                         }
+                        @case ('number') {
+                            <!-- Static type="number" so Angular's NumberValueAccessor attaches (a [type]
+                                 binding would leave the default accessor → string values). -->
+                            <mat-form-field class="w-full" subscriptSizing="dynamic">
+                                <mat-label>{{ spec.label }}</mat-label>
+                                <input
+                                    matInput
+                                    type="number"
+                                    [formControlName]="spec.key"
+                                    [placeholder]="spec.placeholder ?? ''"
+                                    [attr.cdkFocusInitial]="first ? '' : null"
+                                />
+                                @if (spec.help) { <mat-hint>{{ spec.help }}</mat-hint> }
+                                <mat-error>{{ errorFor(spec) }}</mat-error>
+                            </mat-form-field>
+                        }
                         @default {
                             <mat-form-field class="w-full" subscriptSizing="dynamic">
                                 <mat-label>{{ spec.label }}</mat-label>
                                 <input
                                     matInput
-                                    [type]="spec.type === 'number' ? 'number' : 'text'"
+                                    type="text"
                                     [formControlName]="spec.key"
                                     [placeholder]="spec.placeholder ?? ''"
                                     [attr.cdkFocusInitial]="first ? '' : null"

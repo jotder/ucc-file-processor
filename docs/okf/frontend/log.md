@@ -1,6 +1,26 @@
 # Log
 
 ## 2026-07-17
+* **Config pane ported to `<inspecto-schema-form>`** (BACKLOG §4 — the last spec-driven `ngModel`
+  authoring form): the dynamic `FieldSpec` grid is now mapped to `AttributeSpec[]` and rendered by the
+  shared schema-form (three-tier disclosure: required visible, the rest under "Optional settings").
+  Dotted `FieldSpec.path`s become flat `fN` control keys (schema-form's `form.get(key)` splits on `.`),
+  reassembled into the nested config by two pure, unit-tested helpers (`toAttrSpecs` / `assembleConfig`
+  — LIST fields keep comma-separated-text editing, schema-form has no chips type). Enter submits via
+  `(submitted)`; the live "Assembled config" preview now tracks the schema-form's `form.valueChanges`.
+  The type/safety/path controls moved to reactive `FormControl`s, so `FormsModule` is gone from the
+  pane. Two root-cause fixes rode along, found by walking the pane against the **live backend**:
+  * **`FieldSpec` contract drift** — the UI model + mock served an invented shape
+    (`INTEGER/BOOLEAN/ARRAY`, `options`, `default`), so against the real
+    `com.gamma.config.spec.FieldSpec` (`INT/LONG/BOOL/ENUM/LIST/…`, `enumValues`, `defaultValue`,
+    `label`, `pattern`) every field silently degraded to a bare text input — also true of the old
+    pane. `models.ts` + the mock's `CONFIG_SPECS` now mirror the backend record; live-verified:
+    ENUMs render as selects, INT/LONG as numbers, BOOL as toggles, LIST as comma text, and
+    POST /validate returns real `ConfigLoader` findings (severity badges).
+  * **Schema-form number fix (all ~12 dialogs)** — the number case used a `[type]` *binding*, which
+    Angular's `NumberValueAccessor` selector (static `type="number"`) never matches, so every number
+    field emitted **strings**. Split into a static-`type` case; number attributes now emit numbers
+    (regression spec added).
 * **BACKLOG §4 quick wins shipped**: (1) the **space switcher** now reloads at the current lens's
   home route (`LENS_HOME[currentLens]`) instead of the hard-coded `/overview` — a Business user
   switching space lands on KPI & Reports, not a page their lens never uses; (2) **KPI & Reports**

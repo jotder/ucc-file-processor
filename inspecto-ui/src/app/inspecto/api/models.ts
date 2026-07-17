@@ -232,18 +232,29 @@ export interface GraphQuery {
 
 // ── config spec + validation ─────────────────────────────────────────────────
 export type ConfigType = 'pipeline' | 'enrichment' | 'job' | 'schema' | 'meta';
-export type FieldType = 'STRING' | 'INTEGER' | 'BOOLEAN' | 'ARRAY' | 'FILEPATH' | string;
+/** Mirrors the backend `com.gamma.config.spec.FieldType` (FILEPATH/CRON/SQL are STRING refinements). */
+export type FieldType =
+  | 'STRING' | 'INT' | 'LONG' | 'BOOL' | 'ENUM' | 'FILEPATH' | 'CRON' | 'SQL' | 'MAP' | 'LIST'
+  | string;
 export type Severity = 'ERROR' | 'WARNING' | string;
 
+/** Mirrors the backend `com.gamma.config.spec.FieldSpec` record (GET /config/spec/{type}). */
 export interface FieldSpec {
   path: string;
+  /** Short human label for the form control (backend guarantees non-null; may be blank). */
+  label?: string;
   type: FieldType;
   required: boolean;
   description?: string;
-  default?: unknown;
-  options?: string[] | null;
-  minValue?: number | null;
-  maxValue?: number | null;
+  defaultValue?: unknown;
+  /** Allowed values when `type` is ENUM. */
+  enumValues?: string[] | null;
+  /** Regex the value must fully match. */
+  pattern?: string | null;
+  /** Optional rendering hint (e.g. "select", "cron-editor") — advisory only. */
+  uiHint?: string | null;
+  /** Optional "otherPath=value" display predicate — advisory only, unused by current specs. */
+  visibleWhen?: string | null;
 }
 
 export interface CrossFieldRule {

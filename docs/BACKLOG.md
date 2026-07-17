@@ -66,7 +66,6 @@ that closes/opens an item)
 
 | Item | Source |
 |---|---|
-| Config pane schema-form port — the last `ngModel` pane (`FieldSpec`→`AttributeSpec` onto `<inspecto-schema-form>`) | review sweep 2026-07-16 |
 | ui-design-review residuals — R2 column suggestions, R2 object-create chips, R3 command registry + `/`-focus + j/k nav all SHIPPED 2026-07-17; remaining: R6 true offset paging per pane (revisit if a pane outgrows widen-and-refetch) · R8 pivot-bar (design-only until demanded twice) | `archived-documents/plans-archive/ui-design-review.md` · `okf/frontend/log.md` |
 | Requirements "Delivered via" is free text — should be a real Component link (cross-kind picker + Registry reuse edge) | review sweep |
 | `ComponentKind.deriveParts` seam — formalize when a 3rd composite kind needs it | same |

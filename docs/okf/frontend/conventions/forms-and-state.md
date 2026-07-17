@@ -34,6 +34,10 @@ timestamp: 2026-06-28T00:00:00Z
   schema-form ViewChilds survive).
 * **Initial focus**: `cdkFocusInitial` on the first field of every dialog (auto on schema-form's first
   required field).
+* **Gotcha — `type="number"` must be static**: Angular's `NumberValueAccessor` selector matches the
+  *static* `type="number"` attribute; a `[type]="…"` binding leaves the default (string) accessor
+  attached, so the control emits `"4"` instead of `4`. The schema-form renders its `number` case with
+  a literal `type="number"` for this reason — don't "simplify" it back into the shared text case.
 
 ## State
 

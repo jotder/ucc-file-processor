@@ -328,21 +328,23 @@ const DIAGNOSES = Array.from({ length: 10 }, (_, i) => ({
 
 // ── config specs ────────────────────────────────────────────────────────────
 
+// Field shape mirrors the backend `com.gamma.config.spec.FieldSpec` record (label/enumValues/
+// defaultValue — see the UI FieldSpec model), so the offline pane renders like the live one.
 const CONFIG_SPECS: Record<string, unknown> = {
     pipeline: {
         type: 'pipeline',
         fields: [
-            { path: 'pipeline', type: 'STRING', required: true, description: 'Pipeline name (unique identifier)' },
-            { path: 'collector.connector', type: 'STRING', required: true, description: 'Collector connector type', options: ['sftp', 's3', 'local', 'jdbc', 'kafka'] },
-            { path: 'collector.connection', type: 'STRING', required: false, description: 'Connection profile reference' },
-            { path: 'collector.includes', type: 'ARRAY', required: true, description: 'File include globs' },
-            { path: 'collector.excludes', type: 'ARRAY', required: false, description: 'File exclude globs' },
-            { path: 'parser.format', type: 'STRING', required: true, description: 'Input format', options: ['csv', 'json', 'parquet', 'avro', 'xml', 'fixed', 'asn1', 'edi', 'custom'] },
-            { path: 'parser.delimiter', type: 'STRING', required: false, description: 'Field delimiter (CSV)' },
-            { path: 'parser.header', type: 'BOOLEAN', required: false, description: 'First row is header', default: true },
-            { path: 'output.format', type: 'STRING', required: true, description: 'Output format', options: ['parquet', 'csv', 'json'] },
-            { path: 'output.partitionBy', type: 'ARRAY', required: false, description: 'Partition columns' },
-            { path: 'batch.maxFiles', type: 'INTEGER', required: false, description: 'Max files per batch', default: 100, minValue: 1, maxValue: 10000 },
+            { path: 'pipeline', label: 'Pipeline', type: 'STRING', required: true, description: 'Pipeline name (unique identifier)' },
+            { path: 'collector.connector', label: 'Connector', type: 'ENUM', required: true, description: 'Collector connector type', enumValues: ['sftp', 's3', 'local', 'jdbc', 'kafka'] },
+            { path: 'collector.connection', label: 'Connection', type: 'STRING', required: false, description: 'Connection profile reference' },
+            { path: 'collector.includes', label: 'Includes', type: 'LIST', required: true, description: 'File include globs' },
+            { path: 'collector.excludes', label: 'Excludes', type: 'LIST', required: false, description: 'File exclude globs' },
+            { path: 'parser.format', label: 'Format', type: 'ENUM', required: true, description: 'Input format', enumValues: ['csv', 'json', 'parquet', 'avro', 'xml', 'fixed', 'asn1', 'edi', 'custom'] },
+            { path: 'parser.delimiter', label: 'Delimiter', type: 'STRING', required: false, description: 'Field delimiter (CSV)' },
+            { path: 'parser.header', label: 'Header row', type: 'BOOL', required: false, description: 'First row is header', defaultValue: true },
+            { path: 'output.format', label: 'Output format', type: 'ENUM', required: true, description: 'Output format', enumValues: ['parquet', 'csv', 'json'] },
+            { path: 'output.partitionBy', label: 'Partition by', type: 'LIST', required: false, description: 'Partition columns' },
+            { path: 'batch.maxFiles', label: 'Max files', type: 'INT', required: false, description: 'Max files per batch', defaultValue: 100 },
         ],
         rules: [
             { description: 'JDBC connector requires a connection profile', affectedFields: ['collector.connector', 'collector.connection'], condition: 'collector.connector == "jdbc" => collector.connection != null' },

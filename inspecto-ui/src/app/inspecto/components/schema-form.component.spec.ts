@@ -100,6 +100,18 @@ describe('InspectoSchemaFormComponent', () => {
         expect(c.validate()).toBe(true); // suggestions assist — they never constrain
     });
 
+    it('emits real numbers from number fields (NumberValueAccessor via static type="number")', () => {
+        const fixture = create();
+        fixture.componentInstance.showAdvanced.set(true);
+        fixture.detectChanges();
+
+        const input = (fixture.nativeElement as HTMLElement).querySelector<HTMLInputElement>('input[type="number"]')!;
+        expect(input).toBeTruthy();
+        input.value = '16';
+        input.dispatchEvent(new Event('input'));
+        expect(fixture.componentInstance.value()['threads']).toBe(16); // number, not "16"
+    });
+
     it('emits submitted on native form submission (Enter in a field) and reports dirtiness', () => {
         const fixture = create();
         let submits = 0;
