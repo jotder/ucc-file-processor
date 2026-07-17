@@ -32,8 +32,13 @@ export class DashboardsService {
         return this.components.get('dashboard', id).pipe(map((d) => fromContent(d.name, d.content)));
     }
 
-    save(dashboard: Dashboard): Observable<Dashboard> {
-        return this.components.create('dashboard', { id: dashboard.id, ...toContent(dashboard) }).pipe(map(() => dashboard));
+    /** Create by default; pass `{update: true}` when modifying an existing dashboard (editor save,
+     *  add-tile) — the backend 409s a create on an existing id (id is immutable on edit). */
+    save(dashboard: Dashboard, opts?: { update?: boolean }): Observable<Dashboard> {
+        const req$ = opts?.update
+            ? this.components.update('dashboard', dashboard.id, toContent(dashboard))
+            : this.components.create('dashboard', { id: dashboard.id, ...toContent(dashboard) });
+        return req$.pipe(map(() => dashboard));
     }
 
     remove(id: string): Observable<unknown> {

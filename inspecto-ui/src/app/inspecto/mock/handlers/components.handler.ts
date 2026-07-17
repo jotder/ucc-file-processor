@@ -87,7 +87,15 @@ export function componentsHandler(flags: MockFlags): MockHandler {
         if ((m = match(url, COMPONENTS)) && enabledFor(m[1])) {
             const kind = m[1];
             if (method === 'GET') return json(store.list<ComponentDef>(space, componentCollection(kind)));
-            if (method === 'POST') return json(putComponent(store, space, kind, req.body));
+            if (method === 'POST') {
+                // Mirror the real backend: create 409s on an existing id (update is PUT). Keeping the
+                // mock honest here is what surfaces create-on-edit bugs offline.
+                const id = String((req.body as Record<string, unknown> | null)?.['id'] ?? 'unnamed');
+                if (store.get<ComponentDef>(space, componentCollection(kind), id)) {
+                    return error(409, `${kind} "${id}" already exists`);
+                }
+                return json(putComponent(store, space, kind, req.body));
+            }
         }
         return undefined;
     };

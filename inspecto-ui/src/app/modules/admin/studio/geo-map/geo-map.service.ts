@@ -51,8 +51,8 @@ export class GeoMapService {
         return this.store.get(id);
     }
 
-    save(view: GeoMapView): Observable<GeoMapView> {
-        return this.store.save(view);
+    save(view: GeoMapView, opts?: { update?: boolean }): Observable<GeoMapView> {
+        return this.store.save(view, opts);
     }
 
     remove(id: string): Observable<unknown> {

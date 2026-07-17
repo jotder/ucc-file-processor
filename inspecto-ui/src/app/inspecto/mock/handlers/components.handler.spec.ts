@@ -38,6 +38,17 @@ describe('componentsHandler', () => {
         expect(handler(req('GET', '/api/components/grammar/tsv'), store)?.body).toBeNull();
     });
 
+    it('409s a create on an existing id (update is PUT) — mirrors the real backend', () => {
+        const store = seededStore();
+        handler(req('POST', '/api/components/grammar', { id: 'tsv', delimiter: '\t' }), store);
+        const dup = handler(req('POST', '/api/components/grammar', { id: 'tsv', delimiter: ';' }), store);
+        expect(dup?.status).toBe(409);
+        // The stored copy is untouched by the rejected create; PUT replaces it.
+        expect((handler(req('GET', '/api/components/grammar/tsv'), store)?.body as ComponentDef).content['delimiter']).toBe('\t');
+        handler(req('PUT', '/api/components/grammar/tsv', { delimiter: ';' }), store);
+        expect((handler(req('GET', '/api/components/grammar/tsv'), store)?.body as ComponentDef).content['delimiter']).toBe(';');
+    });
+
     it('409s deleting a widget a dashboard tiles, and a dataset a widget binds (R1 generic rules)', () => {
         const store = seededStore();
         // Seeded: dashboard investigation_overview tiles cost_by_tariff, which binds dataset cdr_sample.

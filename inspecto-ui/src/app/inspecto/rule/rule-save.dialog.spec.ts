@@ -27,7 +27,7 @@ function create() {
                     paramSql: 'SELECT *\nFROM "alerts"\nWHERE "level" = :levelValue',
                 },
             },
-            { provide: RulesService, useValue: { save } },
+            { provide: RulesService, useValue: { save, list: () => of([{ id: 'existing_rule' }]) } },
             { provide: ToastrService, useValue: { success: () => {}, error: () => {} } },
         ],
     });
@@ -41,6 +41,14 @@ describe('RuleSaveDialog', () => {
         const { c, save } = create();
         c.save();
         expect(save).not.toHaveBeenCalled();
+    });
+
+    it('blocks a duplicate id inline (house form rule) instead of relying on the server 409', () => {
+        const { c, save } = create();
+        c.form.get('name')!.setValue('existing_rule');
+        c.save();
+        expect(save).not.toHaveBeenCalled();
+        expect(c.form.get('name')!.hasError('duplicate')).toBe(true);
     });
 
     it('saves a named rule with its parameters and closes with it', () => {

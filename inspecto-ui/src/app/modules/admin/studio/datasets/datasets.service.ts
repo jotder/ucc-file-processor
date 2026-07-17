@@ -23,8 +23,13 @@ export class DatasetsService {
         return this.components.get('dataset', id).pipe(map((d) => fromContent(d.name, d.content)));
     }
 
-    save(ds: Dataset): Observable<Dataset> {
-        return this.components.create('dataset', { id: ds.id, ...toContent(ds) }).pipe(map(() => ds));
+    /** Create by default; pass `{update: true}` when editing an existing dataset — the backend 409s a
+     *  create on an existing id (id is immutable in the editors, so update never renames). */
+    save(ds: Dataset, opts?: { update?: boolean }): Observable<Dataset> {
+        const req$ = opts?.update
+            ? this.components.update('dataset', ds.id, toContent(ds))
+            : this.components.create('dataset', { id: ds.id, ...toContent(ds) });
+        return req$.pipe(map(() => ds));
     }
 
     remove(id: string): Observable<unknown> {

@@ -9,6 +9,9 @@ function setup() {
     const create = vi.fn((_t: string, c: Record<string, unknown>) =>
         of({ type: 'dataset', name: String(c['id']), ref: `dataset/${c['id']}`, content: c }),
     );
+    const update = vi.fn((_t: string, id: string, c: Record<string, unknown>) =>
+        of({ type: 'dataset', name: id, ref: `dataset/${id}`, content: c }),
+    );
     const list = vi.fn(() =>
         of([
             {
@@ -20,9 +23,9 @@ function setup() {
         ]),
     );
     TestBed.configureTestingModule({
-        providers: [DatasetsService, { provide: ComponentsService, useValue: { create, list, remove: vi.fn(() => of(null)) } }],
+        providers: [DatasetsService, { provide: ComponentsService, useValue: { create, update, list, remove: vi.fn(() => of(null)) } }],
     });
-    return { svc: TestBed.inject(DatasetsService), create, list };
+    return { svc: TestBed.inject(DatasetsService), create, update, list };
 }
 
 describe('DatasetsService', () => {
@@ -32,6 +35,13 @@ describe('DatasetsService', () => {
         svc.save(buildDataset('d1', 'virtual', 'cdr')).subscribe((d) => (saved = d));
         expect(create).toHaveBeenCalledWith('dataset', expect.objectContaining({ id: 'd1', kind: 'virtual', sourceName: 'cdr' }));
         expect(saved?.id).toBe('d1');
+    });
+
+    it('edits go through PUT — save with {update: true} never re-creates (the backend 409s that)', () => {
+        const { svc, create, update } = setup();
+        svc.save(buildDataset('d1', 'virtual', 'cdr'), { update: true }).subscribe();
+        expect(create).not.toHaveBeenCalled();
+        expect(update).toHaveBeenCalledWith('dataset', 'd1', expect.objectContaining({ kind: 'virtual', sourceName: 'cdr' }));
     });
 
     it('lists datasets back from the registry', () => {

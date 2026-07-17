@@ -766,7 +766,7 @@ export class GeoMapComponent implements OnInit, OnDestroy {
         };
         this.saving.set(true);
         try {
-            await firstValueFrom(this.viewsService.save(view));
+            await firstValueFrom(this.viewsService.save(view, { update: this.views().some((v) => v.id === view.id) }));
             this.views.set([...this.views().filter((v) => v.id !== view.id), view]);
             this.saveForm.reset({ name: '', description: '' });
             this.saveTrigger?.closeMenu();

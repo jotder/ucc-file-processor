@@ -21,8 +21,13 @@ export class WidgetsService {
         return this.components.get('widget', id).pipe(map((d) => fromContent(d.name, d.content)));
     }
 
-    save(widget: Widget): Observable<Widget> {
-        return this.components.create('widget', { id: widget.id, ...toContent(widget) }).pipe(map(() => widget));
+    /** Create by default; pass `{update: true}` when editing an existing widget — the backend 409s a
+     *  create on an existing id (id is immutable in the editors, so update never renames). */
+    save(widget: Widget, opts?: { update?: boolean }): Observable<Widget> {
+        const req$ = opts?.update
+            ? this.components.update('widget', widget.id, toContent(widget))
+            : this.components.create('widget', { id: widget.id, ...toContent(widget) });
+        return req$.pipe(map(() => widget));
     }
 
     remove(id: string): Observable<unknown> {

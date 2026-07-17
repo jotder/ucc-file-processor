@@ -38,8 +38,8 @@ export class LinkAnalysisService {
         return this.store.get(id);
     }
 
-    save(view: LinkAnalysisView): Observable<LinkAnalysisView> {
-        return this.store.save(view);
+    save(view: LinkAnalysisView, opts?: { update?: boolean }): Observable<LinkAnalysisView> {
+        return this.store.save(view, opts);
     }
 
     remove(id: string): Observable<unknown> {

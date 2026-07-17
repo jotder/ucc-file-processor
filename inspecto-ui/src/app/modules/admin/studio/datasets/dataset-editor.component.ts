@@ -197,7 +197,7 @@ export class DatasetEditorComponent implements OnInit {
             calculated: this.calculated(),
         });
         this.saving.set(true);
-        this.datasets.save(ds).subscribe({
+        this.datasets.save(ds, { update: this.editing() }).subscribe({
             next: () => {
                 this.saving.set(false);
                 this.toastr.success(`Dataset "${name}" saved`);

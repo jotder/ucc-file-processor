@@ -50,7 +50,10 @@ describe('DatasetEditorComponent', () => {
         const nav = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
         fixture.componentInstance.form.controls.name.setValue('cdr_view');
         fixture.componentInstance.save();
-        expect(save).toHaveBeenCalledWith(expect.objectContaining({ id: 'cdr_view', kind: 'virtual', sourceName: 'cdr' }));
+        expect(save).toHaveBeenCalledWith(
+            expect.objectContaining({ id: 'cdr_view', kind: 'virtual', sourceName: 'cdr' }),
+            { update: false }, // create mode — edits go through PUT (the backend 409s a re-create)
+        );
         expect(nav).toHaveBeenCalledWith(['/catalog/datasets']);
     });
 

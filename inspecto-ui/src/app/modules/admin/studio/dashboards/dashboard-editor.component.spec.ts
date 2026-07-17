@@ -65,7 +65,10 @@ describe('DashboardEditorComponent', () => {
         fixture.componentInstance.form.controls.name.setValue('cdr_overview');
         fixture.componentInstance.addWidget('bar1');
         fixture.componentInstance.save();
-        expect(save).toHaveBeenCalledWith(expect.objectContaining({ id: 'cdr_overview', tiles: [{ widgetId: 'bar1', span: 1 }] }));
+        expect(save).toHaveBeenCalledWith(
+            expect.objectContaining({ id: 'cdr_overview', tiles: [{ widgetId: 'bar1', span: 1 }] }),
+            { update: false }, // create mode — edits go through PUT (the backend 409s a re-create)
+        );
         expect(nav).toHaveBeenCalledWith(['/studio/dashboards']);
     });
 

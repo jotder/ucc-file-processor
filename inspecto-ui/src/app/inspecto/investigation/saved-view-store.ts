@@ -38,10 +38,13 @@ export class SavedViewStore<TView extends { id: string }> {
             .pipe(map((d: ComponentDef | null) => (d ? this.codec.fromContent(d.name, d.content) : null)));
     }
 
-    save(view: TView): Observable<TView> {
-        return this.components
-            .create(this.kind, { id: view.id, ...this.codec.toContent(view) })
-            .pipe(map(() => view));
+    /** Create by default; pass `{update: true}` when the id already exists (save-under-same-name
+     *  overwrite) — the backend 409s a create on an existing id. */
+    save(view: TView, opts?: { update?: boolean }): Observable<TView> {
+        const req$ = opts?.update
+            ? this.components.update(this.kind, view.id, this.codec.toContent(view))
+            : this.components.create(this.kind, { id: view.id, ...this.codec.toContent(view) });
+        return req$.pipe(map(() => view));
     }
 
     remove(id: string): Observable<unknown> {

@@ -157,7 +157,7 @@ export class WidgetsComponent implements OnInit {
         this.dashboardsApi.get(id).subscribe({
             next: (dashboard) => {
                 dashboard.tiles = [...dashboard.tiles, { widgetId: w.id, span: 1 }];
-                this.dashboardsApi.save(dashboard).subscribe({
+                this.dashboardsApi.save(dashboard, { update: true }).subscribe({
                     next: () => this.openDashboard(w, id),
                     error: (e) => this.toastr.error(apiErrorMessage(e, `Could not update dashboard "${id}".`)),
                 });

@@ -277,7 +277,7 @@ export class ExploreComponent implements OnInit {
                     viewId: viewBound ? this.viewId() : undefined,
                     queryId: viewBound ? undefined : this.boundQueryId(),
                 });
-                this.widgetsApi.save(widget).subscribe({
+                this.widgetsApi.save(widget, { update: this.editing() }).subscribe({
                     next: () => {
                         this.toastr.success(`Widget "${name}" saved`);
                         this.router.navigate(['/studio/widgets']);

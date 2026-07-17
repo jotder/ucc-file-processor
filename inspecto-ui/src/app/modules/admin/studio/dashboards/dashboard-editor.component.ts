@@ -274,7 +274,7 @@ export class DashboardEditorComponent implements OnInit {
         }
         const dashboard = buildDashboard(name, this.tiles(), this.filter(), this.exposedFields());
         this.saving.set(true);
-        this.dashboardsApi.save(dashboard).subscribe({
+        this.dashboardsApi.save(dashboard, { update: this.editing() }).subscribe({
             next: () => {
                 this.saving.set(false);
                 this.toastr.success(`Dashboard "${name}" saved`);

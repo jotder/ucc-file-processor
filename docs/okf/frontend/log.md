@@ -1,6 +1,17 @@
 # Log
 
 ## 2026-07-17
+* **Create-on-edit fixed across every Studio save path** (BACKLOG §4 "dataset editor save()" row —
+  the verify found the whole family): the four Studio services (datasets/widgets/dashboards/queries)
+  and the shared `SavedViewStore` (geo/link views) always POSTed `components.create`, which the real
+  backend **409s on an existing id** (probed live) — so *every edit-and-save was broken against the
+  live backend*: dataset/widget/dashboard/query editors, add-widget-to-existing-dashboard, and
+  save-view-under-same-name. Each `save` gained `{update?: boolean}` → PUT; editors pass their
+  `editing` state (ids are immutable on edit everywhere, so update never renames). **The mock now
+  mirrors the 409** (`components.handler` POST rejects an existing id) — the divergence (mock POST
+  upserted) is exactly why this bug family was invisible offline. The save-as-rule dialog gained the
+  house inline duplicate-id guard (`uniqueNameValidator`) it was missing, since the honest mock
+  surfaces its silent-overwrite as a 409. Suite-wide check: no other flow relied on POST-upsert.
 * **Requirements "Delivered via" is now a real Component link** (BACKLOG §4, the C1 follow-up the
   requirements-intake review flagged): the deliver dialog's note field became a **cross-kind
   autocomplete** (`componentRefOptionLoader` in `entity-option-loaders` — datasets/queries/widgets/

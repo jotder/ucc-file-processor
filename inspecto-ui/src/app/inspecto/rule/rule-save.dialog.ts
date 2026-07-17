@@ -1,5 +1,7 @@
-import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, inject, signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
+import { uniqueNameValidator } from 'app/inspecto/investigation/unique-name';
 import { MatButtonModule } from '@angular/material/button';
 import { MAT_DIALOG_DATA, MatDialogModule, MatDialogRef } from '@angular/material/dialog';
 import { MatFormFieldModule } from '@angular/material/form-field';
@@ -49,6 +51,8 @@ export interface RuleSaveData {
                     <input matInput formControlName="name" placeholder="e.g. high_error_rate" cdkFocusInitial />
                     @if (form.controls.name.hasError('pattern')) {
                         <mat-error>Letters, digits, dot, dash, underscore; start alphanumeric.</mat-error>
+                    } @else if (form.controls.name.hasError('duplicate')) {
+                        <mat-error>A rule with this id already exists.</mat-error>
                     }
                 </mat-form-field>
 
@@ -97,6 +101,19 @@ export class RuleSaveDialog {
             Object.fromEntries(this.data.params.map((p) => [p.name, this.fb.nonNullable.control(p.value)])),
         ),
     });
+
+    constructor() {
+        // House form rule: block a duplicate id inline on create rather than relying on the server 409.
+        const destroyRef = inject(DestroyRef);
+        this.rules
+            .list()
+            .pipe(takeUntilDestroyed(destroyRef))
+            .subscribe((all) => {
+                const taken = all.map((r) => r.id);
+                this.form.controls.name.addValidators(uniqueNameValidator(() => taken));
+                this.form.controls.name.updateValueAndValidity({ emitEvent: false });
+            });
+    }
 
     private get paramsGroup(): FormGroup {
         return this.form.controls.params;

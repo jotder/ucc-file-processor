@@ -228,7 +228,7 @@ export class QueriesComponent implements OnInit {
         });
         q.description = this.form.controls.description.value || undefined;
         this.saving.set(true);
-        this.queriesApi.save(q).subscribe({
+        this.queriesApi.save(q, { update: this.editingExisting() }).subscribe({
             next: () => {
                 this.saving.set(false);
                 this.toastr.success(`Query "${q.name}" saved`);

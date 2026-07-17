@@ -21,8 +21,13 @@ export class QueriesService {
         return this.components.get('query', id).pipe(map((d) => fromContent(d.name, d.content)));
     }
 
-    save(q: Query): Observable<Query> {
-        return this.components.create('query', { id: q.id, ...toContent(q) }).pipe(map(() => q));
+    /** Create by default; pass `{update: true}` when editing an existing query — the backend 409s a
+     *  create on an existing id (id is immutable in the editor, so update never renames). */
+    save(q: Query, opts?: { update?: boolean }): Observable<Query> {
+        const req$ = opts?.update
+            ? this.components.update('query', q.id, toContent(q))
+            : this.components.create('query', { id: q.id, ...toContent(q) });
+        return req$.pipe(map(() => q));
     }
 
     remove(id: string): Observable<unknown> {
