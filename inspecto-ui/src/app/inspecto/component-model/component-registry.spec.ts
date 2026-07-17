@@ -1,6 +1,6 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { ComponentKind } from './component-kind';
-import { allKinds, clearKinds, getKind, registerKind } from './component-registry';
+import { allKinds, getKind, isolateKinds, registerKind } from './component-registry';
 
 const kind = (id: string): ComponentKind => ({
     id,
@@ -11,7 +11,9 @@ const kind = (id: string): ComponentKind => ({
 });
 
 describe('component-registry', () => {
-    beforeEach(() => clearKinds());
+    let restoreKinds: () => void;
+    beforeEach(() => (restoreKinds = isolateKinds()));
+    afterEach(() => restoreKinds());
 
     it('registers and retrieves a kind', () => {
         registerKind(kind('chart'));

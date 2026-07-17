@@ -1,13 +1,11 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { getKind } from 'app/inspecto/component-model';
 import { allViz } from 'app/inspecto/viz';
-import { registerBuiltinViz } from 'app/inspecto/viz/plugins';
 import { WIDGET_KIND, validateWidgetConfig } from './widget.kind';
 
+// No defensive re-seed needed: specs that empty the shared per-worker registries do so via the
+// isolate*/restore contract, so this file always sees the module-load registrations intact.
 describe('widget ComponentKind', () => {
-    // Re-seed the (guarded) builtins so this is immune to a co-worker spec having cleared the shared registry.
-    beforeEach(() => registerBuiltinViz());
-
     it('registers on the model with a mapping wiring and dataset as a part kind', () => {
         expect(getKind('widget')).toBe(WIDGET_KIND);
         expect(WIDGET_KIND.wiring).toBe('mapping');

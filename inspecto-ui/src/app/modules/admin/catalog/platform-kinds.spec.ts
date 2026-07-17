@@ -1,14 +1,15 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { AuthoredPipeline } from 'app/inspecto/api';
-import { allKinds, clearKinds, getKind } from 'app/inspecto/component-model';
+import { allKinds, getKind, isolateKinds } from 'app/inspecto/component-model';
 import { PIPELINE_KIND, PLATFORM_KIND_IDS, registerPlatformKinds } from './platform-kinds';
 
 describe('platform kinds (P2 adapters)', () => {
+    let restoreKinds: () => void;
     beforeEach(() => {
-        clearKinds();
+        restoreKinds = isolateKinds();
         registerPlatformKinds();
     });
-    afterEach(() => clearKinds());
+    afterEach(() => restoreKinds());
 
     it('registers every existing platform kind on the model', () => {
         expect(allKinds().map((k) => k.id)).toEqual(expect.arrayContaining(PLATFORM_KIND_IDS));

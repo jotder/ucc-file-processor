@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { clearViz, registerViz, restoreViz, snapshotViz } from './viz-registry';
+import { isolateViz, registerViz } from './viz-registry';
 import { recommend, autoAssignChannels } from './show-me';
 import { ControlSpec, VizField, VizPlugin } from './viz-types';
 
@@ -37,16 +37,15 @@ const CATEGORICAL_FIELDS: VizField[] = [
 ];
 
 describe('recommend', () => {
-    let saved: VizPlugin[];
+    let restoreViz: () => void;
     beforeEach(() => {
-        saved = snapshotViz(); // preserve builtins other specs (result-set.spec) rely on
-        clearViz(); // immune to builtins a prior spec left in the shared (per-worker) registry
+        restoreViz = isolateViz(); // start from just these fakes, and put the shared (per-worker) registry back after
         registerViz(LINE);
         registerViz(BAR);
         registerViz(PIE);
         registerViz(TABLE);
     });
-    afterEach(() => restoreViz(saved));
+    afterEach(() => restoreViz());
 
     it('ranks line first when a temporal field is present', () => {
         const ranked = recommend(TEMPORAL_FIELDS).map((p) => p.meta.type);
@@ -75,7 +74,6 @@ describe('recommend', () => {
 });
 
 describe('autoAssignChannels', () => {
-    // No registry access here (autoAssignChannels takes the plugin directly), so nothing to clean up.
     it('maps temporal→x and measure→y (with a default agg)', () => {
         const values = autoAssignChannels(LINE, TEMPORAL_FIELDS);
         expect(values.x?.[0].field).toBe('event_time');
