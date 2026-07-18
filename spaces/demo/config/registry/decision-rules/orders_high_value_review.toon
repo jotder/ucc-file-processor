@@ -8,7 +8,7 @@ when:
   kind: group
   op: AND
   items[1]{kind,field,operator,value}:
-    condition,GROSS,">","400"
+    condition,GROSS,">","100"
 consequences[2]{action,destination}:
   quarantine,"manual review - high value"
   tag,high_value
