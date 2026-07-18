@@ -95,6 +95,59 @@ class EnrichmentEngineTest {
             "SELECT event_type, year, month, day, COUNT(*) AS event_count FROM input GROUP BY event_type, year, month, day";
 
     @Test
+    void previewRunsTransformOverSampleWithoutPersisting(@TempDir Path dir) throws Exception {
+        Path out = dir.resolve("should-stay-empty");
+        EnrichmentConfig cfg = new EnrichmentConfig("DERIVE",
+                new EnrichmentConfig.Input(dir.resolve("in").toString(), "PARQUET", List.of()),
+                List.of(),
+                new EnrichmentConfig.Output(out.toString(), "PARQUET", "snappy", List.of()),
+                "SELECT id, UPPER(id) AS id_upper FROM input");
+        List<Map<String, Object>> sample = List.of(
+                Map.of("id", "c1"), Map.of("id", "c2"), Map.of("id", "c3"));
+
+        EnrichmentEngine.Preview capped = EnrichmentEngine.preview(cfg, sample, List.of(), 2);
+        assertEquals(List.of("id", "id_upper"), capped.columns());
+        assertEquals(2, capped.rows().size(), "row cap honoured");
+        assertTrue(capped.truncated(), "more rows exist beyond the cap");
+
+        EnrichmentEngine.Preview all = EnrichmentEngine.preview(cfg, sample, List.of(), 10);
+        assertEquals(3, all.rows().size());
+        assertFalse(all.truncated());
+        assertEquals(java.util.Set.of("C1", "C2", "C3"),
+                all.rows().stream().map(r -> String.valueOf(r.get("id_upper")))
+                        .collect(java.util.stream.Collectors.toSet()),
+                "the transform ran over every sample row");
+        assertFalse(Files.exists(out), "a preview persists nothing to output.database");
+    }
+
+    @Test
+    void previewResolvesAPathReference(@TempDir Path dir) throws Exception {
+        Path ref = dir.resolve("region_dim.parquet");
+        File db = DuckDbUtil.tempDbFile("ref_");
+        try (Connection c = DuckDbUtil.openConnection(db); Statement st = c.createStatement()) {
+            st.execute("COPY (SELECT * FROM (VALUES ('CALL','NA'),('SMS','EU')) t(event_type,region)) TO '"
+                    + ref.toString().replace("\\", "/") + "' (FORMAT PARQUET)");
+        } finally {
+            DuckDbUtil.deleteTempDb(db);
+        }
+        EnrichmentConfig cfg = new EnrichmentConfig("DIM_JOIN",
+                new EnrichmentConfig.Input(dir.resolve("in").toString(), "PARQUET", List.of()),
+                List.of(new EnrichmentConfig.Reference("region_dim", ref.toString().replace("\\", "/"), "PARQUET")),
+                new EnrichmentConfig.Output(dir.resolve("out").toString(), "PARQUET", "snappy", List.of()),
+                "SELECT i.event_type, r.region FROM input i LEFT JOIN region_dim r ON i.event_type = r.event_type");
+        List<Map<String, Object>> sample = List.of(
+                Map.of("event_type", "CALL"), Map.of("event_type", "SMS"));
+
+        EnrichmentEngine.Preview p = EnrichmentEngine.preview(cfg, sample, List.of(), 10);
+        assertEquals(List.of("event_type", "region"), p.columns());
+        Map<String, String> byType = new HashMap<>();
+        for (Map<String, Object> row : p.rows())
+            byType.put(String.valueOf(row.get("event_type")), String.valueOf(row.get("region")));
+        assertEquals("NA", byType.get("CALL"));
+        assertEquals("EU", byType.get("SMS"), "the path reference resolved and joined in the preview");
+    }
+
+    @Test
     void fullRecomputeProducesPerPartitionReports(@TempDir Path dir) throws Exception {
         Path in = dir.resolve("in"), out = dir.resolve("out");
         seedInput(in);

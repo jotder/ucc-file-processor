@@ -7,6 +7,7 @@ import com.gamma.config.spec.ConfigSpecs;
 import com.gamma.config.spec.Finding;
 import com.gamma.config.spec.Severity;
 import com.gamma.enrich.EnrichmentConfig;
+import com.gamma.enrich.EnrichmentEngine;
 import com.gamma.report.ReportService;
 import com.gamma.service.EnrichmentService;
 import com.sun.net.httpserver.HttpExchange;
@@ -29,11 +30,16 @@ import java.util.regex.Matcher;
  */
 final class EnrichmentRoutes implements RouteModule {
 
+    /** Row cap for a bounded enrichment preview (matches the other preview/sample surfaces). */
+    private static final int PREVIEW_LIMIT = 200;
+
     @Override
     public void register(ApiContext api) {
         api.get("/enrichment", (e, m) -> enrichment(api).views());
         api.post("/enrichment", ApiContext.withCapability("canAuthorWorkbench",
                 (e, m) -> registerEnrichment(api, e, api.body(e))));
+        // Un-gated, stateless preview — sibling of POST /config/preview/parsing|schema (read-only, inline config).
+        api.post("/enrichment/preview", (e, m) -> previewEnrichment(api, api.body(e)));
         api.get("/enrichment/([^/]+)/runs", (e, m) -> enrichment(api).runs(enrichJob(api, m)));
         api.get("/enrichment/([^/]+)/lineage", (e, m) ->
                 enrichment(api).lineage(enrichJob(api, m), ApiContext.query(e, "runId")));
@@ -114,6 +120,35 @@ final class EnrichmentRoutes implements RouteModule {
         r.put("job", view);
         r.put("findings", findings);   // warnings only at this point
         return r;
+    }
+
+    /**
+     * {@code POST /enrichment/preview} — a bounded, non-persisting preview of an enrichment draft over a
+     * sample (the onboarding "Validated" state; sibling of {@code POST /config/preview/parsing|schema}).
+     * Body {@code {config:{…enrichment draft…}, sampleRows:[…]}}: the {@code transform} runs over the
+     * sample-seeded {@code input} plus the real reference views, and the first rows come back as
+     * {@code {columns, rows, truncated}}. Stateless (inline config, no write root) and un-gated like the
+     * other previews. 400 for a missing config/sample; 422 when the draft does not parse or its transform
+     * fails on the sample (the preview surfaces exactly the error a run would hit).
+     */
+    private Object previewEnrichment(ApiContext api, Map<String, Object> body) {
+        Object cfgObj = body.get("config");
+        List<Map<String, Object>> sampleRows = ApiContext.sampleRows(body);
+        if (!(cfgObj instanceof Map<?, ?>) || sampleRows.isEmpty())
+            throw new ApiException(400, "body must include 'config' (an enrichment draft map) and non-empty 'sampleRows'");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> configMap = (Map<String, Object>) cfgObj;
+        EnrichmentConfig cfg;
+        try {
+            cfg = EnrichmentConfig.fromMap(configMap, null);   // inline transform; no file I/O
+        } catch (RuntimeException invalid) {
+            throw new ApiException(422, "config is not a valid enrichment: " + invalid.getMessage());
+        }
+        try {
+            return EnrichmentEngine.preview(cfg, sampleRows, api.service().loadedPipelines(), PREVIEW_LIMIT).toMap();
+        } catch (Exception compute) {
+            throw new ApiException(422, "enrichment preview failed on the sample: " + compute.getMessage());
+        }
     }
 
     /** Build a report {@link ReportService.Window} from {@code ?from=&to=}. */

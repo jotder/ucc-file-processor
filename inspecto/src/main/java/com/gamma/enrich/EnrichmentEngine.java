@@ -6,16 +6,20 @@ import com.gamma.etl.PartitionWriter;
 import com.gamma.etl.PipelineConfig;
 import com.gamma.sql.SqlViews;
 import com.gamma.util.DuckDbUtil;
+import com.gamma.util.JdbcRows;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.nio.file.Paths;
 import java.sql.Connection;
+import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -163,6 +167,85 @@ public final class EnrichmentEngine {
             return new Result(outputs, totalRows);
         } finally {
             DuckDbUtil.deleteTempDb(db);
+        }
+    }
+
+    /**
+     * A bounded, non-persisting <b>preview</b> of an enrichment (the onboarding "Validated" state): seed the
+     * {@code input} view from an in-memory {@code sample} — a preview has no Stage-1 output on disk — register
+     * the reference views exactly as {@link #runResult} does, materialise the {@code transform}, and read back
+     * the first rows. Nothing is written to {@code output.database}; the scratch DuckDB is deleted on the way
+     * out. Sample values seed as {@code VARCHAR} (the preview contract, shared with the parsing/schema
+     * previews) — the transform casts as needed, just as in production.
+     *
+     * @throws IllegalArgumentException on an empty sample; a bad transform or an unresolvable reference throws
+     *         (the caller maps it to a 422 — a preview surfaces exactly the compute error a run would hit).
+     */
+    public static Preview preview(EnrichmentConfig cfg, List<Map<String, Object>> sample,
+                                  List<PipelineConfig> pipelines, int limit) throws Exception {
+        List<Map<String, Object>> rows = (sample == null) ? List.of() : sample;
+        if (rows.isEmpty()) throw new IllegalArgumentException("enrichment preview needs a non-empty sample");
+        int cap = Math.max(1, limit);
+        File db = DuckDbUtil.tempDbFile("enrich_preview_");
+        try (Connection conn = DuckDbUtil.openConnection(db); Statement st = conn.createStatement()) {
+            // 1. reference views — resolved exactly as a run (real data, bounded by the transform's own join)
+            for (EnrichmentConfig.Reference r : cfg.references())
+                st.execute("CREATE VIEW \"" + r.name() + "\" AS SELECT * FROM " + referenceReader(r, pipelines));
+            // 2. input seeded from the caller's sample (not the Stage-1 glob)
+            seedInput(conn, rows);
+            // 3. transform → temp table
+            st.execute("CREATE TABLE __enriched AS " + cfg.transformSql());
+            // read back a bounded page (limit+1 detects truncation)
+            List<String> columns;
+            List<Map<String, Object>> out;
+            try (ResultSet rs = st.executeQuery("SELECT * FROM __enriched LIMIT " + (cap + 1))) {
+                columns = JdbcRows.columnLabels(rs);
+                out = JdbcRows.toMaps(rs);
+            }
+            boolean truncated = out.size() > cap;
+            if (truncated) out = new ArrayList<>(out.subList(0, cap));
+            return new Preview(columns, out, truncated);
+        } finally {
+            DuckDbUtil.deleteTempDb(db);
+        }
+    }
+
+    /** Seed the {@code input} table (all VARCHAR over the union of the sample's keys) from an in-memory sample. */
+    private static void seedInput(Connection conn, List<Map<String, Object>> rows) throws SQLException {
+        LinkedHashSet<String> colSet = new LinkedHashSet<>();
+        for (Map<String, Object> r : rows) colSet.addAll(r.keySet());
+        if (colSet.isEmpty()) throw new IllegalArgumentException("enrichment preview sample has no columns");
+        List<String> cols = new ArrayList<>(colSet);
+        StringBuilder create = new StringBuilder("CREATE TABLE input (");
+        for (int i = 0; i < cols.size(); i++) {
+            if (i > 0) create.append(", ");
+            create.append('"').append(cols.get(i).replace("\"", "\"\"")).append("\" VARCHAR");
+        }
+        create.append(")");
+        try (Statement st = conn.createStatement()) { st.execute(create.toString()); }
+        StringBuilder ins = new StringBuilder("INSERT INTO input VALUES (");
+        for (int i = 0; i < cols.size(); i++) ins.append(i > 0 ? ",?" : "?");
+        ins.append(")");
+        try (PreparedStatement ps = conn.prepareStatement(ins.toString())) {
+            for (Map<String, Object> row : rows) {
+                for (int i = 0; i < cols.size(); i++) {
+                    Object v = row.get(cols.get(i));
+                    ps.setString(i + 1, v == null ? null : v.toString());
+                }
+                ps.addBatch();
+            }
+            ps.executeBatch();
+        }
+    }
+
+    /** A bounded enrichment preview: the enriched columns, the first rows, and whether more rows exist. */
+    public record Preview(List<String> columns, List<Map<String, Object>> rows, boolean truncated) {
+        public Map<String, Object> toMap() {
+            Map<String, Object> m = new LinkedHashMap<>();
+            m.put("columns", columns);
+            m.put("rows", rows);
+            m.put("truncated", truncated);
+            return m;
         }
     }
 

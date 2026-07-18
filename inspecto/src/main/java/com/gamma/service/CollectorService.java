@@ -1040,8 +1040,9 @@ public final class CollectorService implements AutoCloseable {
      * ({@code GET /collectors}). Pure config read (no I/O) plus, for a {@code db} source bound to a connection,
      * the current row-level DB watermark derived from the acquisition ledger.
      */
-    /** The loaded Stage-1 pipelines — the live view by-name enrichment references resolve against. */
-    private List<PipelineConfig> loadedPipelines() {
+    /** The loaded Stage-1 pipelines — the live view by-name enrichment references resolve against (also the
+     *  enrichment-preview route's reference context). */
+    public List<PipelineConfig> loadedPipelines() {
         return configRegistry.configs();
     }
 
