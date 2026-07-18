@@ -27,6 +27,7 @@ import {
     PipelineRunResult,
     PipelinesService,
     PipelineSummary,
+    ProvenanceBatch,
     IconMap,
     IconMapService,
     LensService,
@@ -62,6 +63,8 @@ import {
     findingTint,
     groupByCategory,
     nodeConfigEntries,
+    nodeLastRunTotal,
+    provenanceCounts,
     removeEdgeFromModel,
     removeNodeFromModel,
     setEdgeRelInModel,
@@ -154,6 +157,11 @@ export class PipelineEditorComponent implements OnInit {
     private readonly refsLoaded = signal(false);
     /** Per-node test outcome from the last run-to-here (`tested` / `rejects`). */
     private readonly testedStatus = signal<Map<string, TestOutcome>>(new Map());
+    // ── T17 live last-run overlay: the flow's most recent real run, from the durable provenance store ──
+    /** The most recent recorded run of the selected flow (`null` = none yet, or provenance backend unset). */
+    readonly lastRunBatch = signal<ProvenanceBatch | null>(null);
+    /** `nodeId|rel` → row count for {@link lastRunBatch} — paints edge weights and the inspector's node total. */
+    private readonly lastRunCounts = signal<Map<string, number>>(new Map());
     /** node-type → emitted relationships, for the edge relationship picker. */
     private readonly typeEmits = signal<Map<string, string[]>>(new Map());
     readonly validateOpen = signal(false);
@@ -188,8 +196,17 @@ export class PipelineEditorComponent implements OnInit {
     /** The selected flow's editable model mapped to G6 data — fed to the host only on a flow switch. */
     readonly g6Data = computed<G6GraphData | null>(() => {
         const m = this.model();
-        return m ? authoredToG6(m, this.typeCat(), (n) => this.statusOf(n), this.iconMap()) : null;
+        return m ? authoredToG6(m, this.typeCat(), (n) => this.statusOf(n), this.iconMap(), this.lastRunCounts()) : null;
     });
+
+    /** The selected node's last-run output (T17), or `null` when that run recorded nothing for it. */
+    selectedNodeLastRun(): { rowCount: number; runTs: string } | null {
+        const node = this.selectedNode();
+        const batch = this.lastRunBatch();
+        if (!node || !batch) return null;
+        const rowCount = nodeLastRunTotal(node.id, this.lastRunCounts());
+        return rowCount == null ? null : { rowCount, runTs: batch.runTs };
+    }
 
     /** A node's authoring status — the canvas outline cue and the inspector chip. */
     statusOf(n: AuthoredNode): NodeStatus {
@@ -281,6 +298,31 @@ export class PipelineEditorComponent implements OnInit {
                 this.dirty.set(false);
             },
             error: (err) => this.toast.error(apiErrorMessage(err, 'Could not load the pipeline')),
+        });
+        this.loadLastRun(id);
+    }
+
+    /**
+     * T17 live last-run overlay: fetch the flow's most recent real run from the durable provenance store
+     * (`/provenance/batches` + `/provenance`) and paint it onto the canvas edges + inspector. Degrades
+     * silently to "no overlay" both when the flow has no recorded run yet (empty batch list) and when no
+     * provenance backend is configured (404, `-Dprovenance.backend` unset) — this is a read-only enhancement,
+     * never worth blocking or erroring the editor over.
+     */
+    private loadLastRun(id: string): void {
+        this.lastRunBatch.set(null);
+        this.lastRunCounts.set(new Map());
+        this.api.provenanceBatches(id).subscribe({
+            next: (batches) => {
+                const latest = batches[0] ?? null;
+                this.lastRunBatch.set(latest);
+                if (!latest) return;
+                this.api.provenance(id, latest.batchId).subscribe({
+                    next: (rows) => this.lastRunCounts.set(provenanceCounts(rows)),
+                    error: () => this.lastRunCounts.set(new Map()),
+                });
+            },
+            error: () => this.lastRunBatch.set(null),
         });
     }
 

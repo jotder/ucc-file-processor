@@ -78,6 +78,11 @@
                     <mat-icon class="icon-size-4" svgIcon="heroicons_outline:bolt"></mat-icon> active
                 </span>
             }
+            @if (lastRunBatch(); as b) {
+                <span class="text-xs opacity-70" matTooltip="Last recorded run of this flow">
+                    last run: {{ b.totalRows.toLocaleString() }} row(s) · {{ b.runTs }}
+                </span>
+            }
             @if (dirty()) {
                 <span class="text-sm" style="color: var(--gamma-warn)">unsaved changes</span>
             }
@@ -117,6 +122,7 @@
                     [node]="selectedNode()"
                     [status]="selectedNode() ? statusOf(selectedNode()!) : null"
                     [category]="selectedNode() ? typeCategory(selectedNode()!.type) : ''"
+                    [lastRun]="selectedNodeLastRun()"
                     [selectedEdgeId]="selectedEdgeId()"
                     [selectedEdgeRel]="selectedEdgeRel()"
                     [candidateRels]="candidateRels()"

@@ -885,8 +885,28 @@ Actionable, phase-aligned, derived from §8 + the §13 corrections. `[ ]` = not 
 - [ ] **T15.** Adaptive back-pressure defaults (§3.5) as configurable, not hard-coded.
 
 ### Phase 4 — Flow-graph API + G6 visualisation (read-first)
-- [ ] **T16.** `GET /pipelines/{id}/graph` projection → reuse the G6 renderer (solid `data` / dashed control edges).
-- [ ] **T17.** Node inspector panel (effective config resolved through `use:`); live last-run overlay via `OverlaySource`.
+- [x] **T16 (done — shipped by T31, checklist row was stale).** `GET /pipelines/{id}/graph` (`PipelineRoutes.java`,
+  `com.gamma.pipeline.PipelineProjection.graph`) reuses the shared G6 renderer on the frontend
+  (`pipelines.component.ts` → `GraphViewComponent`/`toCombinedG6Data`, same component Catalog uses).
+- [x] **T17 (done 2026-07-18 — inspector shipped by T31; live overlay closed this pass).** Node inspector panel
+  with effective config resolved through `use:` ships (`pipeline-inspector.component.ts`). **Live last-run
+  overlay**: `OverlaySource` itself is Catalog-only (`com.gamma.catalog.MetadataGraphService`/`CatalogOverlay`) —
+  no equivalent exists for flow/pipeline nodes, and none is needed: the data-plane provenance store (T21/T22,
+  `com.gamma.pipeline.exec.DbProvenanceStore`, `GET /provenance` + `/provenance/batches`) already records every
+  authored flow's real per-(node, relationship) row counts and was sitting unused — the backend endpoints and
+  the pure `toPipelineG6Data(g, counts)` mapper existed but nothing in the UI ever called them. Closed the gap
+  in the editor (`pipeline-editor.component.ts`): on selecting a flow, `loadLastRun` fetches the newest
+  `/provenance/batches` entry then its `/provenance` counts (`provenanceCounts`), degrading silently to no
+  overlay both when the flow has no recorded run yet and when the provenance backend isn't configured (404) —
+  never worth an error toast. `authoredToG6` gained the same optional `counts` param `toPipelineG6Data` already
+  had (edge label + weight); new `nodeLastRunTotal` sums a node's emitted relationships for the inspector's
+  "Last run: N row(s) · &lt;ts&gt;" line + a toolbar "last run" chip. Live-verified against the real backend
+  (`spaces/uat`, `-Dprovenance.backend=duckdb`): `/provenance/batches?flow=orders_rollup_flow` returns `200` with
+  an empty array (no run recorded there yet) and the UI degrades silently, no console errors — the populated-data
+  path is covered by the new unit tests (`pipeline-graph.spec.ts`, `pipeline-editor.component.spec.ts`,
+  `pipeline-inspector.component.spec.ts`). UI test:ci 1412/0/5 (+9), lint:tokens PASS, prod build PASS. **Not
+  wired**: the read-only combined topology View (`toCombinedG6Data`) — it has no per-flow counts concept and
+  showing one flow's last run there would need its own design; left for if it's ever demanded.
 
 ### Phase 5 — Per-component dry-run/test + CRUD-from-UI (build-and-test UX)
 - [x] **T18 (done 2026-06-18 — transform + flow dry-run + grammar/schema/sink previews).** `preview(sample)`

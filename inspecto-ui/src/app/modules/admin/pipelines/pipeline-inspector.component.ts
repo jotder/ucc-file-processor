@@ -45,6 +45,11 @@ import {
                     {{ statusLabel(status) }}
                 </p>
             }
+            @if (lastRun) {
+                <p class="mb-2 text-xs opacity-70">
+                    Last run: {{ lastRun.rowCount.toLocaleString() }} row(s) · {{ lastRun.runTs }}
+                </p>
+            }
 
             @if (node.name) {
                 <p class="text-sm"><span class="opacity-70">name:</span> {{ node.name }}</p>
@@ -118,6 +123,8 @@ export class PipelineInspectorComponent {
     @Input() status: NodeStatus | null = null;
     /** The node's palette category — drives the label chip's text + colour. */
     @Input() category = '';
+    /** The node's real most-recent run (T17 live overlay), or `null` when that run recorded nothing for it. */
+    @Input() lastRun: { rowCount: number; runTs: string } | null = null;
     @Input() selectedEdgeId: string | null = null;
     @Input() selectedEdgeRel: string | null = null;
     @Input() candidateRels: string[] = [];

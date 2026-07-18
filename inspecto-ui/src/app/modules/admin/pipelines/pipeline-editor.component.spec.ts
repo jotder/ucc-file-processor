@@ -40,8 +40,11 @@ describe('PipelineEditorComponent', () => {
         replaceAuthored: ReturnType<typeof vi.fn>;
         deleteAuthored: ReturnType<typeof vi.fn>;
         dryRunAuthored: ReturnType<typeof vi.fn>;
+        provenanceBatches: ReturnType<typeof vi.fn>;
+        provenance: ReturnType<typeof vi.fn>;
     };
     let dialog: { open: ReturnType<typeof vi.fn> };
+    let toast: { success: ReturnType<typeof vi.fn>; error: ReturnType<typeof vi.fn> };
 
     beforeEach(() => {
         // LensService persists to localStorage; clear it so a lens set by one test/file can't leak into another.
@@ -56,15 +59,18 @@ describe('PipelineEditorComponent', () => {
             replaceAuthored: vi.fn().mockReturnValue(of({})),
             deleteAuthored: vi.fn().mockReturnValue(of({})),
             dryRunAuthored: vi.fn().mockReturnValue(of({ seedNode: 'src', nodes: [], sinks: [] } as PipelineDryRunResult)),
+            provenanceBatches: vi.fn().mockReturnValue(of([])),
+            provenance: vi.fn().mockReturnValue(of([])),
         };
         dialog = { open: vi.fn() };
+        toast = { success: vi.fn(), error: vi.fn() };
         TestBed.configureTestingModule({
             imports: [PipelineEditorComponent],
             providers: [
                 provideNoopAnimations(),
                 { provide: PipelinesService, useValue: api },
                 { provide: ComponentsService, useValue: { list: vi.fn().mockReturnValue(of([])) } },
-                { provide: ToastrService, useValue: { success: vi.fn(), error: vi.fn() } },
+                { provide: ToastrService, useValue: toast },
                 { provide: InspectoConfirmService, useValue: { confirmDestructive: vi.fn().mockResolvedValue(true) } },
                 { provide: MatDialog, useValue: dialog },
             ],
@@ -161,6 +167,45 @@ describe('PipelineEditorComponent', () => {
         c.newName.setValue('x');
         c.createFlow();
         expect(c.unavailable()).toBe(true);
+    });
+
+    it('selecting a flow loads its last-run overlay and paints edge counts (T17)', () => {
+        api.provenanceBatches.mockReturnValue(of([{ batchId: 'b2', runTs: '2026-07-18T10:00:00Z', totalRows: 50 }]));
+        api.provenance.mockReturnValue(of([{ nodeId: 'src', rel: 'data', rowCount: 50 }]));
+        const c = make();
+        c.select('demo');
+        expect(api.provenanceBatches).toHaveBeenCalledWith('demo');
+        expect(api.provenance).toHaveBeenCalledWith('demo', 'b2');
+        expect(c.lastRunBatch()).toEqual({ batchId: 'b2', runTs: '2026-07-18T10:00:00Z', totalRows: 50 });
+        const edge = c.g6Data()!.edges.find((e) => e.source === 'src' && e.target === 'flt');
+        expect(edge!.data).toEqual({ kind: 'data · 50', weight: 50 });
+        c.selectedNode.set(c.model()!.nodes[0]); // src
+        expect(c.selectedNodeLastRun()).toEqual({ rowCount: 50, runTs: '2026-07-18T10:00:00Z' });
+    });
+
+    it('a node absent from the last run has no overlay (null, not zero)', () => {
+        api.provenanceBatches.mockReturnValue(of([{ batchId: 'b2', runTs: '2026-07-18T10:00:00Z', totalRows: 50 }]));
+        api.provenance.mockReturnValue(of([{ nodeId: 'src', rel: 'data', rowCount: 50 }]));
+        const c = make();
+        c.select('demo');
+        c.selectedNode.set(c.model()!.nodes[1]); // flt — never emitted in this run
+        expect(c.selectedNodeLastRun()).toBeNull();
+    });
+
+    it('no recorded run (empty batch list) leaves the overlay off, no error', () => {
+        const c = make();
+        c.select('demo');
+        expect(c.lastRunBatch()).toBeNull();
+        c.selectedNode.set(c.model()!.nodes[0]);
+        expect(c.selectedNodeLastRun()).toBeNull();
+    });
+
+    it('a 404 (no provenance backend configured) degrades silently, no toast', () => {
+        api.provenanceBatches.mockReturnValue(throwError(() => ({ status: 404 })));
+        const c = make();
+        c.select('demo');
+        expect(c.lastRunBatch()).toBeNull();
+        expect(toast.error).not.toHaveBeenCalled();
     });
 
     it('the empty path has no accessibility violations', async () => {

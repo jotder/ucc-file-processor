@@ -258,13 +258,17 @@ export function typeCategoryMap(types: PipelineNodeType[]): Map<string, string> 
 /**
  * Map an authored flow (config-bearing, from GET …/raw) to G6 data for the editor host. A node's category —
  * which drives shape + outline colour — is resolved from the palette ({@link typeCategoryMap}); an unknown
- * type falls back to TRANSFORM so a plugin/unknown node still renders.
+ * type falls back to TRANSFORM so a plugin/unknown node still renders. When {@code lastRunCounts} is supplied
+ * (T17's live last-run overlay — the flow's most recent {@code /provenance} read), each edge's label gains the
+ * record count its source emitted on that relationship during the real last run, same painting rule as
+ * {@link toPipelineG6Data}'s {@code counts} (edges with no recorded count are left at their default style).
  */
 export function authoredToG6(
     flow: AuthoredPipeline,
     typeCat: Map<string, string>,
     statusOf?: (node: AuthoredNode) => NodeStatus,
     iconMap?: IconMap,
+    lastRunCounts?: Map<string, number>,
 ): G6GraphData {
     return {
         nodes: flow.nodes.map((n) => {
@@ -279,13 +283,31 @@ export function authoredToG6(
                 },
             };
         }),
-        edges: flow.edges.map((e, i) => ({
-            id: `${e.from}->${e.to}:${e.rel}:${i}`,
-            source: e.from,
-            target: e.to,
-            data: { kind: e.rel },
-        })),
+        edges: flow.edges.map((e, i) => {
+            const count = lastRunCounts?.get(`${e.from}|${e.rel}`);
+            return {
+                id: `${e.from}->${e.to}:${e.rel}:${i}`,
+                source: e.from,
+                target: e.to,
+                data: count == null
+                    ? { kind: e.rel }
+                    : { kind: `${e.rel} · ${count.toLocaleString()}`, weight: count },
+            };
+        }),
     };
+}
+
+/**
+ * A node's total last-run output (the sum of every relationship it emitted, e.g. {@code data}+{@code dropped})
+ * from the {@code nodeId|rel} → rowCount lookup built by {@link provenanceCounts}. {@code null} when the node
+ * recorded nothing in that run (not the same as a real {@code 0} — the inspector should read that as "no data").
+ */
+export function nodeLastRunTotal(nodeId: string, counts: ReadonlyMap<string, number>): number | null {
+    let total: number | null = null;
+    for (const [key, count] of counts) {
+        if (key.startsWith(`${nodeId}|`)) total = (total ?? 0) + count;
+    }
+    return total;
 }
 
 /** The stable category order for the palette (unknown/plugin categories fall after, in first-seen order). */

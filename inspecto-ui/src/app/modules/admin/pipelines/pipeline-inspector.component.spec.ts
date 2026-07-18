@@ -35,6 +35,16 @@ describe('PipelineInspectorComponent', () => {
         expect(text).toContain('delimiter:');
     });
 
+    it('shows the last-run overlay (T17) when provided, and nothing when absent', () => {
+        // One TestBed/fixture, mutated between assertions — TestBed can only be configured once per test.
+        const { fixture } = create({ node: NODE, status: 'configured', category: 'PARSE' });
+        expect((fixture.nativeElement as HTMLElement).textContent).not.toContain('Last run:');
+
+        fixture.componentRef.setInput('lastRun', { rowCount: 1234, runTs: '2026-07-18T10:00:00Z' });
+        fixture.detectChanges();
+        expect((fixture.nativeElement as HTMLElement).textContent).toContain('Last run: 1,234 row(s) · 2026-07-18T10:00:00Z');
+    });
+
     it('emits configure/runToHere/connect/deleteSelected from the node actions', () => {
         const { fixture, c } = create({ node: NODE, status: 'configured', category: 'PARSE' });
         const configure = vi.fn();
