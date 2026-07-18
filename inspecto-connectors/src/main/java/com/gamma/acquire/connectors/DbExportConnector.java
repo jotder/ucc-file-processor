@@ -6,7 +6,6 @@ import com.gamma.acquire.ConnectionProfile;
 import com.gamma.acquire.DiscoveryContext;
 import com.gamma.acquire.PostAction;
 import com.gamma.acquire.RemoteFile;
-import com.gamma.acquire.SecretResolver;
 import com.gamma.acquire.CollectorConnector;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -14,12 +13,10 @@ import org.slf4j.LoggerFactory;
 import java.io.BufferedWriter;
 import java.io.IOException;
 import java.io.InputStream;
-import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
@@ -71,7 +68,6 @@ import static com.gamma.acquire.CollectorConnector.Capability.STREAM;
 public final class DbExportConnector implements CollectorConnector {
 
     private static final Logger log = LoggerFactory.getLogger(DbExportConnector.class);
-    private static final int DEFAULT_PG_PORT = 5432;
 
     /** The bind placeholder for the row-level watermark; not followed by an identifier char (so {@code :watermark2} is left alone). */
     private static final Pattern WATERMARK_TOKEN = Pattern.compile(":watermark(?![A-Za-z0-9_])");
@@ -79,7 +75,6 @@ public final class DbExportConnector implements CollectorConnector {
     private final ConnectionProfile profile;
     private final String queryTemplate;
     private final String nameTemplate;
-    private final String driverClass;       // optional explicit driver
 
     private final String watermarkColumn;   // null ⇒ row-level watermarking off
     private final String watermarkInitial;  // first-run lower bound (may be null ⇒ type floor)
@@ -92,7 +87,6 @@ public final class DbExportConnector implements CollectorConnector {
         this.profile = profile;
         this.queryTemplate = profile.options().get("query");
         this.nameTemplate = profile.options().get("export_name");
-        this.driverClass = profile.options().get("driver");
         String wc = profile.options().get("watermark_column");
         this.watermarkColumn = (wc == null || wc.isBlank()) ? null : wc.trim();
         this.watermarkInitial = profile.options().get("watermark_initial");
@@ -211,38 +205,10 @@ public final class DbExportConnector implements CollectorConnector {
 
     private synchronized Connection ensureConnected() throws SQLException {
         if (conn != null && !conn.isClosed()) return conn;
-        if (driverClass != null && !driverClass.isBlank()) {
-            try { Class.forName(driverClass.trim()); }
-            catch (ClassNotFoundException e) { throw new SQLException("JDBC driver not found: " + driverClass, e); }
-        }
-        String url = profile.options().get("jdbc_url");
-        if (url == null || url.isBlank()) {
-            String host = profile.host();
-            int port = profile.port() > 0 ? profile.port() : DEFAULT_PG_PORT;
-            if (profile.tunnel() != null && profile.tunnel().host() != null && !profile.tunnel().host().isBlank()) {
-                try {
-                    // the bastion is the only SSH hop here, so host_key/known_hosts pin it directly.
-                    tunnel = SshTunnel.open(profile.tunnel(), host, port, DbExportConnector::sshAuth,
-                            HostKeyPolicy.from(profile));
-                } catch (IOException e) {
-                    throw new SQLException("SSH tunnel for DB export '" + profile.id() + "' failed", e);
-                }
-                InetSocketAddress local = tunnel.localEndpoint();
-                host = local.getHostString();
-                port = local.getPort();
-            }
-            url = "jdbc:postgresql://" + host + ":" + port + "/" + profile.database();
-        }
-        String user = profile.username();
-        String pass = SecretResolver.resolve(profile.password());
-        conn = (user == null) ? DriverManager.getConnection(url) : DriverManager.getConnection(url, user, pass);
+        DbConnections.Handle h = DbConnections.open(profile);
+        conn = h.conn();
+        tunnel = h.tunnel();
         return conn;
-    }
-
-    private static void sshAuth(net.schmizz.sshj.SSHClient client, String user, String passwordRef) throws IOException {
-        String password = SecretResolver.resolve(passwordRef);
-        if (password == null) throw new IOException("no usable credential for SSH tunnel user '" + user + "'");
-        client.authPassword(user, password);
     }
 
     // ── CSV materialisation ─────────────────────────────────────────────────────

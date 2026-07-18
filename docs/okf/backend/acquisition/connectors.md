@@ -77,8 +77,16 @@ The graded workbench surface the UI froze mock-first (`connection-probe.service.
   size-less files are refused with an honest detail, because an FTP data stream cannot be abandoned
   mid-transfer safely (`completePendingCommand`). Remote paths are jailed segment-wise (no absolute paths,
   no `..` climbing above the base).
-* **Not implemented** (report as skipped/501): `db`, `s3`, `gcs`, `azure`, `kafka` workbenches — each can adopt
-  the same factory hook when demanded; DB explore should present schema/table/column `ResourceNode`s.
+* **DB** (`DbConnectionWorkbench`, shipped 2026-07-18): implements `ConnectionWorkbench` directly (not the
+  remote-file skeleton — it's a schema tree, not a directory tree). AUTHENTICATE opens a JDBC connection;
+  READ/LIST count schemas/tables via `DatabaseMetaData`; **WRITE is always *skipped*** — a workbench never
+  mutates a database to prove write access. Explore walks `schema → table → column` (`ResourceNode.Kind`
+  `SCHEMA`/`TABLE`/`COLUMN`); sample runs `SELECT *` with a vendor-neutral `setMaxRows(limit+1)` cap over the
+  identifier-quoted `schema.table` (so a crafted name can't break out of the query), reusing `JdbcRows`. The
+  JDBC connect/URL/tunnel/secret logic is shared with `DbExportConnector` via the package-private
+  `DbConnections.open(profile)` helper.
+* **Not implemented** (report as skipped/501): `s3`, `gcs`, `azure`, `kafka` workbenches — each can adopt
+  the same `CollectorConnectorFactory.workbench` hook when demanded.
 * Historical route naming: the archived `acquire-controller-service-design.md` §3 proposed enriching
   `POST /components/connection/{id}/test` instead — the UI's frozen `/connections/{id}/probe|explore|sample`
   paths won (the plan predates the UI contract).
