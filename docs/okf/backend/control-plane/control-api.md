@@ -33,7 +33,10 @@ for unmatched GETs (`-Dui.dir`); always clear the space MDC in `finally`.
 Registered via `RouteModule`s: health/ready (`/health`,`/ready`), metrics (`/metrics`, Prometheus text),
 spaces (`/spaces`,`/spaces/_meta`), pipelines, jobs (`/jobs/{name}/runs|trigger`), events
 (`/events/search|export|views`), connections, components ([registry](../components/component-registry.md)),
-objects (ops), catalog, config/assist, enrichment — plus the v1-era additions: `GET /bootstrap`
+objects (ops), catalog, config/assist, enrichment, per-space settings docs (`/settings/branding|geo` and
+`/nav/menus` — the Menu Builder tree; each a fixed-filename TOON in the space's config tree, PUT gated by
+write-root 503 + `canAuthorWorkbench`, no jail/conflict gates since nothing caller-supplied touches a path)
+— plus the v1-era additions: `GET /bootstrap`
 (server capabilities incl. `features.authMode`), `/auth/*` (the Standard-edition BFF session routes),
 `POST /queries/{id}/run` (the `com.gamma.query` catalog, W4), and async run polling
 (`GET /jobs/runs/{runId}`, `GET /runs/runs/{runId}`).
