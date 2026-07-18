@@ -51,13 +51,41 @@ The `normalize()` default for an absent `when` was corrected to the canonical
 `{kind:'group', op:'AND', items:[]}` (was `{op:'and', conditions:[]}`) so a filter-less rule reads
 identically to what the UI authors and `ConditionTree` evaluates.
 
-## Deliberate deferral
+## Record-routing consequences run during live pipeline execution
 
-`apply` executes real platform consequences (`emit-signal`, `start-job`, `trigger-pipeline`; stub
-signals for `create-alert`/`render-widget`/`generate-report`/`invoke-api`). The **record-routing**
-consequences (`route`/`tag`/`quarantine`/`drop`) are now *counted* by `simulate`, but applying them
-takes effect only once wired into live pipeline execution — that wiring is the remaining open piece
-(`docs/BACKLOG.md` §3 Signal/Decision networks).
+`apply` executes real platform consequences on demand (`emit-signal`, `start-job`,
+`trigger-pipeline`; stub signals for `create-alert`/`render-widget`/`generate-report`/`invoke-api`).
+The **record-routing** consequences (`route`/`tag`/`quarantine`/`drop`) are applied by the engine
+itself, per batch, via `com.gamma.etl.DecisionRuleApplier` — invoked from
+`BatchIngestStrategy.writeAndTrace`, the shared tail of every ingest path (Java parse engine +
+all three native `read_csv` streaming paths), between `DataTransformer` and `PartitionWriter`:
 
-Tests: `com.gamma.query.ConditionTreeTest` (evaluator semantics) and
+- **Rule loading** — `com.gamma.pipeline.DecisionRules` maps each space to its component-registry
+  root (registered by `SpaceBootstrap`, forgotten on space deletion — the `ConnectionRegistry`
+  per-space-singleton idiom, resolved by the space MDC the batch worker inherits). Rules are re-read
+  per batch, so authoring/toggling takes effect on the next batch. Matching: enabled +
+  `targetType: pipeline` + `target` equals the pipeline's authored or normalised name
+  (case-insensitive), in priority order.
+- **Predicate compilation** — `com.gamma.query.ConditionSql` renders the `when` tree as one DuckDB
+  predicate (same walk/operators as `ConditionTree`; typing is operand-driven — numeric operand ⇒
+  `TRY_CAST(col AS DOUBLE)`, ISO date ⇒ `TRY_CAST(col AS TIMESTAMP)`, else case-sensitive VARCHAR;
+  substring ops case-insensitive). Parity is test-enforced (`ConditionSqlTest` asserts SQL counts ==
+  `ConditionTree.matched` over the same data).
+- **Consequences over the matched set** (tags first so copies carry them; then copies; then one
+  removal if anything moves/drops): `tag` appends to a `__tags` VARCHAR column (added on first use —
+  `SqlViews.reader` now sets `union_by_name=true` for Parquet so older un-tagged files stay readable
+  alongside), `route` writes matched rows Hive-partitioned under `dirs.database/<destination>`
+  (the `Batch.table` subdir convention) with their own outputs + lineage, `quarantine` copies them to
+  `dirs.quarantine/records/<rule>/<baseName>_records.parquet` (record-level analogue of the
+  whole-file `QuarantineManager`), `drop` removes them. Each applied rule emits one
+  `decision-rule.applied` signal (rule/pipeline/batch/matched/actions) onto the space's ledger.
+- **Routing is not a failure** — a broken rule (e.g. `when` references an unmapped column) is logged
+  and skipped; it never fails the batch.
+
+Deferred: rules targeting **jobs** (`targetType: job`) have no engine hook yet — job outputs don't
+flow through `writeAndTrace`; and Stage-2 enrichment outputs are likewise not rule-checked.
+
+Tests: `com.gamma.query.ConditionTreeTest` (evaluator semantics),
+`com.gamma.query.ConditionSqlTest` (SQL↔evaluator parity),
+`com.gamma.inspector.DecisionRuleWiringTest` (all four consequences through `writeAndTrace`), and
 `com.gamma.control.ControlApiDecisionRulesTest` (CRUD gates + real simulate).

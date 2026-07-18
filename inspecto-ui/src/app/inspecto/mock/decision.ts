@@ -9,8 +9,9 @@ import { emitSignal } from './signals';
  * R5 — the Decision network's execution seam (mock-first). A **decision engine** (a rule today, the AI
  * Assist next) produces {@link Consequence}s; {@link executeConsequences} runs the *platform* actions
  * through the Execution / Signal networks — the R4↔R5 link: `emit-signal` / `create-alert` write into
- * the one signal ledger via {@link emitSignal}. Record-routing actions (route/tag/quarantine/drop) are
- * record-level (the Simulate preview covers their match counts), so they're reported as skipped here.
+ * the one signal ledger via {@link emitSignal}. Record-routing actions (route/tag/quarantine/drop)
+ * take effect during the target pipeline's live runs (backend `DecisionRuleApplier`), not on demand —
+ * so `apply` reports them as skipped here, mirroring the real `/apply` route.
  * Framework-free — unit-tests in plain vitest.
  */
 
@@ -76,7 +77,8 @@ function executeOne(
             return { action: c.action, status: 'executed', detail: describeConsequence(c) };
         }
         default:
-            // route / tag / quarantine / drop — record-level routing, covered by Simulate's match count.
-            return { action: c.action, status: 'skipped', detail: 'record routing (see Simulate)' };
+            // route / tag / quarantine / drop — applied to matching records during the target
+            // pipeline's runs (backend parity: DecisionRoutes.executeOne), never on demand here.
+            return { action: c.action, status: 'skipped', detail: 'applied to matching records during the target pipeline\'s runs' };
     }
 }

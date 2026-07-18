@@ -34,7 +34,9 @@ public final class SqlViews {
     public static String reader(String format, String pathOrGlob, boolean hive) {
         String p = pathOrGlob.replace("\\", "/");
         return switch (format) {
-            case "PARQUET" -> "read_parquet('" + p + "'"
+            // union_by_name: a store's files may gain additive columns over time (e.g. a Decision
+            // Rule's tag consequence adds __tags from some batch onward) — align by name, not position.
+            case "PARQUET" -> "read_parquet('" + p + "', union_by_name=true"
                     + (hive ? ", hive_partitioning=true, hive_types_autocast=0" : "") + ")";
             case "CSV" -> "read_csv('" + p + "', header=true, all_varchar=true, union_by_name=true"
                     + (hive ? ", hive_partitioning=true, hive_types_autocast=0" : "") + ")";

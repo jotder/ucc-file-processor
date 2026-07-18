@@ -39,8 +39,9 @@ import java.util.UUID;
  * signal for the remaining platform actions ({@code create-alert}, {@code render-widget},
  * {@code generate-report}, {@code invoke-api}), matching the mock's own scope; the routing actions
  * ({@code route}/{@code tag}/{@code quarantine}/{@code drop}) are record-level — {@code simulate}
- * now counts the rows they would affect, but applying them takes effect only once wired into live
- * pipeline execution (a separate, still-open piece of work).
+ * counts the rows they would affect, and they take effect during live pipeline runs via
+ * {@link com.gamma.etl.DecisionRuleApplier} (every batch applies the target pipeline's enabled rules
+ * between transform and write), so {@code apply} has nothing to execute for them on demand.
  */
 final class DecisionRoutes implements RouteModule {
 
@@ -182,7 +183,7 @@ final class DecisionRoutes implements RouteModule {
                 detail = "recorded " + action + " stub signal (execution engine not built yet)";
             }
             case "route", "tag", "quarantine", "drop" ->
-                    detail = "routing action — record-level, no immediate side effect";
+                    detail = "routing action — applied to matching records during the target pipeline's runs";
             default -> detail = "unknown action '" + action + "'";
         }
         Map<String, Object> out = new LinkedHashMap<>();

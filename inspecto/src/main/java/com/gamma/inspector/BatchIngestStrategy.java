@@ -2,6 +2,7 @@ package com.gamma.inspector;
 
 import com.gamma.etl.Batch;
 import com.gamma.etl.CsvIngester;
+import com.gamma.etl.DecisionRuleApplier;
 import com.gamma.etl.LineageCollector;
 import com.gamma.etl.LineageRow;
 import com.gamma.etl.PartitionDef;
@@ -75,16 +76,26 @@ interface BatchIngestStrategy {
     record Written(List<PartitionOutput> outputs, List<LineageRow> lineage) {}
 
     /**
-     * The shared tail of every ingest path: write {@code table} Hive-partitioned under
-     * {@code dbDir} and collect the input→output lineage matrix over the same partitions.
+     * The shared tail of every ingest path: apply the pipeline's Decision Rules to {@code table}
+     * ({@link DecisionRuleApplier} — exact no-op when none are authored), then write it
+     * Hive-partitioned under {@code dbDir} and collect the input→output lineage matrix over the same
+     * partitions. Routed rows contribute their own outputs + lineage.
      */
     static Written writeAndTrace(Connection conn, String table, List<String> partCols,
                                  PipelineConfig cfg, String dbDir, String baseName,
                                  String batchId, Map<Integer, String> srcIdToFile) throws Exception {
-        List<PartitionOutput> outputs = PartitionWriter.write(conn, table, dbDir,
+        DecisionRuleApplier.Result applied = DecisionRuleApplier.apply(
+                conn, table, cfg, dbDir, baseName, partCols, batchId, srcIdToFile);
+        List<PartitionOutput> mainOut = PartitionWriter.write(conn, table, dbDir,
                 cfg.output().format(), cfg.output().compression(), baseName, partCols);
-        List<LineageRow> lineage = LineageCollector.collect(
-                conn, table, batchId, srcIdToFile, outputs, partCols);
+        List<LineageRow> mainLineage = LineageCollector.collect(
+                conn, table, batchId, srcIdToFile, mainOut, partCols);
+        if (applied.outputs().isEmpty() && applied.lineage().isEmpty())
+            return new Written(mainOut, mainLineage);
+        List<PartitionOutput> outputs = new java.util.ArrayList<>(applied.outputs());
+        outputs.addAll(mainOut);
+        List<LineageRow> lineage = new java.util.ArrayList<>(applied.lineage());
+        lineage.addAll(mainLineage);
         return new Written(outputs, lineage);
     }
 

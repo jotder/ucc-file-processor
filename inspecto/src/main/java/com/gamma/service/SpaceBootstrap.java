@@ -36,6 +36,9 @@ final class SpaceBootstrap {
         // memory backend yields an isolated in-memory instance. Keyed by space id (the poll path resolves by MDC).
         String ledgerUrl = System.getProperty("acquire.ledger.db.url", root.acquisitionLedgerDbUrl());
         AcquisitionLedgers.register(id.value(), AcquisitionLedgers.build(ledgerUrl));
+        // Publish the component-registry root so the static ingest path can load this space's
+        // Decision Rules per batch (DecisionRuleApplier).
+        com.gamma.pipeline.DecisionRules.register(id.value(), root.config().resolve("registry"));
 
         log.info("Space '{}' loaded ({} pipeline(s)) from {}",
                 id, service.pipelines().size(), root.config());

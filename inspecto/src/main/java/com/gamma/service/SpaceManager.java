@@ -342,6 +342,7 @@ public final class SpaceManager implements AutoCloseable {
         AcquisitionLedgers.unregister(id.value());   // release the per-space ledger SpaceBootstrap registered (+ its DB handle)
         ConnectionRegistry.forget(id.value());        // drop the space's connection profiles (process-wide static map)
         StabilityGate.forget(id.value());             // drop the space's file-stability gate + its retained sightings
+        com.gamma.pipeline.DecisionRules.forget(id.value());   // drop the space's decision-rule registry root
         if (purge) {
             Path base = spacesRoot.resolve(id.value()).normalize();   // SpaceId is jailed: no separators/.. can escape
             if (base.startsWith(spacesRoot) && Files.isDirectory(base)) deleteRecursively(base);
