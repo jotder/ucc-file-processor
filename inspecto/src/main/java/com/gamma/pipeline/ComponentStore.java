@@ -59,7 +59,11 @@ public final class ComponentStore {
                     "access-catalog", "access-profile",
                     // Alert Rule (the alerting third of the Rules triad — AlertRoutes), promoted off raw
                     // *_alert.toon files 2026-07-18 to the same CRUD contract as Expectation/Decision Rule.
-                    "alert-rule");
+                    "alert-rule",
+                    // Notification channel destinations (NotificationRoutes /notifications/channels* admin
+                    // CRUD, 2026-07-18): the managed record of where a channel delivers; live delivery still
+                    // resolves channels from notify.* JVM flags (ChannelConfig).
+                    "channel");
 
     private static final String TOON = ".toon";
     private static final Pattern SAFE_ID = Pattern.compile("[A-Za-z0-9][A-Za-z0-9._-]*");

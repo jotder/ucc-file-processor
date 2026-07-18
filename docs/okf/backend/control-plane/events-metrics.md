@@ -38,6 +38,12 @@ timestamp: 2026-07-16T00:00:00Z
 * **`NotificationChannel`** is a ServiceLoader SPI — in-app is intrinsic; **email is an edition
   seam**, deliberately not in core. A message broker is deliberately not used: in-process
   virtual-thread executor + append-only `EventStore` is the idiom.
+* **Channel destinations admin CRUD** (2026-07-18) — `GET/POST /notifications/channels` +
+  `PUT/DELETE /notifications/channels/{id}` manage persisted `ChannelConfig` records
+  (`{id, kind, target, description?, enabled, createdAt}`) as a `channel` `ComponentStore` kind, per
+  space (write-root 503 → 422 missing fields → 409 dup / 404 unknown; `canAuthorWorkbench`). This is
+  **authored config only** — the live delivery path still resolves channels from the `notify.*` JVM
+  flags via the SPI above; wiring persisted destinations into dispatch is the open follow-up.
 * **`AuditTrail`** — a central interceptor in `ControlApi.dispatch` records every successful
   state-changing request plus non-GET forbidden-route attempts (actor/action/target, secret
   scrubbing, immutable store). One seam covers all routes; 405 immutability is inherent to dispatch.

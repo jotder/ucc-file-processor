@@ -1,13 +1,18 @@
 package com.gamma.control;
 
+import com.gamma.notify.ChannelConfig;
 import com.gamma.notify.Notification;
 import com.gamma.notify.NotificationService;
 import com.gamma.notify.NotificationStore;
+import com.gamma.pipeline.ComponentRegistry;
+import com.gamma.pipeline.ComponentStore;
 import com.sun.net.httpserver.HttpExchange;
 
 import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Path;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.BlockingQueue;
@@ -37,6 +42,15 @@ final class NotificationRoutes implements RouteModule {
                 .orElseThrow(() -> new ApiException(404, "no notification '" + ApiContext.name(m) + "'")));
         api.get("/notifications/preferences", (e, m) -> api.service().notificationPreferences().grid());
         api.put("/notifications/preferences", (e, m) -> savePreferences(api, api.body(e)));
+        // Channel destinations admin CRUD (registered before the /notifications/{id} routes below, which
+        // only match a single segment — "channels/{id}" is two, so there's no collision either way).
+        api.get("/notifications/channels", (e, m) -> listChannels(api));
+        api.post("/notifications/channels", ApiContext.withCapability("canAuthorWorkbench",
+                (e, m) -> createChannel(api, api.body(e))));
+        api.put("/notifications/channels/([^/]+)", ApiContext.withCapability("canAuthorWorkbench",
+                (e, m) -> updateChannel(api, ApiContext.name(m), api.body(e))));
+        api.delete("/notifications/channels/([^/]+)", ApiContext.withCapability("canAuthorWorkbench",
+                (e, m) -> deleteChannel(api, ApiContext.name(m))));
         api.delete("/notifications/([^/]+)", (e, m) -> {
             if (!store(api).archive(ApiContext.name(m)))
                 throw new ApiException(404, "no notification '" + ApiContext.name(m) + "'");
@@ -68,6 +82,86 @@ final class NotificationRoutes implements RouteModule {
 
     private static NotificationStore store(ApiContext api) {
         return api.service().notifications();
+    }
+
+    // ── channel destinations (admin CRUD; C4 — persisted as `channel` components per space) ─────────
+
+    private static final String CHANNEL_TYPE = "channel";
+
+    /** {@code GET /notifications/channels} — the saved channel destinations (empty when no write root). */
+    private static Object listChannels(ApiContext api) {
+        Path root = api.writeRoot();
+        if (root == null) return List.of();
+        return new ComponentStore(root.resolve("registry")).list(CHANNEL_TYPE).stream()
+                .map(ComponentRegistry.Component::content).toList();
+    }
+
+    /** {@code POST /notifications/channels} — create; 422 missing fields, 409 duplicate id. */
+    private static Object createChannel(ApiContext api, Map<String, Object> body) throws IOException {
+        ComponentStore store = channelStore(api);
+        ChannelConfig ch = parse(body, System.currentTimeMillis());
+        if (exists(store, ch.id()))
+            throw new ApiException(409, "channel '" + ch.id() + "' already exists (use PUT to update)");
+        return write(store, ch.id(), ch.toMap());
+    }
+
+    /** {@code PUT /notifications/channels/{id}} — replace; 404 unknown. The id + createdAt are immutable. */
+    private static Object updateChannel(ApiContext api, String id, Map<String, Object> body) throws IOException {
+        ComponentStore store = channelStore(api);
+        Map<String, Object> existing = existing(store, id);
+        long createdAt = existing.get("createdAt") instanceof Number n ? n.longValue() : System.currentTimeMillis();
+        Map<String, Object> patched = new LinkedHashMap<>(existing);
+        patched.putAll(body);
+        patched.put("id", id);                 // storage key is bound from the path, never a stale body id
+        patched.put("createdAt", createdAt);   // preserve the original creation stamp
+        return write(store, id, parse(patched, createdAt).toMap());
+    }
+
+    /** {@code DELETE /notifications/channels/{id}} — 404 unknown, else {@code {deleted:id}}. */
+    private static Object deleteChannel(ApiContext api, String id) throws IOException {
+        ComponentStore store = channelStore(api);
+        existing(store, id);
+        store.delete(CHANNEL_TYPE, id);
+        return Map.of("deleted", id);
+    }
+
+    private static ComponentStore channelStore(ApiContext api) {
+        return new ComponentStore(WriteGates.requireWriteRoot(api, "notification channel write").resolve("registry"));
+    }
+
+    private static ChannelConfig parse(Map<String, Object> body, long defaultCreatedAt) {
+        try {
+            return ChannelConfig.fromMap(body, defaultCreatedAt);
+        } catch (IllegalArgumentException e) {
+            throw new ApiException(422, e.getMessage());
+        }
+    }
+
+    /** {@code store.exists}, mapping an unsafe id (e.g. containing {@code ..}) to 422, not a generic 500. */
+    private static boolean exists(ComponentStore store, String id) {
+        try {
+            return store.exists(CHANNEL_TYPE, id);
+        } catch (IllegalArgumentException e) {
+            throw new ApiException(422, e.getMessage());
+        }
+    }
+
+    private static Map<String, Object> existing(ComponentStore store, String id) {
+        try {
+            return store.get(CHANNEL_TYPE, id).map(ComponentRegistry.Component::content)
+                    .orElseThrow(() -> new ApiException(404, "channel '" + id + "' not found"));
+        } catch (IllegalArgumentException e) {
+            throw new ApiException(422, e.getMessage());
+        }
+    }
+
+    private static Map<String, Object> write(ComponentStore store, String id, Map<String, Object> content)
+            throws IOException {
+        try {
+            return store.write(CHANNEL_TYPE, id, content).content();
+        } catch (IllegalArgumentException e) {
+            throw new ApiException(422, e.getMessage());
+        }
     }
 
     /** {@code GET /notifications?limit=} — the active feed, newest-first. */

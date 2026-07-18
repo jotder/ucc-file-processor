@@ -59,7 +59,8 @@ public final class ComponentRegistry {
             Map.entry("reconciliations", "reconciliation"),         // DAT-7: Reconciliation Board — ReconRoutes
             Map.entry("access-catalog", "access-catalog"),          // Lens access config — AccessRoutes (singleton)
             Map.entry("access-profiles", "access-profile"),         // Lens access config — one per subject
-            Map.entry("alert-rules", "alert-rule"));                // Rules triad promotion 2026-07-18 — AlertRoutes
+            Map.entry("alert-rules", "alert-rule"),                 // Rules triad promotion 2026-07-18 — AlertRoutes
+            Map.entry("channels", "channel"));                      // Notification channel destinations — NotificationRoutes
 
     /** The on-disk sub-directory (plural) for a component {@code type} (e.g. {@code grammar} → {@code grammars}). */
     public static Optional<String> dirForType(String type) {
