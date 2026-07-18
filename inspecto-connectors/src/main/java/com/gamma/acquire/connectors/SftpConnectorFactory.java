@@ -1,6 +1,7 @@
 package com.gamma.acquire.connectors;
 
 import com.gamma.acquire.ConnectionProfile;
+import com.gamma.acquire.ConnectionWorkbench;
 import com.gamma.acquire.CollectorConnector;
 import com.gamma.acquire.CollectorConnectorFactory;
 import com.gamma.etl.PipelineConfig;
@@ -27,5 +28,10 @@ public final class SftpConnectorFactory implements CollectorConnectorFactory {
             throw new IllegalArgumentException("sftp source '" + cfg.collector().id()
                     + "' requires source.connection to reference a *_connection.toon profile (host/credentials)");
         return new SftpConnector(profile, cfg.collector().stability().readyMarker());
+    }
+
+    @Override
+    public ConnectionWorkbench workbench(ConnectionProfile profile) {
+        return SftpConnector.workbench(profile);
     }
 }

@@ -92,6 +92,40 @@ class ControlApiConnectionsTest {
         }
     }
 
+    @Test
+    void unsavedProfileTestSelectsTheTargetHop(@TempDir Path dir) throws Exception {
+        try (ServerSocket listening = new ServerSocket(0); Ctx c = open(dir)) {
+            int target = listening.getLocalPort();
+            String base = """
+                {"id":"draft","connector":"sftp","host":"127.0.0.1","port":%d,
+                 "options":{"test_timeout_ms":"500"}%s}
+                """;
+
+            // target=connection (and the default) probes the target host
+            JsonNode conn = json(send(c.port, "POST", "/connections/test?target=connection",
+                    base.formatted(target, "")));
+            assertTrue(conn.get("reachable").asBoolean(), conn.toString());
+            assertEquals("127.0.0.1:" + target, conn.get("endpoint").asText());
+
+            // target=tunnel / target=proxy without the block → 422
+            assertEquals(422, send(c.port, "POST", "/connections/test?target=tunnel",
+                    base.formatted(target, "")).statusCode(), "no tunnel block ⇒ 422");
+            assertEquals(422, send(c.port, "POST", "/connections/test?target=proxy",
+                    base.formatted(target, "")).statusCode(), "no proxy block ⇒ 422");
+
+            // target=proxy probes the proxy hop, not the target host
+            String withProxy = base.formatted(1,      // deliberately dead target port — must NOT be probed
+                    ",\"proxy\":{\"type\":\"SOCKS5\",\"host\":\"127.0.0.1\",\"port\":%d}".formatted(target));
+            JsonNode proxy = json(send(c.port, "POST", "/connections/test?target=proxy", withProxy));
+            assertTrue(proxy.get("reachable").asBoolean(), proxy.toString());
+            assertEquals("127.0.0.1:" + target, proxy.get("endpoint").asText(), "the proxy hop is what was probed");
+
+            // unknown target → 422
+            assertEquals(422, send(c.port, "POST", "/connections/test?target=bogus",
+                    base.formatted(target, "")).statusCode());
+        }
+    }
+
     private HttpResponse<String> send(int port, String method, String path, String body) throws Exception {
         HttpRequest.Builder b = HttpRequest.newBuilder(URI.create("http://localhost:" + port + path));
         if (body != null) b.header("Content-Type", "application/json").method(method, BodyPublishers.ofString(body));

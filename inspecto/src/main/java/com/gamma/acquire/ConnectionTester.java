@@ -85,6 +85,7 @@ public final class ConnectionTester {
     private static boolean secretsResolve(ConnectionProfile p) {
         boolean ok = refResolves(p.password());
         if (p.tunnel() != null) ok &= refResolves(p.tunnel().password());
+        if (p.proxy() != null) ok &= refResolves(p.proxy().password());
         for (Map.Entry<String, String> e : p.options().entrySet())
             if (SecretResolver.isReference(e.getValue())) ok &= SecretResolver.isResolvable(e.getValue());
         return ok;

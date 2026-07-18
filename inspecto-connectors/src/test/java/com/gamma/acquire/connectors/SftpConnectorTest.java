@@ -3,6 +3,10 @@ package com.gamma.acquire.connectors;
 import com.gamma.acquire.AcquisitionException;
 import com.gamma.acquire.ConnectionProfile;
 import com.gamma.acquire.ConnectionRegistry;
+import com.gamma.acquire.ConnectionWorkbench;
+import com.gamma.acquire.ConnectionWorkbench.ProbeCheck;
+import com.gamma.acquire.ConnectionWorkbench.ResourceNode;
+import com.gamma.acquire.ConnectionWorkbench.SampleResult;
 import com.gamma.acquire.DiscoveryContext;
 import com.gamma.acquire.IntegrityChecker;
 import com.gamma.acquire.PostAction;
@@ -287,6 +291,71 @@ class SftpConnectorTest {
             }
         } finally {
             ConnectionRegistry.remove("test-sftp");
+        }
+    }
+
+    // ── connection workbench (probe · explore · sample) ─────────────────────────
+
+    @Test
+    void workbenchAnswersTheGradedChecksAndLeavesNoScratch() throws Exception {
+        Files.writeString(serverRoot.resolve("a.csv"), "ID\n1\n");
+        try (ConnectionWorkbench wb = new SftpConnectorFactory().workbench(profile())) {
+            assertEquals("SSH auth ok", wb.check(ProbeCheck.AUTHENTICATE, 25).detail());
+            assertTrue(wb.check(ProbeCheck.READ, 25).ok(), "base path listable");
+            assertTrue(wb.check(ProbeCheck.WRITE, 25).ok(), "scratch write + delete against the real server");
+            assertTrue(wb.check(ProbeCheck.LIST, 25).detail().contains("1 entries"));
+        }
+        try (var s = Files.list(serverRoot)) {
+            assertEquals(1, s.count(), "the WRITE check left no scratch file behind");
+        }
+    }
+
+    @Test
+    void workbenchWrongPasswordFailsTheAuthenticateCheck() {
+        ConnectionProfile bad = new ConnectionProfile("test-sftp", "sftp", "127.0.0.1", port, null, "/",
+                "user", "WRONG", Map.of(), null);
+        try (ConnectionWorkbench wb = new SftpConnectorFactory().workbench(bad)) {
+            assertThrows(AcquisitionException.class, () -> wb.check(ProbeCheck.AUTHENTICATE, 25),
+                    "a bad credential surfaces as a check failure, not a silent skip");
+        } catch (AcquisitionException closeFailure) {
+            // close() of a never-connected workbench is a no-op
+        }
+    }
+
+    @Test
+    void workbenchExploresLazilyAndJailsThePath() throws Exception {
+        Files.createDirectories(serverRoot.resolve("inbox"));
+        Files.writeString(serverRoot.resolve("inbox/feed.csv"), "ID,AMT\n1,2\n");
+        Files.writeString(serverRoot.resolve("notes.txt"), "hello");
+        try (ConnectionWorkbench wb = new SftpConnectorFactory().workbench(profile())) {
+            List<ResourceNode> root = wb.explore("");
+            assertEquals(List.of("inbox", "notes.txt"), root.stream().map(ResourceNode::name).toList());
+            assertEquals(ResourceNode.Kind.DIR, root.get(0).kind());
+            assertTrue(root.get(0).hasChildren());
+
+            List<ResourceNode> inbox = wb.explore("inbox");
+            assertEquals("inbox/feed.csv", inbox.get(0).path());
+            assertEquals(ResourceNode.Kind.FILE, inbox.get(0).kind());
+            assertNotNull(inbox.get(0).sizeBytes(), "SFTP listing carries the size");
+
+            assertThrows(ConnectionWorkbench.PathEscape.class, () -> wb.explore("../etc"));
+            assertThrows(ConnectionWorkbench.PathEscape.class, () -> wb.explore("/etc"));
+        }
+    }
+
+    @Test
+    void workbenchSampleFetchesAndParsesACsv() throws Exception {
+        Files.createDirectories(serverRoot.resolve("inbox"));
+        Files.writeString(serverRoot.resolve("inbox/feed.csv"), "ID,AMT\n1,2\n3,4\n5,6\n");
+        try (ConnectionWorkbench wb = new SftpConnectorFactory().workbench(profile())) {
+            SampleResult s = wb.sample("inbox/feed.csv", 2);
+            assertEquals(List.of("ID", "AMT"), s.columns());
+            assertEquals(2, s.rows().size());
+            assertTrue(s.truncated(), "3 data rows, limit 2");
+
+            assertThrows(ConnectionWorkbench.NoSuchPath.class, () -> wb.sample("inbox/ghost.csv", 5));
+            assertThrows(ConnectionWorkbench.NoSuchPath.class, () -> wb.sample("inbox", 5),
+                    "a directory is not sampleable");
         }
     }
 

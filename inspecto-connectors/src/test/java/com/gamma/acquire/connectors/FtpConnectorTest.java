@@ -1,6 +1,8 @@
 package com.gamma.acquire.connectors;
 
 import com.gamma.acquire.ConnectionProfile;
+import com.gamma.acquire.ConnectionWorkbench;
+import com.gamma.acquire.ConnectionWorkbench.ProbeCheck;
 import com.gamma.acquire.DiscoveryContext;
 import com.gamma.acquire.IntegrityChecker;
 import com.gamma.acquire.PostAction;
@@ -70,10 +72,52 @@ class FtpConnectorTest {
         if (server != null) server.stop();
     }
 
-    private CollectorConnector connector() {
-        ConnectionProfile p = new ConnectionProfile("test-ftp", "ftp", "127.0.0.1", port, null, "",
+    private ConnectionProfile profile() {
+        return new ConnectionProfile("test-ftp", "ftp", "127.0.0.1", port, null, "",
                 "user", "pw", Map.of(), null);
-        return new FtpConnector(p, null);
+    }
+
+    private CollectorConnector connector() {
+        return new FtpConnector(profile(), null);
+    }
+
+    // ── connection workbench (probe · explore · sample) ─────────────────────────
+
+    @Test
+    void workbenchAnswersTheGradedChecksAndLeavesNoScratch() throws Exception {
+        Files.writeString(serverRoot.resolve("a.csv"), "ID\n1\n");
+        try (var wb = new FtpConnectorFactory().workbench(profile())) {
+            assertEquals("FTP login ok", wb.check(ProbeCheck.AUTHENTICATE, 25).detail());
+            assertTrue(wb.check(ProbeCheck.READ, 25).ok());
+            assertTrue(wb.check(ProbeCheck.WRITE, 25).ok(), "scratch write + delete against the real server");
+            assertTrue(wb.check(ProbeCheck.LIST, 25).detail().contains("1 entries"));
+        }
+        try (var s = Files.list(serverRoot)) {
+            assertEquals(1, s.count(), "the WRITE check left no scratch file behind");
+        }
+    }
+
+    @Test
+    void workbenchExploresAndSamples() throws Exception {
+        Files.createDirectories(serverRoot.resolve("inbox"));
+        Files.writeString(serverRoot.resolve("inbox/feed.csv"), "ID,AMT\n1,2\n3,4\n5,6\n");
+        try (var wb = new FtpConnectorFactory().workbench(profile())) {
+            var root = wb.explore("");
+            assertEquals(List.of("inbox"), root.stream().map(n -> n.name()).toList());
+            assertTrue(root.get(0).hasChildren());
+
+            var inbox = wb.explore("inbox");
+            assertEquals("inbox/feed.csv", inbox.get(0).path());
+            assertNotNull(inbox.get(0).sizeBytes(), "FTP LIST carries the size");
+
+            var s = wb.sample("inbox/feed.csv", 2);
+            assertEquals(List.of("ID", "AMT"), s.columns());
+            assertEquals(2, s.rows().size());
+            assertTrue(s.truncated());
+
+            assertThrows(ConnectionWorkbench.PathEscape.class, () -> wb.explore("../"));
+            assertThrows(ConnectionWorkbench.NoSuchPath.class, () -> wb.sample("ghost.csv", 5));
+        }
     }
 
     @Test

@@ -69,6 +69,21 @@ class ConnectionProfileTest {
     }
 
     @Test
+    void proxyBlockParsesAndMasksItsSecret() {
+        ConnectionProfile c = ConnectionProfile.fromMap(Map.of(
+                "id", "P", "connector", "sftp", "host", "h", "port", "22",
+                "proxy", Map.of("type", "SOCKS5", "host", "proxy.example.com", "port", "1080",
+                        "username", "px", "password", "hunter2")));
+        assertNotNull(c.proxy());
+        assertEquals("proxy.example.com:1080", c.proxy().endpoint());
+        @SuppressWarnings("unchecked")
+        Map<String, Object> view = (Map<String, Object>) c.toMap().get("proxy");
+        assertEquals("SOCKS5", view.get("type"));
+        assertEquals("***", view.get("password"), "an inlined proxy secret is masked");
+        assertEquals("h:22", c.testEndpoint(), "a proxy does not change the saved-test endpoint");
+    }
+
+    @Test
     void localProfileIsNotRemote() {
         ConnectionProfile c = ConnectionProfile.fromMap(Map.of("id", "L", "connector", "local"));
         assertFalse(c.isRemote());

@@ -2,6 +2,7 @@ package com.gamma.acquire.connectors;
 
 import com.gamma.acquire.AcquisitionException;
 import com.gamma.acquire.ConnectionProfile;
+import com.gamma.acquire.ConnectionWorkbench;
 import com.gamma.acquire.DiscoveryContext;
 import com.gamma.acquire.PostAction;
 import com.gamma.acquire.ReadyMarker;
@@ -10,6 +11,7 @@ import com.gamma.acquire.SecretResolver;
 import com.gamma.acquire.CollectorConnector;
 import net.schmizz.sshj.SSHClient;
 import net.schmizz.sshj.sftp.FileAttributes;
+import net.schmizz.sshj.sftp.OpenMode;
 import net.schmizz.sshj.sftp.RemoteResourceInfo;
 import net.schmizz.sshj.sftp.SFTPClient;
 import org.slf4j.Logger;
@@ -20,6 +22,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.InetSocketAddress;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
@@ -279,5 +282,73 @@ public final class SftpConnector implements CollectorConnector {
         if (c == null) return first;
         try { c.close(); return first; }
         catch (Exception e) { return first != null ? first : new IOException(e); }
+    }
+
+    // ── connection workbench (probe · explore · sample) ─────────────────────────
+
+    /** The {@link ConnectionWorkbench} view of an SFTP profile — contributed via {@link SftpConnectorFactory}. */
+    static ConnectionWorkbench workbench(ConnectionProfile profile) {
+        return new Workbench(new SftpConnector(profile, null));
+    }
+
+    private static final class Workbench extends AbstractRemoteWorkbench {
+        private final SftpConnector conn;
+
+        Workbench(SftpConnector conn) { this.conn = conn; }
+
+        @Override
+        String connect() throws AcquisitionException {
+            conn.ensureConnected();
+            return "SSH auth ok";
+        }
+
+        @Override
+        List<Entry> list(String relDir) throws AcquisitionException {
+            SFTPClient client = conn.ensureConnected();
+            String dir = join(conn.basePath, relDir);
+            try {
+                List<Entry> out = new ArrayList<>();
+                for (RemoteResourceInfo r : client.ls(dir.isBlank() ? "." : dir)) {
+                    String name = r.getName();
+                    if (name.equals(".") || name.equals("..")) continue;
+                    FileAttributes a = r.getAttributes();
+                    Long size = (a != null && !r.isDirectory()) ? a.getSize() : null;
+                    Instant mtime = (a != null && a.getMtime() > 0) ? Instant.ofEpochSecond(a.getMtime()) : null;
+                    out.add(new Entry(name, r.isDirectory(), size, mtime));
+                }
+                return out;
+            } catch (IOException e) {
+                throw new AcquisitionException("SFTP cannot list '" + relDir + "': " + e.getMessage(), e);
+            }
+        }
+
+        @Override
+        void scratchWriteDelete() throws AcquisitionException {
+            SFTPClient client = conn.ensureConnected();
+            String scratch = join(conn.basePath, ".inspecto-probe-" + System.nanoTime() + ".tmp");
+            try {
+                try (net.schmizz.sshj.sftp.RemoteFile h = client.open(scratch,
+                        EnumSet.of(OpenMode.CREAT, OpenMode.WRITE))) {
+                    byte[] probe = "probe".getBytes(StandardCharsets.UTF_8);
+                    h.write(0, probe, 0, probe.length);
+                }
+                client.rm(scratch);
+            } catch (IOException e) {
+                try { client.rm(scratch); } catch (IOException ignore) { /* best effort */ }
+                throw new AcquisitionException("not writable: " + e.getMessage(), e);
+            }
+        }
+
+        @Override
+        InputStream openFile(String relPath, Long size) throws AcquisitionException {
+            String name = relPath.substring(relPath.lastIndexOf('/') + 1);
+            return conn.open(new RemoteFile(name, relPath,
+                    size == null ? RemoteFile.SIZE_UNKNOWN : size, null, null, null, null));
+        }
+
+        @Override
+        void closeSession() throws AcquisitionException {
+            conn.close();
+        }
     }
 }

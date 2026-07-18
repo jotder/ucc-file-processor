@@ -171,6 +171,35 @@ class ControlApiCollectorsAndConnectionsTest {
     }
 
     @Test
+    void proxyBlockPersistsAndPreservesMaskedSecret(@TempDir Path cfg, @TempDir Path root) throws Exception {
+        try (Ctx c = open(cfg, root)) {
+            String create = """
+                {"id":"proxied","connector":"sftp","host":"h1.example","port":22,
+                 "proxy":{"type":"HTTP","host":"proxy.example","port":3128,"username":"px","password":"${ENV:PX_PW}"}}
+                """;
+            assertEquals(200, send(c.port, "POST", "/connections", create).statusCode());
+            assertTrue(Files.readString(root.resolve("proxied_connection.toon")).contains("proxy"),
+                    "proxy block persisted in the TOON doc");
+
+            JsonNode got = JSON.readTree(send(c.port, "GET", "/connections/proxied", null).body());
+            assertEquals("proxy.example", got.get("proxy").get("host").asText());
+            assertEquals("${ENV:PX_PW}", got.get("proxy").get("password").asText(),
+                    "the ${…} reference is shown verbatim");
+
+            // update with the mask sentinel for the proxy secret → the stored reference is preserved
+            String upd = """
+                {"id":"proxied","connector":"sftp","host":"h1.example","port":22,
+                 "proxy":{"type":"HTTP","host":"proxy2.example","port":3128,"username":"px","password":"***"}}
+                """;
+            assertEquals(200, send(c.port, "PUT", "/connections/proxied", upd).statusCode());
+            JsonNode after = JSON.readTree(send(c.port, "GET", "/connections/proxied", null).body());
+            assertEquals("proxy2.example", after.get("proxy").get("host").asText(), "proxy host updated");
+            assertEquals("${ENV:PX_PW}", after.get("proxy").get("password").asText(),
+                    "masked proxy secret preserved, not clobbered");
+        }
+    }
+
+    @Test
     void duplicateCreateIs409(@TempDir Path cfg, @TempDir Path root) throws Exception {
         try (Ctx c = open(cfg, root)) {
             assertEquals(200, send(c.port, "POST", "/connections", conn("dup", "h")).statusCode());

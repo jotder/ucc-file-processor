@@ -2,6 +2,7 @@ package com.gamma.acquire.connectors;
 
 import com.gamma.acquire.AcquisitionException;
 import com.gamma.acquire.ConnectionProfile;
+import com.gamma.acquire.ConnectionWorkbench;
 import com.gamma.acquire.DiscoveryContext;
 import com.gamma.acquire.PostAction;
 import com.gamma.acquire.ReadyMarker;
@@ -18,11 +19,13 @@ import org.apache.commons.net.util.TrustManagerUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.ByteArrayInputStream;
 import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.InetSocketAddress;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
@@ -371,4 +374,70 @@ public final class FtpConnector implements CollectorConnector {
 
     private static String trimLeadingSlash(String s) { return s.startsWith("/") ? s.substring(1) : s; }
     private static String trimTrailingSlash(String s) { return s.endsWith("/") ? s.substring(0, s.length() - 1) : s; }
+
+    // ── connection workbench (probe · explore · sample) ─────────────────────────
+
+    /** The {@link ConnectionWorkbench} view of an FTP/FTPS profile — contributed via the two factories. */
+    static ConnectionWorkbench workbench(ConnectionProfile profile, TlsMode defaultTls) {
+        return new Workbench(new FtpConnector(profile, null, defaultTls));
+    }
+
+    private static final class Workbench extends AbstractRemoteWorkbench {
+        private final FtpConnector conn;
+
+        Workbench(FtpConnector conn) { this.conn = conn; }
+
+        @Override
+        String connect() throws AcquisitionException {
+            conn.ensureConnected();
+            return conn.scheme().toUpperCase() + " login ok";
+        }
+
+        @Override
+        List<Entry> list(String relDir) throws AcquisitionException {
+            FTPClient client = conn.ensureConnected();
+            String dir = join(conn.basePath, relDir);
+            try {
+                List<Entry> out = new ArrayList<>();
+                for (FTPFile f : client.listFiles(dir == null || dir.isEmpty() ? "." : dir)) {
+                    if (f == null) continue;
+                    String name = f.getName();
+                    if (name == null || name.equals(".") || name.equals("..")) continue;
+                    Long size = (f.isFile() && f.getSize() >= 0) ? f.getSize() : null;
+                    Instant mtime = f.getTimestamp() != null ? f.getTimestamp().toInstant() : null;
+                    out.add(new Entry(name, f.isDirectory(), size, mtime));
+                }
+                return out;
+            } catch (IOException e) {
+                throw new AcquisitionException("FTP cannot list '" + relDir + "': " + e.getMessage(), e);
+            }
+        }
+
+        @Override
+        void scratchWriteDelete() throws AcquisitionException {
+            FTPClient client = conn.ensureConnected();
+            String scratch = join(conn.basePath, ".inspecto-probe-" + System.nanoTime() + ".tmp");
+            try {
+                if (!client.storeFile(scratch, new ByteArrayInputStream("probe".getBytes(StandardCharsets.UTF_8))))
+                    throw new IOException("store rejected: " + client.getReplyString());
+                if (!client.deleteFile(scratch))
+                    throw new IOException("delete rejected: " + client.getReplyString());
+            } catch (IOException e) {
+                try { client.deleteFile(scratch); } catch (IOException ignore) { /* best effort */ }
+                throw new AcquisitionException("not writable: " + e.getMessage(), e);
+            }
+        }
+
+        @Override
+        InputStream openFile(String relPath, Long size) throws AcquisitionException {
+            String name = relPath.substring(relPath.lastIndexOf('/') + 1);
+            return conn.open(new RemoteFile(name, relPath,
+                    size == null ? RemoteFile.SIZE_UNKNOWN : size, null, null, null, null));
+        }
+
+        @Override
+        void closeSession() throws AcquisitionException {
+            conn.close();
+        }
+    }
 }

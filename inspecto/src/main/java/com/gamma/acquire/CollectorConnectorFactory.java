@@ -31,4 +31,14 @@ public interface CollectorConnectorFactory {
     default CollectorConnector create(PipelineConfig cfg, ConnectionProfile profile) {
         return create(cfg);
     }
+
+    /**
+     * Build a {@link ConnectionWorkbench} bound to a bare {@code profile} — the probe/explore/sample surface
+     * behind the connection-workbench routes, which has no pipeline config to offer. The default returns
+     * {@code null} (= not supported): the probe reports the graded checks as skipped and explore/sample
+     * refuse, so a factory that never opts in loses nothing.
+     */
+    default ConnectionWorkbench workbench(ConnectionProfile profile) {
+        return null;
+    }
 }

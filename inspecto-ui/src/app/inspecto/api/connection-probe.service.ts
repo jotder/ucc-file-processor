@@ -6,7 +6,9 @@ import { apiUrl, toParams } from './api-base';
 /**
  * The graded "test connection" + "explore" + "sample" surface for a connection profile — the four verbs of
  * the external-system connection library (connect · explore · test · sample), exposed UI-first as a frozen
- * contract the mock interceptor serves now and the real backend (delegating to the library) serves later.
+ * contract. Served by the mock interceptor offline AND by the real backend since 2026-07-18
+ * (`ConnectionRoutes` → `ConnectionWorkbench`: local/SFTP/FTP/FTPS; other connectors probe as `skipped`
+ * and 501 on explore/sample until they implement the workbench SPI).
  *
  * <p>Distinct from {@link ConnectionsService}, which keeps the legacy reachability-only {@code test()}; this
  * service is the new, graded surface. Secrets never travel here — a probe reports whether {@code ${…}}

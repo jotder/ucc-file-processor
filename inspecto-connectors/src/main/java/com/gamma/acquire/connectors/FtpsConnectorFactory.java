@@ -1,6 +1,7 @@
 package com.gamma.acquire.connectors;
 
 import com.gamma.acquire.ConnectionProfile;
+import com.gamma.acquire.ConnectionWorkbench;
 import com.gamma.acquire.CollectorConnector;
 import com.gamma.acquire.CollectorConnectorFactory;
 import com.gamma.etl.PipelineConfig;
@@ -28,5 +29,10 @@ public final class FtpsConnectorFactory implements CollectorConnectorFactory {
             throw new IllegalArgumentException("ftps source '" + cfg.collector().id()
                     + "' requires source.connection to reference a *_connection.toon profile (host/credentials)");
         return new FtpConnector(profile, cfg.collector().stability().readyMarker(), TlsMode.EXPLICIT);
+    }
+
+    @Override
+    public ConnectionWorkbench workbench(ConnectionProfile profile) {
+        return FtpConnector.workbench(profile, TlsMode.EXPLICIT);
     }
 }
