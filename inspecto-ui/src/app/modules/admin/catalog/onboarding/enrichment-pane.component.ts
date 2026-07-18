@@ -8,9 +8,12 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSelectModule } from '@angular/material/select';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { ToastrService } from 'ngx-toastr';
-import { CatalogService, ConfigService, LensService, SpacesService, apiErrorMessage } from 'app/inspecto/api';
+import { CatalogService, ConfigService, DbBrowserService, EnrichmentPreview, LensService, SpacesService, apiErrorMessage } from 'app/inspecto/api';
+import { InspectoAlertComponent } from 'app/inspecto/components/alert.component';
 import { InspectoEmptyStateComponent } from 'app/inspecto/components/empty-state.component';
 import { SqlCodemirrorComponent } from 'app/inspecto/data-table';
+import { QueryPanelComponent } from 'app/inspecto/query/query-panel.component';
+import { QuerySource } from 'app/inspecto/query/query-types';
 import { OnboardingStateService } from './onboarding-state.service';
 
 const IDENTIFIER_RE = /^[A-Za-z_][A-Za-z0-9_]*$/;
@@ -45,16 +48,22 @@ interface ReferenceRow {
         MatProgressSpinnerModule,
         MatSelectModule,
         MatTooltipModule,
+        InspectoAlertComponent,
         InspectoEmptyStateComponent,
         SqlCodemirrorComponent,
+        QueryPanelComponent,
     ],
     templateUrl: './enrichment-pane.component.html',
 })
 export class OnboardingEnrichmentPaneComponent implements OnInit, OnDestroy {
+    /** Rows of the Stage-1 output sampled to seed the `input` view in a preview. */
+    private static readonly SAMPLE_LIMIT = 200;
+
     protected readonly state = inject(OnboardingStateService);
     protected readonly lens = inject(LensService);
     private configApi = inject(ConfigService);
     private catalogApi = inject(CatalogService);
+    private db = inject(DbBrowserService);
     private spaces = inject(SpacesService);
     private fb = inject(FormBuilder);
     private toastr = inject(ToastrService);
@@ -62,6 +71,14 @@ export class OnboardingEnrichmentPaneComponent implements OnInit, OnDestroy {
     /** The form shows only once the author opts in (the stage is optional). */
     readonly started = signal(this.state.enrichmentConfig() !== null);
     readonly saving = signal(false);
+    // ── transform preview (stateless dry-run over a sample of the Stage-1 output) ──
+    readonly previewing = signal(false);
+    readonly previewResult = signal<EnrichmentPreview | null>(null);
+    readonly previewError = signal<string | null>(null);
+    readonly previewSource = computed<QuerySource>(() => ({
+        name: 'preview',
+        rows: this.previewResult()?.rows ?? [],
+    }));
     /** Produced Reference Datasets bindable by name (id = the producer's normalized pipeline id). */
     readonly referenceOptions = signal<{ id: string; label: string }[]>([]);
 
@@ -225,13 +242,13 @@ export class OnboardingEnrichmentPaneComponent implements OnInit, OnDestroy {
         return out;
     }
 
-    save(): void {
-        if (!this.lens.canAuthorWorkbench()) return;
+    /** The full enrichment draft from the current form, or null on a blocking validation problem. */
+    private buildDraft(): Record<string, unknown> | null {
         const references = this.buildReferences();
-        if (references === null) return;
+        if (references === null) return null;
         if (!this.sql().trim()) {
             this.toastr.warning('The transform SQL is required — it defines the enriched output.');
-            return;
+            return null;
         }
         const draft: Record<string, unknown> = {
             name: this.state.enrichName(),
@@ -241,6 +258,51 @@ export class OnboardingEnrichmentPaneComponent implements OnInit, OnDestroy {
             triggers: { on_pipeline: this.state.normalizedName() },
         };
         if (Object.keys(references).length > 0) draft['references'] = references;
+        return draft;
+    }
+
+    /**
+     * Dry-run the transform: fetch a bounded sample of this stream's Stage-1 output (the `input`
+     * view) and run the draft against it — stateless, nothing persisted. Read-only, so it stays
+     * available in every lens. A stream with no ingested data yet has nothing to preview against.
+     */
+    preview(): void {
+        const draft = this.buildDraft();
+        if (!draft) return;
+        this.previewing.set(true);
+        this.previewError.set(null);
+        this.db.table({ name: this.state.normalizedName(), limit: OnboardingEnrichmentPaneComponent.SAMPLE_LIMIT })
+            .subscribe({
+                next: (res) => this.runPreview(draft, res.rows),
+                error: () => this.runPreview(draft, []),
+            });
+    }
+
+    private runPreview(draft: Record<string, unknown>, sampleRows: Record<string, unknown>[]): void {
+        if (sampleRows.length === 0) {
+            this.previewing.set(false);
+            this.previewResult.set(null);
+            this.toastr.warning(
+                `No data in "${this.state.normalizedName()}" yet to preview against — run the stream first.`);
+            return;
+        }
+        this.configApi.previewEnrichment(draft, sampleRows).subscribe({
+            next: (p) => {
+                this.previewing.set(false);
+                this.previewResult.set(p);
+            },
+            error: (e) => {
+                this.previewing.set(false);
+                this.previewResult.set(null);
+                this.previewError.set(apiErrorMessage(e, 'The transform failed on the sample.'));
+            },
+        });
+    }
+
+    save(): void {
+        if (!this.lens.canAuthorWorkbench()) return;
+        const draft = this.buildDraft();
+        if (draft === null) return;
 
         this.saving.set(true);
         this.configApi.write('enrichment', draft, { overwrite: true }).subscribe({

@@ -8,6 +8,7 @@ import {
   ConfigSpec,
   ConfigType,
   ConfigWriteResult,
+  EnrichmentPreview,
   EnrichmentRegisterResult,
   ParsingPreview,
   PipelineRegisterResult,
@@ -84,5 +85,9 @@ export class ConfigService {
   /** TRY_CAST already-parsed sample rows against a draft schema's typed fields — stateless, scratch-only. */
   previewSchema(config: Record<string, unknown>, sampleRows: Record<string, unknown>[]): Observable<SchemaPreview> {
     return this.http.post<SchemaPreview>(apiUrl('/config/preview/schema'), { config, sampleRows });
+  }
+  /** Run a draft enrichment's transform over an in-memory `input` sample — stateless, scratch-only. */
+  previewEnrichment(config: Record<string, unknown>, sampleRows: Record<string, unknown>[]): Observable<EnrichmentPreview> {
+    return this.http.post<EnrichmentPreview>(apiUrl('/enrichment/preview'), { config, sampleRows });
   }
 }

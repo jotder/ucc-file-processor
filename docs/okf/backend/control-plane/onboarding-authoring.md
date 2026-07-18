@@ -38,6 +38,11 @@ indexed, catalog-visible, never executed; D3 of the design). Shipped P0–P3, 20
   `{columns, rows, truncated}`. Persists nothing (throwaway DuckDB, `output.database` untouched); the enrichment
   stage's "Validated" state. 400 for a missing config/sample; 422 when the draft doesn't parse or its transform
   fails on the sample (surfaces exactly the error a run would hit).
+  **UI (2026-07-19):** the enrichment pane's **Preview** button (`enrichment-pane.component`) samples the
+  stream's Stage-1 output via `GET /db/table?name=<normalizedName>&limit=200` (the decision-rule Simulate
+  idiom) and posts it as `sampleRows` (`ConfigService.previewEnrichment`); results render in a shared
+  `<inspecto-query-panel>`, a 422 surfaces as an inline alert, and a stream with no ingested data yet warns
+  (the `/db/table` 404/empty path) instead of calling the endpoint. Read-only — available in every lens.
 
 ## The register pair
 

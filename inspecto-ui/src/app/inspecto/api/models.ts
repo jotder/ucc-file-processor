@@ -345,6 +345,13 @@ export interface SchemaPreview {
   rejectedRows: Record<string, unknown>[];
 }
 
+/** Result of POST /enrichment/preview — a draft transform run over an in-memory `input` sample. */
+export interface EnrichmentPreview {
+  columns: string[];
+  rows: Record<string, unknown>[];
+  truncated: boolean;
+}
+
 // ── diagnoses + assist ───────────────────────────────────────────────────────
 export interface Citation {
   source: string;

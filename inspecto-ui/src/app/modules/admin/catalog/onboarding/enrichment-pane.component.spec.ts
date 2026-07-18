@@ -1,10 +1,11 @@
+import { HttpErrorResponse } from '@angular/common/http';
 import { TestBed } from '@angular/core/testing';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import { provideRouter } from '@angular/router';
 import { of, throwError } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ToastrService } from 'ngx-toastr';
-import { CatalogService, ConfigService, MetadataNode, SpacesService } from 'app/inspecto/api';
+import { CatalogService, ConfigService, DbBrowserService, MetadataNode, SpacesService } from 'app/inspecto/api';
 import { expectNoA11yViolations } from 'app/inspecto/testing/a11y';
 import { OnboardingEnrichmentPaneComponent } from './enrichment-pane.component';
 import { OnboardingStateService } from './onboarding-state.service';
@@ -28,8 +29,17 @@ const PATH_REF: MetadataNode = {
 
 function create(
     config: Record<string, unknown>,
-    opts: { api?: Partial<ConfigService>; refs?: MetadataNode[]; enrichment?: Record<string, unknown> | null } = {},
+    opts: {
+        api?: Partial<ConfigService>;
+        refs?: MetadataNode[];
+        enrichment?: Record<string, unknown> | null;
+        sample?: Record<string, unknown>[] | 'error';
+    } = {},
 ) {
+    const table = vi.fn(() =>
+        opts.sample === 'error'
+            ? throwError(() => ({ status: 404 }))
+            : of({ columns: [], rows: opts.sample ?? [], statistics: { rowCount: 0, elapsedMs: 0, truncated: false } }));
     TestBed.configureTestingModule({
         imports: [OnboardingEnrichmentPaneComponent],
         providers: [
@@ -43,6 +53,7 @@ function create(
                         of(WRITE_OK(type, String(cfg['name'] ?? 'x')))),
                     read: vi.fn(() => throwError(() => ({ status: 404 }))),
                     registerEnrichment: vi.fn((_path: string) => of(REGISTER_OK)),
+                    previewEnrichment: vi.fn(() => of({ columns: ['ID'], rows: [{ ID: 'x' }], truncated: false })),
                     ...opts.api,
                 },
             },
@@ -50,6 +61,7 @@ function create(
                 provide: CatalogService,
                 useValue: { references: vi.fn(() => of(opts.refs ?? [PRODUCED_REF, PATH_REF])) },
             },
+            { provide: DbBrowserService, useValue: { table } },
             { provide: SpacesService, useValue: { currentSpaceId: () => 'demo' } },
             { provide: ToastrService, useValue: TOASTR },
         ],
@@ -60,7 +72,7 @@ function create(
     if (opts.enrichment !== undefined) state.enrichmentConfig.set(opts.enrichment);
     const fixture = TestBed.createComponent(OnboardingEnrichmentPaneComponent);
     fixture.detectChanges();
-    return { fixture, state, api: TestBed.inject(ConfigService) };
+    return { fixture, state, api: TestBed.inject(ConfigService), table };
 }
 
 const PIPELINE = { name: 'orders_feed', dirs: { poll: 'in', database: 'spaces/demo/data/orders_feed/database' } };
@@ -173,6 +185,63 @@ describe('OnboardingEnrichmentPaneComponent', () => {
         c.save();
         expect(write).not.toHaveBeenCalled();
         expect(TOASTR.warning).toHaveBeenCalled();
+    });
+
+    it('preview samples the stream output and runs the draft transform over it', () => {
+        const previewEnrichment = vi.fn((_cfg: Record<string, unknown>, _rows: Record<string, unknown>[]) =>
+            of({ columns: ['ID', 'ZONE'], rows: [{ ID: '1', ZONE: 'north' }], truncated: true }));
+        const { fixture, table } = create(PIPELINE, {
+            api: { previewEnrichment }, sample: [{ ID: '1', REGION: 'r1' }],
+        });
+        const c = fixture.componentInstance;
+        c.start();
+        c.onSqlChange('SELECT * FROM input');
+        c.preview();
+
+        expect(table).toHaveBeenCalledWith(expect.objectContaining({ name: 'orders_feed', limit: 200 }));
+        const [draft, sample] = previewEnrichment.mock.calls[0] as [Record<string, unknown>, unknown[]];
+        expect(draft['transform']).toBe('SELECT * FROM input');
+        expect(sample).toEqual([{ ID: '1', REGION: 'r1' }]);
+        expect(c.previewResult()?.rows).toEqual([{ ID: '1', ZONE: 'north' }]);
+        expect(c.previewResult()?.truncated).toBe(true);
+        expect(c.previewError()).toBeNull();
+    });
+
+    it('preview warns and skips the call when the stream has no data yet', () => {
+        const previewEnrichment = vi.fn();
+        const { fixture } = create(PIPELINE, { api: { previewEnrichment }, sample: [] });
+        const c = fixture.componentInstance;
+        c.start();
+        c.onSqlChange('SELECT * FROM input');
+        c.preview();
+        expect(previewEnrichment).not.toHaveBeenCalled();
+        expect(c.previewResult()).toBeNull();
+        expect(TOASTR.warning).toHaveBeenCalledWith(expect.stringContaining('No data'));
+    });
+
+    it('preview falls back to an empty sample (and warns) when the store is not browsable', () => {
+        const previewEnrichment = vi.fn();
+        const { fixture } = create(PIPELINE, { api: { previewEnrichment }, sample: 'error' });
+        const c = fixture.componentInstance;
+        c.start();
+        c.onSqlChange('SELECT * FROM input');
+        c.preview();
+        expect(previewEnrichment).not.toHaveBeenCalled();
+        expect(TOASTR.warning).toHaveBeenCalledWith(expect.stringContaining('No data'));
+    });
+
+    it('preview surfaces a transform error from the sample', () => {
+        const previewEnrichment = vi.fn(() => throwError(() =>
+            new HttpErrorResponse({ status: 422, error: { error: { message: 'no such column: BOGUS' } } })));
+        const { fixture } = create(PIPELINE, {
+            api: { previewEnrichment }, sample: [{ ID: '1' }],
+        });
+        const c = fixture.componentInstance;
+        c.start();
+        c.onSqlChange('SELECT BOGUS FROM input');
+        c.preview();
+        expect(c.previewResult()).toBeNull();
+        expect(c.previewError()).toContain('BOGUS');
     });
 
     it('has no a11y violations in both the opt-in and form states', async () => {

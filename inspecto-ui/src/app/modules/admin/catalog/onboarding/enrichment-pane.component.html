@@ -117,7 +117,19 @@
             <span>Output — <code>{{ outputBlock()['database'] }}</code> ({{ outputBlock()['format'] }}, partitioned year/month/day)</span>
         </div>
 
-        <div class="flex items-center gap-3">
+        <div class="flex flex-wrap items-center gap-3">
+            <button
+                mat-stroked-button
+                type="button"
+                [disabled]="previewing()"
+                (click)="preview()"
+                matTooltip="Run the transform over a sample of this stream's output — nothing is saved"
+            >
+                @if (previewing()) {
+                    <mat-progress-spinner diameter="16" mode="indeterminate" class="mr-2" />
+                }
+                Preview
+            </button>
             <button
                 mat-flat-button
                 color="primary"
@@ -130,5 +142,19 @@
                 Save enrichment
             </button>
         </div>
+
+        @if (previewError(); as err) {
+            <inspecto-alert variant="error" title="Transform failed on the sample">{{ err }}</inspecto-alert>
+        }
+        @if (previewResult(); as pr) {
+            <div class="flex items-center gap-3 text-sm">
+                <span class="font-semibold">Preview output</span>
+                <span class="text-secondary">{{ pr.rows.length }} row(s)</span>
+                @if (pr.truncated) {
+                    <span class="text-secondary">· sample truncated</span>
+                }
+            </div>
+            <inspecto-query-panel [source]="previewSource()" />
+        }
     }
 </div>
