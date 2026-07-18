@@ -6,7 +6,7 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { ColDef, ICellRendererParams } from 'ag-grid-community';
 import { ToastrService } from 'ngx-toastr';
-import { apiErrorMessage, AssistService, DecisionRule, DecisionRulesService, LensService } from 'app/inspecto/api';
+import { apiErrorMessage, AssistService, DbBrowserService, DecisionRule, DecisionRulesService, LensService } from 'app/inspecto/api';
 import { InspectoConfirmService } from 'app/inspecto/confirm.service';
 import { InspectoEmptyStateComponent } from 'app/inspecto/components/empty-state.component';
 import { statusBadgeHtml } from 'app/inspecto/components/status-badge.component';
@@ -58,6 +58,7 @@ export function summarizeConsequences(r: DecisionRule): string {
 })
 export class DecisionRulesComponent implements OnInit {
     private api = inject(DecisionRulesService);
+    private db = inject(DbBrowserService);
     private assist = inject(AssistService);
     private dialog = inject(MatDialog);
     private confirm = inject(InspectoConfirmService);
@@ -196,13 +197,30 @@ export class DecisionRulesComponent implements OnInit {
             });
     }
 
-    /** Dry-run the rule and show the matched/total preview. */
+    /** How many records to pull from the target's store as the simulation sample. */
+    private static readonly SAMPLE_LIMIT = 500;
+
+    /**
+     * Dry-run the rule: fetch a bounded sample of the target's records and evaluate the when-clause
+     * over them (the sample is the row source — a rule's target is a pipeline/job, not a queryable
+     * dataset). A target with no browsable store simulates over an empty sample (0/0).
+     */
     simulate(rule: DecisionRule): void {
-        this.api.simulate(rule.name).subscribe({
+        this.db.table({ name: rule.target, limit: DecisionRulesComponent.SAMPLE_LIMIT }).subscribe({
+            next: (res) => this.runSimulate(rule, res.rows),
+            error: () => this.runSimulate(rule, []),
+        });
+    }
+
+    private runSimulate(rule: DecisionRule, sampleRows: Record<string, unknown>[]): void {
+        this.api.simulate(rule.name, sampleRows).subscribe({
             next: (res) => {
                 this.rows = this.rows.map((r) => (r.name === res.name ? res : r));
                 const s = res.lastSimulation!;
-                this.toastr.info(`"${res.name}" would match ${s.matched} of ${s.total} record(s).`);
+                const from = sampleRows.length
+                    ? ` sampled from "${rule.target}"`
+                    : ` (no records found for "${rule.target}")`;
+                this.toastr.info(`"${res.name}" would match ${s.matched} of ${s.total} record(s)${from}.`);
             },
             error: (err) => this.toastr.error(apiErrorMessage(err, `Could not simulate "${rule.name}".`)),
         });

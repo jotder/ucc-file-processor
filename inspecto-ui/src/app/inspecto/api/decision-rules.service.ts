@@ -68,9 +68,11 @@ export class DecisionRulesService {
         return this.http.delete<void>(apiUrl(`/decision-rules/${encodeURIComponent(name)}`));
     }
 
-    /** Dry-run: how many of the target's records the when-clause would match (no side effects). */
-    simulate(name: string): Observable<DecisionRule> {
-        return this.http.post<DecisionRule>(apiUrl(`/decision-rules/${encodeURIComponent(name)}/simulate`), {});
+    /** Dry-run: how many of `sampleRows` the when-clause would match (no side effects). The caller
+     *  supplies the rows — a rule's target is a pipeline/job, not a queryable dataset, so the sample is
+     *  the row source (typically a bounded fetch from the target's store). An empty sample yields 0/0. */
+    simulate(name: string, sampleRows: Record<string, unknown>[] = []): Observable<DecisionRule> {
+        return this.http.post<DecisionRule>(apiUrl(`/decision-rules/${encodeURIComponent(name)}/simulate`), { sampleRows });
     }
 
     /** Execute the rule's consequences through the Execution/Signal networks (R5) — emit-signal / create-alert

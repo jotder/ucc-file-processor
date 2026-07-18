@@ -53,7 +53,7 @@ describe('decisionRulesHandler', () => {
         expect(handler(req('DELETE', '/api/decision-rules/route_apac'), store)?.status).toBe(404);
     });
 
-    it('simulate returns the deterministic matched/total preview with no side effects', () => {
+    it('simulate with no sample falls back to the seeded demo counts, no side effects', () => {
         const store = seededStore();
         const sim = handler(req('POST', '/api/decision-rules/quarantine_high_cost/simulate'), store)?.body as DecisionRule;
         expect(sim.lastSimulation?.matched).toBe(7);
@@ -64,10 +64,27 @@ describe('decisionRulesHandler', () => {
                 .some((o) => (o.correlationId ?? '').startsWith('decision')),
         ).toBe(false);
 
-        // a user-authored rule simulates clean over the default window
+        // a user-authored rule (no demo counts) falls back to 0
         handler(req('POST', '/api/decision-rules', UPSERT), store);
         const fresh = handler(req('POST', '/api/decision-rules/route_apac/simulate'), store)?.body as DecisionRule;
-        expect(fresh.lastSimulation).toEqual(expect.objectContaining({ matched: 0, total: 1000 }));
+        expect(fresh.lastSimulation).toEqual(expect.objectContaining({ matched: 0, total: 0 }));
+    });
+
+    it('simulate evaluates the when-clause over a supplied sample (real matched/total)', () => {
+        const store = seededStore();
+        // quarantine_high_cost: cost_usd > 100 AND duration_s < 60
+        const sampleRows = [
+            { cost_usd: 250, duration_s: 30 }, // match
+            { cost_usd: 250, duration_s: 90 }, // duration too long
+            { cost_usd: 50, duration_s: 10 }, // cost too low
+            { cost_usd: 999, duration_s: 5 }, // match
+        ];
+        const sim = handler(
+            req('POST', '/api/decision-rules/quarantine_high_cost/simulate', { sampleRows }),
+            store,
+        )?.body as DecisionRule;
+        expect(sim.lastSimulation?.matched).toBe(2);
+        expect(sim.lastSimulation?.total).toBe(4);
     });
 
     it('gates on mockOps', () => {
