@@ -4,6 +4,7 @@ import com.gamma.pipeline.ComponentRegistry;
 import com.gamma.pipeline.ComponentStore;
 import com.gamma.pipeline.ViewStore;
 import com.gamma.query.DatasetRelation;
+import com.gamma.query.ReconConfigLoader;
 import com.gamma.query.ReconService;
 
 import java.io.IOException;
@@ -140,39 +141,10 @@ final class ReconRoutes implements RouteModule {
             config = component(store, "reconciliation", id)
                     .orElseThrow(() -> new ApiException(404, "no reconciliation '" + id + "'"));
         }
-
-        List<String> datasets = strings(config.get("datasets"));
-        if (datasets.isEmpty()) {   // v1 config compatibility: leftDataset/rightDataset
-            String left = ApiContext.str(config, "leftDataset");
-            String right = ApiContext.str(config, "rightDataset");
-            if (left != null) datasets.add(left);
-            if (right != null) datasets.add(right);
-        }
-        if (datasets.size() < 2 || datasets.size() > 3)
-            throw new ApiException(422, "expected 2 or 3 datasets (the first is the anchor), got " + datasets.size());
-
-        Map<String, Object> columnMap = mapOf(config.get("columnMap"));
-        Map<String, Object> filters = mapOf(config.get("filters"));
-        List<ReconService.Side> sides = new ArrayList<>();
-        for (String dsId : datasets)
-            sides.add(new ReconService.Side(dsId, relationSql(api, store, writeRoot, dsId),
-                    stringMap(columnMap.get(dsId)), strOrNull(filters.get(dsId))));
-
-        List<ReconService.Measure> measures = new ArrayList<>();
-        if (config.get("compareColumns") instanceof List<?> cols)
-            for (Object o : cols)
-                if (o instanceof Map<?, ?> c) {
-                    Map<String, Object> m = cast(c);
-                    measures.add(new ReconService.Measure(
-                            ApiContext.str(m, "column"),
-                            orDefault(ApiContext.str(m, "agg"), "sum"),
-                            orDefault(ApiContext.str(m, "toleranceType"), "exact"),
-                            doubleOr(m.get("tolerance"), 0)));
-                }
-        boolean includeRecordCount = !(config.get("includeRecordCount") instanceof Boolean b) || b;
-
+        // Shared spec assembly (identical to the scheduled recon.run Job); relation-SQL resolution stays
+        // here so an unknown/unusable dataset keeps its route gate (404/422 via relationSql).
         try {
-            return ReconService.Spec.of(sides, strings(config.get("keyColumns")), measures, includeRecordCount);
+            return ReconConfigLoader.buildSpec(config, dsId -> relationSql(api, store, writeRoot, dsId));
         } catch (IllegalArgumentException bad) {
             throw new ApiException(422, bad.getMessage());
         }
@@ -220,24 +192,9 @@ final class ReconRoutes implements RouteModule {
         return out;
     }
 
-    private static Map<String, Object> mapOf(Object v) {
-        return v instanceof Map<?, ?> m ? cast(m) : Map.of();
-    }
-
-    private static Map<String, String> stringMap(Object v) {
-        if (!(v instanceof Map<?, ?> m) || m.isEmpty()) return null;
-        Map<String, String> out = new LinkedHashMap<>();
-        m.forEach((k, val) -> { if (val != null) out.put(String.valueOf(k), String.valueOf(val)); });
-        return out;
-    }
-
     @SuppressWarnings("unchecked")
     private static Map<String, Object> cast(Map<?, ?> m) {
         return (Map<String, Object>) m;
-    }
-
-    private static String strOrNull(Object v) {
-        return v == null || v.toString().isBlank() ? null : v.toString().trim();
     }
 
     private static String orDefault(String v, String def) {
@@ -253,18 +210,6 @@ final class ReconRoutes implements RouteModule {
         if (v != null) {
             try {
                 return Integer.parseInt(v.toString().trim());
-            } catch (NumberFormatException ignored) {
-                // fall through to default
-            }
-        }
-        return def;
-    }
-
-    private static double doubleOr(Object v, double def) {
-        if (v instanceof Number n) return n.doubleValue();
-        if (v != null) {
-            try {
-                return Double.parseDouble(v.toString().trim());
             } catch (NumberFormatException ignored) {
                 // fall through to default
             }

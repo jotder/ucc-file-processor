@@ -250,6 +250,14 @@ public final class JobService implements AutoCloseable {
         // sql.template (P3b, §15.1): the first Run Artifact producer. Config-aware parameters — the
         // authored SQL's $name tokens are its contract (SqlParamScanner). Injected with the space dataDir.
         registry.register(new SqlTemplateJobType(dataDir));
+        // recon.run (DAT-7 Ops): schedule a saved Reconciliation; emits recon.run.completed with the Break
+        // counts (WARNING when any break exists) — the ledger fact a future Alert Rule watches. Reads the
+        // component registry from -Dassist.write.root at run time, like the maintenance/report jobs.
+        registry.register(JobTypeProvider.of(new JobTypeDescriptor("recon.run", "Reconciliation Run",
+                "Runs a saved Reconciliation over its Datasets and emits a signal carrying the Break counts.",
+                List.of(ParameterDecl.required("reconciliation", ParamType.STRING, "Saved reconciliation component id")),
+                List.of("recon.run.completed"), List.of()),
+                c -> new ReconRunJob(c, dataDir)));
         // Classpath providers (optional Maven modules — the "classpath way", §12.4). ServiceLoader finds
         // none in the base build; a provider whose id collides with a built-in (registered first) is
         // rejected, fail-closed. Hot-deployable Job Packs (isolated classloaders) arrive in P2c.

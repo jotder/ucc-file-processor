@@ -26,8 +26,12 @@ with per-column tolerances; a **Break** is `missing_left | missing_right | value
 * **Reusable** — a Reconciliation renders as a **Widget** and rides bundle export/template flows
   (DAT-7 P3); persisted as the `reconciliation` component kind with real backend routes
   `/recon/columns|run|breaks` (DAT-7 P0 — the query gate pattern from the Data Browser).
-* Runs are manual in v1 (no auto-refresh); scheduled `recon.run` Jobs + Alert Rule → Incident wiring
-  are designed-for follow-ups. Break-level assignment stays with Cases.
+* Runs are manual from the Board (no auto-refresh), **or scheduled**: the `recon.run` built-in Job Type
+  (`ReconRunJob`, 2026-07-18) runs a saved `reconciliation` on a `cron:` and emits a `recon.run.completed`
+  Signal carrying the Break counts (`WARNING` when any break exists) — it builds the identical
+  `ReconService.Spec` the interactive route does, via the shared `ReconConfigLoader`. Alert Rule → Incident
+  promotion on a breach is still a designed-for follow-up (it rides the event/signal consequence path, not
+  this Job). Break-level assignment stays with Cases.
 
 As-built design (archived):
 [`reconciliation-board-design.md`](../../../archived-documents/plans-archive/reconciliation-board-design.md) ·
