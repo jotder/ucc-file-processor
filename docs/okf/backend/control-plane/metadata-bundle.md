@@ -21,7 +21,12 @@ v1 files stay importable (refs/provenance optional ⇒ derived on the target). S
 ## Backend endpoints (SPC-4, shipped 2026-07-07)
 
 `BundleRoutes` (`com.gamma.control`) serves the v2 envelope for the `ComponentStore.WRITABLE_TYPES` kinds
-(grammar/schema/transform/sink/dataset/query/widget/dashboard):
+(grammar/schema/transform/sink/dataset/query/widget/dashboard) plus, since 2026-07-18, `authored-pipeline`
+(`PipelineStore`, round-tripped through `PipelineCodec`), `job` (`JobService`'s live registry — import
+hot-registers via `upsertJob`, exactly like the `/jobs` write routes), and `saved-view` (the event-viewer
+`SavedViewStore`; **not** the run-generated `pipeline.ViewStore` `sink.view` definitions, which aren't
+authored config). Every supported kind is read/written through the uniform `BundleSource` seam regardless
+of its backing store:
 
 * **`POST /bundle/export`** — `{items, provenance?, requires?}` → `{bundle, missing}`; real content + real
   `provenance.contentHash`; an unsupported kind is a **422** (honest boundary), never a silent omission.
@@ -38,8 +43,9 @@ v1 files stay importable (refs/provenance optional ⇒ derived on the target). S
 * **Secrets never travel** — connection secrets export masked (`${ENV:…}` references only).
 * **Data never travels** — a dataset item is metadata (columns/roles/measures/query); runtime state (runs,
   batches, Incidents, watermarks) and server TOON config are out of scope by design.
-* **Not yet server-side:** `connection` (secret-aware CRUD), `authored-pipeline`, `job`, and saved-view kinds
-  live in their own stores — promote via the UI path or the whole-space zip until `BundleRoutes` learns them.
+* **Not yet server-side:** `connection` stays out of scope on purpose — its profiles carry secret references,
+  and whether a bundle may carry a masked or reference-only credential is an unmade policy call; promote a
+  connection via the UI path or the whole-space zip until that call is made.
 * `requires` classify satisfied/missing only — *present-but-different* is a per-item (drift) concept; a
   deliberate cut (no origin hash on a ref).
 
