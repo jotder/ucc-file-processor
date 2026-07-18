@@ -141,6 +141,39 @@ class ControlApiDbBrowserTest {
         }
     }
 
+    /**
+     * A store named after a registered pipeline browses the pipeline's mapped output ({@code dirs.database}),
+     * not the raw pre-mapping {@code backup/} copies colocated under {@code data/<name>} — the whole-tree
+     * glob used to lock onto whichever file the directory walk hit first, hiding mapped-only columns.
+     */
+    @Test
+    void pipelineStoreBrowsesMappedDatabaseOutput(@TempDir Path root) throws Exception {
+        try (Ctx c = open(root)) {
+            // the raw backup copy the old whole-tree glob could lock onto (CSV, pre-mapping columns)
+            Path backup = root.resolve("s1").resolve("data").resolve("test_etl").resolve("backup");
+            Files.createDirectories(backup);
+            Files.writeString(backup.resolve("RAW_20260701.csv"), "id,name\n1,alice\n");
+
+            // the pipeline's mapped output (TestConfigs sets dirs.database = <config>/db) with a mapped-only column
+            Path dbDir = root.resolve("s1").resolve("config").resolve("db").resolve("dt=2026");
+            Files.createDirectories(dbDir);
+            String parquet = dbDir.resolve("out.parquet").toString().replace("\\", "/");
+            DuckDbUtil.loadDriver();
+            File db = DuckDbUtil.tempDbFile("dbbrowser_pipe_");
+            try (Connection conn = DuckDbUtil.openConnection(db); Statement st = conn.createStatement()) {
+                st.execute("COPY (SELECT 1 AS id, 'alice' AS name, 42.0 AS gross) TO '" + parquet + "' (FORMAT PARQUET)");
+            } finally {
+                DuckDbUtil.deleteTempDb(db);
+            }
+
+            JsonNode data = JSON.readTree(get(c.port, "/api/v1/spaces/s1/db/table?name=test_etl").body()).get("data");
+            List<String> cols = new java.util.ArrayList<>();
+            for (JsonNode col : data.get("columns")) cols.add(col.get("name").asText());
+            assertTrue(cols.contains("gross"), "mapped output columns are served, not the raw backup CSV: " + cols);
+            assertEquals(1, data.get("rows").size());
+        }
+    }
+
     @Test
     void failsClosed(@TempDir Path root) throws Exception {
         try (Ctx c = open(root)) {

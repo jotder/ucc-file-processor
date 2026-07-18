@@ -19,6 +19,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Stream;
 
 /**
@@ -66,7 +67,7 @@ final class DbBrowserRoutes implements RouteModule {
                 for (Path dir : dirs.filter(Files::isDirectory).sorted().toList()) {
                     String name = dir.getFileName().toString();
                     if (name.startsWith(".")) continue;
-                    String format = detectFormat(dir);
+                    String format = detectFormat(pipelineDatabaseDir(api, name).orElse(dir));
                     if (format == null) continue;   // no parquet/csv data → not a browsable store
                     Map<String, Object> t = new LinkedHashMap<>();
                     t.put("name", name);
@@ -177,12 +178,13 @@ final class DbBrowserRoutes implements RouteModule {
         Path root = dataRoot.normalize();
         Path storeDir = root.resolve(storeName).normalize();
         if (!storeDir.startsWith(root)) throw new ApiException(403, "store path escapes the data root");
-        if (!Files.isDirectory(storeDir)) throw new ApiException(404, "no store '" + storeName + "'");
+        Path browseDir = pipelineDatabaseDir(api, storeName).orElse(storeDir);
+        if (!Files.isDirectory(browseDir)) throw new ApiException(404, "no store '" + storeName + "'");
 
-        String format = detectFormat(storeDir);
+        String format = detectFormat(browseDir);
         if (format == null) throw new ApiException(404, "store '" + storeName + "' has no parquet/csv data");
 
-        String glob = storeDir.toString().replace('\\', '/') + "/**/*." + SqlViews.ext(format);
+        String glob = browseDir.toString().replace('\\', '/') + "/**/*." + SqlViews.ext(format);
         // QueryExecutor registers this as `CREATE VIEW <store> AS <relationSql>`, so it must be a full
         // SELECT — the same wrap DatasetRelation / SourceStoreReader apply around SqlViews.reader(...).
         String relationSql = "SELECT * FROM " + SqlViews.reader(format, glob, true);
@@ -253,6 +255,19 @@ final class DbBrowserRoutes implements RouteModule {
     }
 
     // ── helpers ────────────────────────────────────────────────────────────────────
+
+    /**
+     * A pipeline's canonical transformed output dir ({@code dirs.database}), when the store name is a
+     * registered pipeline and that dir exists. A pipeline's data tree colocates heterogeneous working
+     * stores (raw {@code backup/} copies, {@code errors/}, {@code quarantine/}, downstream job output),
+     * so globbing the whole tree would mix schemas — and format auto-detection could lock onto the
+     * pre-mapping backup CSVs, hiding mapped columns (the demo {@code orders} store's {@code GROSS}).
+     */
+    private static Optional<Path> pipelineDatabaseDir(ApiContext api, String storeName) {
+        return api.service().configFor(storeName)
+                .map(cfg -> Path.of(cfg.dirs().database()).toAbsolutePath().normalize())
+                .filter(Files::isDirectory);
+    }
 
     /** The at-rest format of a store dir: {@code "PARQUET"} / {@code "CSV"}, or {@code null} if neither. */
     private static String detectFormat(Path storeDir) {
