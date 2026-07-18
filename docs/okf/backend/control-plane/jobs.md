@@ -50,7 +50,11 @@ Design of record (all phases + resolved decisions + TOON config gallery):
 * **Signals** — one ledger (`Signal` envelope: ULID, dotted type, source Ref, correlationId, severity,
   payload) persisted through the `EventLog` seam; the framework emits `job.run.started/completed/failed/
   rejected` for every Run. Triggers v2: `on_signal:` + `when:` guard + `bind:` — Job→Job composition is
-  signal chaining (chains visible via `correlationId`); a Signal announces, never decides.
+  signal chaining (chains visible via `correlationId`); a Signal announces, never decides. Read view
+  `GET /signals` (`SignalRoutes` → the static `Signals.query` over the shared `EventStore`, no service
+  object): filters `type` (exact or `prefix.*` glob, applied in Java), plus in-store `since`/`until`
+  (epoch-milli bounds), `severity` (a min floor mapped onto the event-level ladder), `correlationId` and
+  `limit`. Not a duplicate of `/events` — only here do the dotted type / severity / payload decode.
 * **Run Log & Run Artifacts** — per-Run structured events, plus artifacts (`dataset`/`file` +
   `ResultSetMeta`) in `job_run_artifacts` beside `DbJobRunStore`; queryable via
   `GET /jobs/{name}/runs/{runId}/artifacts` / `/jobs/{name}/artifacts/latest` and `$upstream(...)`. A
