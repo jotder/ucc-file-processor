@@ -505,6 +505,29 @@ public final class JobService implements AutoCloseable {
         return Optional.of(runId);
     }
 
+    /**
+     * Run an authored flow once, ad-hoc, without a registered job (T32 — the config-less
+     * {@code POST /pipelines/authored/{id}/trigger} route). A synthetic {@code type: pipeline} config is
+     * built on the fly and executed through the exact registered-job run lifecycle — deletion-fence
+     * tracking ({@link #runningFlows()}), per-name non-overlap (keyed by the flow id, so a re-fire while
+     * the flow is still running records {@code SKIPPED}), the durable run ledger and {@link #runById}
+     * polling — but it is never added to the registry, so {@link #jobs()} stays config-only. The run
+     * (and its {@code GET /jobs/{name}/runs} history) is recorded under the flow id. Attribution matches
+     * {@link #trigger(String, String)}.
+     *
+     * @return the {@code runId} to poll
+     * @throws IllegalStateException when no authored-flow store is configured (no write root)
+     */
+    public String triggerFlowRun(String flowId, String actor) {
+        JobConfig cfg = new JobConfig(flowId, "pipeline", null, null, true, false,
+                Map.of("flow", flowId), null, null);
+        Job job = buildFlowJob(cfg);   // fails closed without an authored-flow store
+        String runId = newRunId(flowId);
+        String trigger = actor == null || actor.isBlank() ? "manual" : "manual:" + actor.trim();
+        submitAdhocRun(job, cfg, runId, trigger);
+        return runId;
+    }
+
     /** A live or recently-finished run by its id, for polling; empty once evicted past the LRU cap. */
     public Optional<JobRun> runById(String runId) {
         return runId == null ? Optional.empty() : Optional.ofNullable(liveRuns.get(runId));
@@ -557,13 +580,38 @@ public final class JobService implements AutoCloseable {
         });
     }
 
+    /** As {@link #submitRun(String, String, String, String, int, Firing)} but for an ad-hoc run
+     *  ({@link #triggerFlowRun}): the job/config are carried, not resolved from the registry — an
+     *  unregistered run can't be disarmed by a concurrent {@link #removeJob}; it was already admitted. */
+    private void submitAdhocRun(Job job, JobConfig cfg, String runId, String trigger) {
+        String start = LocalDateTime.now().format(TS);
+        liveRuns.put(runId, new JobRun(runId, cfg.name(), job.type(), trigger, start, null, "RUNNING", 0L, null));
+        boolean scoped = !EventLog.DEFAULT_SPACE_ID.equals(spaceId);
+        workers.submit(() -> {
+            if (scoped) MDC.put(EventLog.SPACE_MDC_KEY, spaceId);
+            try {
+                runJob(job, cfg, runId, cfg.name(), trigger, start, runId, 0, Firing.NONE);
+            } finally {
+                if (scoped) MDC.remove(EventLog.SPACE_MDC_KEY);
+            }
+        });
+    }
+
     private void runJob(String runId, String name, String trigger, String start, String correlationId, int chainDepth, Firing firing) {
         Job job = jobs.get(name);
         if (job == null) return;
+        runJob(job, configFor(name).orElse(null), runId, name, trigger, start, correlationId, chainDepth, firing);
+    }
+
+    /** The run lifecycle with the {@link Job} + config carried explicitly — shared by the registered path
+     *  above (which re-resolves both from the registry on the worker thread, so a removed job stays an
+     *  inert no-op) and the ad-hoc flow path ({@link #triggerFlowRun}), whose synthetic config is never
+     *  registered and so cannot be resolved by name. */
+    private void runJob(Job job, JobConfig cfg, String runId, String name, String trigger, String start,
+                        String correlationId, int chainDepth, Firing firing) {
         runner.runExclusiveOrSkip(name, () -> {
-            fenceDelete(name);   // T25: surface a conflict if a declared delete races an active reader/writer
-            String flowId = trackFlowStart(job, name);   // T32: mark a flow job's stores active for the fence
-            JobConfig cfg = configFor(name).orElse(null);
+            fenceDelete(cfg);   // T25: surface a conflict if a declared delete races an active reader/writer
+            String flowId = trackFlowStart(job, cfg, name);   // T32: mark a flow job's stores active for the fence
             Map<String, String> params = cfg != null ? cfg.params() : Map.of();
             RunContext ctx = new RunContext(runId, spaceId, name, trigger, correlationId, chainDepth,
                     params, runLogStore, runLogMax, runArtifactStore);
@@ -656,10 +704,9 @@ public final class JobService implements AutoCloseable {
     }
 
     /** Consult the fence for a {@code maintenance} job that declares the store(s) it deletes (T25). */
-    private void fenceDelete(String name) {
+    private void fenceDelete(JobConfig jc) {
         DeletionFence.Guard guard = deletionGuard;
         if (guard == null) return;
-        JobConfig jc = configFor(name).orElse(null);
         if (jc == null || !"maintenance".equals(jc.type())) return;
         String storeCsv = jc.opt("store", "").trim();
         if (storeCsv.isBlank()) return;
@@ -674,9 +721,9 @@ public final class JobService implements AutoCloseable {
      * so it matches the flow names {@link DeletionFence#check} derives from the authored flows the live
      * {@code CollectorService} feeds it — a delete racing this flow's store then surfaces as a conflict.
      */
-    private String trackFlowStart(Job job, String name) {
+    private String trackFlowStart(Job job, JobConfig cfg, String name) {
         if (!"pipeline".equals(job.type())) return null;
-        String flowId = configFor(name).map(c -> c.opt("flow", name)).orElse(name);
+        String flowId = cfg != null ? cfg.opt("flow", name) : name;
         runningFlows.add(flowId);
         return flowId;
     }

@@ -34,3 +34,17 @@ writes to a sink store. It is hosted as a [`JobType.PIPELINE`](../control-plane/
 
 Config (`*_job.toon`): `type: pipeline`, `flow: <authored-pipeline-id>` (the `flow:` key name is verbatim
 legacy), plus `cron:` / `on_pipeline:` / manual.
+
+## Config-less ad-hoc run (2026-07-18)
+
+`POST /pipelines/authored/{id}/trigger` fires an authored Pipeline **once, with no `*_job.toon`**:
+`JobService.triggerFlowRun(flowId, actor)` builds a synthetic, **never-registered** `type: pipeline` config
+and runs it through the exact registered-job lifecycle — deletion-fence `runningFlows()` tracking, per-flow-id
+non-overlap (a re-fire while running records `SKIPPED`), the durable run ledger, and `GET /jobs/runs/{runId}`
+polling — so `GET /jobs` stays config-only while `GET /jobs/{flowId}/runs` serves the ad-hoc history (runs are
+recorded under the flow id; the chain `BatchEvent` is likewise published under the flow id, so downstream
+`on_pipeline:` consumers key on it, not on a job name). Response mirrors `POST /jobs/{name}/trigger`:
+`202 {runId, pipeline, status}` + `Location`. **Deliberately `…/trigger`, not `…/run`** — `POST …/run?to={nodeId}`
+is the editor's scratch-only run-to-here contract (`pipelines.service.ts`, mock-only today) and must never fire
+a production run. Prefer a persisted `*_job.toon` when a run needs `data_dir`/`batch_id` overrides, a schedule,
+or chaining; the ad-hoc route takes no params.

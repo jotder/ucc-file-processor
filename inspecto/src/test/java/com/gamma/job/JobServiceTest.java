@@ -357,6 +357,48 @@ class JobServiceTest {
         }
     }
 
+    @Test
+    void adhocFlowRunGetsTheFullLifecycleWithoutRegisteringAJob(@TempDir Path dir) throws Exception {
+        // T32 config-less run (POST /pipelines/authored/{id}/trigger): no *_job.toon, no registry entry —
+        // but the exact registered-run lifecycle (fence tracking, ledger, polling, attribution).
+        String dataDir = dir.resolve("data").toString();
+        seedParquet(dataDir, "events", "(1,150),(2,50),(3,200)");
+        PipelineStore store = new PipelineStore(dir.resolve("flows"));
+        writeRollupFlow(store, "evt_rollup");
+
+        BatchEventBus bus = new BatchEventBus();
+        AtomicReference<Set<String>> midRun = new AtomicReference<>();
+        try (Scheduler s = new Scheduler();
+             JobService js = new JobService(List.of(), bus, s, null,
+                     dir.resolve("audit").toString(), null, store, dataDir)) {
+            // the ad-hoc run publishes its chain event under the flow id (there is no job name)
+            bus.subscribe(ev -> { if ("evt_rollup".equals(ev.pipeline())) midRun.set(js.runningFlows()); });
+            js.start();
+            String runId = js.triggerFlowRun("evt_rollup", "rahul");
+            JobRun run = await(() -> js.runById(runId).filter(r -> !"RUNNING".equals(r.status())).orElse(null));
+
+            assertEquals("SUCCESS", run.status(), run.message());
+            assertEquals("pipeline", run.type());
+            assertEquals("manual:rahul", run.trigger(), "the ad-hoc fire is actor-attributed");
+            assertEquals("evt_rollup", run.job(), "the run is recorded under the flow id");
+            assertNotNull(midRun.get(), "the flow's chain event fired");
+            assertTrue(midRun.get().contains("evt_rollup"), "ad-hoc run tracked for the deletion fence mid-run");
+            assertTrue(js.runningFlows().isEmpty(), "the running-flow set is cleaned up after the run");
+            assertTrue(js.jobs().isEmpty(), "an ad-hoc run never registers a job");
+            assertEquals(1, js.runsFor("evt_rollup").size(), "history is browsable under the flow id");
+        }
+    }
+
+    @Test
+    void adhocFlowRunWithoutAFlowStoreFailsClosed(@TempDir Path dir) throws Exception {
+        // the 5-arg constructor leaves the flow store null → the ad-hoc path must fail closed too
+        try (Scheduler s = new Scheduler();
+             JobService js = new JobService(List.of(), new BatchEventBus(), s, null, dir.resolve("audit").toString())) {
+            js.start();
+            assertThrows(IllegalStateException.class, () -> js.triggerFlowRun("ghost", null));
+        }
+    }
+
     // ── T32 Phase B: a PIPELINE job is a first-class scheduled/chained job ───────────
 
     @Test

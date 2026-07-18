@@ -11,6 +11,7 @@ import com.gamma.pipeline.PipelineValidator;
 import com.gamma.pipeline.PipelineLift;
 import com.gamma.pipeline.exec.PipelineDryRun;
 import com.gamma.service.CollectorService;
+import com.sun.net.httpserver.HttpExchange;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -45,6 +46,10 @@ final class PipelineRoutes implements RouteModule {
         api.post("/pipelines/authored/([^/]+)/nodes", ApiContext.withCapability("canAuthorWorkbench", (e, m) -> addFlowNode(api, ApiContext.name(m), api.body(e))));
         api.post("/pipelines/authored/([^/]+)/edges", ApiContext.withCapability("canAuthorWorkbench", (e, m) -> addFlowEdge(api, ApiContext.name(m), api.body(e))));
         api.post("/pipelines/authored/([^/]+)/dry-run", (e, m) -> dryRunFlow(api, ApiContext.name(m), api.body(e)));
+        // A real run is an operational verb (canOperateRuns) and mirrors POST /jobs/{name}/trigger — deliberately
+        // NOT ".../run": that path is the editor's scratch-only run-to-here contract (POST …/run?to={nodeId},
+        // pipelines.service.ts, mock-only today) and must never fire a production run.
+        api.post("/pipelines/authored/([^/]+)/trigger", ApiContext.withCapability("canOperateRuns", (e, m) -> runFlow(api, e, ApiContext.name(m))));
         api.get("/pipelines/([^/]+)/graph", (e, m) -> graphForPipeline(api, ApiContext.name(m)));
     }
 
@@ -246,5 +251,28 @@ final class PipelineRoutes implements RouteModule {
         } catch (Exception e) {
             throw new ApiException(422, "dry-run failed: " + e.getMessage());
         }
+    }
+
+    /**
+     * {@code POST /pipelines/authored/{id}/trigger} — run an authored flow for real, once, config-less (T32
+     * follow-up): no {@code type: pipeline} {@code *_job.toon} needed. The fire goes through
+     * {@link com.gamma.job.JobService#triggerFlowRun} so it gets the full registered-run lifecycle
+     * (deletion-fence tracking, non-overlap, durable run ledger) without registering a job. Async:
+     * {@code 202} + {@code {runId,...}} + a {@code Location} to poll ({@code GET /jobs/runs/{runId}});
+     * optional {@code ?actor=} attributes the fire. 503 without a write root, 404 if the flow is absent.
+     */
+    private Object runFlow(ApiContext api, HttpExchange e, String id) throws IOException {
+        Path root = WriteGates.requireWriteRoot(api, "pipeline run").resolve("flows");
+        if (!new PipelineStore(root).exists(id)) throw new ApiException(404, "no authored flow '" + id + "'");
+        String runId;
+        try {
+            runId = api.service().jobServiceOrCreate().triggerFlowRun(id, ApiContext.query(e, "actor"));
+        } catch (IllegalStateException ex) {
+            // the service booted without a write root, so its flow store never opened — same gate as above
+            throw new ApiException(503, ex.getMessage());
+        }
+        log.info("[PIPELINE-RUN] ad-hoc run {} of authored flow {}", runId, id);
+        e.getResponseHeaders().set("Location", (ApiContext.v1(e) ? "/api/v1" : "") + "/jobs/runs/" + runId);
+        return ApiContext.respondJson(e, 202, Map.of("runId", runId, "pipeline", id, "status", "running"));
     }
 }

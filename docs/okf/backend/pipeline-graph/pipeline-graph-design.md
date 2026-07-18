@@ -983,8 +983,17 @@ Actionable, phase-aligned, derived from §8 + the §13 corrections. `[ ]` = not 
   `PipelineJobRunner.deriveViewSql`); multi-source incremental (per-source watermarks); and the **`sink.view` consumer**
   — `GET /views`, `GET /views/{name}`, `GET /views/{name}/data?limit=N` run a view's `derived_sql` via `ViewQuery`
   (resource-capped un-sealed `SqlSandbox`) for bounded rows (409 when a view has no single-statement `derived_sql`).
-  **Still deferred:** a dedicated `POST /pipelines/authored/{id}/run` endpoint (today: a `type: pipeline` `*_job.toon` +
-  `POST /jobs/{name}/trigger`); a UI consumer for views. Full design:
+  **Config-less ad-hoc run done (2026-07-18):** `POST /pipelines/authored/{id}/trigger` fires an authored flow
+  once with no `type: pipeline` `*_job.toon` — `JobService.triggerFlowRun` builds a synthetic, **never-registered**
+  config and runs it through the exact registered-job lifecycle (deletion-fence `runningFlows()` tracking,
+  per-flow-id non-overlap → `SKIPPED` on a re-fire, durable run ledger + `GET /jobs/runs/{runId}` polling,
+  `?actor=` attribution), so `GET /jobs` stays config-only while `GET /jobs/{flowId}/runs` still serves the ad-hoc
+  history. Response mirrors the jobs trigger: `202 {runId, pipeline, status}` + `Location`. Gates: 503 no
+  write root · 404 missing/unsafe flow id · `canOperateRuns`. **Deliberately NOT `…/run`:** that path is the
+  editor's scratch-only run-to-here contract (`POST …/run?to={nodeId}`, `pipelines.service.ts`, mock-only
+  today) and must never fire a production run. Tests: `ControlApiFlowRunTest` (real HTTP, every gate) +
+  2 `JobServiceTest` (lifecycle-without-registration; fail-closed without a flow store).
+  **Still deferred:** a UI consumer for views. Full design:
   [`flow-live-execution-plan.md`](../../../archived-documents/plans-archive/flow-live-execution-plan.md)
   (archived; as-built summary in [`live-execution.md`](live-execution.md)).
 
