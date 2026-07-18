@@ -943,7 +943,7 @@ Actionable, phase-aligned, derived from §8 + the §13 corrections. `[ ]` = not 
   (`ComponentsService`), plus nav + lazy route. Tests: `ComponentsComponent`(3, incl. axe a11y); token-guard +
   prod build green. **Pending:** the **flow-topology editor** (node/edge CRUD on the G6 canvas) and wiring
   authored flows into the live executor (T32).
-- [~] **T32 (Phase A done 2026-06-18 — live execution of authored job-flows).** Run authored `*_flow.toon`
+- [x] **T32 (done 2026-07-18 — live execution of authored job-flows, incl. the UI view-consumer).** Run authored `*_flow.toon`
   flows for real. Authored flows are **job-style** (`source_store` → `transform` → sink `store`), so they run
   as a new `JobType.PIPELINE` hosted by the existing `JobService` (cron/event/manual + audit + deletion fence +
   `DbJobRunStore`), driving `PipelineExecutor` directly — **not** via `PipelineCompiler.toConfigMap` (which only
@@ -993,7 +993,13 @@ Actionable, phase-aligned, derived from §8 + the §13 corrections. `[ ]` = not 
   editor's scratch-only run-to-here contract (`POST …/run?to={nodeId}`, `pipelines.service.ts`, mock-only
   today) and must never fire a production run. Tests: `ControlApiFlowRunTest` (real HTTP, every gate) +
   2 `JobServiceTest` (lifecycle-without-registration; fail-closed without a flow store).
-  **Still deferred:** a UI consumer for views. Full design:
+  **UI consumer for views done (2026-07-18):** `ViewsService` (`inspecto/api/views.service.ts`) wraps
+  the three `/views*` endpoints; the pipeline inspector shows a **Preview data** action on `sink.view`
+  nodes only, opening `ViewPreviewDialog` (`modules/admin/pipelines/view-preview.dialog.ts`) — a bounded-
+  rows read via `<inspecto-data-table>` (tier `mini`), the 409 "no `derived_sql` yet" surfaced as an
+  inline `apiErrorMessage`. Mock-backed: `pipelines.handler.ts` derives `/views*` from every authored
+  pipeline's `sink.view` nodes (keyed by `node.name`, the view/store name). T32 is now fully closed —
+  nothing deferred. Full design:
   [`flow-live-execution-plan.md`](../../../archived-documents/plans-archive/flow-live-execution-plan.md)
   (archived; as-built summary in [`live-execution.md`](live-execution.md)).
 

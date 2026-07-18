@@ -40,6 +40,43 @@ describe('pipelinesHandler — authored DELETE referential integrity (R2)', () =
     });
 });
 
+describe('pipelinesHandler — /views (sink.view UI-consumer, T32 follow-up)', () => {
+    const handler = pipelinesHandler({ mockFlows: true, mockStudio: true });
+
+    function withView(store: MockStore): void {
+        handler(
+            req('POST', '/api/pipelines/authored', {
+                name: 'orders_etl',
+                nodes: [{ id: 'v', type: 'sink.view', name: 'orders_view' }],
+                edges: [],
+            }),
+            store,
+        );
+    }
+
+    it('lists views across authored pipelines', () => {
+        const store = seededStore();
+        withView(store);
+        const res = handler(req('GET', '/api/views'), store);
+        expect(res?.body).toEqual([expect.objectContaining({ store: 'orders_view', flow: 'orders_etl' })]);
+    });
+
+    it('404s an unknown view name', () => {
+        const store = seededStore();
+        withView(store);
+        const res = handler(req('GET', '/api/views/nope'), store);
+        expect(res?.status).toBe(404);
+    });
+
+    it('returns bounded rows for /views/{name}/data', () => {
+        const store = seededStore();
+        withView(store);
+        const res = handler(req('GET', '/api/views/orders_view/data'), store);
+        expect(res?.status).toBe(200);
+        expect((res?.body as { rows: unknown[] }).rows.length).toBeGreaterThan(0);
+    });
+});
+
 describe('pipelinesHandler — authored create/update split (mirrors PipelineRoutes)', () => {
     const handler = pipelinesHandler({ mockFlows: true, mockStudio: true });
 

@@ -9,9 +9,10 @@ import type {
     PipelineRunResult,
     PipelineSummary,
 } from '../../api/pipelines.service';
+import type { PipelineViewData, PipelineViewSummary } from '../../api/views.service';
 import type { IconMap } from '../../api/icon-map.service';
 import { MockFlags } from '../mock-flags';
-import { error, json, match, MockHandler, MockRequest } from '../mock-http';
+import { error, json, match, MockHandler, MockRequest, MockResponse } from '../mock-http';
 import { MockStore } from '../mock-store';
 
 /**
@@ -60,6 +61,9 @@ const FLOW_GRAPH = /\/pipelines\/([^/]+)\/graph$/;
 const PROV_BATCHES = /\/provenance\/batches$/;
 const PROV = /\/provenance$/;
 const ICON_MAP_RE = /\/config\/icon-map$/;
+const VIEWS = /\/views$/;
+const VIEW_DATA = /\/views\/([^/]+)\/data$/;
+const VIEW_NAME = /\/views\/([^/]+)$/;
 
 export function pipelinesHandler(flags: MockFlags): MockHandler {
     return (req: MockRequest, store: MockStore) => {
@@ -119,8 +123,48 @@ export function pipelinesHandler(flags: MockFlags): MockHandler {
 
         if (method === 'GET' && (PROV_BATCHES.test(url) || PROV.test(url))) return json([]);
 
+        if (method === 'GET' && VIEWS.test(url)) return json(all().flatMap((f) => viewsOf(f)).map(viewSummaryOf));
+        if (method === 'GET' && (m = match(url, VIEW_DATA))) return viewData(all(), m[1], Number(req.params['limit']) || 1000);
+        if (method === 'GET' && (m = match(url, VIEW_NAME))) {
+            const view = all().flatMap((f) => viewsOf(f)).find((v) => v.node.name === m![1]);
+            return view ? json(viewSummaryOf(view)) : error(404, `no view '${m[1]}'`);
+        }
+
         return undefined;
     };
+}
+
+/** Every `sink.view` node across a flow, paired with its owning flow name. */
+function viewsOf(f: AuthoredPipeline): { node: AuthoredNode; flow: string }[] {
+    return f.nodes.filter((n) => n.type === 'sink.view').map((node) => ({ node, flow: f.name }));
+}
+
+function viewSummaryOf(v: { node: AuthoredNode; flow: string }): PipelineViewSummary {
+    return {
+        store: v.node.name || v.node.id,
+        flow: v.flow,
+        source_store: [],
+        has_derived_sql: true,
+        defined_at: new Date().toISOString(),
+    };
+}
+
+/** A bounded, pure-mock sample for a view's data preview — no real SQL execution. */
+function viewData(flows: AuthoredPipeline[], name: string, limit: number): MockResponse {
+    const v = flows.flatMap((f) => viewsOf(f)).find((v) => v.node.name === name);
+    if (!v) return error(404, `no view '${name}'`);
+    const rows = [
+        { id: 1001, msisdn: '8801700000001', start_time: '2026-06-24 09:00:00', duration_s: 42 },
+        { id: 1002, msisdn: '8801700000002', start_time: '2026-06-24 09:01:30', duration_s: 17 },
+    ].slice(0, limit);
+    const data: PipelineViewData = {
+        view: name,
+        columns: rows.length ? Object.keys(rows[0]) : [],
+        rowCount: rows.length,
+        capped: false,
+        rows,
+    };
+    return json(data);
 }
 
 function summaryOf(f: AuthoredPipeline): PipelineSummary {

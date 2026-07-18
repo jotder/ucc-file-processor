@@ -66,6 +66,24 @@ describe('PipelineInspectorComponent', () => {
         expect(del).toHaveBeenCalled();
     });
 
+    it('shows Preview data only for a sink.view node, and emits previewView on click', () => {
+        const viewNode: AuthoredNode = { id: 'v', type: 'sink.view', name: 'orders_view' };
+        const { fixture, c } = create({ node: viewNode, status: 'configured', category: 'SINK' });
+        const preview = vi.fn();
+        c.previewView.subscribe(preview);
+        const buttons = Array.from((fixture.nativeElement as HTMLElement).querySelectorAll('button'));
+        const btn = buttons.find((b) => b.textContent?.includes('Preview data'));
+        expect(btn).toBeTruthy();
+        btn?.click();
+        expect(preview).toHaveBeenCalledWith(viewNode);
+    });
+
+    it('hides Preview data for a non-view node', () => {
+        const { fixture } = create({ node: NODE, status: 'configured', category: 'PARSE' });
+        const buttons = Array.from((fixture.nativeElement as HTMLElement).querySelectorAll('button'));
+        expect(buttons.some((b) => b.textContent?.includes('Preview data'))).toBe(false);
+    });
+
     it('renders the edge relationship picker when an edge is selected', () => {
         const { fixture } = create({
             selectedEdgeId: 'a->b:data:1',

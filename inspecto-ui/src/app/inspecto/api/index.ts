@@ -33,6 +33,7 @@ export * from './collectors.service';
 export * from './acquisition-metrics.service';
 export * from './events.service';
 export * from './pipelines.service';
+export * from './views.service';
 export * from './notifications.service';
 export * from './expectations.service';
 export * from './decision-rules.service';

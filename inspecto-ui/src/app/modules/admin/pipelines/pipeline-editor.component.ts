@@ -43,6 +43,7 @@ import { PipelinePaletteComponent } from './pipeline-palette.component';
 import { NodeConfigDialog, NodeConfigResult } from './node-config.dialog';
 import { ParserConfigDialog } from './parser-config.dialog';
 import { RunToHereDialog } from './run-to-here.dialog';
+import { ViewPreviewDialog } from './view-preview.dialog';
 import {
     PipelineFinding,
     NodeStatus,
@@ -435,6 +436,15 @@ export class PipelineEditorComponent implements OnInit {
                   });
         ref.afterClosed().subscribe((res?: NodeConfigResult) => {
             if (res?.node) this.applyNodePatch(res.node);
+        });
+    }
+
+    /** Preview a `sink.view` node's data: bounded rows from its captured `derived_sql` (T32 follow-up). */
+    openViewPreview(node: AuthoredNode): void {
+        this.dialog.open(ViewPreviewDialog, {
+            width: '760px',
+            autoFocus: false,
+            data: { viewName: node.name || node.id },
         });
     }
 

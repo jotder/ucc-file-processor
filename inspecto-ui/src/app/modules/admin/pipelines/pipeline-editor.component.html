@@ -129,6 +129,7 @@
                     [readOnly]="!lens.canAuthorWorkbench()"
                     (configure)="openNodeConfig($event)"
                     (runToHere)="openRunToHere($event)"
+                    (previewView)="openViewPreview($event)"
                     (connect)="armConnect()"
                     (deleteSelected)="onDeleteKey()"
                     (edgeRelChange)="setEdgeRel($event)">

@@ -79,6 +79,11 @@ import {
                 <button mat-stroked-button type="button" (click)="runToHere.emit(node)">
                     <mat-icon svgIcon="heroicons_outline:play"></mat-icon> Run to here
                 </button>
+                @if (node.type === 'sink.view') {
+                    <button mat-stroked-button type="button" (click)="previewView.emit(node)">
+                        <mat-icon svgIcon="heroicons_outline:table-cells"></mat-icon> Preview data
+                    </button>
+                }
                 @if (!readOnly) {
                     <button mat-stroked-button type="button" (click)="connect.emit()">
                         <mat-icon svgIcon="heroicons_outline:arrow-right"></mat-icon> Connect
@@ -133,6 +138,8 @@ export class PipelineInspectorComponent {
 
     @Output() configure = new EventEmitter<AuthoredNode>();
     @Output() runToHere = new EventEmitter<AuthoredNode>();
+    /** `sink.view` nodes only — fetch a bounded sample of the view's `derived_sql` output. */
+    @Output() previewView = new EventEmitter<AuthoredNode>();
     @Output() connect = new EventEmitter<void>();
     @Output() deleteSelected = new EventEmitter<void>();
     @Output() edgeRelChange = new EventEmitter<string>();
