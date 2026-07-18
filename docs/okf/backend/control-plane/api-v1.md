@@ -43,5 +43,14 @@ WSO2-style gateway + external IAM can front it later without reshaping routes. D
   `Location`**; poll the run by id; `Idempotency-Key` gives at-most-once replay. See [jobs](jobs.md).
 * **AuthN/AuthZ seam (W6)** — the `Authenticator`/`Subject`/`TokenRelay` SPIs gate v1 routes on Standard;
   see [auth & security](../editions/auth-security.md).
+* **Cursor pagination (§7)** — list routes expose opaque keyset cursors via `metadata.pagination`
+  (`{cursor, nextCursor, limit, total}`). A route declares the block with `ApiContext.pagination(ex, …)`
+  (mirrors the `resourcePermissions`/`ATTR_SELF_PATH` attribute seam) and `Envelope` emits it on v1
+  responses only; the opaque token is URL-safe-Base64 over the JSON keyset (`com.gamma.control.Cursor`,
+  decode-total — a garbage cursor means "from the top", never a 400). First adopter: `GET /jobs/runs`
+  over the DuckDB run projection (`DbJobRunStore.recentRuns(limit, job, afterStartTime, afterRunId)` +
+  `countRuns`, `ORDER BY start_time DESC, run_id DESC`, keyset SQL dialect-neutral for DuckDB + Postgres).
+  Legacy/unversioned callers get the same bare list as before. Other list families adopt the same seam
+  on demand.
 * **Multi-space** — the space segment sits **after** the version: `/api/v1/spaces/{id}/…`
   (see [multi-space](multi-space.md)).

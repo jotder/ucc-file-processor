@@ -143,19 +143,49 @@ public final class DbJobRunStore implements AutoCloseable, com.gamma.util.Browsa
      * are aliased to camelCase to match the rest of the JSON API (the frontend consumes these verbatim).
      */
     public synchronized List<Map<String, Object>> recentRuns(int limit, String job) {
+        return recentRuns(limit, job, null, null);
+    }
+
+    /**
+     * A page of recent runs (newest first), optionally for one {@code job}, resuming strictly after the
+     * keyset marker {@code (afterStartTime, afterRunId)} — the same {@code (start_time DESC, run_id DESC)}
+     * order as {@link #recentRuns(int, String)}. Both marker parts {@code null} ⇒ the first page (identical
+     * to the two-arg form). Cursor pagination (api-contract-design §7); the marker is dialect-neutral SQL
+     * (the explicit disjunction, not a row-value comparison) so it holds on DuckDB and PostgreSQL alike.
+     */
+    public synchronized List<Map<String, Object>> recentRuns(int limit, String job, String afterStartTime, String afterRunId) {
         boolean filtered = job != null && !job.isBlank();
+        boolean keyset = afterStartTime != null && afterRunId != null;
         String sql = "SELECT run_id AS \"runId\", job, type, \"trigger\", start_time AS \"startTime\","
                 + " end_time AS \"endTime\", status, duration_ms AS \"durationMs\", message"
-                + " FROM " + T_RUNS + (filtered ? " WHERE job = ?" : "")
+                + " FROM " + T_RUNS + " WHERE 1=1"
+                + (filtered ? " AND job = ?" : "")
+                + (keyset ? " AND (start_time < ? OR (start_time = ? AND run_id < ?))" : "")
                 + " ORDER BY start_time DESC, run_id DESC LIMIT ?";
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
             int i = 1;
             if (filtered) ps.setString(i++, job);
+            if (keyset) { ps.setString(i++, afterStartTime); ps.setString(i++, afterStartTime); ps.setString(i++, afterRunId); }
             ps.setInt(i, Math.max(1, limit));
             return JdbcRows.query(ps);
         } catch (SQLException e) {
             log.warn("recent job runs query failed: {}", e.getMessage());
             return new ArrayList<>();
+        }
+    }
+
+    /** Total run count, optionally for one {@code job} — the {@code metadata.pagination.total}. */
+    public synchronized long countRuns(String job) {
+        boolean filtered = job != null && !job.isBlank();
+        String sql = "SELECT count(*) FROM " + T_RUNS + (filtered ? " WHERE job = ?" : "");
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            if (filtered) ps.setString(1, job);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next() ? rs.getLong(1) : 0L;
+            }
+        } catch (SQLException e) {
+            log.warn("job run count query failed: {}", e.getMessage());
+            return 0L;
         }
     }
 

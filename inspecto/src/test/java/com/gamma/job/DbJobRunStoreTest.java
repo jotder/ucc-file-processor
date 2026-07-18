@@ -59,6 +59,46 @@ class DbJobRunStoreTest {
     }
 
     @Test
+    void keysetPagingWalksNewestFirstWithoutGaps() throws Exception {
+        try (DbJobRunStore db = DbJobRunStore.open("jdbc:duckdb:")) {
+            db.record(run("r1", "j1", "SUCCESS", 10, "2026-06-17 10:00:00"));
+            db.record(run("r2", "j1", "SUCCESS", 10, "2026-06-17 10:01:00"));
+            db.record(run("r3", "j1", "SUCCESS", 10, "2026-06-17 10:02:00"));
+            db.record(run("r4", "j1", "SUCCESS", 10, "2026-06-17 10:03:00"));
+            db.record(run("r5", "j1", "SUCCESS", 10, "2026-06-17 10:04:00"));
+
+            List<Map<String, Object>> p1 = db.recentRuns(2, null, null, null);
+            assertEquals(List.of("r5", "r4"), ids(p1), "first page, newest first (null marker = from the top)");
+
+            Map<String, Object> after1 = p1.get(1);
+            List<Map<String, Object>> p2 = db.recentRuns(2, null,
+                    (String) after1.get("startTime"), (String) after1.get("runId"));
+            assertEquals(List.of("r3", "r2"), ids(p2), "resumes strictly after r4 — no overlap");
+
+            Map<String, Object> after2 = p2.get(1);
+            List<Map<String, Object>> p3 = db.recentRuns(2, null,
+                    (String) after2.get("startTime"), (String) after2.get("runId"));
+            assertEquals(List.of("r1"), ids(p3), "final partial page");
+        }
+    }
+
+    @Test
+    void countRunsTotalsAndFiltersByJob() throws Exception {
+        try (DbJobRunStore db = DbJobRunStore.open("jdbc:duckdb:")) {
+            db.record(run("r1", "j1", "SUCCESS", 10, "2026-06-17 10:00:00"));
+            db.record(run("r2", "j1", "FAILED", 10, "2026-06-17 10:01:00"));
+            db.record(run("r3", "j2", "SUCCESS", 10, "2026-06-17 10:02:00"));
+            assertEquals(3, db.countRuns(null));
+            assertEquals(2, db.countRuns("j1"));
+            assertEquals(0, db.countRuns("nope"));
+        }
+    }
+
+    private static List<String> ids(List<Map<String, Object>> rows) {
+        return rows.stream().map(r -> (String) r.get("runId")).toList();
+    }
+
+    @Test
     void failureTrendGroupsByDay() throws Exception {
         try (DbJobRunStore db = DbJobRunStore.open("jdbc:duckdb:")) {
             db.record(run("a1", "j1", "SUCCESS", 10, "2026-06-16 09:00:00"));

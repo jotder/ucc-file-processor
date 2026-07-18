@@ -59,7 +59,7 @@ final class JobRoutes implements RouteModule {
         // T27 job-execution reporting (DuckDB projection; 404 unless -Djobs.backend is set). Fixed
         // sub-paths, registered before the /jobs/{name}/runs regex (single-segment, so no collision).
         api.get("/jobs/metrics", (e, m) -> jobRunStore(api).metrics(ApiContext.query(e, "job")));
-        api.get("/jobs/runs", (e, m) -> jobRunStore(api).recentRuns(ApiContext.parseIntOr(ApiContext.query(e, "limit"), 50), ApiContext.query(e, "job")));
+        api.get("/jobs/runs", (e, m) -> runsPage(api, e));
         api.get("/jobs/failures", (e, m) -> jobRunStore(api).failureTrend(ApiContext.parseIntOr(ApiContext.query(e, "days"), 30)));
         // W5 async: poll one run by id (the id returned by the 202 trigger below). Single-segment after
         // /jobs/runs/, so it never collides with the exact /jobs/runs or the /jobs/{name}/runs history route.
@@ -318,5 +318,36 @@ final class JobRoutes implements RouteModule {
     private DbJobRunStore jobRunStore(ApiContext api) {
         return jobs(api).runStore().orElseThrow(() -> new ApiException(404,
                 "job reporting DB not enabled (set -Djobs.backend=duckdb)"));
+    }
+
+    /**
+     * {@code GET /jobs/runs?limit=&job=&cursor=} — one page of the DuckDB run projection, newest first.
+     * Cursor pagination (api-contract-design §7): the opaque {@code cursor} resumes strictly after the
+     * previous page's last row (keyset {@code (startTime, runId)}), so pages don't drift as new runs land.
+     * Fetches one extra row to know whether a next page exists (⇒ {@code nextCursor}); the v1 envelope's
+     * {@code metadata.pagination} carries {@code cursor/nextCursor/limit/total}. Legacy (unversioned)
+     * callers get the same JSON list as before — the pagination block is v1-only, and an absent cursor +
+     * the default limit reproduce the prior page exactly.
+     */
+    private Object runsPage(ApiContext api, HttpExchange e) {
+        DbJobRunStore store = jobRunStore(api);
+        int limit = Math.max(1, Math.min(500, ApiContext.parseIntOr(ApiContext.query(e, "limit"), 50)));
+        String job = ApiContext.query(e, "job");
+        String cursor = ApiContext.query(e, "cursor");
+        java.util.List<String> key = Cursor.decode(cursor);
+        String afterStart = key.size() == 2 ? key.get(0) : null;
+        String afterRun   = key.size() == 2 ? key.get(1) : null;
+
+        java.util.List<Map<String, Object>> rows = store.recentRuns(limit + 1, job, afterStart, afterRun);
+        boolean hasMore = rows.size() > limit;
+        if (hasMore) rows = new java.util.ArrayList<>(rows.subList(0, limit));
+        String nextCursor = null;
+        if (hasMore && !rows.isEmpty()) {
+            Map<String, Object> last = rows.get(rows.size() - 1);
+            nextCursor = Cursor.encode(java.util.List.of(
+                    String.valueOf(last.get("startTime")), String.valueOf(last.get("runId"))));
+        }
+        ApiContext.pagination(e, cursor, nextCursor, limit, store.countRuns(job));
+        return rows;
     }
 }

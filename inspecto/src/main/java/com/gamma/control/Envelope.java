@@ -33,6 +33,8 @@ final class Envelope {
         if (ex.getAttribute(ApiContext.ATTR_START_NANOS) instanceof Long nanos)
             metadata.put("durationMs", (System.nanoTime() - nanos) / 1_000_000);
         metadata.put("apiVersion", "v1");
+        if (ex.getAttribute(ApiContext.ATTR_PAGINATION) instanceof Map<?, ?> pagination)
+            metadata.put("pagination", pagination);
 
         Map<String, Object> envelope = new LinkedHashMap<>();
         envelope.put("data", body);

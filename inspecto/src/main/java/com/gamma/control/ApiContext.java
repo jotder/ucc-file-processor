@@ -50,6 +50,9 @@ interface ApiContext {
      *  the route via {@link #resourcePermissions}; {@link Envelope} intersects it with the Subject's
      *  session grants. Absent ⇒ the envelope keeps the session-wide array (lists, un-migrated routes). */
     String ATTR_RESOURCE_PERMISSIONS = "inspecto.resourcePermissions";
+    /** Cursor pagination (api-contract-design §7): a list route's paging block, declared via
+     *  {@link #pagination}; {@link Envelope} emits it under {@code metadata.pagination}. Absent ⇒ no block. */
+    String ATTR_PAGINATION = "inspecto.pagination";
 
     /** JSON bodies at or above this size are gzipped when the client sent {@code Accept-Encoding: gzip}. */
     int GZIP_MIN_BYTES = 1024;
@@ -86,6 +89,19 @@ interface ApiContext {
      *  the session-wide array. An affordance signal only — enforcement stays {@link #requireCapability}. */
     static void resourcePermissions(HttpExchange ex, java.util.Set<String> applicable) {
         ex.setAttribute(ATTR_RESOURCE_PERMISSIONS, java.util.Set.copyOf(applicable));
+    }
+
+    /** Declare this list response's cursor-pagination block (api-contract-design §7): {@code cursor}
+     *  echoes the request cursor (null = first page), {@code nextCursor} is the opaque token for the next
+     *  page (null = last page). {@link Envelope} emits it under {@code metadata.pagination} on a v1
+     *  response; a no-op for the legacy (unversioned) view, which stays byte-for-byte unchanged. */
+    static void pagination(HttpExchange ex, String cursor, String nextCursor, int limit, long total) {
+        java.util.Map<String, Object> p = new java.util.LinkedHashMap<>();
+        p.put("cursor", cursor);
+        p.put("nextCursor", nextCursor);
+        p.put("limit", limit);
+        p.put("total", total);
+        ex.setAttribute(ATTR_PAGINATION, p);
     }
 
     /** Wrap {@code h} so it first runs the {@link #requireCapability} gate for {@code capability} — the
