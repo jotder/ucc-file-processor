@@ -793,6 +793,13 @@ public final class JobService implements AutoCloseable {
         return ledger.lastSuccessRunId(name).map(runArtifactStore::read).orElse(List.of());
     }
 
+    /** One named artifact recorded by a specific run (highest seq wins) — backs the artifact content download. */
+    public Optional<RunArtifact> runArtifact(String runId, String name) {
+        RunArtifact hit = null;
+        for (RunArtifact a : runArtifacts(runId)) if (name.equals(a.name())) hit = a;
+        return Optional.ofNullable(hit);
+    }
+
     /** One named artifact from a job's latest successful run (highest seq wins) — the {@code $upstream(...)} lookup (§7.3). */
     private Optional<RunArtifact> upstreamArtifact(String job, String artifact) {
         RunArtifact hit = null;

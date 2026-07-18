@@ -53,7 +53,10 @@ Design of record (all phases + resolved decisions + TOON config gallery):
   signal chaining (chains visible via `correlationId`); a Signal announces, never decides.
 * **Run Log & Run Artifacts** — per-Run structured events, plus artifacts (`dataset`/`file` +
   `ResultSetMeta`) in `job_run_artifacts` beside `DbJobRunStore`; queryable via
-  `GET /jobs/{name}/runs/{runId}/artifacts` / `/jobs/{name}/artifacts/latest` and `$upstream(...)`.
+  `GET /jobs/{name}/runs/{runId}/artifacts` / `/jobs/{name}/artifacts/latest` and `$upstream(...)`. A
+  `file`-kind artifact's bytes download from the sibling `GET /jobs/{name}/runs/{runId}/artifacts/{artifact}/content`
+  (attachment, content-type inferred from the filename; 404 when unknown, not a file, or cleaned up). Report
+  Jobs record their delivered `out_dir` file as a `report` artifact, so a scheduled report is downloadable.
 * **Job Packs** — hot-deployable jars in `-Djobs.packs.dir` (absent ⇒ feature off, fail-closed); watched
   with a settle delay, each pack in its own parent-first `URLClassLoader` with shaded deps.
   `GET /jobs/packs`, `POST /jobs/packs/rescan`. Deferred: in-flight-Run quiesce on pack swap.

@@ -7,6 +7,7 @@ import com.gamma.job.JobConfig;
 import com.gamma.job.JobRun;
 import com.gamma.job.JobService;
 import com.gamma.job.JobTypeDescriptor;
+import com.gamma.job.RunArtifact;
 import com.gamma.util.AtomicFiles;
 import com.sun.net.httpserver.HttpExchange;
 
@@ -15,6 +16,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.LinkedHashMap;
+import java.util.Locale;
 import java.util.Map;
 
 /**
@@ -85,6 +87,10 @@ final class JobRoutes implements RouteModule {
         // collide with the /runs history or /trigger routes under full-match routing.
         api.get("/jobs/([^/]+)/runs/([^/]+)/artifacts", (e, m) -> jobs(api).runArtifacts(ApiContext.param(m, 2)));
         api.get("/jobs/([^/]+)/artifacts/latest", (e, m) -> jobs(api).latestArtifacts(ApiContext.name(m)));
+        // Download the bytes of one file-kind Run Artifact (report CSV/JSON, backup zip, storage report).
+        // Ends in a fixed /content segment so it never collides with the metadata read above.
+        api.get("/jobs/([^/]+)/runs/([^/]+)/artifacts/([^/]+)/content",
+                (e, m) -> downloadArtifact(api, e, ApiContext.param(m, 2), ApiContext.param(m, 3)));
         // Requires canOperateRuns (W6; a no-op on Personal — no Subject is ever attached there).
         api.post("/jobs/([^/]+)/trigger", ApiContext.withCapability("canOperateRuns", (e, m) -> triggerJob(api, e, ApiContext.name(m))));
 
@@ -269,6 +275,41 @@ final class JobRoutes implements RouteModule {
     }
 
     /** The job registry, or a 404 when no jobs are registered on this service. */
+    /**
+     * {@code GET /jobs/{name}/runs/{runId}/artifacts/{artifact}/content} — download the bytes of a
+     * {@code kind:"file"} Run Artifact recorded by that run. Read-only, no capability gate (like the
+     * artifact-metadata reads). 404 when the run recorded no such named file artifact, when the artifact
+     * is a dataset (not a downloadable file), or when the recorded file has since been moved/cleaned up.
+     * The recorded {@code ref} path is job-authored (not request-supplied), so there is no jail to apply.
+     */
+    private Object downloadArtifact(ApiContext api, HttpExchange e, String runId, String artifact) throws IOException {
+        RunArtifact a = jobs(api).runArtifact(runId, artifact)
+                .orElseThrow(() -> new ApiException(404, "no artifact '" + artifact + "' recorded by run '" + runId + "'"));
+        if (!"file".equals(a.kind()))
+            throw new ApiException(404, "artifact '" + artifact + "' is a " + a.kind() + ", not a downloadable file");
+        Path file = Path.of(a.ref());
+        if (!Files.isRegularFile(file))
+            throw new ApiException(404, "artifact '" + artifact + "' is no longer available on disk");
+        byte[] bytes = Files.readAllBytes(file);
+        String filename = file.getFileName().toString();
+        e.getResponseHeaders().set("Content-Type", artifactContentType(filename));
+        e.getResponseHeaders().set("Content-Disposition", "attachment; filename=\"" + filename + "\"");
+        e.sendResponseHeaders(200, bytes.length);
+        e.getResponseBody().write(bytes);
+        return ApiContext.HANDLED;
+    }
+
+    /** Infer a response Content-Type from an artifact's filename extension (RunArtifact records none). */
+    private static String artifactContentType(String filename) {
+        String n = filename.toLowerCase(Locale.ROOT);
+        if (n.endsWith(".csv")) return "text/csv";
+        if (n.endsWith(".json")) return "application/json";
+        if (n.endsWith(".txt")) return "text/plain";
+        if (n.endsWith(".zip")) return "application/zip";
+        if (n.endsWith(".parquet")) return "application/vnd.apache.parquet";
+        return "application/octet-stream";
+    }
+
     private JobService jobs(ApiContext api) {
         return api.service().jobService().orElseThrow(() -> new ApiException(404, "no jobs registered"));
     }

@@ -72,6 +72,15 @@ final class ReportJob implements Job {
 
     @Override
     public JobResult run() throws Exception {
+        return execute(null);   // legacy no-ctx path — no Run Artifact recorder available
+    }
+
+    @Override
+    public JobResult run(JobContext ctx) throws Exception {
+        return execute(ctx.artifacts());   // JobService invokes this — records the delivered file (R7)
+    }
+
+    private JobResult execute(ArtifactRecorder artifacts) throws Exception {
         String scope = cfg.opt("scope", "status").toLowerCase();
         long t0 = System.nanoTime();
 
@@ -93,14 +102,19 @@ final class ReportJob implements Job {
         line.put("report", report);
         events.info(JSON.writeValueAsString(line));
 
-        String delivered = deliver(scope, report, rows);
+        String delivered = deliver(scope, report, rows, artifacts);
         long ms = (System.nanoTime() - t0) / 1_000_000L;
         return JobResult.ok("report '" + scope + "' emitted to inspecto.events"
                 + (delivered != null ? " and delivered to " + delivered : ""), ms);
     }
 
-    /** Render + write the artifact when {@code out_dir} is set, emit REPORT_READY; returns the path or null. */
-    private String deliver(String scope, Object report, List<Map<String, Object>> rows) throws Exception {
+    /**
+     * Render + write the artifact when {@code out_dir} is set, record it as a {@code file} Run Artifact
+     * (when a recorder is present, so {@code GET /jobs/{name}/runs/{runId}/artifacts/report/content} can
+     * serve it), emit REPORT_READY; returns the path or null.
+     */
+    private String deliver(String scope, Object report, List<Map<String, Object>> rows, ArtifactRecorder artifacts)
+            throws Exception {
         String outDir = cfg.opt("out_dir", null);
         if (outDir == null) return null;
         String format = cfg.opt("format", rows != null ? "csv" : "json").toLowerCase();
@@ -115,6 +129,7 @@ final class ReportJob implements Job {
         } else {
             Files.writeString(artifact, JSON.writerWithDefaultPrettyPrinter().writeValueAsString(report));
         }
+        if (artifacts != null) artifacts.file("report", artifact, Files.size(artifact));
         int rowCount = rows != null ? rows.size() : -1;
         EventLog.current().emit(Event.builder(EventType.REPORT_READY)
                 .source(ReportJob.class.getName())
