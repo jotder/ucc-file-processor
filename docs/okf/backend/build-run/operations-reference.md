@@ -558,8 +558,11 @@ curl -s -H "Authorization: Bearer secret" -X POST localhost:8080/objects/<id>/re
 
 > **Future / distributed:** like the status backend, point `-Dobjects.db.url` at
 > `jdbc:postgresql://host:5432/inspecto` (with `-Dobjects.db.user`/`.password` and the PostgreSQL
-> JDBC driver on the classpath) for a multi-writer deployment. The default lifecycle can be
-> overridden with a `*_workflow.toon`.
+> JDBC driver on the classpath) for a multi-writer deployment. The default lifecycle for any
+> `ObjectType` can be overridden by dropping a `*_workflow.toon` (a `workflow { object_type, initial,
+> terminal[], transitions[]{from,to,action} }` block) into the space's config dir: `ServiceBootstrap`
+> scans them at boot and installs each via `ObjectService.registerWorkflow`, so `GET /workflows/{type}`
+> then serves the authored machine (last file wins per type; a malformed one is warned and skipped).
 
 ### Issue Tracker (Phase 3) — operator-created issues + SLA tracking
 

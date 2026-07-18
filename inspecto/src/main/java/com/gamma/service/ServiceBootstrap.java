@@ -85,6 +85,10 @@ final class ServiceBootstrap {
             svc.objects().registerTagRule(r);
         for (com.gamma.ops.tag.CaseRule r : loadCaseRules(resolveBySuffix(paths, "_caserule.toon")))
             svc.objects().registerCaseRule(r);
+        // Workflow overrides (case-management-design §Workflow): a *_workflow.toon replaces the built-in
+        // Workflow.defaultFor(type) state machine that GET /workflows/{type} serves. Last file wins per type.
+        for (com.gamma.ops.workflow.Workflow w : loadWorkflows(resolveBySuffix(paths, "_workflow.toon")))
+            svc.objects().registerWorkflow(w);
         return svc;
     }
 
@@ -236,6 +240,22 @@ final class ServiceBootstrap {
                 log.info("Loaded case rule '{}' (raises \"{}\") from {}", r.name(), r.title(), p);
             } catch (Exception e) {
                 log.warn("Could not load case rule {}: {}", p, e.getMessage());
+            }
+        }
+        return out;
+    }
+
+    /** Load each {@code *_workflow.toon} override; a bad one is warned and skipped (others still register). */
+    static List<com.gamma.ops.workflow.Workflow> loadWorkflows(List<Path> paths) {
+        List<com.gamma.ops.workflow.Workflow> out = new ArrayList<>();
+        for (Path p : paths) {
+            try {
+                com.gamma.ops.workflow.Workflow w = com.gamma.ops.workflow.Workflow.load(p);
+                out.add(w);
+                log.info("Loaded workflow override for {} (initial={}, {} transition(s)) from {}",
+                        w.objectType(), w.initialState(), w.transitions().size(), p);
+            } catch (Exception e) {
+                log.warn("Could not load workflow {}: {}", p, e.getMessage());
             }
         }
         return out;

@@ -114,6 +114,17 @@ public final class ObjectService {
     }
 
     /**
+     * Install (create or replace) the workflow for an {@link ObjectType} — the boot-time seam for
+     * {@code *_workflow.toon} overrides ({@link com.gamma.service.ServiceBootstrap} scans them and calls
+     * this after construction, the same post-construction pattern as {@link #registerTag}/
+     * {@link #registerCaseRule}). Replaces the built-in {@link Workflow#defaultFor default} baked in by
+     * the constructor; last registration for a given type wins.
+     */
+    public void registerWorkflow(Workflow workflow) {
+        workflows.put(workflow.objectType(), workflow);
+    }
+
+    /**
      * Open a new object in its workflow's initial state, persist it, and emit an
      * {@link EventType#OBJECT_OPENED} event. Convenience overload with no ownership/priority (used by
      * the auto-promoting {@link com.gamma.alert.AlertService}).
