@@ -7,6 +7,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -69,6 +70,42 @@ class AlertRuleTest {
         assertNull(r.onPipeline(), "absent onPipeline means every pipeline");
         assertTrue(r.breached(0.06));
         assertFalse(r.breached(0.05), "gt is strict");
+    }
+
+    // ── row-scoping 'when' (Rules triad condition-tree promotion, 2026-07-18) ──────
+
+    private static Map<String, Object> conditionTree() {
+        return Map.of("kind", "group", "op", "AND", "items", List.of(
+                Map.of("kind", "condition", "field", "status", "operator", "=", "value", "FAILED")));
+    }
+
+    @Test
+    void whenIsAcceptedOnALedgerMetricRule() {
+        Map<String, Object> m = valid();
+        m.put("when", conditionTree());
+        AlertRule r = AlertRule.fromMap(m);
+        assertEquals(conditionTree(), r.when());
+    }
+
+    @Test
+    void whenIsRejectedOnAMeasureRule() {
+        Map<String, Object> m = new HashMap<>();
+        m.put("name", "low-revenue");
+        m.put("dataset", "sales_ds");
+        m.put("measure", "sum(amount)");
+        m.put("comparator", "lt");
+        m.put("threshold", 1000);
+        m.put("severity", "WARNING");
+        m.put("when", conditionTree());
+        assertThrows(IllegalArgumentException.class, () -> AlertRule.fromMap(m),
+                "a measure alert has no ledger rows to scope");
+    }
+
+    @Test
+    void emptyWhenNormalizesToNull() {
+        Map<String, Object> m = valid();
+        m.put("when", Map.of());
+        assertNull(AlertRule.fromMap(m).when(), "an empty tree carries no constraint — stored as absent");
     }
 
     @Test

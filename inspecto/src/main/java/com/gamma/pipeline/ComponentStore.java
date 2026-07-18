@@ -56,7 +56,10 @@ public final class ComponentStore {
                     "reconciliation",
                     // Lens access config (docs/superpower/lens-access-config-design.md — AccessRoutes):
                     // the Access Catalog (singleton id "catalog") + one Access Profile per subject.
-                    "access-catalog", "access-profile");
+                    "access-catalog", "access-profile",
+                    // Alert Rule (the alerting third of the Rules triad — AlertRoutes), promoted off raw
+                    // *_alert.toon files 2026-07-18 to the same CRUD contract as Expectation/Decision Rule.
+                    "alert-rule");
 
     private static final String TOON = ".toon";
     private static final Pattern SAFE_ID = Pattern.compile("[A-Za-z0-9][A-Za-z0-9._-]*");

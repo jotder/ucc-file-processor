@@ -58,7 +58,7 @@ final class ServiceBootstrap {
                 loadJobTemplates(resolveBySuffix(paths, "_job_template.toon"));
         List<JobConfig> jobConfigs = loadJobs(resolveBySuffix(paths, "_job.toon"), templates);
         List<SemanticModel> semantics = loadSemantics(resolveBySuffix(paths, "_meta.toon"));
-        List<com.gamma.alert.AlertRule> alertRules = loadAlerts(resolveBySuffix(paths, "_alert.toon"));
+        List<com.gamma.alert.AlertRule> alertRules = loadAlerts(root);
         if (registry.isEmpty() && enrichJobs.isEmpty() && jobConfigs.isEmpty() && exitIfEmpty) {
             System.err.println("No *_pipeline.toon / *_enrich.toon / *_job.toon files found in: "
                     + String.join(", ", paths));
@@ -134,20 +134,35 @@ final class ServiceBootstrap {
         return models;
     }
 
-    /** Load each {@code *_alert.toon}; a bad one is warned and skipped (others still arm). */
-    private static List<com.gamma.alert.AlertRule> loadAlerts(List<Path> paths) {
+    /**
+     * Load {@code alert-rule} components from the space's registry ({@code root.config()/registry},
+     * falling back to the legacy {@code -Dassist.write.root/registry} the same way
+     * {@code DecisionRules.forPipeline} does — the boot-time read must agree with where
+     * {@code AlertRoutes}' CRUD writes, via {@code ApiContext.writeRoot()}, for a restart to
+     * re-arm what was authored). A bad component is warned and skipped (others still arm).
+     */
+    private static List<com.gamma.alert.AlertRule> loadAlerts(SpaceRoot root) {
+        Path registryRoot = root.config() != null ? root.config().resolve("registry") : legacyRegistryRoot();
+        if (registryRoot == null || !Files.isDirectory(registryRoot)) return List.of();
         List<com.gamma.alert.AlertRule> rules = new ArrayList<>();
-        for (Path p : paths) {
+        for (com.gamma.pipeline.ComponentRegistry.Component c :
+                new com.gamma.pipeline.ComponentStore(registryRoot).list("alert-rule")) {
             try {
-                com.gamma.alert.AlertRule r = com.gamma.alert.AlertRule.load(p);
+                com.gamma.alert.AlertRule r = com.gamma.alert.AlertRule.fromMap(c.content());
                 rules.add(r);
-                log.info("Armed alert rule '{}' ({} {} {} over {}) from {}",
-                        r.name(), r.metric(), r.comparator(), r.threshold(), r.window(), p);
+                log.info("Armed alert rule '{}' ({} {} {} over {}) from the registry",
+                        r.name(), r.metric(), r.comparator(), r.threshold(), r.window());
             } catch (Exception e) {
-                log.warn("Could not load alert rule {}: {}", p, e.getMessage());
+                log.warn("Could not load alert rule '{}': {}", c.name(), e.getMessage());
             }
         }
         return rules;
+    }
+
+    /** The legacy/default space's registry root — {@code -Dassist.write.root/registry}, or {@code null}. */
+    private static Path legacyRegistryRoot() {
+        String wr = System.getProperty("assist.write.root");
+        return (wr == null || wr.isBlank()) ? null : Path.of(wr.trim()).resolve("registry");
     }
 
     /** Load each {@code *_rca.toon} (Phase 4); a bad one is warned and skipped (others still register). */

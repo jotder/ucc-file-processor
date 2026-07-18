@@ -171,4 +171,19 @@ class ConditionTreeTest {
         for (int i = 0; i < kv.length; i += 2) m.put((String) kv[i], kv[i + 1]);
         return m;
     }
+
+    // ── filter (the row-level counterpart of matched, used by AlertService's 'when') ──
+
+    @Test
+    void filterReturnsTheMatchingRowsThemselves() {
+        List<Map<String, Object>> rows = List.of(
+                row("region", "APAC", "cost", 9200),
+                row("region", "EU", "cost", 50),
+                row("region", "US", "cost", 5000));
+        List<Map<String, Object>> matched = ConditionTree.filter(group("AND", cond("cost", ">=", "5000")), rows);
+        assertEquals(2, matched.size());
+        assertEquals(List.of("APAC", "US"), matched.stream().map(r -> r.get("region")).toList());
+        assertEquals(matched.size(), ConditionTree.matched(group("AND", cond("cost", ">=", "5000")), rows),
+                "matched stays a pure count over the same filter");
+    }
 }

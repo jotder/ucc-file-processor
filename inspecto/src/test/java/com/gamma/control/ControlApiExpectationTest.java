@@ -124,6 +124,41 @@ class ControlApiExpectationTest {
         }
     }
 
+    // ── 'condition' kind: an arbitrary when tree as the violation predicate (2026-07-18) ──
+
+    @Test
+    void conditionKindUsesAConditionTreeAsTheViolationPredicate(@TempDir Path cfg, @TempDir Path wr)
+            throws Exception {
+        String target = "orders_" + System.nanoTime();
+        seedParquet(target, "SELECT * FROM (VALUES "
+                + "(1,'a@x.com',10.0),(2,NULL,20.0),(3,'c@x.com',999.0),(4,'d@x.com',50.0)"
+                + ") t(id,email,amount)");
+        try (Ctx c = open(cfg, wr)) {
+            // violation predicate: email IS NULL OR amount > 500 — matches rows 2 and 3
+            String body = "{\"name\":\"cond\",\"target\":\"" + target + "\",\"kind\":\"condition\","
+                    + "\"when\":{\"kind\":\"group\",\"op\":\"OR\",\"items\":["
+                    + "{\"kind\":\"condition\",\"field\":\"email\",\"operator\":\"isNull\"},"
+                    + "{\"kind\":\"condition\",\"field\":\"amount\",\"operator\":\">\",\"value\":\"500\"}]}}";
+            JsonNode created = json(send(c.port, "POST", "/expectations", body));
+            assertEquals("condition", created.get("kind").asText());
+            assertTrue(created.get("column").isNull(), "condition kind needs no column");
+
+            JsonNode result = json(send(c.port, "POST", "/expectations/cond/evaluate", null)).get("lastResult");
+            assertEquals("FAILED", result.get("status").asText());
+            assertEquals(2, result.get("violations").asLong());
+        } finally {
+            cleanup(target);
+        }
+    }
+
+    @Test
+    void conditionKindWithoutWhenRejected(@TempDir Path cfg, @TempDir Path wr) throws Exception {
+        try (Ctx c = open(cfg, wr)) {
+            assertEquals(422, send(c.port, "POST", "/expectations",
+                    "{\"name\":\"bad\",\"target\":\"orders\",\"kind\":\"condition\"}").statusCode());
+        }
+    }
+
     // ── failure consequence chain: deduped Incident ────────────────────────────────
 
     @Test

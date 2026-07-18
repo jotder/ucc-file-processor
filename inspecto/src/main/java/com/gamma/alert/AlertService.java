@@ -175,6 +175,7 @@ public final class AlertService {
                 if (rule.onPipeline() != null && !matches(rule.onPipeline(), display, id)) continue;
                 if (ledger == null) ledger = status.batches(cfg);   // one read per pipeline pass
                 List<Map<String, String>> rows = inWindow(rule, ledger, nowMs);
+                if (rule.when() != null) rows = filterByWhen(rule.when(), rows);
                 if (rows.isEmpty()) continue;
                 double value = metricValue(rule.metric(), rows);
                 if (!rule.breached(value)) continue;
@@ -261,6 +262,19 @@ public final class AlertService {
             }
             default -> 0.0;
         };
+    }
+
+    /**
+     * Restrict {@code rows} to the ones matching the rule's {@code when} condition tree, via
+     * {@link com.gamma.query.ConditionTree#filter} — the same evaluator Decision Rules use, so a
+     * ledger row's fields ({@code status}, {@code duration_ms}, {@code rejected_count}, …) are
+     * scoped identically to how the authoring UI would preview them.
+     */
+    @SuppressWarnings("unchecked")
+    private static List<Map<String, String>> filterByWhen(Object when, List<Map<String, String>> rows) {
+        List<Map<String, Object>> asObj = (List<Map<String, Object>>) (List<?>) rows;
+        List<Map<String, Object>> matched = com.gamma.query.ConditionTree.filter(when, asObj);
+        return (List<Map<String, String>>) (List<?>) matched;
     }
 
     /** The ledger rows the rule's window selects: last-N batches, or rows newer than now - span. */

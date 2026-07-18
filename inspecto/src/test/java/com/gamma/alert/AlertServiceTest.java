@@ -128,4 +128,42 @@ class AlertServiceTest {
         assertEquals("r-duration_ms", fired.get(0).get("rule"));
         assertTrue(((String) fired.get(0).get("message")).contains("duration_ms"));
     }
+
+    // ── row-scoping 'when' (Rules triad condition-tree promotion, 2026-07-18) ──────
+
+    private static Map<String, Object> when(String field, String operator, String value) {
+        return Map.of("kind", "group", "op", "AND", "items", List.of(
+                Map.of("kind", "condition", "field", field, "operator", operator, "value", value)));
+    }
+
+    @Test
+    void whenScopesTheLedgerRowsTheMetricSees(@TempDir Path dir) throws Exception {
+        PipelineConfig cfg = PipelineConfig.load(PipelineConfigBatchTest.writePipeline(dir, "").toString());
+        LocalDateTime now = LocalDateTime.now();
+        // Two batches in-window: one heavily rejected, one clean. duration_ms scoped to rejected>0
+        // rows only should see just the first (10_000ms), not the average of both (6_000ms).
+        List<Map<String, String>> ledger = List.of(
+                row("SUCCESS", 10, 10, 5, 10_000, now.minusMinutes(2)),
+                row("SUCCESS", 10, 10, 0, 2_000, now.minusMinutes(1)));
+
+        AlertRule scoped = new AlertRule("r-scoped", "duration_ms", "gte", 9_000, "1h", "WARNING", null,
+                null, null, when("rejected_count", ">", "0"));
+        AlertService svc = new AlertService(List.of(scoped), configs(cfg), store(ledger));
+
+        List<Map<String, Object>> fired = svc.evaluateAll();
+        assertEquals(1, fired.size(), "scoped to the one rejected-row batch, avg=10000 >= 9000 fires");
+        assertEquals(10_000.0, (double) fired.get(0).get("value"), 1e-9);
+    }
+
+    @Test
+    void whenScopingToNoMatchingRowsDoesNotFire(@TempDir Path dir) throws Exception {
+        PipelineConfig cfg = PipelineConfig.load(PipelineConfigBatchTest.writePipeline(dir, "").toString());
+        List<Map<String, String>> ledger = List.of(
+                row("SUCCESS", 10, 10, 0, 10_000, LocalDateTime.now().minusMinutes(1)));
+        AlertRule scoped = new AlertRule("r-scoped", "duration_ms", "gte", 1, "1h", "WARNING", null,
+                null, null, when("rejected_count", ">", "0"));
+        AlertService svc = new AlertService(List.of(scoped), configs(cfg), store(ledger));
+
+        assertEquals(0, svc.evaluateAll().size(), "no ledger row matches 'when' — nothing to breach");
+    }
 }

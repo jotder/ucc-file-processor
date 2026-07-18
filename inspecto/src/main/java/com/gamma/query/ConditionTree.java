@@ -4,6 +4,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -42,11 +43,20 @@ public final class ConditionTree {
      * {@code matchGroup}'s "no constraint ⇒ true"). Column types are inferred from {@code rows}.
      */
     public static int matched(Object when, List<Map<String, Object>> rows) {
-        if (rows == null || rows.isEmpty()) return 0;
+        return filter(when, rows).size();
+    }
+
+    /**
+     * The subset of {@code rows} satisfying the {@code when} tree, in their original order — the
+     * row-level analogue of {@link #matched}, used where the matching rows themselves are needed
+     * (e.g. an Alert Rule's {@code when} pre-filter over ledger rows) rather than just a count.
+     */
+    public static List<Map<String, Object>> filter(Object when, List<Map<String, Object>> rows) {
+        if (rows == null || rows.isEmpty()) return List.of();
         Map<String, ColType> types = inferColumns(rows);
-        int n = 0;
-        for (Map<String, Object> row : rows) if (matchGroup(when, row, types)) n++;
-        return n;
+        List<Map<String, Object>> out = new ArrayList<>();
+        for (Map<String, Object> row : rows) if (matchGroup(when, row, types)) out.add(row);
+        return out;
     }
 
     // ── tree walk (port of matchGroup / matchCondition / isComplete) ────────────────

@@ -54,8 +54,16 @@ public final class ExpectationEvaluator {
     /** Build the trusted {@code SELECT count(*) … WHERE <violation predicate>} for the expectation's kind. */
     static String countSql(Expectation exp, Path dataRoot) {
         String relation = parquetGlob(dataRoot, exp.target());
+        // 'condition' names its own field(s) in the tree; every other kind checks exp.column().
+        String predicate = "condition".equals(exp.kind())
+                ? com.gamma.query.ConditionSql.predicate(exp.when())
+                : columnPredicate(exp, dataRoot);
+        return "SELECT count(*) FROM " + relation + " AS __t WHERE " + predicate;
+    }
+
+    private static String columnPredicate(Expectation exp, Path dataRoot) {
         String col = quote(ident(exp.column()));
-        String predicate = switch (exp.kind()) {
+        return switch (exp.kind()) {
             case "non_null" -> col + " IS NULL";
             case "range" -> rangePredicate(exp, col);
             case "regex" -> col + " IS NOT NULL AND NOT regexp_matches(CAST(" + col + " AS VARCHAR), "
@@ -65,7 +73,6 @@ public final class ExpectationEvaluator {
                     + parquetGlob(dataRoot, exp.refDataset()) + ")";
             default -> throw new IllegalArgumentException("unsupported expectation kind '" + exp.kind() + "'");
         };
-        return "SELECT count(*) FROM " + relation + " AS __t WHERE " + predicate;
     }
 
     private static String rangePredicate(Expectation exp, String col) {

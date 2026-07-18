@@ -18,22 +18,31 @@ import java.util.Set;
  * server-built violation-count SQL.
  *
  * <pre>
- *   kind         non_null | range | regex | referential
+ *   kind         non_null | range | regex | referential | condition
  *   targetType   pipeline | job                 # the target's at-rest data is queried
  *   target       &lt;name&gt;                        # physicalRef under the space data root
- *   column       &lt;identifier&gt;                  # the column the check applies to
+ *   column       &lt;identifier&gt;                  # the column the check applies to (not 'condition')
  *   min,max      &lt;number&gt;                       # range bounds (at least one)
  *   pattern      &lt;regex&gt;                        # regex the value must match
  *   refDataset,refColumn                         # referential lookup relation + column
+ *   when         &lt;condition tree&gt;               # 'condition' kind: the violation predicate itself
  *   severity     MINOR | MAJOR | CRITICAL        # incident/signal severity on failure
  *   enabled      bool                            # evaluate-all skips disabled expectations
  * </pre>
+ *
+ * <p><b>{@code condition} kind (Rules triad condition-tree promotion, 2026-07-18)</b> — the author
+ * writes an arbitrary {@code when} condition tree (the same {@code query-types} shape Decision Rules
+ * author); {@link com.gamma.query.ConditionSql} compiles it straight to the violation predicate, so
+ * unlike the other four kinds it needs no {@code column} — the tree names its own field(s), and can
+ * span several columns or use any {@code query-types} operator {@code non_null}/{@code range} can't
+ * (e.g. {@code contains}, multi-column {@code AND}/{@code OR}). {@code when} is required for this
+ * kind and ignored for the other four (each keeps its own hand-built predicate).
  */
 public record Expectation(String name, String description, String targetType, String target, String column,
                           String kind, Double min, Double max, String pattern,
-                          String refDataset, String refColumn, String severity, boolean enabled) {
+                          String refDataset, String refColumn, Object when, String severity, boolean enabled) {
 
-    public static final Set<String> KINDS = Set.of("non_null", "range", "regex", "referential");
+    public static final Set<String> KINDS = Set.of("non_null", "range", "regex", "referential", "condition");
     public static final Set<String> TARGET_TYPES = Set.of("pipeline", "job");
     public static final Set<String> SEVERITIES = Set.of("MINOR", "MAJOR", "CRITICAL");
 
@@ -44,14 +53,17 @@ public record Expectation(String name, String description, String targetType, St
         targetType = targetType == null ? "pipeline" : targetType.trim().toLowerCase(Locale.ROOT);
         require(TARGET_TYPES.contains(targetType), "expectation.targetType must be one of " + TARGET_TYPES);
         require(target != null && !target.isBlank(), "expectation.target is required");
-        require(column != null && !column.isBlank(), "expectation.column is required");
+        boolean isCondition = "condition".equals(kind);
+        require(isCondition || (column != null && !column.isBlank()),
+                "expectation.column is required (except for kind: condition)");
         target = target.trim();
-        column = column.trim();
+        column = column == null ? null : column.trim();
         severity = severity == null ? "MAJOR" : severity.trim().toUpperCase(Locale.ROOT);
         require(SEVERITIES.contains(severity), "expectation.severity must be one of " + SEVERITIES);
         pattern = blankToNull(pattern);
         refDataset = blankToNull(refDataset);
         refColumn = blankToNull(refColumn);
+        when = (when instanceof Map<?, ?> m && !m.isEmpty()) ? when : null;
 
         switch (kind) {
             case "range" -> require(min != null || max != null,
@@ -59,6 +71,7 @@ public record Expectation(String name, String description, String targetType, St
             case "regex" -> require(pattern != null, "expectation.regex needs a pattern");
             case "referential" -> require(refDataset != null && refColumn != null,
                     "expectation.referential needs refDataset and refColumn");
+            case "condition" -> require(when != null, "expectation.condition needs a 'when' condition tree");
             default -> { /* non_null carries no extra params */ }
         }
     }
@@ -78,6 +91,7 @@ public record Expectation(String name, String description, String targetType, St
                 str(m.get("pattern")),
                 str(m.get("refDataset")),
                 str(m.get("refColumn")),
+                m.get("when"),
                 str(m.get("severity")),
                 m.get("enabled") == null || !"false".equalsIgnoreCase(String.valueOf(m.get("enabled"))));
     }
@@ -96,6 +110,7 @@ public record Expectation(String name, String description, String targetType, St
         m.put("pattern", pattern);
         m.put("refDataset", refDataset);
         m.put("refColumn", refColumn);
+        if (when != null) m.put("when", when);
         m.put("severity", severity);
         m.put("enabled", enabled);
         return m;

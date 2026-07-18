@@ -116,7 +116,6 @@ public final class BundleExporter {
         if (n.endsWith("_job.toon"))         return "job";
         if (n.endsWith("_meta.toon"))        return "meta";
         if (n.endsWith("_enrich.toon"))      return "enrich";
-        if (n.endsWith("_alert.toon"))       return "alert";
         if (n.endsWith("_rca.toon"))         return "rca";
         if (n.endsWith(".grammar.toon"))     return "grammar";
         if (n.endsWith("_schema.toon"))      return "schema";

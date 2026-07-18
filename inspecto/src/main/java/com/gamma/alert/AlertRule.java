@@ -11,9 +11,10 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * One executable alert rule, loaded from a {@code *_alert.toon} (v4.1, B5 — the execution half of
- * the agent's draft-only {@code diagnose-and-alert} skill; the operator saving the reviewed draft is
- * what arms it).
+ * One executable alert rule (v4.1, B5 — the execution half of the agent's draft-only
+ * {@code diagnose-and-alert} skill; the operator saving the reviewed draft is what arms it),
+ * authored via {@code /alerts/rules*} and persisted as an {@code alert-rule} component under
+ * {@code <write-root>/registry} (2026-07-18 — the same CRUD contract as Expectation/Decision Rule).
  *
  * <pre>
  *   alert {
@@ -41,6 +42,13 @@ import java.util.Set;
  *   }
  * </pre>
  *
+ * <p><b>Row-scoping {@code when} (Rules triad condition-tree promotion, 2026-07-18)</b> — a ledger-metric
+ * rule may add a {@code when} condition tree (the same {@code query-types} shape Decision Rules author),
+ * restricting the metric math to ledger rows matching it (e.g. only batches tagged a particular way).
+ * Evaluated in-JVM via {@link com.gamma.query.ConditionTree#filter} before {@link #breached}; applied
+ * after the window selects rows, before the metric aggregates them. Not applicable to a measure rule
+ * (no ledger rows to scope).
+ *
  * <h3>Metric semantics (over the batches ledger, within the window)</h3>
  * <ul>
  *   <li>{@code error_rate} — {@code 1 - sum(total_output_rows)/sum(total_input_rows)} (0 when no input)</li>
@@ -51,7 +59,7 @@ import java.util.Set;
  */
 public record AlertRule(String name, String metric, String comparator, double threshold,
                         String window, String severity, String onPipeline,
-                        String dataset, String measure) {
+                        String dataset, String measure, Object when) {
 
     public static final Set<String> METRICS =
             Set.of("error_rate", "failed_batches", "rejected_files", "duration_ms");
@@ -61,7 +69,14 @@ public record AlertRule(String name, String metric, String comparator, double th
     /** The historic ledger-metric rule shape (every pre-BI-5 caller). */
     public AlertRule(String name, String metric, String comparator, double threshold,
                      String window, String severity, String onPipeline) {
-        this(name, metric, comparator, threshold, window, severity, onPipeline, null, null);
+        this(name, metric, comparator, threshold, window, severity, onPipeline, null, null, null);
+    }
+
+    /** The BI-5 measure-rule shape (every pre-{@code when} caller). */
+    public AlertRule(String name, String metric, String comparator, double threshold,
+                     String window, String severity, String onPipeline,
+                     String dataset, String measure) {
+        this(name, metric, comparator, threshold, window, severity, onPipeline, dataset, measure, null);
     }
 
     public AlertRule {
@@ -72,10 +87,12 @@ public record AlertRule(String name, String metric, String comparator, double th
         window = window == null ? null : window.trim().toLowerCase(Locale.ROOT);
         dataset = (dataset == null || dataset.isBlank()) ? null : dataset.trim();
         measure = (measure == null || measure.isBlank()) ? null : measure.trim();
+        when = (when instanceof Map<?, ?> m && !m.isEmpty()) ? when : null;
         if (dataset != null) {
             // Measure rule (BI-5): a scalar Measure over a Dataset; the ledger window does not apply.
             require(metric == null, "a measure alert (dataset:) must not also declare a ledger metric");
             require(window == null, "a measure alert (dataset:) takes no window (it reads current data)");
+            require(when == null, "alert.when scopes ledger rows; a measure alert (dataset:) has none");
             require(com.gamma.query.DatasetMeasureProbe.validMeasure(measure),
                     "alert.measure must be count or agg(field) with agg ∈ count/countDistinct/sum/avg/min/max");
         } else {
@@ -94,7 +111,8 @@ public record AlertRule(String name, String metric, String comparator, double th
         return dataset != null;
     }
 
-    /** Parse + validate from the decoded {@code alert { … }} map. */
+    /** Parse + validate from the decoded {@code alert { … }} map (or, since the ComponentStore
+     *  promotion, a stored {@code alert-rule} component's content — same flat shape, no wrapper). */
     public static AlertRule fromMap(Map<String, Object> alert) {
         require(alert != null, "missing 'alert' block");
         return new AlertRule(
@@ -106,10 +124,16 @@ public record AlertRule(String name, String metric, String comparator, double th
                 str(alert.get("severity")),
                 str(alert.get("onPipeline")),
                 str(alert.get("dataset")),
-                str(alert.get("measure")));
+                str(alert.get("measure")),
+                alert.get("when"));
     }
 
-    /** Load a {@code *_alert.toon}. */
+    /**
+     * Load a raw {@code {alert: {…}}} TOON file — the agent's {@code diagnose-and-alert} draft shape
+     * ({@link com.gamma.assist.Diagnosis#suggestedAlertRuleToon}) and a generic repo-hygiene sanity
+     * check ({@code RepoSpacesConfigValidationTest}) still parse this shape directly; the running
+     * engine itself no longer boot-scans for it (rules are ComponentStore-backed — see the class doc).
+     */
     @SuppressWarnings("unchecked")
     public static AlertRule load(Path path) throws IOException {
         Map<String, Object> root = ConfigCodec.toMap(Files.readString(path));
@@ -163,6 +187,7 @@ public record AlertRule(String name, String metric, String comparator, double th
         if (window != null) m.put("window", window);
         m.put("severity", severity);
         if (onPipeline != null) m.put("onPipeline", onPipeline);
+        if (when != null) m.put("when", when);
         return m;
     }
 

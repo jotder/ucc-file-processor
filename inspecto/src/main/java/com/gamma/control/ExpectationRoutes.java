@@ -162,13 +162,14 @@ final class ExpectationRoutes implements RouteModule {
             if (open) return;   // one Incident already tracks this expectation's breach
 
             String title = "Expectation failed: " + exp.name();
-            String description = exp.kind() + " check on " + exp.targetType() + " \"" + exp.target()
-                    + "\" column \"" + exp.column() + "\" — " + violations + " violating record(s).";
+            String description = exp.kind() + " check on " + exp.targetType() + " \"" + exp.target() + "\""
+                    + (exp.column() != null ? " column \"" + exp.column() + "\"" : "")
+                    + " — " + violations + " violating record(s).";
             Map<String, String> attrs = new LinkedHashMap<>();
             attrs.put("expectation", exp.name());
             attrs.put("kind", exp.kind());
             attrs.put("target", exp.target());
-            attrs.put("column", exp.column());
+            if (exp.column() != null) attrs.put("column", exp.column());
             attrs.put("violations", String.valueOf(violations));
             api.service().objects().open(ObjectType.INCIDENT, title, description, exp.severity(),
                     correlationId, attrs);
