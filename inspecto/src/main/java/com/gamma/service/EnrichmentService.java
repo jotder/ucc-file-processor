@@ -176,7 +176,8 @@ public final class EnrichmentService implements AutoCloseable {
         String startTime = EnrichmentAuditWriter.now();
         long startNanos = System.nanoTime();
         try {
-            EnrichmentEngine.Result res = EnrichmentEngine.runResult(job, filter, pipelines.get());
+            EnrichmentEngine.Result res = EnrichmentEngine.runResult(job, filter, pipelines.get(),
+                    List.of(), runId);
             List<PartitionOutput> outs = res.outputs();
             List<String> parts = outs.stream().map(PartitionOutput::partition).distinct().toList();
             long durationMs = (System.nanoTime() - startNanos) / 1_000_000L;

@@ -2,7 +2,10 @@ package com.gamma.enrich;
 
 import com.gamma.etl.PartitionOutput;
 import com.gamma.etl.PipelineConfig;
+import com.gamma.pipeline.ComponentStore;
+import com.gamma.pipeline.DecisionRules;
 import com.gamma.util.DuckDbUtil;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -308,5 +311,101 @@ class EnrichmentEngineTest {
         assertEquals("CALL", parsed.get(0).get("event_type"));
         assertEquals("03", parsed.get(0).get("day"));
         assertEquals("SMS", parsed.get(1).get("event_type"));
+    }
+
+    // ── decision rules over the enriched output ──────────────────────────────────
+
+    @AfterEach
+    void clearDecisionRules() {
+        DecisionRules.clear();
+    }
+
+    /** Author one {@code targetType: job} decision rule and register the registry for the default space. */
+    private static void writeRule(Path dir, String name, String target, String field,
+                                  String operator, String value,
+                                  List<Map<String, Object>> consequences) throws Exception {
+        Path registry = dir.resolve("registry");
+        new ComponentStore(registry).write("decision-rule", name, Map.of(
+                "name", name, "targetType", "job", "target", target,
+                "when", Map.of("kind", "group", "op", "AND", "items", List.of(
+                        Map.of("kind", "condition", "field", field, "operator", operator, "value", value))),
+                "priority", 10, "enabled", true, "consequences", consequences));
+        DecisionRules.register("default", registry);
+    }
+
+    private static long countRows(String glob) throws Exception {
+        File db = DuckDbUtil.tempDbFile("cnt_");
+        try (Connection c = DuckDbUtil.openConnection(db); Statement st = c.createStatement();
+             ResultSet rs = st.executeQuery("SELECT COUNT(*) FROM read_parquet('"
+                     + glob.replace('\\', '/') + "', hive_partitioning=true)")) {
+            rs.next();
+            return rs.getLong(1);
+        } finally {
+            DuckDbUtil.deleteTempDb(db);
+        }
+    }
+
+    @Test
+    void decisionRuleTargetingTheEnrichmentDropsMatchingOutputRows(@TempDir Path dir) throws Exception {
+        Path in = dir.resolve("in"), out = dir.resolve("out");
+        seedInput(in);
+        EnrichmentConfig cfg = load(dir, in, out, DAILY_COUNT, "");
+        writeRule(dir, "drop_multi", "EVENTS_DAILY_KPI", "event_count", ">", "1",
+                List.of(Map.of("action", "drop", "destination", "")));
+
+        EnrichmentEngine.run(cfg);   // the enrichment's own name matches on every recompute trigger
+
+        Map<String, Long> counts = readOutputCounts(out);
+        assertFalse(counts.containsKey("CALL|03"), "the 2-event group was dropped");
+        assertEquals(1L, counts.get("CALL|04"));
+        assertEquals(1L, counts.get("SMS|03"));
+    }
+
+    @Test
+    void decisionRuleTargetingTheWrappingJobRoutesAndTagsOutputRows(@TempDir Path dir) throws Exception {
+        Path in = dir.resolve("in"), out = dir.resolve("out");
+        seedInput(in);
+        EnrichmentConfig cfg = load(dir, in, out, DAILY_COUNT, "");
+        writeRule(dir, "review_multi", "nightly_kpi", "event_count", ">", "1",
+                List.of(Map.of("action", "tag", "destination", "review"),
+                        Map.of("action", "route", "destination", "review")));
+
+        EnrichmentEngine.Result res = EnrichmentEngine.runResult(
+                cfg, null, List.of(), List.of("nightly_kpi"), "run-1");
+
+        assertEquals(2, countRows(out + "/event_type=*/**/*.parquet"),
+                "the matched group left the main output");
+        assertTrue(res.outputs().stream()
+                        .anyMatch(o -> o.outputFile().replace('\\', '/').contains("/review/")),
+                "routed output reported in the run result: " + res.outputs());
+        File db = DuckDbUtil.tempDbFile("routed_");
+        try (Connection c = DuckDbUtil.openConnection(db); Statement st = c.createStatement();
+             ResultSet rs = st.executeQuery("SELECT event_count, __tags FROM read_parquet('"
+                     + out.toString().replace("\\", "/")
+                     + "/review/**/*.parquet', hive_partitioning=true)")) {
+            assertTrue(rs.next(), "one routed row");
+            assertEquals(2L, rs.getLong("event_count"));
+            assertEquals("review", rs.getString("__tags"), "the routed copy carries the tag");
+            assertFalse(rs.next());
+        } finally {
+            DuckDbUtil.deleteTempDb(db);
+        }
+    }
+
+    @Test
+    void decisionRuleQuarantinesOutputRowsBesideTheOutputTree(@TempDir Path dir) throws Exception {
+        Path in = dir.resolve("in"), out = dir.resolve("out");
+        seedInput(in);
+        EnrichmentConfig cfg = load(dir, in, out, DAILY_COUNT, "");
+        writeRule(dir, "hold_multi", "EVENTS_DAILY_KPI", "event_count", ">", "1",
+                List.of(Map.of("action", "quarantine", "destination", "")));
+
+        EnrichmentEngine.run(cfg);
+
+        assertEquals(2, readOutputCounts(out).size(), "the matched group left the main output");
+        Path record = Path.of(out + "_quarantine", "records", "hold_multi",
+                "events_daily_kpi_records.parquet");
+        assertTrue(Files.exists(record), "record-level quarantine beside the output tree: " + record);
+        assertEquals(1, countRows(record.toString()));
     }
 }

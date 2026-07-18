@@ -1,5 +1,7 @@
 package com.gamma.job;
 
+import com.gamma.etl.DecisionRuleApplier;
+import com.gamma.etl.PartitionOutput;
 import com.gamma.pipeline.exec.SourceStoreReader;
 import com.gamma.signal.Severity;
 import org.slf4j.Logger;
@@ -90,6 +92,29 @@ final class SqlTemplateJob implements Job {
             for (String store : sources)
                 SourceStoreReader.registerView(conn, safe(store, "source store"), dataDir, store, "PARQUET");
             st.execute("CREATE TABLE " + OUT_TABLE + " AS " + sql);
+            // Decision Rules targeting this job check the materialized result before it becomes the
+            // snapshot (tag/route/quarantine/drop): route lands as a snapshot Parquet Dataset under
+            // <dataDir>/<destination> (same swap-in discipline as the sink), record-quarantine under
+            // <dataDir>/.quarantine (dot-dirs are invisible to store globs, like .staging).
+            DecisionRuleApplier.apply(conn, OUT_TABLE,
+                    DecisionRuleApplier.Subject.job(cfg.name(), ctx.runId()),
+                    Path.of(dataDir).resolve(".quarantine").toString(), sink,
+                    (c, routedTable, dest) -> {
+                        Path destDir = Path.of(dataDir).resolve(dest);
+                        Files.createDirectories(destDir);
+                        cleanLeftovers(destDir);
+                        String routedSnap = "sql-" + System.currentTimeMillis() + ".parquet";
+                        Path routedTmp = destDir.resolve(routedSnap + ".tmp");
+                        try (Statement rst = c.createStatement()) {
+                            rst.execute("COPY \"" + routedTable + "\" TO "
+                                    + sqlStr(routedTmp.toString().replace('\\', '/')) + " (FORMAT PARQUET)");
+                        }
+                        swapIn(destDir, routedTmp, routedSnap);
+                        Path revealed = destDir.resolve(routedSnap);
+                        return new DecisionRuleApplier.Result(
+                                List.of(new PartitionOutput("", revealed.toString(), Files.size(revealed))),
+                                List.of());
+                    });
             meta = resultSetMeta(conn);
             try (ResultSet rs = st.executeQuery("SELECT count(*) FROM " + OUT_TABLE)) {
                 rs.next();

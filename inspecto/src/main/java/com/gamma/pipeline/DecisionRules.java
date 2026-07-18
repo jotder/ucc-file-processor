@@ -10,9 +10,10 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Process-wide map of each space's component-registry root, so the <em>static</em> ETL ingest path can
- * load the Decision Rules ({@code decision-rule} components, authored via {@code /decision-rules})
- * that target the pipeline it is running — the same global-accessor idiom as
+ * Process-wide map of each space's component-registry root, so the <em>static</em> ETL ingest path
+ * (and the job / Stage-2 enrichment engines) can load the Decision Rules ({@code decision-rule}
+ * components, authored via {@code /decision-rules}) that target the pipeline, job, or enrichment
+ * being run — the same global-accessor idiom as
  * {@link com.gamma.acquire.ConnectionRegistry}: the space boot publishes here, the batch worker
  * (which inherits the space MDC) resolves by {@link EventLog#currentSpaceId()}.
  *
@@ -56,6 +57,17 @@ public final class DecisionRules {
      * Empty when the space has no registry.
      */
     public static List<Map<String, Object>> forPipeline(String... names) {
+        return forTarget("pipeline", names);
+    }
+
+    /**
+     * The enabled Decision Rules of the given {@code targetType} whose {@code target} equals any of
+     * {@code names} case-insensitively, in priority order — the general form behind
+     * {@link #forPipeline}. {@code targetType: job} is how job / Stage-2 enrichment outputs are
+     * targeted (matched by job name, and for an enrichment also by the enrichment's own name so the
+     * rule holds across every recompute trigger).
+     */
+    public static List<Map<String, Object>> forTarget(String targetType, String... names) {
         Path root = ROOTS.get(EventLog.currentSpaceId());
         if (root == null && EventLog.DEFAULT_SPACE_ID.equals(EventLog.currentSpaceId())) {
             String wr = System.getProperty("assist.write.root");
@@ -65,7 +77,7 @@ public final class DecisionRules {
         return new ComponentStore(root).list(TYPE).stream()
                 .map(ComponentRegistry.Component::content)
                 .filter(r -> !"false".equalsIgnoreCase(String.valueOf(r.getOrDefault("enabled", true))))
-                .filter(r -> "pipeline".equals(String.valueOf(r.getOrDefault("targetType", "pipeline"))))
+                .filter(r -> targetType.equals(String.valueOf(r.getOrDefault("targetType", "pipeline"))))
                 .filter(r -> targets(r, names))
                 .sorted(Comparator.comparingInt(DecisionRules::priorityOf)
                         .thenComparing(r -> String.valueOf(r.get("name"))))

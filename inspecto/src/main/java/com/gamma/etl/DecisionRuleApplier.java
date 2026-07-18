@@ -22,23 +22,34 @@ import java.util.Map;
 import java.util.UUID;
 
 /**
- * Applies a pipeline's enabled Decision Rules to the {@code transformed} table of a batch, between
- * {@link DataTransformer} and {@link PartitionWriter} — the live-execution wiring of the record-level
- * consequences that {@code /decision-rules/{name}/simulate} previews ({@code docs/okf/backend/
- * control-plane/decision-rules.md}). Rules are loaded per batch via
- * {@link DecisionRules#forPipeline} (priority order) and each rule's {@code when} tree is compiled to
- * one DuckDB predicate ({@link ConditionSql}), so a rule costs set-based SQL, not a JVM row loop.
+ * Applies a subject's enabled Decision Rules to its materialized output table before that table is
+ * written — the live-execution wiring of the record-level consequences that
+ * {@code /decision-rules/{name}/simulate} previews ({@code docs/okf/backend/control-plane/
+ * decision-rules.md}). Three subjects hook in:
+ * <ul>
+ *   <li><b>pipeline batches</b> — the {@code transformed} table, between {@link DataTransformer} and
+ *       {@link PartitionWriter} ({@code BatchIngestStrategy.writeAndTrace}), matched by
+ *       {@code targetType: pipeline};</li>
+ *   <li><b>{@code sql.template} job runs</b> — the materialized template result before its snapshot
+ *       {@code COPY}, matched by {@code targetType: job} + the job's name;</li>
+ *   <li><b>Stage-2 enrichment recomputes</b> — the {@code __enriched} table before its partitioned
+ *       write, matched by {@code targetType: job} + the enrichment's own name (and any wrapping
+ *       job's name), so a rule holds across every recompute trigger.</li>
+ * </ul>
+ * Rules are loaded per unit of work via {@link DecisionRules#forTarget} (priority order) and each
+ * rule's {@code when} tree is compiled to one DuckDB predicate ({@link ConditionSql}), so a rule
+ * costs set-based SQL, not a JVM row loop.
  *
  * <p>Consequence semantics over the matched rows (evaluated against the table as later-priority rules
  * see it — an earlier rule's removals are invisible to later rules):
  * <ul>
  *   <li><b>tag</b> — appends the destination to a {@code __tags} VARCHAR column (added on first use;
  *       readers align files by name, so older un-tagged output stays readable).</li>
- *   <li><b>route</b> — matched rows are written Hive-partitioned under
- *       {@code dirs.database/<destination>} (the same table-subdir convention as {@code Batch.table})
- *       with their own output + lineage records, and leave the main output.</li>
+ *   <li><b>route</b> — matched rows are written to the destination in the subject's own output
+ *       discipline (its {@link RouteSink}: Hive-partitioned subdir for pipelines/enrichments,
+ *       snapshot Parquet Dataset for jobs), and leave the main output.</li>
  *   <li><b>quarantine</b> — matched rows are copied to
- *       {@code dirs.quarantine/records/<rule>/<baseName>_records.parquet} (record-level analogue of
+ *       {@code <quarantineRoot>/records/<rule>/<baseName>_records.parquet} (record-level analogue of
  *       {@link com.gamma.inspector.QuarantineManager}'s whole-file quarantine) and leave the main
  *       output.</li>
  *   <li><b>drop</b> — matched rows leave the main output.</li>
@@ -51,7 +62,7 @@ import java.util.UUID;
  * ledger for observability.
  *
  * <p><b>Routing is not a failure:</b> a rule that errors (e.g. its {@code when} references a column
- * the schema no longer maps) is logged and skipped — it never fails the batch.
+ * the schema no longer maps) is logged and skipped — it never fails the batch/run.
  */
 public final class DecisionRuleApplier {
 
@@ -66,18 +77,83 @@ public final class DecisionRuleApplier {
     }
 
     /**
+     * Whose output the rules are checking: how rules are matched ({@code targetType} + candidate
+     * {@code targetNames}, case-insensitive) and how the {@code decision-rule.applied} signal names
+     * the subject and its unit of work.
+     */
+    public record Subject(String targetType, List<String> targetNames,
+                          String subjectKey, String subjectName,
+                          String runKey, String runId) {
+
+        /** A live pipeline batch, matched by the authored + normalised pipeline name. */
+        public static Subject pipeline(PipelineConfig cfg, String batchId) {
+            List<String> names = new ArrayList<>();
+            if (cfg.identity().name() != null) names.add(cfg.identity().name());
+            if (cfg.identity().pipelineName() != null) names.add(cfg.identity().pipelineName());
+            return new Subject("pipeline", List.copyOf(names),
+                    "pipeline", cfg.identity().pipelineName(), "batch", batchId);
+        }
+
+        /** A job run's materialized output, matched by the job's name. */
+        public static Subject job(String jobName, String runId) {
+            return new Subject("job", List.of(jobName), "job", jobName, "run", runId);
+        }
+
+        /**
+         * A Stage-2 enrichment recompute — matched as {@code targetType: job} by the enrichment's
+         * own name plus any {@code extraTargets} (the wrapping job's name), so one rule holds
+         * across every recompute trigger (job / scheduled service / CLI).
+         */
+        public static Subject enrichment(String name, List<String> extraTargets, String runId) {
+            List<String> names = new ArrayList<>();
+            names.add(name);
+            if (extraTargets != null)
+                for (String t : extraTargets) if (t != null && !t.isBlank()) names.add(t);
+            return new Subject("job", List.copyOf(names), "enrichment", name, "run", runId);
+        }
+    }
+
+    /**
+     * Materializes one rule's routed rows ({@code routedTable}) to a destination in the subject's
+     * own output discipline. The destination is already reduced to a safe path segment.
+     */
+    @FunctionalInterface
+    public interface RouteSink {
+        Result write(Connection conn, String routedTable, String destination) throws Exception;
+    }
+
+    /**
      * Apply the current space's enabled Decision Rules for {@code cfg}'s pipeline to {@code table}.
      * No rules ⇒ exact no-op. Never throws: per-rule failures are logged and skipped.
      */
     public static Result apply(Connection conn, String table, PipelineConfig cfg,
                                String dbDir, String baseName, List<String> partCols,
                                String batchId, Map<Integer, String> srcIdToFile) {
+        return apply(conn, table, Subject.pipeline(cfg, batchId), cfg.dirs().quarantine(), baseName,
+                (c, routedTable, dest) -> {
+                    List<PartitionOutput> routedOut = PartitionWriter.write(c, routedTable,
+                            Paths.get(dbDir, dest).toString(),
+                            cfg.output().format(), cfg.output().compression(), baseName, partCols);
+                    return new Result(routedOut, LineageCollector.collect(
+                            c, routedTable, batchId, srcIdToFile, routedOut, partCols));
+                });
+    }
+
+    /**
+     * Apply the current space's enabled Decision Rules matching {@code subject} to {@code table} —
+     * the general form behind the pipeline overload, shared with the {@code sql.template} job and
+     * Stage-2 enrichment hooks. No rules ⇒ exact no-op. Never throws: per-rule failures are logged
+     * and skipped.
+     */
+    public static Result apply(Connection conn, String table, Subject subject,
+                               String quarantineRoot, String baseName, RouteSink routeSink) {
         List<Map<String, Object>> rules;
         try {
-            rules = DecisionRules.forPipeline(cfg.identity().name(), cfg.identity().pipelineName());
+            rules = DecisionRules.forTarget(subject.targetType(),
+                    subject.targetNames().toArray(String[]::new));
         } catch (Exception e) {
-            log.warn("[DECISION] could not load decision rules for pipeline '{}': {}",
-                    cfg.identity().pipelineName(), e.getMessage());
+            log.warn("[DECISION] could not load decision rules for {} '{}': {}",
+                    subject.subjectKey(), subject.subjectName(), e.getMessage());
             return Result.NONE;
         }
         if (rules.isEmpty()) return Result.NONE;
@@ -87,20 +163,20 @@ public final class DecisionRuleApplier {
         for (Map<String, Object> rule : rules) {
             String name = String.valueOf(rule.get("name"));
             try {
-                applyRule(conn, table, cfg, rule, name, dbDir, baseName, partCols,
-                        batchId, srcIdToFile, outputs, lineage);
+                applyRule(conn, table, subject, rule, name, quarantineRoot, baseName, routeSink,
+                        outputs, lineage);
             } catch (Exception e) {
-                log.warn("[DECISION] rule '{}' failed on batch {} — skipped: {}", name, batchId, e.getMessage());
+                log.warn("[DECISION] rule '{}' failed on {} — skipped: {}",
+                        name, subject.runId(), e.getMessage());
             }
         }
         return new Result(List.copyOf(outputs), List.copyOf(lineage));
     }
 
     @SuppressWarnings("unchecked")
-    private static void applyRule(Connection conn, String table, PipelineConfig cfg,
+    private static void applyRule(Connection conn, String table, Subject subject,
                                   Map<String, Object> rule, String ruleName,
-                                  String dbDir, String baseName, List<String> partCols,
-                                  String batchId, Map<Integer, String> srcIdToFile,
+                                  String quarantineRoot, String baseName, RouteSink routeSink,
                                   List<PartitionOutput> outputs, List<LineageRow> lineage) throws Exception {
         String pred = ConditionSql.predicate(rule.get("when"));
         long matched = count(conn, "SELECT COUNT(*) FROM \"" + table + "\" WHERE " + pred);
@@ -128,13 +204,14 @@ public final class DecisionRuleApplier {
                         log.warn("[DECISION] rule '{}' route has no destination — skipped", ruleName);
                         continue;
                     }
-                    route(conn, table, pred, cfg, Paths.get(dbDir, dest).toString(), baseName,
-                            partCols, batchId, srcIdToFile, outputs, lineage);
+                    Result routed = route(conn, table, pred, dest, routeSink);
+                    outputs.addAll(routed.outputs());
+                    lineage.addAll(routed.lineage());
                     applied.add("route:" + dest);
                     remove = true;
                 }
                 case "quarantine" -> {
-                    quarantine(conn, table, pred, cfg, ruleName, baseName);
+                    quarantine(conn, table, pred, quarantineRoot, ruleName, baseName);
                     applied.add("quarantine");
                     remove = true;
                 }
@@ -154,8 +231,9 @@ public final class DecisionRuleApplier {
                 st.execute("DELETE FROM \"" + table + "\" WHERE " + pred);
             }
         }
-        log.info("[DECISION] [{}] rule '{}' matched {} row(s): {}", batchId, ruleName, matched, applied);
-        emitApplied(cfg, ruleName, batchId, matched, applied);
+        log.info("[DECISION] [{}] rule '{}' matched {} row(s): {}",
+                subject.runId(), ruleName, matched, applied);
+        emitApplied(subject, ruleName, matched, applied);
     }
 
     // ── consequences ─────────────────────────────────────────────────────────────
@@ -169,20 +247,15 @@ public final class DecisionRuleApplier {
         }
     }
 
-    private static void route(Connection conn, String table, String pred, PipelineConfig cfg,
-                              String destDir, String baseName, List<String> partCols,
-                              String batchId, Map<Integer, String> srcIdToFile,
-                              List<PartitionOutput> outputs, List<LineageRow> lineage) throws Exception {
+    private static Result route(Connection conn, String table, String pred, String dest,
+                                RouteSink routeSink) throws Exception {
         String routed = "__dr_routed";
         try (Statement st = conn.createStatement()) {
             st.execute("DROP TABLE IF EXISTS \"" + routed + "\"");
             st.execute("CREATE TABLE \"" + routed + "\" AS SELECT * FROM \"" + table + "\" WHERE " + pred);
         }
         try {
-            List<PartitionOutput> routedOut = PartitionWriter.write(conn, routed, destDir,
-                    cfg.output().format(), cfg.output().compression(), baseName, partCols);
-            outputs.addAll(routedOut);
-            lineage.addAll(LineageCollector.collect(conn, routed, batchId, srcIdToFile, routedOut, partCols));
+            return routeSink.write(conn, routed, dest);
         } finally {
             try (Statement st = conn.createStatement()) {
                 st.execute("DROP TABLE IF EXISTS \"" + routed + "\"");
@@ -190,9 +263,9 @@ public final class DecisionRuleApplier {
         }
     }
 
-    private static void quarantine(Connection conn, String table, String pred, PipelineConfig cfg,
+    private static void quarantine(Connection conn, String table, String pred, String quarantineRoot,
                                    String ruleName, String baseName) throws Exception {
-        Path dir = Paths.get(cfg.dirs().quarantine(), "records", fsName(ruleName));
+        Path dir = Paths.get(quarantineRoot, "records", fsName(ruleName));
         Files.createDirectories(dir);
         String file = dir.resolve(fsName(baseName) + "_records.parquet").toString().replace('\\', '/');
         try (Statement st = conn.createStatement()) {
@@ -204,14 +277,13 @@ public final class DecisionRuleApplier {
     // ── helpers ──────────────────────────────────────────────────────────────────
 
     /** One ledger signal per applied rule, so run-time routing is observable next to the run itself. */
-    private static void emitApplied(PipelineConfig cfg, String ruleName, String batchId,
-                                    long matched, List<String> applied) {
+    private static void emitApplied(Subject subject, String ruleName, long matched, List<String> applied) {
         EventLog el = EventLog.current();
         if (el == null) return;
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("rule", ruleName);
-        payload.put("pipeline", cfg.identity().pipelineName());
-        payload.put("batch", batchId);
+        payload.put(subject.subjectKey(), subject.subjectName());
+        if (subject.runId() != null) payload.put(subject.runKey(), subject.runId());
         payload.put("matched", matched);
         payload.put("applied", String.join(",", applied));
         el.emit(new Signal(UUID.randomUUID().toString(), "decision-rule.applied", Instant.now(),

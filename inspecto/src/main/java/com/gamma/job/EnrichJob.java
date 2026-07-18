@@ -37,7 +37,9 @@ final class EnrichJob implements Job {
         String start = EnrichmentAuditWriter.now();
         long t0 = System.nanoTime();
 
-        EnrichmentEngine.Result res = EnrichmentEngine.runResult(job, null);   // full recompute
+        // full recompute; decision rules match this job's name as well as the enrichment's
+        EnrichmentEngine.Result res = EnrichmentEngine.runResult(job, null, List.of(),
+                List.of(cfg.name()), runId);
         List<PartitionOutput> outs = res.outputs();
         long ms = (System.nanoTime() - t0) / 1_000_000L;
         long bytes = outs.stream().mapToLong(PartitionOutput::bytes).sum();

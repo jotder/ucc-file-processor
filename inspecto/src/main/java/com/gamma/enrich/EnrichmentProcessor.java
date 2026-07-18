@@ -50,7 +50,8 @@ public final class EnrichmentProcessor {
         long startNanos = System.nanoTime();
         EnrichmentAuditWriter audit = new EnrichmentAuditWriter(EnrichmentAuditWriter.auditDir(cfg), cfg.name());
         try {
-            EnrichmentEngine.Result res = EnrichmentEngine.runResult(cfg, filter);
+            EnrichmentEngine.Result res = EnrichmentEngine.runResult(cfg, filter, List.of(),
+                    List.of(), runId);
             List<PartitionOutput> outputs = res.outputs();
             long durationMs = (System.nanoTime() - startNanos) / 1_000_000L;
             long bytes = outputs.stream().mapToLong(PartitionOutput::bytes).sum();

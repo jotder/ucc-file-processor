@@ -1,5 +1,6 @@
 package com.gamma.enrich;
 
+import com.gamma.etl.DecisionRuleApplier;
 import com.gamma.etl.PartitionOutput;
 import com.gamma.etl.PartitionWriter;
 import com.gamma.etl.PipelineConfig;
@@ -9,10 +10,12 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.File;
+import java.nio.file.Paths;
 import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -91,6 +94,18 @@ public final class EnrichmentEngine {
      */
     public static Result runResult(EnrichmentConfig cfg, List<Map<String, String>> partitionFilter,
                                    List<PipelineConfig> pipelines) throws Exception {
+        return runResult(cfg, partitionFilter, pipelines, List.of(), null);
+    }
+
+    /**
+     * As {@link #runResult(EnrichmentConfig, List, List)}, additionally naming the unit of work so
+     * Decision Rules can check the output: {@code ruleTargets} are extra {@code targetType: job}
+     * names to match (the wrapping job's — the enrichment's own name always matches), and
+     * {@code runId} correlates each {@code decision-rule.applied} signal with the run's audit row.
+     */
+    public static Result runResult(EnrichmentConfig cfg, List<Map<String, String>> partitionFilter,
+                                   List<PipelineConfig> pipelines, List<String> ruleTargets,
+                                   String runId) throws Exception {
         File db = DuckDbUtil.tempDbFile("enrich_");
         try (Connection conn = DuckDbUtil.openConnection(db); Statement st = conn.createStatement()) {
 
@@ -111,12 +126,32 @@ public final class EnrichmentEngine {
             // 3. transform → temp table
             st.execute("CREATE TABLE __enriched AS " + cfg.transformSql());
 
-            // 4. idempotent partitioned write (no __src_id to exclude)
+            // 3b. Decision Rules check the enriched output before it is written (tag/route/
+            //     quarantine/drop): matched as targetType: job by the enrichment's own name or a
+            //     wrapping job's; route lands Hive-partitioned under output.database/<destination>,
+            //     record-quarantine beside the output as <output.database>_quarantine (the
+            //     EnrichmentAuditWriter sibling-suffix convention).
             String baseName = cfg.name().toLowerCase().replace(' ', '_');
+            DecisionRuleApplier.Result applied = DecisionRuleApplier.apply(conn, "__enriched",
+                    DecisionRuleApplier.Subject.enrichment(cfg.name(), ruleTargets, runId),
+                    cfg.output().database() + "_quarantine", baseName,
+                    (c, routedTable, dest) -> new DecisionRuleApplier.Result(
+                            PartitionWriter.write(c, routedTable,
+                                    Paths.get(cfg.output().database(), dest).toString(),
+                                    cfg.output().format(), cfg.output().compression(),
+                                    baseName, cfg.output().partitions(), List.of()),
+                            List.of()));
+
+            // 4. idempotent partitioned write (no __src_id to exclude)
             List<PartitionOutput> outputs = PartitionWriter.write(
                     conn, "__enriched",
                     cfg.output().database(), cfg.output().format(), cfg.output().compression(),
                     baseName, cfg.output().partitions(), List.of());
+            if (!applied.outputs().isEmpty()) {
+                List<PartitionOutput> all = new ArrayList<>(applied.outputs());
+                all.addAll(outputs);
+                outputs = all;
+            }
 
             long totalRows = countRows(st, "__enriched");
             log.info("[ENRICH] {}: {} → {} partition file(s), {} row(s){}",

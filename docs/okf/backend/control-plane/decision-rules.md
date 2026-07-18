@@ -82,10 +82,40 @@ all three native `read_csv` streaming paths), between `DataTransformer` and `Par
 - **Routing is not a failure** — a broken rule (e.g. `when` references an unmapped column) is logged
   and skipped; it never fails the batch.
 
-Deferred: rules targeting **jobs** (`targetType: job`) have no engine hook yet — job outputs don't
-flow through `writeAndTrace`; and Stage-2 enrichment outputs are likewise not rule-checked.
+## Job and Stage-2 enrichment outputs are rule-checked too
+
+There is no job-side analogue of `writeAndTrace` (job output materialization is per-type), so each
+tabular producer hooks the shared applier itself via its general form —
+`DecisionRuleApplier.apply(conn, table, Subject, quarantineRoot, baseName, RouteSink)` — where a
+`Subject` says how rules match (`targetType` + candidate names) and how the
+`decision-rule.applied` signal labels the run, and a `RouteSink` materializes routed rows in the
+subject's own output discipline. `targetType: job` rules (the UI's job target picker) hook in two
+places:
+
+- **`sql.template` jobs** (`SqlTemplateJob`) — rules matching the job's name apply to the
+  materialized template result between `CREATE TABLE` and the snapshot `COPY`, so the sink
+  snapshot, the Run Artifact row count, and the recorded output shape are all post-rule. `route`
+  writes matched rows as their own snapshot Parquet Dataset under `<dataDir>/<destination>` (same
+  stage-and-atomic-swap discipline as the sink); `quarantine` copies them under
+  `<dataDir>/.quarantine/records/<rule>/` (a dot-dir, invisible to store globs — the `.staging`
+  convention).
+- **Stage-2 enrichment** (`EnrichmentEngine.runResult`) — rules apply to `__enriched` between the
+  transform and `PartitionWriter`, on **every** recompute trigger (enrich job, scheduled/event
+  `EnrichmentService`, CLI). Matching is by the enrichment's **own name** — deliberately, so an
+  idempotent scheduled recompute can't resurrect rows a job-triggered run removed — plus the
+  wrapping job's name when run via an `enrich` job (`EnrichJob` passes it). `route` lands
+  Hive-partitioned under `output.database/<destination>` (the pipeline subdir convention, same
+  partition grain); `quarantine` under the sibling `<output.database>_quarantine` (the
+  `EnrichmentAuditWriter` `_audit` suffix convention). Routed files are reported in the run's
+  outputs, so audit/lineage see them.
+
+Other built-in job types (`report`, `maintenance`, …) don't materialize rule-checkable tabular
+output; Job-Pack types can adopt the same applier seam when they do.
 
 Tests: `com.gamma.query.ConditionTreeTest` (evaluator semantics),
 `com.gamma.query.ConditionSqlTest` (SQL↔evaluator parity),
-`com.gamma.inspector.DecisionRuleWiringTest` (all four consequences through `writeAndTrace`), and
+`com.gamma.inspector.DecisionRuleWiringTest` (all four consequences through `writeAndTrace`),
+`com.gamma.enrich.EnrichmentEngineTest` (drop/route+tag/quarantine over `__enriched`, enrichment-
+and job-name matching), `com.gamma.job.SqlTemplateJobTest` (rules before the snapshot; post-rule
+artifact count; hidden-quarantine layout), and
 `com.gamma.control.ControlApiDecisionRulesTest` (CRUD gates + real simulate).
