@@ -29,9 +29,11 @@ authored config). Every supported kind is read/written through the uniform `Bund
 of its backing store:
 
 * **`POST /bundle/export`** — `{items, provenance?, requires?}` → `{bundle, missing}`; real content + real
-  `provenance.contentHash`; an unsupported kind is a **422** (honest boundary), never a silent omission.
+  `provenance.contentHash`; each resolvable `requires` ref is stamped with an `originHash` (the source's stored
+  content hash); an unsupported kind is a **422** (honest boundary), never a silent omission.
 * **`POST /bundle/preview`** — read-only fit-check: per item `new | unchanged | drifted | unsupported` (incoming
-  hash, normalized to the stored form, vs the target's), each `requires` entry `satisfied | missing`. No writes.
+  hash, normalized to the stored form, vs the target's), each `requires` entry `satisfied | different | missing`
+  (`different` = present but at a different version — the carried `originHash` disagrees with the target's). No writes.
 * **`POST /bundle/import`** — sequential upsert in dependency order (referenced kinds first), gated
   `canAuthorWorkbench` → write-root 503 → **integrity pre-check 422** (MNT-16: `ComponentIntegrity` blocks only
   findings the import would *introduce* — computed over (registry ∪ incoming) minus pre-existing). Existing
@@ -46,8 +48,9 @@ of its backing store:
 * **Not yet server-side:** `connection` stays out of scope on purpose — its profiles carry secret references,
   and whether a bundle may carry a masked or reference-only credential is an unmade policy call; promote a
   connection via the UI path or the whole-space zip until that call is made.
-* `requires` classify satisfied/missing only — *present-but-different* is a per-item (drift) concept; a
-  deliberate cut (no origin hash on a ref).
+* `requires` classify `satisfied | different | missing` — *present-but-different* (2026-07-18) compares the
+  ref's export-stamped `originHash` to the target's stored hash; a ref that travels hash-less (older bundle, or
+  unresolvable at export) can only be `satisfied`/`missing`, so the classification degrades gracefully.
 
 The UI side (one derivation `deriveRefs`, one format, every surface — Settings workbench + editor/library
 transfer menus) lives in the frontend bundle. Design history: `docs/archived-documents/plans-archive/`

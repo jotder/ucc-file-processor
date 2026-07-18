@@ -166,6 +166,38 @@ class ControlApiBundleTest {
     }
 
     @Test
+    void previewFlagsRequiresPresentButDifferent(@TempDir Path dir) throws Exception {
+        try (Ctx c = open(dir, dir.resolve("wr"))) {
+            seed(c.port, "dataset", "sales", "title", "Sales");
+
+            // export stamps the source's stored content hash as originHash on a resolvable required ref
+            JsonNode bundle = json(send(c.port, "POST", "/bundle/export",
+                    "{\"items\":[{\"kind\":\"dataset\",\"id\":\"sales\"}],"
+                    + "\"requires\":[{\"kind\":\"dataset\",\"id\":\"sales\"}]}")).get("bundle");
+            String originHash = bundle.get("requires").get(0).get("originHash").asText();
+            assertTrue(originHash.matches("sha256:[0-9a-f]{64}"), "export stamps a resolvable ref's origin hash");
+
+            // the stamped hash matches the unchanged target → satisfied (and echoes the target hash)
+            JsonNode same = json(send(c.port, "POST", "/bundle/preview", JSON.writeValueAsString(bundle)));
+            JsonNode ok = same.get("requires").get(0);
+            assertEquals("satisfied", ok.get("status").asText());
+            assertEquals(originHash, ok.get("targetHash").asText(), "same version => origin and target hashes agree");
+
+            // present on the target but carrying a different origin hash → different (drift)
+            ObjectNode stale = (ObjectNode) bundle.deepCopy();
+            ((ObjectNode) stale.get("requires").get(0)).put("originHash", "sha256:" + "0".repeat(64));
+            JsonNode drifted = json(send(c.port, "POST", "/bundle/preview", JSON.writeValueAsString(stale)));
+            assertEquals("different", drifted.get("requires").get(0).get("status").asText());
+
+            // absent on the target stays `missing`, hash or not
+            ObjectNode absent = (ObjectNode) bundle.deepCopy();
+            ((ObjectNode) absent.get("requires").get(0)).put("id", "gone");
+            JsonNode miss = json(send(c.port, "POST", "/bundle/preview", JSON.writeValueAsString(absent)));
+            assertEquals("missing", miss.get("requires").get(0).get("status").asText());
+        }
+    }
+
+    @Test
     void importAppliesOverwritesSkipsAndIsIdempotent(@TempDir Path source, @TempDir Path target) throws Exception {
         String bundle;
         try (Ctx src = open(source, source.resolve("wr"))) {

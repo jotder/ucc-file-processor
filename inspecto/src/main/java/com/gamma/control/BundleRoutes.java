@@ -126,7 +126,7 @@ final class BundleRoutes implements RouteModule {
         bundle.put("exportedAt", exportedAt);
         bundle.put("sourceSpace", sourceSpace);
         if (body.get("provenance") instanceof Map<?, ?> p) bundle.put("provenance", p);
-        if (body.get("requires") instanceof List<?> r) bundle.put("requires", r);
+        if (body.get("requires") instanceof List<?>) bundle.put("requires", enrichRequires(api, asMapList(body.get("requires"))));
         bundle.put("items", items);
 
         Map<String, Object> out = new LinkedHashMap<>();
@@ -141,7 +141,8 @@ final class BundleRoutes implements RouteModule {
      * {@code POST /bundle/preview} — body = a bundle envelope. Read-only fit-check against this instance:
      * per item {@code status} = {@code new} | {@code unchanged} | {@code drifted} | {@code unsupported}
      * (unchanged/drifted compare the item's {@code provenance.contentHash} to the target's current hash),
-     * and each top-level {@code requires} entry classified {@code satisfied} | {@code missing}. No writes.
+     * and each top-level {@code requires} entry classified {@code satisfied} | {@code different} | {@code missing}
+     * ({@code different} = present but at a different version, when the ref carried an {@code originHash}). No writes.
      */
     private Object previewBundle(ApiContext api, Map<String, Object> body) {
         validateEnvelope(body);
@@ -172,9 +173,17 @@ final class BundleRoutes implements RouteModule {
         for (Map<String, Object> ref : asMapList(body.get("requires"))) {
             String kind = str(ref, "kind"), id = str(ref, "id");
             Map<String, Object> row = new LinkedHashMap<>(ref);
-            BundleSource src = supported(kind) ? sourceFor(api, kind) : null;
-            boolean present = src != null && src.exists(id);
-            row.put("status", present ? "satisfied" : "missing");
+            BundleSource src = kind != null && supported(kind) ? sourceFor(api, kind) : null;
+            Map<String, Object> existing = (src == null || id == null) ? null : src.get(id).orElse(null);
+            if (existing == null) {
+                row.put("status", "missing");
+            } else {
+                String originHash = str(ref, "originHash");   // carried from export; absent on v1/older bundles
+                String targetHash = "sha256:" + ContentHash.of(exportContent(kind, existing));
+                row.put("targetHash", targetHash);
+                // present-but-different only when the ref carried an origin hash to disagree with
+                row.put("status", originHash != null && !originHash.equals(targetHash) ? "different" : "satisfied");
+            }
             requires.add(row);
         }
 
@@ -516,6 +525,27 @@ final class BundleRoutes implements RouteModule {
         sanitized.remove("breaks");
         sanitized.remove("lastRunAt");
         return sanitized;
+    }
+
+    /**
+     * Stamp each external {@code requires} ref with the source instance's {@code originHash} — its stored
+     * content hash, computed exactly like an item's ({@link ContentHash} over {@link #exportContent}) — when
+     * the ref resolves on this instance. That lets the target's {@code preview} tell {@code satisfied} from
+     * present-but-{@code different}: the required dependency exists on the target but at a different version.
+     * Refs that don't resolve here (or of an unsupported kind) travel hash-less and stay {@code satisfied}/
+     * {@code missing}-only, so older bundles without the stamp keep working.
+     */
+    private List<Map<String, Object>> enrichRequires(ApiContext api, List<Map<String, Object>> refs) {
+        List<Map<String, Object>> out = new ArrayList<>();
+        for (Map<String, Object> ref : refs) {
+            Map<String, Object> row = new LinkedHashMap<>(ref);
+            String kind = str(ref, "kind"), id = str(ref, "id");
+            BundleSource src = kind != null && supported(kind) ? sourceFor(api, kind) : null;
+            Map<String, Object> raw = (src == null || id == null) ? null : src.get(id).orElse(null);
+            if (raw != null) row.put("originHash", "sha256:" + ContentHash.of(exportContent(kind, raw)));
+            out.add(row);
+        }
+        return out;
     }
 
     private static int orderOf(String kind) {
