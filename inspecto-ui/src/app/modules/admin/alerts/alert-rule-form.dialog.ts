@@ -12,7 +12,34 @@ import { InspectoConfirmService } from 'app/inspecto/confirm.service';
 import { pipelineOptionLoader } from 'app/inspecto/components/entity-option-loaders';
 import { guardDirtyClose } from 'app/inspecto/dialog-dirty-guard';
 import { firstValueFrom } from 'rxjs';
+import { QueryConditionGroupComponent } from 'app/inspecto/query/query-condition-group.component';
+import { Condition, ColumnMeta, ConditionGroup, emptyGroup } from 'app/inspecto/query/query-types';
 import { ALERT_RULE_ATTRIBUTES } from './alert-rule-attributes';
+
+/** The ledger-row fields a `when` clause can scope on (the columns `AlertService`'s metric math
+ *  reads) — fixed, unlike Decision Rule/Expectation's probed-from-a-store columns, since a ledger
+ *  row's shape is the engine's own, not a target's records. */
+const LEDGER_COLUMNS: ColumnMeta[] = [
+    { name: 'status', type: 'string' },
+    { name: 'total_input_rows', type: 'number' },
+    { name: 'total_output_rows', type: 'number' },
+    { name: 'rejected_count', type: 'number' },
+    { name: 'duration_ms', type: 'number' },
+    { name: 'start_time', type: 'date' },
+    { name: 'end_time', type: 'date' },
+];
+
+/** The distinct fields an existing when-clause already references — seeds the column list with any
+ *  field not in {@link LEDGER_COLUMNS} (forward-compatible with a ledger schema change). */
+function referencedFields(group: ConditionGroup): string[] {
+    const out: string[] = [];
+    const walk = (item: Condition | ConditionGroup): void => {
+        if (item.kind === 'group') item.items.forEach(walk);
+        else if (item.field) out.push(item.field);
+    };
+    walk(group);
+    return [...new Set(out)];
+}
 
 /** Dialog input: an existing rule ⇒ edit; absent ⇒ create. */
 export interface AlertRuleFormData {
@@ -40,7 +67,16 @@ function uniqueNameValidator(taken: string[]): ValidatorFn {
 @Component({
     selector: 'app-alert-rule-form-dialog',
     standalone: true,
-    imports: [ReactiveFormsModule, MatButtonModule, MatDialogModule, MatFormFieldModule, MatInputModule, InspectoAlertComponent, InspectoSchemaFormComponent],
+    imports: [
+        ReactiveFormsModule,
+        MatButtonModule,
+        MatDialogModule,
+        MatFormFieldModule,
+        MatInputModule,
+        InspectoAlertComponent,
+        InspectoSchemaFormComponent,
+        QueryConditionGroupComponent,
+    ],
     changeDetection: ChangeDetectionStrategy.OnPush,
     template: `
         <h2 mat-dialog-title>
@@ -50,14 +86,19 @@ function uniqueNameValidator(taken: string[]): ValidatorFn {
         <mat-dialog-content class="!pt-2">
             @if (writesDisabled()) {
                 <inspecto-alert class="mb-4 block" variant="warning" icon="heroicons_outline:lock-closed">
-                    Alert-rule writes are disabled on this server (no write endpoint yet) — rules are
-                    armed by saving a <code>*_alert.toon</code> next to the pipeline configs.
+                    Alert-rule writes are disabled on this server (no write root configured).
                 </inspecto-alert>
             }
             <!-- Config step content stays mounted (not @if'd) so the schema-form ViewChild survives the
                  step transition — only visually hidden via [hidden], never destroyed. -->
             <div [hidden]="step() === 'save'">
                 <inspecto-schema-form #sf [specs]="attributes" [initial]="initialValue" [optionLoaders]="optionLoaders" (submitted)="save()"></inspecto-schema-form>
+
+                <div class="mt-4 font-semibold">Only count batches matching (optional)</div>
+                <inspecto-query-condition-group class="mt-2 block" [group]="when" [columns]="columns" [root]="true" />
+                @if (whenEmpty()) {
+                    <div class="text-secondary mt-1 text-sm">No conditions — every batch in the window counts.</div>
+                }
             </div>
             @if (!isEdit && step() === 'save') {
                 <!-- Save step (create only): the rule id, asked only now. -->
@@ -147,6 +188,20 @@ export class AlertRuleFormDialog {
         ? { ...this.data.rule, onPipeline: this.data.rule.onPipeline ?? '' }
         : undefined;
 
+    /** Deep-cloned on edit — the condition editor mutates the bound group in place. */
+    readonly when: ConditionGroup = this.data.rule?.when ? structuredClone(this.data.rule.when) : emptyGroup('AND');
+    /** Fixed ledger columns, plus any field an existing when-clause already references. */
+    readonly columns: ColumnMeta[] = [
+        ...LEDGER_COLUMNS,
+        ...referencedFields(this.when)
+            .filter((f) => !LEDGER_COLUMNS.some((c) => c.name === f))
+            .map((name) => ({ name, type: 'string' as const })),
+    ];
+
+    whenEmpty(): boolean {
+        return this.when.items.length === 0;
+    }
+
     /** The suggested rule id: `<metric>_<comparator>_<window>`. */
     suggestedName(): string {
         const v = this.schemaForm.value() as { metric?: string; comparator?: string; window?: string };
@@ -181,6 +236,7 @@ export class AlertRuleFormDialog {
             window: String(v.window ?? '15m'),
             severity: String(v.severity ?? 'WARNING'),
             ...(onPipeline ? { onPipeline } : {}),
+            ...(this.whenEmpty() ? {} : { when: this.when }),
         };
         this.saving.set(true);
         const call = this.isEdit ? this.api.updateRule(body.name, body) : this.api.createRule(body);

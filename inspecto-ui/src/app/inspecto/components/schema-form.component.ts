@@ -10,7 +10,7 @@ import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { MatTooltipModule } from '@angular/material/tooltip';
-import { AttributeOption, AttributeSpec, byTier, defaultsFor, isRequired } from '../component-model';
+import { AttributeOption, AttributeSpec, byTier, defaultsFor, dependsOnMatches, isRequired } from '../component-model';
 
 /**
  * Supplies the suggestion list for a `type: 'autocomplete'` attribute. Receives the current raw form
@@ -244,8 +244,7 @@ export class InspectoSchemaFormComponent {
 
     /** True while `spec` should render (its `dependsOn` matches the current values). */
     isVisible(spec: AttributeSpec): boolean {
-        const v = this.formValue();
-        return !spec.dependsOn || v[spec.dependsOn.key] === spec.dependsOn.equals;
+        return !spec.dependsOn || dependsOnMatches(spec.dependsOn, this.formValue());
     }
 
     /** Whether the user changed anything — drives the shared discard-on-close guard. */
@@ -293,7 +292,7 @@ export class InspectoSchemaFormComponent {
         this.formValue.set(value);
         for (const s of this.allSpecs) {
             if (!s.dependsOn) continue;
-            const visible = value[s.dependsOn.key] === s.dependsOn.equals;
+            const visible = dependsOnMatches(s.dependsOn, value);
             const control: AbstractControl | null = this.form.get(s.key);
             if (!control) continue;
             if (visible && control.disabled) control.enable({ emitEvent: false });

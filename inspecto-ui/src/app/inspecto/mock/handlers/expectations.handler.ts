@@ -105,13 +105,14 @@ function normalize(b: Partial<MockExpectation>): Omit<MockExpectation, 'name' | 
         description: b.description ?? '',
         targetType: b.targetType === 'job' ? 'job' : 'pipeline',
         target: String(b.target ?? ''),
-        column: String(b.column ?? ''),
+        column: b.kind === 'condition' ? undefined : String(b.column ?? ''),
         kind: b.kind ?? 'non_null',
         min: b.min ?? null,
         max: b.max ?? null,
         pattern: b.pattern ?? null,
         refDataset: b.refDataset ?? null,
         refColumn: b.refColumn ?? null,
+        when: b.kind === 'condition' ? (b.when ?? null) : null,
         severity: b.severity ?? 'MAJOR',
         enabled: b.enabled !== false,
         ...(b.demoViolations !== undefined ? { demoViolations: b.demoViolations } : {}),
@@ -138,7 +139,7 @@ function evaluate(store: MockStore, space: string, e: MockExpectation): MockExpe
         if (!open) {
             const now = result.checkedAt;
             const title = `Expectation failed: ${e.name}`;
-            const description = `${e.kind} check on ${e.targetType} "${e.target}" column "${e.column}" — ${violations} violating record(s).`;
+            const description = `${e.kind} check on ${e.targetType} "${e.target}"${e.column ? ` column "${e.column}"` : ''} — ${violations} violating record(s).`;
             const obj: OperationalObject = {
                 id: 'obj-' + now,
                 objectType: 'INCIDENT',

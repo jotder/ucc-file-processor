@@ -29,9 +29,9 @@ its type inference (`query-columns.ts`). It exists so the backend counts row mat
 the semantics the authoring UI previews offline — same case-insensitive substring ops, same
 `in`/`between`, same typed comparison, and the same **"empty / incomplete group ⇒ no constraint ⇒
 matches all"** rule. Column types are inferred from the sample rows (numeric strings compare
-numerically, ids don't read as dates). Entry point: `int matched(Object when, List<Map> rows)`.
-It's a reusable seam — Expectations / Alert Rules can adopt it when they promote to the same
-condition-tree contract.
+numerically, ids don't read as dates). Entry points: `int matched(Object when, List<Map> rows)` and
+`List<Map> filter(Object when, List<Map> rows)` (the row-level form `matched` now delegates to —
+added for Alert Rules' `when`, which needs the matching rows themselves, not just a count).
 
 ## `simulate` is sample-driven (the row-source decision)
 
@@ -112,10 +112,53 @@ places:
 Other built-in job types (`report`, `maintenance`, …) don't materialize rule-checkable tabular
 output; Job-Pack types can adopt the same applier seam when they do.
 
-Tests: `com.gamma.query.ConditionTreeTest` (evaluator semantics),
+## The other two-thirds of the triad now share the condition-tree contract too (2026-07-18)
+
+Expectation and Alert Rule each adopted `ConditionTree`/`ConditionSql` in the shape that fits their
+own domain — neither became a Decision Rule clone:
+
+- **Expectation gains a `condition` kind** (`com.gamma.expectation.Expectation`,
+  `ExpectationEvaluator`) alongside the original four (`non_null`/`range`/`regex`/`referential`).
+  Unlike those, `condition`'s `when` tree **is** the violation predicate directly (a record matching
+  it is a violation), compiled via `ConditionSql.predicate(when)` straight into the
+  `SELECT count(*) … WHERE <predicate>` the other kinds also build — so it needs no `column` (the
+  tree names its own field(s)) and can span multiple columns or use operators the four typed kinds
+  can't (`contains`, multi-column `AND`/`OR`). `when` is required for this kind; the other four keep
+  their own hand-built predicates unchanged.
+- **Alert Rule gains an optional `when`** (`com.gamma.alert.AlertRule`) that row-scopes a
+  ledger-metric rule: after the window selects ledger rows and before the metric aggregates them,
+  `AlertService` filters via `ConditionTree.filter` (in-JVM — ledger rows never touch DuckDB) so an
+  alert can watch e.g. only batches matching a condition, not just a bare metric/threshold. Not
+  applicable to a BI-5 measure rule (no ledger rows to scope) — rejected at construction.
+- **Alert Rule storage promoted off raw files** (`com.gamma.control.AlertRoutes`) — was the one
+  member of the triad still living as raw `*_alert.toon` files (`ServiceBootstrap`'s suffix-scan at
+  boot, hand-built TOON writes at CRUD time). Now an `alert-rule` `ComponentStore` component under
+  `<write-root>/registry/alert-rules/`, matching Expectation/Decision Rule's CRUD contract exactly
+  (503/422/409/404). `AlertService`'s in-memory rule list — the evaluation-time source of truth,
+  since it's read on every terminal batch event — is unchanged; only *where it's loaded from* at
+  boot and *where CRUD persists to* moved. Boot resolves the registry root the same way
+  `DecisionRules.forPipeline` does (`root.config()/registry`, falling back to the legacy
+  `-Dassist.write.root/registry` for the default space), so a restart re-arms exactly what
+  `AlertRoutes` wrote. `AlertRule.load(Path)` (the raw `{alert:{…}}` wrapper) stays — the agent's
+  `diagnose-and-alert` draft shape and a generic repo-config sanity sweep still parse it directly.
+
+**UI**: `expectation-form.dialog.ts` and `alert-rule-form.dialog.ts` both wire the shared
+`<inspecto-query-condition-group>` editor (the same component Decision Rule's form uses) — Expectation
+shows it only for `kind: 'condition'` (a new `AttributeSpec.dependsOn.notEquals` variant hides
+`column` for that kind; `dependsOnMatches` is the one place `equals`/`notEquals` is interpreted,
+shared by `visibleSpecs` and `<inspecto-schema-form>`'s live show/hide), Alert Rule shows it always
+(the form doesn't yet author BI-5 measure rules, so `when` is never inapplicable there). Alert
+Rule's field list is the fixed ledger-row shape (`status`/`total_input_rows`/…), unlike Decision
+Rule/Expectation which probe the target's real columns via `DbBrowserService`.
+
+Tests: `com.gamma.query.ConditionTreeTest` (evaluator semantics, incl. `filter`),
 `com.gamma.query.ConditionSqlTest` (SQL↔evaluator parity),
 `com.gamma.inspector.DecisionRuleWiringTest` (all four consequences through `writeAndTrace`),
 `com.gamma.enrich.EnrichmentEngineTest` (drop/route+tag/quarantine over `__enriched`, enrichment-
 and job-name matching), `com.gamma.job.SqlTemplateJobTest` (rules before the snapshot; post-rule
-artifact count; hidden-quarantine layout), and
-`com.gamma.control.ControlApiDecisionRulesTest` (CRUD gates + real simulate).
+artifact count; hidden-quarantine layout), `com.gamma.control.ControlApiDecisionRulesTest` (CRUD
+gates + real simulate), `com.gamma.control.ControlApiExpectationTest` (`condition` kind),
+`com.gamma.alert.AlertRuleTest`/`AlertServiceTest` (`when` validation + row-scoping), and
+`com.gamma.control.ControlApiAlertRuleWriteTest` (ComponentStore-backed CRUD gates). UI:
+`attribute-spec.spec.ts` (`notEquals`), `expectation-form.dialog.spec.ts`/
+`alert-rule-form.dialog.spec.ts` (condition-tree wiring + save payload).

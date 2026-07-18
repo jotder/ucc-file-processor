@@ -57,6 +57,21 @@ describe('attribute-spec', () => {
         expect(validateAttributes(specs, {}).map((f) => f.path)).toEqual(['name']); // title omitted ⇒ no finding
     });
 
+    it('hides a notEquals dependsOn attribute exactly when the controller matches', () => {
+        const specs: AttributeSpec[] = [
+            {
+                key: 'kind', label: 'Kind', type: 'select', tier: 'required',
+                options: [{ value: 'non_null', label: 'Non-null' }, { value: 'condition', label: 'Condition' }],
+            },
+            { key: 'column', label: 'Column', type: 'string', tier: 'required', dependsOn: { key: 'kind', notEquals: 'condition' } },
+        ];
+        expect(visibleSpecs(specs, { kind: 'condition' }).map((s) => s.key)).not.toContain('column');
+        expect(visibleSpecs(specs, { kind: 'non_null' }).map((s) => s.key)).toContain('column');
+        // required but hidden by notEquals ⇒ no finding
+        expect(validateAttributes(specs, { kind: 'condition' }).map((f) => f.path)).toEqual([]);
+        expect(validateAttributes(specs, { kind: 'non_null' }).map((f) => f.path)).toEqual(['column']);
+    });
+
     it('accepts a fully valid config and wraps as a kind validator', () => {
         const validate = attributeValidator(SPECS);
         expect(validate({ name: 'daily_kpi', type: 'report', cron: '0 2 * * *', threads: 8, enabled: false })).toEqual([]);

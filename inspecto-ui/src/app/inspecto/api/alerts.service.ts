@@ -1,6 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
+import type { ConditionGroup } from '../query/query-types';
 import { apiUrl, toParams } from './api-base';
 
 /** One fired alert from the core alert engine (GET /alerts). */
@@ -26,15 +27,22 @@ export interface AlertRule {
   window: string;
   severity: string;
   onPipeline?: string;
+  /**
+   * Row-scoping condition tree (2026-07-18, the same `query-types` shape Decision Rules author):
+   * restricts the metric math to ledger rows matching it, applied after the window selects rows
+   * and before the metric aggregates them. Ledger-metric rules only (no `dataset`/`measure` rule).
+   */
+  when?: ConditionGroup | null;
 }
 
 /** Create/update body — the whole rule is authorable; `name` is the identity (immutable on edit). */
 export type AlertRuleUpsert = AlertRule;
 
 /**
- * The core alert execution engine (v4.1, B5; CONTROL scope). Rules are operator-saved
- * *_alert.toon files (drafted by the diagnose-and-alert assist skill); evaluation is
- * event-driven off the batch bus, with a manual sweep via evaluate().
+ * The core alert execution engine (v4.1, B5; CONTROL scope). Rules are authored objects persisted
+ * as `alert-rule` components (2026-07-18 — the same ComponentStore CRUD contract Expectation/
+ * Decision Rule use); evaluation is event-driven off the batch bus, with a manual sweep via
+ * evaluate().
  */
 @Injectable({ providedIn: 'root' })
 export class AlertsService {

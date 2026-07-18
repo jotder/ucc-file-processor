@@ -22,6 +22,7 @@ export const EXPECTATION_ATTRIBUTES: AttributeSpec[] = [
     },
     {
         key: 'column', label: 'Column', type: 'autocomplete', tier: 'required',
+        dependsOn: { key: 'kind', notEquals: 'condition' },
         placeholder: 'e.g. msisdn',
         help: 'The record field the check inspects.',
     },
@@ -32,6 +33,7 @@ export const EXPECTATION_ATTRIBUTES: AttributeSpec[] = [
             { value: 'range', label: 'Range' },
             { value: 'regex', label: 'Regex' },
             { value: 'referential', label: 'Referential' },
+            { value: 'condition', label: 'Condition (advanced)' },
         ],
     },
     {

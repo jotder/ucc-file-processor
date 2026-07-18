@@ -75,6 +75,46 @@ describe('ExpectationFormDialog', () => {
         expect(created[0]).toMatchObject({ name: 'cdr_msisdn_not_null', target: 'cdr_ingest', column: 'msisdn' });
     });
 
+    it('condition kind hides the column field and shows the condition-tree editor', () => {
+        const fixture = create({});
+        const c = fixture.componentInstance;
+        c.schemaForm.form.get('kind')!.setValue('condition');
+        fixture.detectChanges();
+        expect(c.schemaForm.form.get('column')!.disabled).toBe(true);
+        expect(c.kind()).toBe('condition');
+        expect(fixture.nativeElement.textContent).toContain('Records violate this check when');
+    });
+
+    it('condition kind posts the when tree and omits column on create', () => {
+        const created: unknown[] = [];
+        TestBed.configureTestingModule({
+            imports: [ExpectationFormDialog],
+            providers: [
+                provideNoopAnimations(),
+                provideHttpClient(),
+                { provide: MatDialogRef, useValue: { close: () => {} } },
+                { provide: MAT_DIALOG_DATA, useValue: {} },
+                { provide: ExpectationsService, useValue: { create: (b: unknown) => { created.push(b); return { subscribe: () => {} }; } } },
+                { provide: ToastrService, useValue: {} },
+            ],
+        });
+        const fixture = TestBed.createComponent(ExpectationFormDialog);
+        fixture.detectChanges();
+        const c = fixture.componentInstance;
+        c.schemaForm.form.patchValue({ target: 'orders', kind: 'condition' });
+        c.when.items.push({ kind: 'condition', field: 'amount', operator: '>', value: '500' });
+        c.save();
+        c.saveForm.patchValue({ name: 'orders_condition' });
+        c.save();
+        expect(created[0]).toMatchObject({
+            name: 'orders_condition',
+            target: 'orders',
+            kind: 'condition',
+            column: undefined,
+            when: { kind: 'group', op: 'AND', items: [{ kind: 'condition', field: 'amount', operator: '>', value: '500' }] },
+        });
+    });
+
     it('edit mode stays on the config step and shows the (immutable) name in the title', () => {
         const fixture = create({
             expectation: {

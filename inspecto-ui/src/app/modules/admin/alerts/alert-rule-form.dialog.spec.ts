@@ -107,6 +107,23 @@ describe('AlertRuleFormDialog', () => {
         expect(fixture.nativeElement.textContent).toContain('writes are disabled');
     });
 
+    it('omits when while the condition tree is empty, includes it once a condition is added', () => {
+        const { c, save } = create({});
+        c.schemaForm.form.patchValue({ metric: 'duration_ms', threshold: 5000 });
+        c.save();
+        c.saveForm.patchValue({ name: 'scoped' });
+        c.save();
+        expect(save).toHaveBeenCalledWith(expect.not.objectContaining({ when: expect.anything() }));
+
+        c.backToConfig();
+        c.when.items.push({ kind: 'condition', field: 'rejected_count', operator: '>', value: '0' });
+        c.save();
+        c.save();
+        expect(save).toHaveBeenCalledWith(expect.objectContaining({
+            when: { kind: 'group', op: 'AND', items: [{ kind: 'condition', field: 'rejected_count', operator: '>', value: '0' }] },
+        }));
+    });
+
     it('renders with no a11y violations', async () => {
         const { fixture } = create({});
         await expectNoA11yViolations(fixture.nativeElement);

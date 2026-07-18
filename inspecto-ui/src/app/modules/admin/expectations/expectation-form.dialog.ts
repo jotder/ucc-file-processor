@@ -1,17 +1,35 @@
-import { AfterViewInit, ChangeDetectionStrategy, Component, inject, signal, ViewChild } from '@angular/core';
+import { AfterViewInit, ChangeDetectionStrategy, Component, DestroyRef, inject, signal, ViewChild } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { AbstractControl, FormBuilder, ReactiveFormsModule, ValidatorFn, Validators } from '@angular/forms';
+import { debounceTime, distinctUntilChanged } from 'rxjs';
 import { MatButtonModule } from '@angular/material/button';
 import { MAT_DIALOG_DATA, MatDialogModule, MatDialogRef } from '@angular/material/dialog';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { ToastrService } from 'ngx-toastr';
-import { apiErrorMessage, Expectation, ExpectationKind, ExpectationsService, ExpectationUpsert } from 'app/inspecto/api';
+import { apiErrorMessage, DbBrowserService, Expectation, ExpectationKind, ExpectationsService, ExpectationUpsert } from 'app/inspecto/api';
 import { InspectoAlertComponent } from 'app/inspecto/components/alert.component';
 import { InspectoSchemaFormComponent } from 'app/inspecto/components/schema-form.component';
 import { InspectoConfirmService } from 'app/inspecto/confirm.service';
 import { columnOptionLoader, datasetOptionLoader, pipelineOrJobOptionLoader } from 'app/inspecto/components/entity-option-loaders';
 import { guardDirtyClose } from 'app/inspecto/dialog-dirty-guard';
+import { QueryConditionGroupComponent } from 'app/inspecto/query/query-condition-group.component';
+import { dbColumnType } from 'app/inspecto/query/query-columns';
+import { Condition, ColumnMeta, ConditionGroup, emptyGroup } from 'app/inspecto/query/query-types';
 import { EXPECTATION_ATTRIBUTES } from './expectation-attributes';
+
+/** The distinct fields an existing when-clause already references (typed string until probed) — the
+ *  same seeding idiom `decision-rule-form.dialog` uses so a stored condition tree's fields render
+ *  before (or without) a successful column probe. */
+function referencedFields(group: ConditionGroup): string[] {
+    const out: string[] = [];
+    const walk = (item: Condition | ConditionGroup): void => {
+        if (item.kind === 'group') item.items.forEach(walk);
+        else if (item.field) out.push(item.field);
+    };
+    walk(group);
+    return [...new Set(out)];
+}
 
 /** Dialog input: an existing expectation ⇒ edit; absent ⇒ create. */
 export interface ExpectationFormData {
@@ -46,6 +64,7 @@ function uniqueNameValidator(taken: string[]): ValidatorFn {
         MatInputModule,
         InspectoAlertComponent,
         InspectoSchemaFormComponent,
+        QueryConditionGroupComponent,
     ],
     changeDetection: ChangeDetectionStrategy.OnPush,
     template: `
@@ -62,6 +81,16 @@ function uniqueNameValidator(taken: string[]): ValidatorFn {
                  step transition — only visually hidden via [hidden], never destroyed. -->
             <div [hidden]="step() === 'save'">
                 <inspecto-schema-form [specs]="attributes" [initial]="initialValue" [optionLoaders]="optionLoaders" (submitted)="save()"></inspecto-schema-form>
+
+                @if (kind() === 'condition') {
+                    <div class="mt-4 font-semibold">Records violate this check when</div>
+                    <inspecto-query-condition-group class="mt-2 block" [group]="when" [columns]="columns()" [root]="true" />
+                    @if (!columns().length) {
+                        <div class="text-secondary mt-1 text-sm">Field choices load from the target's records — set Target above first.</div>
+                    } @else if (whenEmpty()) {
+                        <div class="text-secondary mt-1 text-sm">No conditions yet — every record would violate this check.</div>
+                    }
+                }
             </div>
             @if (!isEdit && step() === 'save') {
                 <!-- Save step (create only): id + description, asked only now. -->
@@ -101,6 +130,8 @@ function uniqueNameValidator(taken: string[]): ValidatorFn {
 export class ExpectationFormDialog implements AfterViewInit {
     private fb = inject(FormBuilder);
     private api = inject(ExpectationsService);
+    private db = inject(DbBrowserService);
+    private destroyRef = inject(DestroyRef);
     private ref = inject(MatDialogRef<ExpectationFormDialog, ExpectationFormResult>);
     private confirm = inject(InspectoConfirmService);
     private toastr = inject(ToastrService);
@@ -161,10 +192,54 @@ export class ExpectationFormDialog implements AfterViewInit {
           }
         : undefined;
 
+    /** Deep-cloned on edit — the condition editor mutates the bound group in place. */
+    readonly when: ConditionGroup = this.data.expectation?.when
+        ? structuredClone(this.data.expectation.when)
+        : emptyGroup('AND');
+
+    /** The when-clause field choices — probed from the target's records, seeded with fields an
+     *  existing condition already references (the decision-rule-form idiom). */
+    readonly columns = signal<ColumnMeta[]>(this.seedColumns());
+    /** The live `kind` value, so the template shows the condition editor only for `kind: 'condition'`. */
+    readonly kind = signal<ExpectationKind | undefined>(this.data.expectation?.kind);
+
+    private seedColumns(): ColumnMeta[] {
+        return referencedFields(this.when).map((name) => ({ name, type: 'string' as const }));
+    }
+
+    private loadColumns(target: string): void {
+        const name = target.trim();
+        if (!name) {
+            this.columns.set(this.seedColumns());
+            return;
+        }
+        this.db.table({ name, limit: 1 }).subscribe({
+            next: (res) => {
+                const fetched: ColumnMeta[] = res.columns.map((c) => ({ name: c.name, type: dbColumnType(c.type) }));
+                const known = new Set(fetched.map((c) => c.name));
+                this.columns.set([...fetched, ...this.seedColumns().filter((c) => !known.has(c.name))]);
+            },
+            error: () => this.columns.set(this.seedColumns()),
+        });
+    }
+
+    whenEmpty(): boolean {
+        return this.when.items.length === 0;
+    }
+
     ngAfterViewInit(): void {
         if (this.isEdit) {
             this.saveForm.patchValue({ name: this.data.expectation!.name, description: this.data.expectation!.description ?? '' });
         }
+        const target = this.schemaForm.form.get('target');
+        target?.valueChanges
+            .pipe(debounceTime(300), distinctUntilChanged(), takeUntilDestroyed(this.destroyRef))
+            .subscribe((t) => this.loadColumns(String(t ?? '')));
+        this.loadColumns(String(target?.value ?? ''));
+
+        this.schemaForm.form.get('kind')?.valueChanges
+            .pipe(takeUntilDestroyed(this.destroyRef))
+            .subscribe((k) => this.kind.set(k as ExpectationKind));
     }
 
     /** The suggested expectation id: `<target>_<column>_<kind>`. */
@@ -209,13 +284,14 @@ export class ExpectationFormDialog implements AfterViewInit {
             description: String(this.saveForm.getRawValue().description ?? '').trim(),
             targetType: v.targetType,
             target: String(v.target ?? '').trim(),
-            column: String(v.column ?? '').trim(),
+            column: v.kind === 'condition' ? undefined : String(v.column ?? '').trim(),
             kind: v.kind,
             min: v.kind === 'range' ? (v.min ?? null) : null,
             max: v.kind === 'range' ? (v.max ?? null) : null,
             pattern: v.kind === 'regex' ? String(v.pattern ?? '').trim() : null,
             refDataset: v.kind === 'referential' ? String(v.refDataset ?? '').trim() : null,
             refColumn: v.kind === 'referential' ? String(v.refColumn ?? '').trim() : null,
+            when: v.kind === 'condition' ? this.when : null,
             severity: v.severity ?? 'MAJOR',
             enabled: v.enabled !== false,
         };

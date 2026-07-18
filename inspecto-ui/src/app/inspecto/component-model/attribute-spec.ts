@@ -49,8 +49,9 @@ export interface AttributeSpec {
     /** Bounds for `type: 'number'`. */
     min?: number;
     max?: number;
-    /** Show this attribute only while another attribute holds a given value. */
-    dependsOn?: { key: string; equals: unknown };
+    /** Show this attribute only while another attribute holds (`equals`) or doesn't hold (`notEquals`)
+     *  a given value — exactly one of the two; `equals` is the common case (a kind-specific param). */
+    dependsOn?: { key: string; equals: unknown } | { key: string; notEquals: unknown };
     /** One-line helper text shown under the field. */
     help?: string;
     placeholder?: string;
@@ -72,9 +73,16 @@ export function defaultsFor(specs: AttributeSpec[]): Record<string, unknown> {
     return out;
 }
 
+/** Whether a `dependsOn` clause matches `value` — the one place `equals`/`notEquals` is interpreted
+ *  (shared by `visibleSpecs` here and `<inspecto-schema-form>`'s live show/hide + enable/disable). */
+export function dependsOnMatches(dependsOn: NonNullable<AttributeSpec['dependsOn']>, value: Record<string, unknown>): boolean {
+    const v = value[dependsOn.key];
+    return 'notEquals' in dependsOn ? v !== dependsOn.notEquals : v === dependsOn.equals;
+}
+
 /** The specs visible for `value`, honouring `dependsOn` (hidden attributes are also not validated). */
 export function visibleSpecs(specs: AttributeSpec[], value: Record<string, unknown>): AttributeSpec[] {
-    return specs.filter((s) => !s.dependsOn || value[s.dependsOn.key] === s.dependsOn.equals);
+    return specs.filter((s) => !s.dependsOn || dependsOnMatches(s.dependsOn, value));
 }
 
 /** Group specs by tier, preserving declaration order. */
