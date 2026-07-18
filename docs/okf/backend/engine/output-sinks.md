@@ -21,6 +21,32 @@ timestamp: 2026-06-28T00:00:00Z
   declared, else writes a **single unpartitioned file**. (`sink.view` subtypes write no bytes — they register
   a view definition instead.)
 
+## Store-layout contract (decided 2026-07-18 — closes the UAT double-count)
+
+One store-layout contract governs where sink bytes land and what reads sweep (root cause of the
+UAT-proven +72% double-count: a flow job's `data_dir` pointed inside the `orders` store, its sink
+nested at `orders/rollup/`, and the dataset's recursive glob counted both):
+
+* **Write side** — a persistent store is a **top-level directory under the space data root**.
+  `PipelineJobRunner.requireTopLevelSinks` fails a flow run closed *before any bytes are written*
+  when a sink would resolve deeper (a `data_dir` pointed inside another store's tree, or a slashed
+  `store` name). A `data_dir` fully **outside** the data root stays allowed (external export). Job
+  configs bypass `ConfigSafetyValidator`, so this is enforced at run time.
+* **Read side** — `SqlViews.storeReadRoot(dir)`: a **pipeline-shaped store** (one with a
+  `database/` subtree) is read at its *mapped output* (`<store>/database/**`), so `backup/`,
+  `quarantine/` (incl. Decision-Rule record quarantine) and any stray nested trees never leak into
+  reads. A flat snapshot store (no `database/`) reads unchanged. Applied by `DatasetRelation`
+  (`physicalRef` datasets), `SourceStoreReader` (flow seeds + `sql.template` sources — a flow can
+  now seed straight from an ingest pipeline's store by name, no `data_dir` hack),
+  `PipelineJobRunner.deriveViewSql`, and `ExpectationEvaluator`. An **explicit deeper ref**
+  (`orders/database`, `orders/backup`) is honoured as written; `shared/…` Exchange refs are exempt.
+  (`DbBrowserRoutes` already resolves pipeline stores to `dirs.database` by pipeline lookup.)
+
+Tests: `DatasetRelationTest.physicalRefWithDatabaseSubtreeReadsMappedOutputOnly`,
+`PipelineJobRunnerTest` (`seedReadsAPipelineShapedStoresMappedOutputOnly`,
+`sinkNestedInsideAnotherStoreFailsClosed`, `slashedSinkStoreNameFailsClosed`,
+`externalDataDirStaysAllowed`).
+
 ## Quarantine outcomes
 
 * `QUARANTINED_UNREADABLE` — the ingester threw (file unreadable/undecodable).

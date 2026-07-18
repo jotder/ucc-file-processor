@@ -15,7 +15,10 @@ import java.sql.Statement;
  * {@link com.gamma.enrich.EnrichmentEngine} registers its {@code input} view.
  *
  * <p>The store lives under {@code <dataDir>/<store>}; it is read with the shared {@link SqlViews}
- * idiom so a flow job validates against the same dataset shape a real run produces.
+ * idiom so a flow job validates against the same dataset shape a real run produces. A
+ * pipeline-shaped store (one with a {@code database/} subtree) reads its mapped output only
+ * ({@link SqlViews#storeReadRoot} — the store-layout contract), so a flow can seed directly from an
+ * ingest pipeline's store by name without a {@code data_dir} override.
  */
 @PublicApi(since = "4.3.0")
 public final class SourceStoreReader {
@@ -43,7 +46,8 @@ public final class SourceStoreReader {
      */
     public static void registerView(Connection conn, String viewName, String dataDir,
                                     String store, String format, String wherePredicate) throws SQLException {
-        String glob = dataDir.replace("\\", "/") + "/" + store + "/**/*." + SqlViews.ext(format);
+        String glob = SqlViews.storeReadRoot(dataDir.replace("\\", "/") + "/" + store)
+                + "/**/*." + SqlViews.ext(format);
         String where = wherePredicate == null || wherePredicate.isBlank() ? "" : " WHERE " + wherePredicate;
         try (Statement st = conn.createStatement()) {
             st.execute("CREATE VIEW \"" + viewName + "\" AS SELECT * FROM "

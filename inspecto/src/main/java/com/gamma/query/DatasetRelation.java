@@ -2,6 +2,7 @@ package com.gamma.query;
 
 import com.gamma.pipeline.ViewDefinition;
 import com.gamma.pipeline.ViewStore;
+import com.gamma.sql.SqlViews;
 
 import java.nio.file.Path;
 import java.util.Map;
@@ -67,7 +68,12 @@ public final class DatasetRelation {
             Path base = ref.startsWith(SHARED_PREFIX)
                     ? resolveShared(ref)
                     : localBase(ref, dataRoot);
-            String glob = base.normalize().toString().replace('\\', '/') + "/**/*.parquet";
+            String root = base.normalize().toString().replace('\\', '/');
+            // Store-layout contract: a pipeline-shaped store (one with a database/ subtree) reads its
+            // mapped output only — quarantine/backup/nested trees stay out of the dataset. An explicit
+            // deeper ref (orders/database, orders/rollup) resolves as written.
+            if (!ref.startsWith(SHARED_PREFIX)) root = SqlViews.storeReadRoot(root);
+            String glob = root + "/**/*.parquet";
             return "SELECT * FROM read_parquet(" + sqlStr(glob) + ")";
         }
         throw new IllegalArgumentException("dataset must declare a 'view' or a 'physicalRef'");

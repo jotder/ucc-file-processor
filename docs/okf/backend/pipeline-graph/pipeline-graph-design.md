@@ -940,6 +940,8 @@ Actionable, phase-aligned, derived from §8 + the §13 corrections. `[ ]` = not 
   + `JobServiceTest`(+2: build-with-flow-store, fail-closed). inspecto **793/0/1**.
   **Resolved open Qs:** data root = `-Ddata.dir`/`data_dir` param (default `database`); audit/branch-commit log under
   the jobs audit dir; idempotency via a fixed `batch_id` param (default per-run timestamp); single `source_store` only.
+  *(2026-07-18: `data_dir` is now constrained by the store-layout contract — sinks must be top-level under the space
+  data root, and seed reads prefer a store's `database/` subtree; see `okf/backend/engine/output-sinks.md`.)*
   **Deletion fence wired (T25×T32, 2026-06-18):** `SourceService.checkDeletion` now folds authored flows
   (`PipelineStore.list()`) into the producer/consumer topology and unions in-flight `FLOW` runs
   (`JobService.runningFlows()`) into the active set, so deleting a store an active flow job reads/writes raises a

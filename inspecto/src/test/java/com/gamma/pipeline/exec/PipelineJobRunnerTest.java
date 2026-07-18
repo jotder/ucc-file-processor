@@ -338,6 +338,90 @@ class PipelineJobRunnerTest {
         }
     }
 
+    // ── store-layout contract (BACKLOG §1, decided 2026-07-18) ──────────────────
+
+    @Test
+    void seedReadsAPipelineShapedStoresMappedOutputOnly() throws Exception {
+        // a pipeline-shaped store: mapped output under database/, plus a stray sibling parquet tree
+        String dataDir = tmp.resolve("data").toString();
+        String auditDir = tmp.resolve("audit").toString();
+        seedParquetFile(dataDir, "orders/database", "seed", "(1,150),(2,50)");
+        seedParquetFile(dataDir, "orders/stray", "extra", "(9,999)");
+        PipelineStore store = new PipelineStore(tmp.resolve("flows"));
+        store.write("copy_flow", new PipelineGraph("copy_flow", true,
+                List.of(PipelineNode.of("src", "acquisition", Map.of("source_store", "orders")),
+                        new PipelineNode("out", "sink.persistent", "O", null, Map.of("store", "rollup"), null)),
+                List.of(PipelineEdge.data("src", "out"))));
+
+        JobConfig cfg = new JobConfig("copyjob", JobType.PIPELINE, null, null, true, false,
+                Map.of("flow", "copy_flow", "data_dir", dataDir));
+        JobResult res = new PipelineJobRunner(cfg, new BatchEventBus(), store, dataDir, auditDir).run();
+
+        assertTrue(res.success(), res.message());
+        assertEquals(List.of(1, 2), readIds(dataDir, "rollup"),
+                "only database/ rows seeded — the stray sibling tree stayed out");
+    }
+
+    @Test
+    void sinkNestedInsideAnotherStoreFailsClosed() throws Exception {
+        // the UAT double-count shape: data_dir points INSIDE a store, so the sink would nest there
+        String dataDir = tmp.resolve("data").toString();
+        seedParquetFile(dataDir, "orders/database", "seed", "(1,150)");
+        PipelineStore store = new PipelineStore(tmp.resolve("flows"));
+        store.write("nest_flow", new PipelineGraph("nest_flow", true,
+                List.of(PipelineNode.of("src", "acquisition", Map.of("source_store", "database")),
+                        new PipelineNode("out", "sink.persistent", "O", null, Map.of("store", "rollup"), null)),
+                List.of(PipelineEdge.data("src", "out"))));
+
+        JobConfig cfg = new JobConfig("nestjob", JobType.PIPELINE, null, null, true, false,
+                Map.of("flow", "nest_flow", "data_dir", tmp.resolve("data").resolve("orders").toString()));
+        PipelineJobRunner runner = new PipelineJobRunner(cfg, new BatchEventBus(), store, dataDir,
+                tmp.resolve("audit").toString());
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, runner::run);
+        assertTrue(ex.getMessage().contains("top-level"), ex.getMessage());
+        assertFalse(Files.exists(Path.of(dataDir, "orders", "rollup")), "failed closed — nothing written");
+    }
+
+    @Test
+    void slashedSinkStoreNameFailsClosed() throws Exception {
+        String dataDir = tmp.resolve("data").toString();
+        seedParquet(dataDir, "events", "(1,150)");
+        PipelineStore store = new PipelineStore(tmp.resolve("flows"));
+        store.write("slash_flow", new PipelineGraph("slash_flow", true,
+                List.of(PipelineNode.of("src", "acquisition", Map.of("source_store", "events")),
+                        new PipelineNode("out", "sink.persistent", "O", null,
+                                Map.of("store", "events/rollup"), null)),
+                List.of(PipelineEdge.data("src", "out"))));
+
+        JobConfig cfg = new JobConfig("slashjob", JobType.PIPELINE, null, null, true, false,
+                Map.of("flow", "slash_flow", "data_dir", dataDir));
+        assertThrows(IllegalArgumentException.class,
+                () -> new PipelineJobRunner(cfg, new BatchEventBus(), store, dataDir,
+                        tmp.resolve("audit").toString()).run());
+    }
+
+    @Test
+    void externalDataDirStaysAllowed() throws Exception {
+        // a root fully outside the space data root is the data_dir escape hatch (external export)
+        String dataDir = tmp.resolve("data").toString();
+        String external = tmp.resolve("external").toString();
+        seedParquet(external, "events", "(1,150)");
+        PipelineStore store = new PipelineStore(tmp.resolve("flows"));
+        store.write("ext_flow", new PipelineGraph("ext_flow", true,
+                List.of(PipelineNode.of("src", "acquisition", Map.of("source_store", "events")),
+                        new PipelineNode("out", "sink.persistent", "O", null, Map.of("store", "rollup"), null)),
+                List.of(PipelineEdge.data("src", "out"))));
+
+        JobConfig cfg = new JobConfig("extjob", JobType.PIPELINE, null, null, true, false,
+                Map.of("flow", "ext_flow", "data_dir", external));
+        JobResult res = new PipelineJobRunner(cfg, new BatchEventBus(), store, dataDir,
+                tmp.resolve("audit").toString()).run();
+
+        assertTrue(res.success(), res.message());
+        assertEquals(List.of(1), readIds(external, "rollup"));
+    }
+
     // ── helpers ──────────────────────────────────────────────────────────────────
 
     /** Write {@code (id,ts)} VARCHAR VALUES as a uniquely-named Parquet file under {@code <dataDir>/<store>/}. */

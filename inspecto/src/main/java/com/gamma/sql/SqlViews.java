@@ -22,6 +22,23 @@ public final class SqlViews {
     }
 
     /**
+     * The canonical read root of a store directory: its {@code database/} subtree when one exists —
+     * a pipeline-shaped store reads its <em>mapped output</em>, so the sibling {@code backup/},
+     * {@code quarantine/} and any nested trees never leak into recursive reads — else the directory
+     * itself (a flat snapshot store). The read-side half of the store-layout contract
+     * (BACKLOG §1, decided 2026-07-18); the write-side half is {@code PipelineJobRunner}'s
+     * top-level-sink rule.
+     *
+     * @param storeDir the store directory (either slash style)
+     * @return the directory to glob under, forward-slashed
+     */
+    public static String storeReadRoot(String storeDir) {
+        String dir = storeDir.replace("\\", "/");
+        return java.nio.file.Files.isDirectory(java.nio.file.Path.of(dir, "database"))
+                ? dir + "/database" : dir;
+    }
+
+    /**
      * A DuckDB table-function reading {@code pathOrGlob} in the given {@code format}.
      *
      * @param format     {@code "PARQUET"} or {@code "CSV"}

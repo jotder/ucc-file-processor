@@ -66,7 +66,8 @@ import java.util.Set;
  *   type: pipeline             # this runner
  *   flow: events_rollup        # authored flow id (PipelineStore.get)
  *   cron: "0 2 * * *"          # OR on_pipeline: events_etl  (event)  OR manual (trigger API)
- *   data_dir: database         # optional — overrides the injected data root
+ *   data_dir: database         # optional — overrides the injected data root; must not point inside
+ *                              #   the space data root (sinks are top-level stores — see below)
  *   batch_id: ...              # optional — fixed batch id (idempotent re-run); default per-run timestamp
  * </pre>
  *
@@ -122,6 +123,7 @@ public final class PipelineJobRunner implements Job {
         PipelineGraph g = flowStore.get(flowId).orElseThrow(() -> new IllegalArgumentException(
                 "flow job '" + cfg.name() + "' references unknown flow '" + flowId + "'"));
         String dir = cfg.opt("data_dir", dataDir);
+        requireTopLevelSinks(g, dir);
         String batchId = cfg.opt("batch_id", cfg.name().toLowerCase().replace(' ', '_')
                 + "-" + System.currentTimeMillis());
         List<Seed> seeds = seedsOf(g);
@@ -187,6 +189,29 @@ public final class PipelineJobRunner implements Job {
     }
 
     // ── helpers ──────────────────────────────────────────────────────────────────
+
+    /**
+     * The write-side store-layout contract (BACKLOG §1, decided 2026-07-18): a persistent store is a
+     * <b>top-level directory under the space data root</b>. A sink resolving deeper — a {@code data_dir}
+     * pointed inside another store's tree (the UAT double-count shape), or a slashed {@code store}
+     * name — would be swept by recursive dataset reads over the enclosing store, so the run fails
+     * closed before any bytes are written. A root fully outside the space data root (an external
+     * {@code data_dir} export) stays allowed. Job configs bypass {@code ConfigSafetyValidator}, so
+     * this is enforced here at run time.
+     */
+    private void requireTopLevelSinks(PipelineGraph g, String dir) {
+        Path root = Path.of(dataDir).toAbsolutePath().normalize();
+        for (PipelineStores.Produced p : PipelineStores.producedStores(g)) {
+            if (!p.restsOnDisk()) continue;
+            Path sink = Path.of(dir, p.store()).toAbsolutePath().normalize();
+            if (!sink.startsWith(root) || root.equals(sink.getParent())) continue;
+            throw new IllegalArgumentException("flow job '" + cfg.name() + "' sink store '" + p.store()
+                    + "' resolves to '" + sink + "', nested inside the space data root — persistent"
+                    + " stores are top-level directories under the data root (a nested store"
+                    + " double-counts in recursive dataset reads); drop the data_dir override or point"
+                    + " it fully outside the data root");
+        }
+    }
 
     /**
      * T22 — evaluate the §11.4 conservation invariant over this run's per-edge counts and emit a
@@ -294,7 +319,8 @@ public final class PipelineJobRunner implements Job {
             chain.add(pn);                                        // an intermediate transform to fold
             cur = prev;
         }
-        String glob = dir.replace("\\", "/") + "/" + sourceStore + "/**/*." + SqlViews.ext(sourceFmt);
+        String glob = SqlViews.storeReadRoot(dir.replace("\\", "/") + "/" + sourceStore)
+                + "/**/*." + SqlViews.ext(sourceFmt);
         String sql = "SELECT * FROM " + SqlViews.reader(sourceFmt, glob, true);
         for (int i = chain.size() - 1; i >= 0; i--) {            // fold in source→view order
             Optional<String> step = RowShaper.toSelect(chain.get(i), sql);

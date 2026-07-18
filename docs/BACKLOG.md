@@ -21,7 +21,6 @@ that closes/opens an item)
 | Item | Status | Source |
 |---|---|---|
 | Full `package.ps1` bundle (npm+jlink) not smoke-tested since the `spaces/` migration + bundle-prune fix | Smoke the built artifact before any release | `HANDOVER-multi-space.md`, `SESSION_STATUS.local.md` |
-| **Dataset glob vs pipeline sink nesting** — a `physicalRef` Dataset reads `<dataRoot>/<ref>/**/*.parquet` recursively, but an authored pipeline `sink.persistent` store can nest INSIDE a source store's tree → silent double-count (UAT-proven, +72%). Demo symptom-fixed; the real contract is undecided: sink stores resolve under the data root, and/or dataset globs default to `database/`? | **Open — decide the contract, then align engine/docs/demo** | `docs/ops/uat-seeding.md` forensics |
 
 ## 2. Product remainder (MoSCoW of record: `REQUIREMENTS.md` §5)
 

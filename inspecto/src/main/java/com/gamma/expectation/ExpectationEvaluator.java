@@ -83,7 +83,12 @@ public final class ExpectationEvaluator {
         return sb.append(")").toString();
     }
 
-    /** {@code read_parquet('<dataRoot>/<ref>/**\/*.parquet')} — path-jailed under the data root. */
+    /**
+     * {@code read_parquet('<dataRoot>/<ref>/**\/*.parquet')} — path-jailed under the data root. A
+     * pipeline-shaped store (one with a {@code database/} subtree) is read at its mapped output only
+     * ({@code SqlViews.storeReadRoot} — the store-layout contract), so quarantined/backup copies
+     * never count against an expectation.
+     */
     private static String parquetGlob(Path dataRoot, String ref) {
         if (dataRoot == null)
             throw new IllegalArgumentException("no data root for this space; cannot resolve target");
@@ -92,7 +97,8 @@ public final class ExpectationEvaluator {
         Path resolved = dataRoot.resolve(ref).normalize();
         if (!resolved.startsWith(dataRoot.normalize()))
             throw new IllegalArgumentException("expectation target escapes the data root");
-        String glob = resolved.toString().replace('\\', '/') + "/**/*.parquet";
+        String glob = com.gamma.sql.SqlViews.storeReadRoot(
+                resolved.toString().replace('\\', '/')) + "/**/*.parquet";
         return "read_parquet(" + literal(glob) + ")";
     }
 

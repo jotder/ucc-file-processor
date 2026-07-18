@@ -4,7 +4,7 @@ nodes[3]:
   - id: src
     type: acquisition
     config:
-      source_store: database
+      source_store: orders
   - id: flt
     type: transform.filter
     config:

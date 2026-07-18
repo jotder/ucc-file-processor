@@ -5,6 +5,7 @@ import com.gamma.pipeline.ViewStore;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
@@ -34,6 +35,20 @@ class DatasetRelationTest {
     void unknownViewRejected(@TempDir Path root) {
         assertThrows(IllegalArgumentException.class,
                 () -> DatasetRelation.relationSql(Map.of("view", "nope"), null, new ViewStore(root)));
+    }
+
+    @Test
+    void physicalRefWithDatabaseSubtreeReadsMappedOutputOnly(@TempDir Path root) throws Exception {
+        // store-layout contract: a pipeline-shaped store (database/ subtree present) reads its mapped
+        // output only, so backup/quarantine/nested trees never leak into the dataset
+        Files.createDirectories(root.resolve("orders").resolve("database"));
+        Files.createDirectories(root.resolve("orders").resolve("backup"));
+        String sql = DatasetRelation.relationSql(Map.of("physicalRef", "orders"), root, null);
+        assertTrue(sql.replace('\\', '/').contains("orders/database/**/*.parquet"),
+                "reads the mapped output, not the whole store tree: " + sql);
+        // an explicit deeper ref is honoured as written
+        String explicit = DatasetRelation.relationSql(Map.of("physicalRef", "orders/backup"), root, null);
+        assertTrue(explicit.replace('\\', '/').contains("orders/backup/**/*.parquet"), explicit);
     }
 
     @Test
