@@ -1,5 +1,30 @@
 # Log
 
+## 2026-07-19
+* **Menu Builder wired to the real backend** (BACKLOG §3 Menu-builder — "Remaining: UI wiring"): the
+  `GET/PUT /nav/menus` backend shipped `fdec9a0` but `MenuService` still persisted to localStorage only.
+  New `inspecto/menu/menu-api.ts` `NavMenusService` (`get()`/`put()` over `/nav/menus`, space-scoped by
+  the global interceptor; wire shape == `MenuTree` exactly, so no mapping). `MenuService` now hydrates the
+  active space from the server on construction (switching space reloads the app, so once is enough) and
+  **write-throughs** every mutation — optimistic local + `PUT`, a failed save toasts and the next load
+  reconciles. The **localStorage mirror is kept**, because the sidebar merge is built by the vendored gamma
+  nav mock (`mock-api/common/navigation/api.ts`) reading `loadMenuTrees()` **synchronously** — `MenuService`
+  keeps it in sync so the sidebar reflects server truth, and after a hydrate that differs it calls
+  `NavigationService.get()` to rebuild the sidebar (covers "menus authored in another browser"). Offline
+  parity: new `mock/handlers/nav.handler.ts` (a per-space singleton over `MockStore`, gated by `mockDemo`) —
+  when off, `/nav/menus` falls through to the real `NavRoutes` (the shared dev-preview default). Live-verified
+  end-to-end against the real backend (demo space): Add menu → `PUT` persisted server-side; **cleared the
+  localStorage mirror + reloaded → the menu reappeared** from `GET /nav/menus` and the sidebar refreshed —
+  proving server persistence, not localStorage. UI DoD green: lint:tokens PASS · prod build PASS · test:ci
+  1429/0/5 (+5 nav.handler; menu.service.spec rewritten around an in-memory server stand-in).
+* **Enrichment stage Preview** (BACKLOG §3 Onboarding — "Remaining: UI wiring"): the onboarding enrichment
+  pane's new **Preview** button samples the stream's Stage-1 output via `GET /db/table?name=<normalizedName>`
+  (the decision-rule Simulate idiom) and posts it to `POST /enrichment/preview` (`ConfigService.previewEnrichment`);
+  the `{columns,rows,truncated}` result renders in a shared `<inspecto-query-panel>`, a 422 surfaces inline,
+  and a stream with no ingested data yet warns instead of calling the endpoint. `buildDraft()` extracted so
+  save/preview share one validated draft. Read-only → every lens. Live-verified: Preview rendered 4 real rows.
+  Detail in `okf/backend/control-plane/onboarding-authoring.md`.
+
 ## 2026-07-17
 * **Mock PUT/POST parity — two silent-upsert gaps closed** (follow-through on the Studio
   create-on-edit fix `4dac986`, whose lesson was "the mock upserting silently is exactly what hides

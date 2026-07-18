@@ -4,8 +4,10 @@ import { MatDialog } from '@angular/material/dialog';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import { of } from 'rxjs';
 import { beforeEach, describe, expect, it } from 'vitest';
+import { ToastrService } from 'ngx-toastr';
 import { NavigationService } from 'app/core/navigation/navigation.service';
 import { SpacesService } from 'app/inspecto/api';
+import { NavMenusService, emptyTree } from 'app/inspecto/menu';
 import { expectNoA11yViolations } from 'app/inspecto/testing/a11y';
 import { MenuBuilderComponent } from './menu-builder.component';
 
@@ -19,6 +21,8 @@ describe('MenuBuilderComponent', () => {
                 provideNoopAnimations(),
                 { provide: SpacesService, useValue: { currentSpaceId: signal<string | null>(null) } },
                 { provide: NavigationService, useValue: { get: () => of(null) } },
+                { provide: NavMenusService, useValue: { get: () => of(emptyTree('default')), put: () => of(emptyTree('default')) } },
+                { provide: ToastrService, useValue: { error: () => {} } },
                 { provide: MatDialog, useValue: { open: () => ({ afterClosed: () => of(undefined) }) } },
             ],
         });

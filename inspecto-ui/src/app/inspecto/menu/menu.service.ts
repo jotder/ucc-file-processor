@@ -1,5 +1,8 @@
 import { computed, inject, Injectable, signal } from '@angular/core';
-import { SpacesService } from 'app/inspecto/api';
+import { ToastrService } from 'ngx-toastr';
+import { NavigationService } from 'app/core/navigation/navigation.service';
+import { apiErrorMessage, SpacesService } from 'app/inspecto/api';
+import { NavMenusService } from './menu-api';
 import { loadMenuTrees, saveMenuTrees } from './menu-persist';
 import { MenuStore } from './menu-store';
 import { emptyTree, MenuNode, MenuTree } from './menu-types';
@@ -7,15 +10,35 @@ import { emptyTree, MenuNode, MenuTree } from './menu-types';
 const DEFAULT_SPACE = 'default';
 
 /**
- * Holds the per-Space Menu tree as a signal, restored from `localStorage` synchronously (mirrors
- * {@link LensService}/{@link SqlHistoryService}). Mutations run through a pure {@link MenuStore} then
- * persist. **Mock-first (plan D1):** the persisted shape is exactly what a future `GET/PUT /nav/menus`
- * endpoint will carry, so the backend is an additive drop-in. See docs/superpower/menu-builder-plan.md.
+ * Holds the per-Space Menu tree as a signal. The server (`GET/PUT /nav/menus`, {@link NavMenusService})
+ * is the source of truth; the `localStorage` mirror ({@link loadMenuTrees}) gives an instant first
+ * paint, feeds the synchronous sidebar merge (the gamma nav mock reads it directly), and keeps the
+ * builder working offline. On construction the active Space is hydrated from the server (switching
+ * Space reloads the app, so once is enough) and mutations write through — optimistic locally + a PUT.
  */
 @Injectable({ providedIn: 'root' })
 export class MenuService {
     private readonly spaces = inject(SpacesService);
+    private readonly api = inject(NavMenusService);
+    private readonly navigation = inject(NavigationService);
+    private readonly toastr = inject(ToastrService);
     private readonly store = signal<Record<string, MenuTree>>(this.load());
+
+    constructor() {
+        const space = this.spaceKey();
+        this.api.get().subscribe({
+            next: (tree) => {
+                const changed = JSON.stringify(this.store()[space]?.nodes ?? []) !== JSON.stringify(tree.nodes);
+                this.persist({ ...this.store(), [space]: tree });
+                // The sidebar was built from the mirror; refresh it when the server tree differs (e.g.
+                // menus authored in another browser/session that this device's mirror hadn't seen).
+                if (changed) this.navigation.get().subscribe();
+            },
+            error: () => {
+                /* offline or read-only control plane: keep the mirror as-is */
+            },
+        });
+    }
 
     private spaceKey(): string {
         return this.spaces.currentSpaceId() ?? DEFAULT_SPACE;
@@ -30,11 +53,17 @@ export class MenuService {
         return new MenuStore(this.tree()).find(id);
     }
 
-    /** Apply pure ops against the active Space's tree and persist. Returns whatever `fn` returns. */
+    /** Apply pure ops against the active Space's tree, persist (optimistic + mirror), then write through
+     *  to the server. Returns whatever `fn` returns. A failed save toasts; the next load reconciles. */
     mutate<T>(fn: (s: MenuStore) => T): T {
         const s = new MenuStore(this.tree());
         const result = fn(s);
-        this.persist({ ...this.store(), [this.spaceKey()]: s.snapshot() });
+        const next = s.snapshot();
+        const space = this.spaceKey();
+        this.persist({ ...this.store(), [space]: next });
+        this.api.put(next).subscribe({
+            error: (e) => this.toastr.error(apiErrorMessage(e, 'Could not save the menu changes to the server.')),
+        });
         return result;
     }
 

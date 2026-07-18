@@ -17,6 +17,7 @@ import { expectationsHandler } from './handlers/expectations.handler';
 import { healthHandler } from './handlers/health.handler';
 import { invHandler } from './handlers/inv.handler';
 import { jobsHandler } from './handlers/jobs.handler';
+import { navHandler } from './handlers/nav.handler';
 import { onboardingHandler } from './handlers/onboarding.handler';
 import { opsHandler } from './handlers/ops.handler';
 import { pipelinesHandler } from './handlers/pipelines.handler';
@@ -75,6 +76,7 @@ const HANDLERS: MockHandler[] = [
     jobsHandler(flags),
     assistHandler(flags),
     settingsHandler(flags),
+    navHandler(flags), // /nav/menus singleton — Menu Builder + custom sidebar offline (mockDemo)
 ];
 
 export const mockApiInterceptor: HttpInterceptorFn = (req, next) => {
