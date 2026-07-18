@@ -75,7 +75,7 @@ final class RequirementRoutes implements RouteModule {
         if (title == null) throw new ApiException(422, "requirement 'title' is required");
         String kind = ApiContext.str(body, "kind");
         if (kind == null || !KINDS.contains(kind.toLowerCase())) throw new ApiException(422, "requirement 'kind' must be one of " + KINDS);
-        if (store.exists(TYPE, id))
+        if (exists(store, id))
             throw new ApiException(409, "requirement '" + id + "' already exists");
 
         Map<String, Object> content = new LinkedHashMap<>();
@@ -127,9 +127,23 @@ final class RequirementRoutes implements RouteModule {
         return new ComponentStore(WriteGates.requireWriteRoot(api, "requirement").resolve("registry"));
     }
 
+    /** {@code store.exists}, mapping an unsafe id (e.g. containing {@code ..}) to 422 rather than
+     *  letting {@link IllegalArgumentException} escape to the generic 500 handler. */
+    private static boolean exists(ComponentStore store, String id) {
+        try {
+            return store.exists(TYPE, id);
+        } catch (IllegalArgumentException e) {
+            throw new ApiException(422, e.getMessage());
+        }
+    }
+
     private static Map<String, Object> existing(ComponentStore store, String id) {
-        return store.get(TYPE, id).map(ComponentRegistry.Component::content)
-                .orElseThrow(() -> new ApiException(404, "requirement '" + id + "' not found"));
+        try {
+            return store.get(TYPE, id).map(ComponentRegistry.Component::content)
+                    .orElseThrow(() -> new ApiException(404, "requirement '" + id + "' not found"));
+        } catch (IllegalArgumentException e) {
+            throw new ApiException(422, e.getMessage());
+        }
     }
 
     private static Object write(ComponentStore store, String id, Map<String, Object> content) throws IOException {

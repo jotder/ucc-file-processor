@@ -106,6 +106,19 @@ class ControlApiRequirementTest {
         }
     }
 
+    @Test
+    void unsafeIdRejected(@TempDir Path cfg, @TempDir Path wr) throws Exception {
+        try (Ctx c = open(cfg, wr)) {
+            // A valid body but an id unusable as a component id (ComponentStore.validId) → 422, not a
+            // 500 from the IllegalArgumentException reaching the generic handler.
+            assertEquals(422, send(c.port, "POST", "/requirements",
+                    "{\"id\":\"../evil\",\"title\":\"t\",\"kind\":\"kpi\"}").statusCode());
+            // Same for a path-supplied id on the transitions ('..' passes the route's [^/]+ segment).
+            assertEquals(422, send(c.port, "POST", "/requirements/..evil/decision", "{\"accept\":true}").statusCode());
+            assertEquals(422, send(c.port, "POST", "/requirements/..evil/deliver", "{}").statusCode());
+        }
+    }
+
     // ── SEC-7(c): triage enforced on canTriageRequirements (Standard) ───────────────
 
     @Test

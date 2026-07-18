@@ -91,6 +91,20 @@ class ControlApiDecisionRulesTest {
         }
     }
 
+    @Test
+    void unsafeNameRejected(@TempDir Path cfg, @TempDir Path wr) throws Exception {
+        try (Ctx c = open(cfg, wr)) {
+            // A valid body but a name unusable as a component id (ComponentStore.validId) → 422, not a
+            // 500 from the IllegalArgumentException reaching the generic handler.
+            assertEquals(422, send(c.port, "POST", "/decision-rules",
+                    "{\"name\":\"../evil\",\"consequences\":[{\"action\":\"drop\"}]}").statusCode());
+            // Same for a path-supplied name on update/delete ('..' passes the route's [^/]+ segment).
+            assertEquals(422, send(c.port, "PUT", "/decision-rules/..evil",
+                    "{\"consequences\":[{\"action\":\"drop\"}]}").statusCode());
+            assertEquals(422, send(c.port, "DELETE", "/decision-rules/..evil", null).statusCode());
+        }
+    }
+
     // ── simulate: real condition-tree evaluation over a sample ─────────────────────
 
     @Test

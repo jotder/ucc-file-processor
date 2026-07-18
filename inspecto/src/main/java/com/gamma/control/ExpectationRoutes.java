@@ -73,7 +73,7 @@ final class ExpectationRoutes implements RouteModule {
     private Object create(ApiContext api, Map<String, Object> body) throws IOException {
         ComponentStore store = store(api);
         Expectation exp = parse(body);
-        if (store.exists(TYPE, exp.name()))
+        if (exists(store, exp.name()))
             throw new ApiException(409, "expectation '" + exp.name() + "' already exists (use PUT to update)");
         long now = System.currentTimeMillis();
         Map<String, Object> content = exp.toMap();
@@ -202,9 +202,23 @@ final class ExpectationRoutes implements RouteModule {
         }
     }
 
+    /** {@code store.exists}, mapping an unsafe name (e.g. containing {@code ..}) to 422 rather than
+     *  letting {@link IllegalArgumentException} escape to the generic 500 handler. */
+    private static boolean exists(ComponentStore store, String name) {
+        try {
+            return store.exists(TYPE, name);
+        } catch (IllegalArgumentException e) {
+            throw new ApiException(422, e.getMessage());
+        }
+    }
+
     private static Map<String, Object> existing(ComponentStore store, String name) {
-        return store.get(TYPE, name).map(ComponentRegistry.Component::content)
-                .orElseThrow(() -> new ApiException(404, "expectation '" + name + "' not found"));
+        try {
+            return store.get(TYPE, name).map(ComponentRegistry.Component::content)
+                    .orElseThrow(() -> new ApiException(404, "expectation '" + name + "' not found"));
+        } catch (IllegalArgumentException e) {
+            throw new ApiException(422, e.getMessage());
+        }
     }
 
     private static Object write(ComponentStore store, String name, Map<String, Object> content) throws IOException {
