@@ -23,6 +23,7 @@ export * from './catalog.service';
 export * from './lineage.service';
 export * from './config.service';
 export * from './assist.service';
+export * from './agent.service';
 export * from './alerts.service';
 export * from './objects.service';
 export * from './connections.service';

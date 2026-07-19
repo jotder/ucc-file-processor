@@ -114,6 +114,13 @@ export const defaultNavigation: GammaNavigationItem[] = [
         type : 'basic',
         icon : 'heroicons_outline:sparkles',
         link : '/assist'
+    },
+    {
+        id   : 'agent-chat',
+        title: 'Agent Chat',
+        type : 'basic',
+        icon : 'heroicons_outline:chat-bubble-left-right',
+        link : '/agent-chat'
     }
 ];
 // The alternate layouts reuse the same Inspecto navigation, but each gets its OWN array so the mock's

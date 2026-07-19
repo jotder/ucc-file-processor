@@ -1,0 +1,83 @@
+<div class="flex min-w-0 flex-auto flex-col">
+    <div class="bg-card flex flex-col border-b p-6 sm:px-10 sm:py-8 dark:bg-transparent">
+        <h1 class="text-3xl font-extrabold leading-none tracking-tight">Agent Chat</h1>
+        <div class="text-secondary mt-1.5">Ask the embedded intelligence agent — answers stream in, with inline components.</div>
+    </div>
+
+    <div class="flex flex-auto flex-col gap-4 p-6 sm:p-10">
+        @if (unavailable()) {
+            <inspecto-empty-state
+                icon="heroicons_outline:sparkles"
+                title="Agent unavailable"
+                message="The intelligence module (file-processor-intelligence) isn't available on this backend."
+            />
+        } @else {
+            @if (!messages().length) {
+                <inspecto-empty-state
+                    icon="heroicons_outline:chat-bubble-left-right"
+                    title="Start a conversation"
+                    message="Ask about your pipelines, runs, or data — the agent answers with text and inline charts or tables."
+                />
+            }
+
+            <!-- aria-live: streamed tokens re-render this region, announcing the growing answer politely. -->
+            <div class="flex flex-col gap-4" aria-live="polite">
+                @for (m of messages(); track $index) {
+                    @if (m.role === 'user') {
+                        <div class="max-w-3xl self-end rounded-2xl bg-gray-100 px-4 py-3 dark:bg-gray-800">
+                            <div class="text-secondary text-xs font-semibold uppercase tracking-wider">You</div>
+                            <div class="whitespace-pre-wrap">{{ m.text }}</div>
+                        </div>
+                    } @else {
+                        <div class="bg-card max-w-3xl self-start rounded-2xl px-4 py-3 shadow">
+                            <div class="text-secondary text-xs font-semibold uppercase tracking-wider">Agent</div>
+                            @if (m.text) {
+                                <!-- errors carry their message as text; the tone is reinforcement, not the only cue -->
+                                <div [class]="m.error ? 'whitespace-pre-wrap text-red-600 dark:text-red-400' : 'whitespace-pre-wrap'">
+                                    {{ m.text }}
+                                </div>
+                            } @else if (m.streaming) {
+                                <div class="text-secondary flex items-center gap-2">
+                                    <mat-progress-spinner diameter="16" mode="indeterminate" aria-label="Waiting for the answer" />
+                                    <span>Answering…</span>
+                                </div>
+                            }
+                            @if (m.artifact; as artifact) {
+                                <div class="mt-3">
+                                    <inspecto-a2ui-render [artifact]="artifact" />
+                                </div>
+                            }
+                            @if (m.navigationTarget; as target) {
+                                <button mat-stroked-button class="mt-3" (click)="goTo(target)">Open {{ target }}</button>
+                            }
+                            @if (m.citations?.length) {
+                                <div class="text-secondary mt-2 text-xs">
+                                    Sources:
+                                    @for (c of m.citations; track $index) {
+                                        <span class="ml-1">{{ c.source }}@if (c.locator) {<span> ({{ c.locator }})</span>}</span>
+                                    }
+                                </div>
+                            }
+                        </div>
+                    }
+                }
+            </div>
+
+            <div class="mt-auto flex items-center gap-3 pt-4">
+                <mat-form-field class="gamma-mat-dense flex-auto" subscriptSizing="dynamic">
+                    <mat-label>Ask the agent</mat-label>
+                    <input
+                        matInput
+                        [formControl]="question"
+                        placeholder="e.g. how many runs failed today?"
+                        (keydown.enter)="send()"
+                    />
+                </mat-form-field>
+                <button mat-flat-button color="primary" (click)="send()" [disabled]="!question.value.trim()">
+                    <mat-icon svgIcon="heroicons_outline:paper-airplane"></mat-icon>
+                    Send
+                </button>
+            </div>
+        }
+    </div>
+</div>
