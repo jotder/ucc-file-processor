@@ -1,6 +1,22 @@
 # Log
 
 ## 2026-07-19
+* **Responsive dashboard chart tiles** (BACKLOG §3 Queries/BI — "responsive dashboard tiles, ResizeObserver
+  re-render — the one unshipped studio-bi item"): `InspectoChartComponent` (`inspecto/components/chart.component`)
+  already set `responsive:true`/`maintainAspectRatio:false` but Chart.js's built-in responsive only reacts to
+  *window* resize — a tile span toggle, side-pane collapse, or flex reflow (container-only, no window event)
+  left the chart at its initial size. Added a `ResizeObserver` in `ngAfterViewInit` (disconnected in
+  `ngOnDestroy`) that calls `chart.resize()` on host-box changes — the exact GraphView/MapView pattern,
+  including the `typeof ResizeObserver !== 'undefined'` jsdom guard. **Observes the HOST element, not the
+  `<canvas>`** — under `maintainAspectRatio:false` Chart.js sizes the canvas, so observing it would
+  feedback-loop. ~8 lines in one file. Spec: +1 (stubs `ResizeObserver` via `vi.stubGlobal`, asserts it
+  observes the host and disconnects on destroy). DoD green: lint:tokens PASS · build PASS · test:ci 1436/0/5
+  (exit 0). **Verification note:** the preview browser does NOT deliver ResizeObserver callbacks (it renders
+  from DOM snapshots, no continuous paint loop) — confirmed by attaching a probe RO in-page that never fired,
+  and Chart.js's own RO likewise doesn't fire there. So the RO behavior can't be exercised in-preview; it
+  rests on the unit test (observer wired to the host, disconnected on destroy) + the proven GraphView/MapView
+  precedent + Chart.js `resize()` being standard. Initial render sizing to the container was confirmed live
+  (fresh load at a wide viewport rendered the canvas at the container width).
 * **Onboarding discard cascades to the guided companions** (BACKLOG §3 Onboarding — "discard: … cascade
   the companion `_schema`/`_enrich` TOONs"): discarding a draft only deleted the pipeline config, leaving
   orphan `<name>_schema` / `<name>_enrich` files. `OnboardingStateService.discardDraft()` now deletes the

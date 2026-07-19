@@ -60,7 +60,9 @@ export class InspectoChartComponent implements AfterViewInit, OnChanges, OnDestr
     private chart: Chart | null = null;
     private dark = false;
     private ready = false;
+    private resizeObserver: ResizeObserver | null = null;
     private destroyRef = inject(DestroyRef);
+    private hostEl = inject(ElementRef<HTMLElement>);
 
     constructor() {
         inject(GammaConfigService)
@@ -77,6 +79,14 @@ export class InspectoChartComponent implements AfterViewInit, OnChanges, OnDestr
     ngAfterViewInit(): void {
         this.ready = true;
         this.rebuild();
+        // Chart.js `responsive` reacts to window resize but not container-only changes (dashboard tile
+        // span toggle, side-pane collapse, flex reflow). Observe the host box and resize the chart to it.
+        // Observe the HOST, not the <canvas> — with maintainAspectRatio:false Chart.js sizes the canvas,
+        // so observing it would feedback-loop. Guarded for jsdom (tests have no ResizeObserver).
+        if (typeof ResizeObserver !== 'undefined') {
+            this.resizeObserver = new ResizeObserver(() => this.chart?.resize());
+            this.resizeObserver.observe(this.hostEl.nativeElement);
+        }
     }
 
     ngOnChanges(): void {
@@ -84,6 +94,7 @@ export class InspectoChartComponent implements AfterViewInit, OnChanges, OnDestr
     }
 
     ngOnDestroy(): void {
+        this.resizeObserver?.disconnect();
         this.chart?.destroy();
     }
 

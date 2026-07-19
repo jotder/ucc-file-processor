@@ -1,6 +1,6 @@
 import { TestBed } from '@angular/core/testing';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { of } from 'rxjs';
 import { GammaConfigService } from '@gamma/services/config';
 import { expectNoA11yViolations } from 'app/inspecto/testing/a11y';
@@ -30,6 +30,27 @@ describe('InspectoChartComponent', () => {
         fixture.componentInstance.data = { labels: ['a', 'b'], datasets: [{ data: [1, 2] }] };
         fixture.detectChanges();
         expect(canvas.getAttribute('aria-label')).toBe('bar chart. a: 1, b: 2.');
+    });
+
+    it('observes the host box for container resizes and disconnects on destroy', () => {
+        // jsdom has no ResizeObserver; stub one so the AfterViewInit wiring runs (the component guards
+        // on `typeof ResizeObserver !== 'undefined'`).
+        const observe = vi.fn();
+        const disconnect = vi.fn();
+        vi.stubGlobal(
+            'ResizeObserver',
+            class {
+                observe = observe;
+                disconnect = disconnect;
+                unobserve = vi.fn();
+            },
+        );
+        const fixture = create();
+        // Observes the HOST element (not the <canvas>) to avoid a maintainAspectRatio feedback loop.
+        expect(observe).toHaveBeenCalledWith(fixture.nativeElement);
+        fixture.destroy();
+        expect(disconnect).toHaveBeenCalled();
+        vi.unstubAllGlobals();
     });
 
     it('has no a11y violations', async () => {
