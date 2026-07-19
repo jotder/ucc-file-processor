@@ -28,7 +28,12 @@ final class AgentRoutes implements RouteModule {
             Map<String, Object> body = api.body(e);
             String role = ApiContext.str(body, "role");
             Object page = body.get("page");
-            return agentOr503(api).openSession(new AgentSessionRequest(role, mapField(page)));
+            String goalKind = ApiContext.str(body, "goalKind");
+            try {
+                return agentOr503(api).openSession(new AgentSessionRequest(role, mapField(page), goalKind));
+            } catch (IllegalArgumentException ex) {   // unknown goalKind → reject at the edge
+                throw new ApiException(400, ex.getMessage());
+            }
         });
         api.post("/agent/sessions/(.+)/ask", (e, m) -> {
             Map<String, Object> body = api.body(e);

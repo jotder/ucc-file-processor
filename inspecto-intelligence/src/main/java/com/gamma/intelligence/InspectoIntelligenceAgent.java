@@ -4,6 +4,7 @@ import com.eoiagent.core.AgentAnswer;
 import com.eoiagent.core.Citation;
 import com.eoiagent.core.DeploymentProfile;
 import com.eoiagent.core.EoiAgentException;
+import com.eoiagent.core.GoalKind;
 import com.eoiagent.core.InlineArtifact;
 import com.eoiagent.core.NavigationIntent;
 import com.eoiagent.core.PageContext;
@@ -111,13 +112,30 @@ public final class InspectoIntelligenceAgent implements IntelligenceAgent {
         // budget-bounded (unit-tested). Surfacing attributes into the model prompt is the host layer's
         // concern — this wires the supply side; the tools (signals_query/signal_timeline) are the part
         // the model actively pulls from.
-        Map<String, String> attributes = Map.of("situation", contextBroker.frame(request.role(), request.page()));
+        Map<String, String> attributes = new HashMap<>();
+        attributes.put("situation", contextBroker.frame(request.role(), request.page()));
+        // Slice B: an optional goal kind (e.g. INVESTIGATION) rides the session attributes seam; the
+        // eoiagent host reads "goalKind" and falls back to QA. Validate here (this module owns the
+        // enum) so an unknown value fails fast — AgentRoutes maps the IllegalArgumentException to 400.
+        String goalKind = normalizeGoalKind(request.goalKind());
+        if (goalKind != null) attributes.put("goalKind", goalKind);
         SessionRequest sessionRequest = new SessionRequest(new UserId(UUID.randomUUID().toString()),
-                role, DeploymentProfile.OFFLINE, toPageContext(request.page()), attributes);
+                role, DeploymentProfile.OFFLINE, toPageContext(request.page()), Map.copyOf(attributes));
         AgentSession session = platform.agentService().open(sessionRequest);
         String sessionId = UUID.randomUUID().toString();
         sessions.put(sessionId, session);
         return new AgentSessionResult(sessionId, Instant.now().toString());
+    }
+
+    /** Validate an optional goal kind against the eoiagent enum → canonical name, or {@code null} when
+     *  absent. Throws {@link IllegalArgumentException} for an unknown value (the route maps it to 400). */
+    private static String normalizeGoalKind(String raw) {
+        if (raw == null || raw.isBlank()) return null;
+        try {
+            return GoalKind.valueOf(raw.trim().toUpperCase(java.util.Locale.ROOT)).name();
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException("unknown goalKind: '" + raw + "'");
+        }
     }
 
     @Override

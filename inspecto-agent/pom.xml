@@ -41,7 +41,7 @@
              (LlmGateway/Lc4jChatGateway). EOI-7a (2026-07-08): pinned to the released 0.1.0 (tag
              v0.1.0 in C:/sandbox/agent-brainstorm); CI reproduces it with
              `git checkout v0.1.0 && mvn -o clean install` until a registry is chosen (EOI-7b). -->
-        <eoiagent.version>0.1.0</eoiagent.version>
+        <eoiagent.version>0.2.0-SNAPSHOT</eoiagent.version>
     </properties>
 
     <dependencies>

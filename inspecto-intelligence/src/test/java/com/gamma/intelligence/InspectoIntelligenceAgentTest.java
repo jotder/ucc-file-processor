@@ -58,6 +58,21 @@ class InspectoIntelligenceAgentTest {
     }
 
     @Test
+    void openSessionAcceptsAKnownGoalKindAndRejectsAnUnknownOne() {
+        InspectoIntelligenceAgent agent = open(StubLlmGateway.builder().defaultReplyText("ok").build());
+        try {
+            AgentSessionResult session = agent.openSession(
+                    new AgentSessionRequest("analyst", Map.of(), "INVESTIGATION"));
+            assertNotNull(session.sessionId(), "a valid goal kind opens a session");
+
+            assertThrows(IllegalArgumentException.class,
+                    () -> agent.openSession(new AgentSessionRequest("analyst", Map.of(), "NOT_A_KIND")));
+        } finally {
+            agent.close();
+        }
+    }
+
+    @Test
     void closeIsCleanAndIdempotent() {
         InspectoIntelligenceAgent agent = open(StubLlmGateway.builder().defaultReplyText("ok").build());
         agent.close();

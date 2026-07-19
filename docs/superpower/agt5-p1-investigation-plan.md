@@ -52,8 +52,21 @@ a correct ranked RCA with evidence and a fix draft, deterministically under the 
 > **Progress (2026-07-20):** Slice **A SHIPPED** (`feat(agent)` 7f34711 — the four tools, belt now
 > 9). Slice **D SHIPPED** (Case Store + `GET /agent/cases[/{id}]`, 60469fc). Slice **C SHIPPED**
 > (RCA/impact playbooks — see D-note below). Slice **E SHIPPED** (triage ingress + the two missing
-> Signals — see E-note below). Remaining: **B** (eoiagent goalKind seam — cross-repo, deferred to
-> last per operator). Chosen sequence: D→C→E in-repo done; **B is all that remains for P1.**
+> Signals — see E-note below). Slice **B SHIPPED** (eoiagent goalKind seam — see B-note below).
+> **AGT-5 P1 is COMPLETE** (all of A–E shipped). Chosen sequence D→C→E in-repo then B — all done.
+>
+> **Slice B as-built (version deviation):** the plan assumed eoiagent was still at 0.1.0-SNAPSHOT, but
+> the checkout had advanced to 0.2.0-SNAPSHOT (post the `v0.1.0` release cut) with **zero Java source
+> diff** from v0.1.0 — only pom version bumps + graphify-artifact removal. So instead of rebuilding
+> 0.1.0-SNAPSHOT, the seam was added on eoiagent `main` (0.2.0-SNAPSHOT), installed to `.m2`, and
+> Inspecto's pinned `eoiagent.version` bumped `0.1.0 → 0.2.0-SNAPSHOT` in BOTH `inspecto-agent` and
+> `inspecto-intelligence` poms (safe — identical Java). Seam: `DefaultAgentSession.coreRun` reads an
+> optional `"goalKind"` session attribute (default `QA`, unknown → QA leniently) — no change to
+> `UserMessage` or the public session API (session-level, not per-ask, since `UserMessage` carries no
+> attributes). Inspecto side: `AgentSessionRequest.goalKind` (back-compat 2-arg ctor) → `AgentRoutes`
+> validates via the intelligence module (which owns the enum) and maps an unknown kind to **400**;
+> `openSession` puts the validated kind into the session attributes. eoiagent commit is local
+> (feat) — NOT pushed to origin (separate repo; ask before pushing).
 >
 > **Slice E as-built:** Two canonical Signals now emit additively at their eval sites —
 > `alert-rule.fired` (`AlertService.fire`) and `expectation.violated` (`ExpectationRoutes.raiseIncident`),
@@ -85,7 +98,8 @@ verify PipelineStore parity first), `anomaly_scan` (D6). All `mutating=false`, `
 `FunctionTool` pattern, unit tests per tool in `InspectoToolsTest` style.
 *Verify: `mvn -o test -pl inspecto-intelligence` green.*
 
-**B — Upstream goalKind seam (eoiagent repo).** D1 change + eoiagent's own tests + `mvn install`
+**B — Upstream goalKind seam (eoiagent repo). ✅ SHIPPED** (see the B-note above for the 0.2.0-SNAPSHOT
+version deviation). D1 change + eoiagent's own tests + `mvn install`
 to local `.m2`; then Inspecto side: `AgentAskRequest` gains optional `goalKind`, `AgentRoutes`
 passes it through, unknown value → 400.
 *Verify: eoiagent suite green; Inspecto reactor green; QA default unchanged (regression test).*

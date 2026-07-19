@@ -155,6 +155,26 @@ class AgentRoutesTest {
     }
 
     @Test
+    void openSessionPassesAGoalKindThroughToTheAgent(@TempDir Path dir) throws Exception {
+        FakeIntelligenceAgent agent = new FakeIntelligenceAgent();
+        try (Ctx ctx = open(dir, agent)) {
+            HttpResponse<String> r = send(ctx.port(), "POST", "/agent/sessions",
+                    "{\"role\":\"analyst\",\"goalKind\":\"INVESTIGATION\"}");
+            assertEquals(200, r.statusCode());
+            assertEquals("INVESTIGATION", agent.lastGoalKind);
+        }
+    }
+
+    @Test
+    void openSessionWithAnUnknownGoalKindIs400(@TempDir Path dir) throws Exception {
+        try (Ctx ctx = open(dir, new FakeIntelligenceAgent())) {
+            HttpResponse<String> r = send(ctx.port(), "POST", "/agent/sessions",
+                    "{\"role\":\"analyst\",\"goalKind\":\"NOT_A_KIND\"}");
+            assertEquals(400, r.statusCode());
+        }
+    }
+
+    @Test
     void casesRouteIs503WhenNoIntelligenceModuleIsPresent(@TempDir Path dir) throws Exception {
         try (Ctx ctx = open(dir, null)) {
             assertEquals(503, send(ctx.port(), "GET", "/agent/cases", null).statusCode());
@@ -194,8 +214,13 @@ class AgentRoutesTest {
 
     /** A deterministic in-memory agent — no eoiagent/model dependency needed in the core test tree. */
     private static final class FakeIntelligenceAgent implements IntelligenceAgent {
+        // Stand-in for the eoiagent GoalKind enum (not on the core test classpath).
+        private static final java.util.Set<String> KNOWN_GOAL_KINDS =
+                java.util.Set.of("QA", "ANALYSIS", "SQL_GEN", "PIPELINE_AUTHOR", "INVESTIGATION", "OPERATIONAL_ACTION");
+
         private final Map<String, String> sessions = new ConcurrentHashMap<>();
         private final Map<String, Object> cases;
+        volatile String lastGoalKind;
 
         FakeIntelligenceAgent() { this(Map.of()); }
         FakeIntelligenceAgent(Map<String, Object> cases) { this.cases = cases; }
@@ -217,6 +242,10 @@ class AgentRoutesTest {
 
         @Override
         public AgentSessionResult openSession(AgentSessionRequest request) {
+            lastGoalKind = request.goalKind();
+            if (lastGoalKind != null && !KNOWN_GOAL_KINDS.contains(lastGoalKind)) {
+                throw new IllegalArgumentException("unknown goalKind: '" + lastGoalKind + "'"); // → route maps to 400
+            }
             String id = UUID.randomUUID().toString();
             sessions.put(id, request.role() == null ? "" : request.role()); // ConcurrentHashMap forbids null values
             return new AgentSessionResult(id, Instant.now().toString());
