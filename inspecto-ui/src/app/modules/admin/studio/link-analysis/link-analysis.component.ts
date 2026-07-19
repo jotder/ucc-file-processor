@@ -26,6 +26,7 @@ import {
     GraphSelection,
     GraphSourceId,
     GraphSourceQuery,
+    HistoryStack,
     NodeScore,
     PatternStep,
     allPaths,
@@ -40,9 +41,15 @@ import {
     isForest,
     louvainCommunities,
     matchPattern,
+    emptyHistory,
+    mergeGraphs,
     neighborhood,
+    pushHistory,
+    redo as redoHistory,
     searchNodes,
     shortestPath,
+    toGraphml,
+    undo as undoHistory,
 } from 'app/inspecto/graph';
 import { ICON_COLOR_SWATCHES } from 'app/inspecto/theme/chart-tokens';
 import {
@@ -75,6 +82,22 @@ function uniqueNameValidator(taken: () => string[]): ValidatorFn {
 
 type AnalysisTab = 'path' | 'explain' | 'centrality' | 'communities' | 'pattern' | 'all-paths' | 'components';
 
+/** Undo/redo scope (Phase G): presentation state only — search/filter, display options, layout, and
+ *  collapsed branches. NOT the query or the loaded graph itself (a heavier, separate feature). */
+interface PresentationSnapshot {
+    search: string;
+    kindFilter: string[];
+    collapsedRoots: string[];
+    nodeLabels: boolean;
+    edgeLabels: boolean;
+    nodeColors: Record<string, string>;
+    edgeColors: Record<string, string>;
+    nodeShapes: Record<string, string>;
+    edgePatterns: Record<string, EdgePattern>;
+    edgeSizes: Record<string, number>;
+    layoutId: GraphLayoutId;
+}
+
 /** One line of the collapsed-query status (left-pane summary + the top status bar chips). */
 interface QuerySummaryItem {
     icon: string;
@@ -98,7 +121,10 @@ interface QuerySummaryItem {
         DataTableComponent, TransferMenuComponent,
     ],
     templateUrl: './link-analysis.component.html',
-    host: { '(document:fullscreenchange)': 'onFullscreenChange()' },
+    host: {
+        '(document:fullscreenchange)': 'onFullscreenChange()',
+        '(document:keydown)': 'onHistoryKeydown($event)',
+    },
 })
 export class LinkAnalysisComponent implements OnInit {
     private fb = inject(FormBuilder);
@@ -149,6 +175,10 @@ export class LinkAnalysisComponent implements OnInit {
         attrCols: [[] as string[]],
         /** Only meaningful once a second mapping exists (Phase C) — see {@link EntityProjection.entityType}. */
         entityType: [''],
+        /** Multi-root seeds (Phase D, lineage only): extra roots beyond `from`, comma-separated. */
+        extraRoots: [''],
+        /** Multi-root seeds (Phase D, provenance only): extra pipelines beyond `pipeline`. */
+        extraPipelines: [[] as string[]],
     });
 
     /** Columns offered by the projection mapping selects — the picked Dataset's columns (or its sample rows'). */
@@ -227,7 +257,10 @@ export class LinkAnalysisComponent implements OnInit {
             }
             case 'lineage':
                 return [
-                    { icon: 'heroicons_outline:viewfinder-circle', label: 'Root', value: q.from || 'whole graph' },
+                    {
+                        icon: 'heroicons_outline:viewfinder-circle', label: q.roots?.length ? 'Roots' : 'Root',
+                        value: q.roots?.length ? q.roots.join(', ') : (q.from || 'whole graph'),
+                    },
                     { icon: 'heroicons_outline:hashtag', label: 'Depth', value: String(q.depth ?? 2) },
                     {
                         icon: 'heroicons_outline:arrows-right-left', label: 'Direction',
@@ -235,7 +268,10 @@ export class LinkAnalysisComponent implements OnInit {
                     },
                 ];
             case 'provenance': {
-                const items: QuerySummaryItem[] = [{ icon: 'heroicons_outline:queue-list', label: 'Pipeline', value: q.from ?? '' }];
+                const items: QuerySummaryItem[] = [{
+                    icon: 'heroicons_outline:queue-list', label: q.roots?.length ? 'Pipelines' : 'Pipeline',
+                    value: q.roots?.length ? q.roots.join(', ') : (q.from ?? ''),
+                }];
                 if (q.counts) items.push({ icon: 'heroicons_outline:chart-bar', label: 'Edges', value: 'weighted by record counts' });
                 return items;
             }
@@ -431,11 +467,20 @@ export class LinkAnalysisComponent implements OnInit {
                 }
                 return { projections: [primary, ...extras] };
             }
-            case 'provenance':
+            case 'provenance': {
                 if (!f.pipeline) return { error: 'Pick a pipeline.' };
-                return { from: f.pipeline, counts: f.counts };
-            case 'lineage':
-                return { from: f.from || undefined, depth: f.depth, direction: f.direction };
+                const pipelineRoots = [f.pipeline, ...f.extraPipelines.filter((p) => p && p !== f.pipeline)];
+                return pipelineRoots.length > 1
+                    ? { roots: pipelineRoots, counts: f.counts }
+                    : { from: f.pipeline, counts: f.counts };
+            }
+            case 'lineage': {
+                const extra = f.extraRoots.split(',').map((r) => r.trim()).filter(Boolean);
+                const lineageRoots = [f.from, ...extra].filter((r): r is string => !!r);
+                return lineageRoots.length > 1
+                    ? { roots: lineageRoots, depth: f.depth, direction: f.direction }
+                    : { from: f.from || undefined, depth: f.depth, direction: f.direction };
+            }
             default:
                 return {};
         }
@@ -456,6 +501,7 @@ export class LinkAnalysisComponent implements OnInit {
         this.loading.set(true);
         this.loadError.set('');
         this.resetAnalysis();
+        this.history.set(emptyHistory()); // a fresh graph invalidates prior undo/redo snapshots
         try {
             const g = await source.query(q);
             this.graph.set(g);
@@ -542,37 +588,104 @@ export class LinkAnalysisComponent implements OnInit {
 
     /** Pick (or with `null` clear) the stroke colour for a node kind. */
     setNodeColor(kind: string, color: string | null): void {
+        this.recordHistory();
         const { [kind]: _old, ...rest } = this.nodeColors();
         this.nodeColors.set(color ? { ...rest, [kind]: color } : rest);
     }
 
     /** Pick (or with `null` clear) the stroke colour for a relationship kind. */
     setEdgeColor(kind: string, color: string | null): void {
+        this.recordHistory();
         const { [kind]: _old, ...rest } = this.edgeColors();
         this.edgeColors.set(color ? { ...rest, [kind]: color } : rest);
     }
 
     /** Pick (or with `null` clear) the shape ("icon") for a node kind. */
     setNodeShape(kind: string, shape: string | null): void {
+        this.recordHistory();
         const { [kind]: _old, ...rest } = this.nodeShapes();
         this.nodeShapes.set(shape ? { ...rest, [kind]: shape } : rest);
     }
 
     /** Pick (or with `null` clear) the line pattern for a relationship kind. */
     setEdgePattern(kind: string, pattern: EdgePattern | null): void {
+        this.recordHistory();
         const { [kind]: _old, ...rest } = this.edgePatterns();
         this.edgePatterns.set(pattern ? { ...rest, [kind]: pattern } : rest);
     }
 
     /** Pick (or with `null` clear) the line width for a relationship kind. */
     setEdgeSize(kind: string, size: number | null): void {
+        this.recordHistory();
         const { [kind]: _old, ...rest } = this.edgeSizes();
         this.edgeSizes.set(size != null ? { ...rest, [kind]: size } : rest);
     }
 
     /** Pick a graph layout (tree layouts are gated on {@link isTreeShaped} in the template). */
     setLayout(id: GraphLayoutId): void {
+        this.recordHistory();
         this.layoutId.set(id);
+    }
+
+    // ── undo/redo (Phase G, presentation state only — not the query/graph itself) ──
+
+    private readonly history = signal<HistoryStack<PresentationSnapshot>>(emptyHistory());
+    readonly canUndo = computed(() => this.history().past.length > 0);
+    readonly canRedo = computed(() => this.history().future.length > 0);
+
+    private snapshotPresentation(): PresentationSnapshot {
+        return {
+            search: this.search(), kindFilter: this.kindFilter(), collapsedRoots: this.collapsedRoots(),
+            nodeLabels: this.nodeLabels(), edgeLabels: this.edgeLabels(),
+            nodeColors: this.nodeColors(), edgeColors: this.edgeColors(),
+            nodeShapes: this.nodeShapes(), edgePatterns: this.edgePatterns(), edgeSizes: this.edgeSizes(),
+            layoutId: this.layoutId(),
+        };
+    }
+
+    private restorePresentation(s: PresentationSnapshot): void {
+        this.search.set(s.search);
+        this.kindFilter.set(s.kindFilter);
+        this.collapsedRoots.set(s.collapsedRoots);
+        this.nodeLabels.set(s.nodeLabels);
+        this.edgeLabels.set(s.edgeLabels);
+        this.nodeColors.set(s.nodeColors);
+        this.edgeColors.set(s.edgeColors);
+        this.nodeShapes.set(s.nodeShapes);
+        this.edgePatterns.set(s.edgePatterns);
+        this.edgeSizes.set(s.edgeSizes);
+        this.layoutId.set(s.layoutId);
+    }
+
+    /** Call before a presentation-state mutation to make it undoable. */
+    private recordHistory(): void {
+        this.history.update((h) => pushHistory(h, this.snapshotPresentation()));
+    }
+
+    undoPresentation(): void {
+        const result = undoHistory(this.history(), this.snapshotPresentation());
+        if (!result) return;
+        this.history.set(result.history);
+        this.restorePresentation(result.state);
+    }
+
+    redoPresentation(): void {
+        const result = redoHistory(this.history(), this.snapshotPresentation());
+        if (!result) return;
+        this.history.set(result.history);
+        this.restorePresentation(result.state);
+    }
+
+    /** Ctrl/Cmd+Z undo, Ctrl/Cmd+Shift+Z (or Ctrl+Y) redo — ignored while typing in a form field. */
+    onHistoryKeydown(e: KeyboardEvent): void {
+        const target = e.target as HTMLElement | null;
+        if (target && ['INPUT', 'TEXTAREA'].includes(target.tagName)) return;
+        if (!(e.ctrlKey || e.metaKey)) return;
+        if (e.key.toLowerCase() === 'z' && !e.shiftKey) { e.preventDefault(); this.undoPresentation(); }
+        else if ((e.key.toLowerCase() === 'z' && e.shiftKey) || e.key.toLowerCase() === 'y') {
+            e.preventDefault();
+            this.redoPresentation();
+        }
     }
 
     private applyDisplay(display: GraphDisplayOptions | undefined): void {
@@ -610,10 +723,13 @@ export class LinkAnalysisComponent implements OnInit {
 
     /** Hide everything downstream of the node (the detail popup's Collapse branch). */
     collapseBranch(id: string): void {
-        if (!this.collapsedRoots().includes(id)) this.collapsedRoots.set([...this.collapsedRoots(), id]);
+        if (this.collapsedRoots().includes(id)) return;
+        this.recordHistory();
+        this.collapsedRoots.set([...this.collapsedRoots(), id]);
     }
 
     expandBranch(id: string): void {
+        this.recordHistory();
         this.collapsedRoots.set(this.collapsedRoots().filter((r) => r !== id));
     }
 
@@ -633,6 +749,7 @@ export class LinkAnalysisComponent implements OnInit {
             .map((n) => this.labelOf(n));
         const collapsed = this.collapsedRoots().includes(id);
         const objectRef = node.data.objectRef;
+        const source = this.graphSources.byId(this.sourceId());
         this.dialog
             .open(ElementDetailDialog, {
                 width: '28rem',
@@ -646,6 +763,7 @@ export class LinkAnalysisComponent implements OnInit {
                     ],
                     branch: collapsed ? 'expand' : descendants(g, id).size ? 'collapse' : undefined,
                     objectRef,
+                    expandable: !!source?.expand,
                 },
             })
             .afterClosed()
@@ -653,10 +771,28 @@ export class LinkAnalysisComponent implements OnInit {
                 if (action === 'focus') this.focusNode(id);
                 else if (action === 'collapse') this.collapseBranch(id);
                 else if (action === 'expand') this.expandBranch(id);
+                else if (action === 'expand-neighbors') this.expandNode(id, node.data.label);
                 else if (action === 'open-record' && objectRef) {
                     this.router.navigate(['/' + (objectRef.type === 'CASE' ? 'cases' : 'incidents'), objectRef.id]);
                 }
             });
+    }
+
+    /**
+     * Phase E incremental expand: fetch `nodeLabel`'s one-hop neighborhood via the current source's
+     * `expand()` and merge it into the loaded graph — filters/analysis state survives (unlike `run()`,
+     * which replaces the graph and resets them).
+     */
+    async expandNode(id: string, nodeLabel: string): Promise<void> {
+        const run = this.lastRun();
+        const source = this.graphSources.byId(this.sourceId());
+        if (!run || !source?.expand) return;
+        try {
+            const extra = await source.expand(id, nodeLabel, run.query);
+            this.graph.update((g) => (g ? mergeGraphs([g, extra]) : extra));
+        } catch (err) {
+            this.toastr.error(apiErrorMessage(err, 'Could not fetch neighbors for this node.'));
+        }
     }
 
     onEdgeClick(id: string): void {
@@ -699,6 +835,8 @@ export class LinkAnalysisComponent implements OnInit {
 
     // ── search & filters ──
 
+    // `search` deliberately isn't recorded per keystroke here (Phase G) — that would flood the undo
+    // stack with one entry per character typed. `clearFilters` still records, since it's a single action.
     onSearch(text: string): void {
         this.search.set(text);
         const g = this.displayed();
@@ -710,6 +848,7 @@ export class LinkAnalysisComponent implements OnInit {
     }
 
     toggleKind(kind: string, on: boolean): void {
+        this.recordHistory();
         const all = this.nodeKinds();
         const current = this.kindFilter().length ? this.kindFilter() : all;
         const next = on ? [...new Set([...current, kind])] : current.filter((k) => k !== kind);
@@ -721,6 +860,7 @@ export class LinkAnalysisComponent implements OnInit {
     }
 
     clearFilters(): void {
+        this.recordHistory();
         this.kindFilter.set([]);
         this.search.set('');
         this.emphasis.set(null);
@@ -885,6 +1025,20 @@ export class LinkAnalysisComponent implements OnInit {
         const dataUri = await this.graphView?.exportPng();
         if (dataUri) this.download(dataUri, 'link-analysis.png');
         else this.toastr.warning('Nothing rendered to export yet.');
+    }
+
+    /** Download the rendered graph as a standalone `link-analysis.svg` (Phase F). */
+    exportSvg(): void {
+        const svg = this.graphView?.exportSvg();
+        if (svg) this.download(URL.createObjectURL(new Blob([svg], { type: 'image/svg+xml' })), 'link-analysis.svg');
+        else this.toastr.warning('Nothing rendered to export yet.');
+    }
+
+    /** Download the displayed graph as generic `link-analysis.graphml` (Phase F, no vendor dialect). */
+    exportGraphml(): void {
+        const g = this.displayed();
+        if (!g) return;
+        this.download(URL.createObjectURL(new Blob([toGraphml(g)], { type: 'application/xml' })), 'link-analysis.graphml');
     }
 
     private download(href: string, filename: string): void {

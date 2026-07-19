@@ -1,4 +1,4 @@
-import { G6Edge, G6GraphData, G6Node, EntityProjection, GraphSource, GraphSourceQuery } from 'app/inspecto/graph';
+import { G6Edge, G6GraphData, G6Node, EntityProjection, GraphSource, GraphSourceQuery, mergeGraphs } from 'app/inspecto/graph';
 import { InvService, ProjectionTriple } from 'app/inspecto/api';
 import { evaluateRows, inferColumns } from 'app/inspecto/query';
 import { firstValueFrom } from 'rxjs';
@@ -38,15 +38,7 @@ function entityId(entityType: string | undefined, value: string): string {
  * true if any input mapping truncated.
  */
 export function mergeProjectedGraphs(graphs: ProjectedGraph[]): ProjectedGraph {
-    const nodes = new Map<string, G6Node>();
-    const edges = new Map<string, G6Edge>();
-    let truncated = false;
-    for (const g of graphs) {
-        for (const n of g.nodes) if (!nodes.has(n.id)) nodes.set(n.id, n);
-        for (const e of g.edges) if (!edges.has(e.id)) edges.set(e.id, e);
-        truncated = truncated || g.truncated;
-    }
-    return { nodes: [...nodes.values()], edges: [...edges.values()], truncated };
+    return { ...mergeGraphs(graphs), truncated: graphs.some((g) => g.truncated) };
 }
 
 /**
@@ -210,5 +202,25 @@ export class EntityProjectionGraphSource implements GraphSource {
             if (isProjectionError(out)) throw new Error(out.error);
             return out;
         }
+    }
+
+    /**
+     * Phase E incremental expand: the one-hop neighborhood of `nodeLabel` (the entity's raw projected
+     * value) via `POST /inv/projection/neighbors`. Only supported for a single-mapping query — a
+     * multi-mapping graph (`q.projections`) doesn't record which mapping produced which node, so
+     * expand there needs a follow-up scope decision, not a guess; it throws a clear message instead.
+     */
+    async expand(_nodeId: string, nodeLabel: string, q: GraphSourceQuery): Promise<ProjectedGraph> {
+        const p = q.projection;
+        if (!p) throw new Error('Incremental expand needs a single-mapping query.');
+        const res = await firstValueFrom(this.inv.neighbors({
+            dataset: p.datasetId,
+            sourceCol: p.sourceCol,
+            targetCol: p.targetCol,
+            linkKindCol: p.linkKindCol || undefined,
+            attrCols: p.attrCols?.length ? p.attrCols : undefined,
+            value: nodeLabel,
+        }));
+        return projectTriples(res.rows, res.truncated, p);
     }
 }

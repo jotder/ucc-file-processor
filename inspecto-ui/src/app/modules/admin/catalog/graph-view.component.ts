@@ -15,6 +15,7 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { GammaConfigService } from '@gamma/services/config';
 import { EdgeData, EdgeEvent, ElementDatum, Graph, GraphData, LayoutOptions, NodeData, NodeEvent } from '@antv/g6';
 import { G6GraphData, nodeColor, nodeShape } from './catalog-graph';
+import { toSvg } from 'app/inspecto/graph';
 import { NodeKind } from 'app/inspecto/api';
 import { ICON_COLOR_SWATCHES, canvasTheme } from 'app/inspecto/theme/chart-tokens';
 
@@ -197,6 +198,25 @@ export class GraphViewComponent implements AfterViewInit, OnChanges, OnDestroy {
     /** The rendered canvas as a PNG data-URI (Link Analysis export), or `null` before the first render. */
     exportPng(): Promise<string> | null {
         return this.graph ? this.graph.toDataURL({ type: 'image/png' }) : null;
+    }
+
+    /**
+     * The rendered graph as a standalone SVG string (Phase F export) — a hand-rolled serializer
+     * ({@link toSvg}), not a G6 renderer-mode switch, so it stays decoupled from the canvas renderer.
+     * `null` before the first render (mirrors {@link exportPng}).
+     */
+    exportSvg(): string | null {
+        if (!this.graph || !this.data) return null;
+        const positions = new Map<string, { x: number; y: number }>();
+        for (const n of this.data.nodes) {
+            try {
+                const p = this.graph.getElementPosition(n.id);
+                if (p) positions.set(n.id, { x: p[0], y: p[1] });
+            } catch {
+                // Not (yet) rendered — skipped, same as a position-less node in toSvg.
+            }
+        }
+        return toSvg(this.data, positions);
     }
 
     /** Re-fit the whole graph into the viewport (the toolbar's fit-to-screen). */

@@ -425,6 +425,23 @@ export function connectedComponents(g: G6GraphData): string[][] {
     return comps.sort((a, b) => b.length - a.length);
 }
 
+/**
+ * Merge several {@link G6GraphData} graphs into one: nodes dedup by id (first graph wins the node's
+ * display data), edges dedup by id (a genuine duplicate — same source/target/kind — collapses
+ * naturally). The shared merge primitive behind multi-root seeds (lineage/provenance) and
+ * multi-entity/multi-dataset mapping (entity-projection's {@code mergeProjectedGraphs}, which wraps
+ * this to also OR the server-truncation flag).
+ */
+export function mergeGraphs(graphs: G6GraphData[]): G6GraphData {
+    const nodes = new Map<string, G6GraphData['nodes'][number]>();
+    const edges = new Map<string, G6GraphData['edges'][number]>();
+    for (const g of graphs) {
+        for (const n of g.nodes) if (!nodes.has(n.id)) nodes.set(n.id, n);
+        for (const e of g.edges) if (!edges.has(e.id)) edges.set(e.id, e);
+    }
+    return { nodes: [...nodes.values()], edges: [...edges.values()] };
+}
+
 /** Case-insensitive node search over label + id. */
 export function searchNodes(g: G6GraphData, text: string): string[] {
     const t = text.trim().toLowerCase();

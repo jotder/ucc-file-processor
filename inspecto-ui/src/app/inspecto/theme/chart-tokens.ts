@@ -52,6 +52,18 @@ export const CHART_PALETTES: Readonly<Record<string, readonly string[]>> = {
 export const GAUGE_TRACK = '#9ca3af';
 
 /**
+ * Colours for the Link Analysis SVG export (Phase F): a standalone downloaded file has no host page
+ * defining `--gamma-*`, so — like every other canvas/file token here — these are hardcoded, not CSS
+ * vars. Legible against a white background in any external viewer.
+ */
+export const SVG_EXPORT_COLORS = {
+    node: CHART_SERIES.primary,
+    edge: SLATE[400],
+    text: SLATE[800],
+    background: '#ffffff',
+} as const;
+
+/**
  * Outline stroke for a flow-editor node's status cue, or {@code null} to keep the category colour
  * ({@code configured}). Status is also conveyed by a label glyph + the inspector chip (never colour alone).
  */

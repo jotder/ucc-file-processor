@@ -6,6 +6,7 @@ import { deriveComponentGraph } from 'app/inspecto/component-model';
 import { toG6Data } from 'app/modules/admin/catalog/catalog-graph';
 import { provenanceCounts, toPipelineG6Data } from 'app/modules/admin/pipelines/pipeline-graph';
 import { REGISTRY_KINDS } from 'app/modules/admin/catalog/registry.component';
+import { mergeGraphs } from 'app/inspecto/graph';
 import { ComponentRegistryGraphSource, LineageGraphSource, PipelineGraphSource } from './graph-sources';
 
 /**
@@ -30,6 +31,27 @@ describe('LineageGraphSource', () => {
         const out = await src.query({ from: 'src1', depth: 2, direction: 'out', kinds: ['STREAM'], edgeKinds: ['FEEDS'], overlay: true });
         expect(out).toEqual(toG6Data(metaNodes, metaEdges));
         expect(seen).toEqual({ from: 'src1', depth: 2, direction: 'out', kinds: ['STREAM'], edgeKinds: ['FEEDS'], overlay: true });
+    });
+
+    it('multi-root (Phase D): queries each root and merges into one graph', async () => {
+        const otherNode: MetadataNode = { id: 'src2', label: 'API', kind: 'STREAM' } as MetadataNode;
+        const catalog = {
+            graph: (q: { from?: string }) => of(
+                q.from === 'src2' ? { nodes: [otherNode], edges: [] } : { nodes: metaNodes, edges: metaEdges },
+            ),
+        };
+        const src = new LineageGraphSource(catalog as never);
+        const out = await src.query({ roots: ['src1', 'src2'] });
+        expect(out).toEqual(mergeGraphs([toG6Data(metaNodes, metaEdges), toG6Data([otherNode], [])]));
+    });
+
+    it('expand (Phase E): fetches a one-hop neighborhood from the clicked node', async () => {
+        let seen: unknown;
+        const catalog = { graph: (q: unknown) => { seen = q; return of({ nodes: metaNodes, edges: metaEdges }); } };
+        const src = new LineageGraphSource(catalog as never);
+        const out = await src.expand('tbl1', 'cdr', { direction: 'out', kinds: ['TABLE'] });
+        expect(out).toEqual(toG6Data(metaNodes, metaEdges));
+        expect(seen).toEqual({ from: 'tbl1', depth: 1, direction: 'out', kinds: ['TABLE'], edgeKinds: undefined });
     });
 });
 
@@ -95,5 +117,13 @@ describe('PipelineGraphSource', () => {
         const pipelines = { graph: () => of(graph), provenanceBatches: () => of([]) };
         const src = new PipelineGraphSource(pipelines as never);
         expect(await src.query({ from: 'p1', counts: true })).toEqual(toPipelineG6Data(graph));
+    });
+
+    it('multi-root (Phase D): queries each pipeline and merges into one graph', async () => {
+        const graph2: PipelineGraph = { nodes: [{ id: 'in2', label: 'Read2', category: 'SOURCE' }], edges: [] } as never;
+        const pipelines = { graph: (id: string) => of(id === 'p2' ? graph2 : graph) };
+        const src = new PipelineGraphSource(pipelines as never);
+        const out = await src.query({ roots: ['p1', 'p2'] });
+        expect(out).toEqual(mergeGraphs([toPipelineG6Data(graph), toPipelineG6Data(graph2)]));
     });
 });

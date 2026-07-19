@@ -38,6 +38,12 @@ export interface EntityProjection {
 export interface GraphSourceQuery {
     /** Root node; absent = the whole graph. */
     from?: string;
+    /**
+     * Multi-root seeds (lineage/provenance only — GLOSSARY §11 P2/P2′): query each root and merge the
+     * results into one graph. Takes precedence over `from` when present. Not meaningful for
+     * entity-projection (P3), which has no root concept — use `projections` there instead.
+     */
+    roots?: string[];
     /** BFS radius from `from`. */
     depth?: number;
     direction?: GraphDirection;
@@ -63,4 +69,11 @@ export interface GraphSource {
     readonly id: GraphSourceId;
     readonly label: string;
     query(q: GraphSourceQuery): Promise<G6GraphData>;
+    /**
+     * Phase E incremental expand: the one-hop neighborhood of `nodeLabel` (the node's raw projected
+     * value/id, not its graph node id) under the same query context `q` — merged into the existing
+     * canvas by the caller rather than replacing it. Optional: sources with no natural "neighbors of
+     * X" notion (component-registry — a fully-loaded static graph) omit it, and the UI hides the action.
+     */
+    expand?(nodeId: string, nodeLabel: string, q: GraphSourceQuery): Promise<G6GraphData>;
 }

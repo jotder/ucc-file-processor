@@ -31,6 +31,10 @@ import java.util.regex.Pattern;
  * endpoint is the aggregation, so the projection scales to Datasets far beyond what the browser could fold
  * row-by-row.
  *
+ * <p>{@code POST /inv/projection/neighbors} (Phase E, incremental expand) — same body plus a required
+ * {@code value}: the one-hop neighborhood of that entity (rows where it's either endpoint), so the
+ * Studio's "expand node" action can grow the canvas without re-fetching the whole relation.
+ *
  * <p>Fail-closed like {@link BiRoutes}: write root unset → 503; unknown dataset → 404; a non-identifier
  * column or unusable dataset → 422. Column names are validated identifiers — no caller SQL text enters
  * the statement — and NULL endpoints are excluded (a link needs both ends).
@@ -43,10 +47,23 @@ final class InvRoutes implements RouteModule {
 
     @Override
     public void register(ApiContext api) {
-        api.post("/inv/projection", (e, m) -> project(api, e, api.body(e)));
+        api.post("/inv/projection", (e, m) -> project(api, e, api.body(e), null));
+        api.post("/inv/projection/neighbors", (e, m) -> neighbors(api, e, api.body(e)));
     }
 
-    private Object project(ApiContext api, HttpExchange ex, Map<String, Object> body) throws IOException {
+    /**
+     * {@code POST /inv/projection/neighbors} — body adds a required {@code value}: the one-hop
+     * neighborhood of that entity value (rows where it appears as either endpoint), for Link Analysis
+     * Studio's incremental "expand node" action (Phase E). Same shape/gates as {@link #project}, just
+     * pre-filtered server-side instead of returning the whole relation.
+     */
+    private Object neighbors(ApiContext api, HttpExchange ex, Map<String, Object> body) throws IOException {
+        String value = ApiContext.str(body, "value");
+        if (value == null) throw new ApiException(422, "body must include 'value'");
+        return project(api, ex, body, value);
+    }
+
+    private Object project(ApiContext api, HttpExchange ex, Map<String, Object> body, String neighborsOf) throws IOException {
         Path writeRoot = WriteGates.requireWriteRoot(api, "entity projection");
         String datasetId = ApiContext.str(body, "dataset");
         if (datasetId == null) throw new ApiException(422, "body must include 'dataset'");
@@ -80,9 +97,14 @@ final class InvRoutes implements RouteModule {
         int nextGroupIdx = 3;
         if (kindCol != null) groupBy.append(", ").append(nextGroupIdx++);
         for (int i = 0; i < attrCols.size(); i++) groupBy.append(", ").append(nextGroupIdx++);
+        // No bind-parameter support in QueryExecutor.Request — the value is a literal, SQL-escaped
+        // (doubled quotes), never caller SQL text; column identifiers are separately validated above.
+        String neighborFilter = neighborsOf != null
+                ? " AND (CAST(" + src + " AS VARCHAR) = '" + sqlLiteral(neighborsOf) + "'"
+                + " OR CAST(" + tgt + " AS VARCHAR) = '" + sqlLiteral(neighborsOf) + "')" : "";
         String sql = "SELECT CAST(" + src + " AS VARCHAR) AS source, CAST(" + tgt + " AS VARCHAR) AS target"
                 + kindSel + attrSel + ", COUNT(*) AS cnt FROM " + q(datasetId)
-                + " WHERE " + src + " IS NOT NULL AND " + tgt + " IS NOT NULL"
+                + " WHERE " + src + " IS NOT NULL AND " + tgt + " IS NOT NULL" + neighborFilter
                 + " " + groupBy
                 + " ORDER BY cnt DESC, source, target";
 
@@ -110,6 +132,11 @@ final class InvRoutes implements RouteModule {
         } catch (SQLException e) {
             throw new ApiException(422, "projection failed: " + e.getMessage());
         }
+    }
+
+    /** SQL single-quote escaping for a literal value (doubled quotes) — never caller SQL text. */
+    private static String sqlLiteral(String value) {
+        return value.replace("'", "''");
     }
 
     /** Optional {@code attrCols: string[]} — each validated as a safe identifier. */

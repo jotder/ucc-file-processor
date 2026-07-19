@@ -67,6 +67,11 @@ class ControlApiInvProjectionTest {
                 .method("POST", BodyPublishers.ofString(body)).build(), BodyHandlers.ofString());
     }
 
+    private HttpResponse<String> neighbors(int port, String body) throws Exception {
+        return client.send(HttpRequest.newBuilder(URI.create("http://localhost:" + port + "/api/v1/inv/projection/neighbors"))
+                .method("POST", BodyPublishers.ofString(body)).build(), BodyHandlers.ofString());
+    }
+
     @Test
     void projectsTypedFoldedTriples(@TempDir Path cfg, @TempDir Path root) throws Exception {
         try (Ctx c = open(cfg, root)) {
@@ -147,6 +152,46 @@ class ControlApiInvProjectionTest {
             JsonNode rows = JSON.readTree(r.body()).at("/data/rows");
             assertEquals(2, rows.size(), "differing attr values fold into separate rows, not one merged row: " + rows);
             for (JsonNode row : rows) assertEquals(1, row.get("count").asInt());
+        }
+    }
+
+    @Test
+    void neighborsReturnsOnlyRowsTouchingTheGivenValue(@TempDir Path cfg, @TempDir Path root) throws Exception {
+        try (Ctx c = open(cfg, root)) {
+            seedCalls(c);
+            HttpResponse<String> r = neighbors(c.port, """
+                    {"dataset":"calls_ds","sourceCol":"caller","targetCol":"callee","value":"bob"}""");
+            assertEquals(200, r.statusCode(), r.body());
+            JsonNode rows = JSON.readTree(r.body()).at("/data/rows");
+            assertEquals(1, rows.size(), "only alice->bob touches 'bob': " + rows);
+            assertEquals("alice", rows.get(0).get("source").asText());
+            assertEquals("bob", rows.get(0).get("target").asText());
+            assertEquals(2, rows.get(0).get("count").asInt());
+        }
+    }
+
+    @Test
+    void neighborsMatchesEitherEndpointAndEscapesQuotes(@TempDir Path cfg, @TempDir Path root) throws Exception {
+        try (Ctx c = open(cfg, root)) {
+            new ViewStore(c.root.resolve("views")).write(new ViewDefinition("names_view", "flow-x", List.of(),
+                    "SELECT * FROM (VALUES ('a''b','x'),('y','a''b')) AS t(caller,callee)",
+                    "2026-07-08T00:00:00Z"));
+            new ComponentStore(c.root.resolve("registry")).write("dataset", "names_ds", Map.of("view", "names_view"));
+
+            HttpResponse<String> r = neighbors(c.port, """
+                    {"dataset":"names_ds","sourceCol":"caller","targetCol":"callee","value":"a'b"}""");
+            assertEquals(200, r.statusCode(), r.body());
+            JsonNode rows = JSON.readTree(r.body()).at("/data/rows");
+            assertEquals(2, rows.size(), "matches as both source and target: " + rows);
+        }
+    }
+
+    @Test
+    void neighborsRequiresValue(@TempDir Path cfg, @TempDir Path root) throws Exception {
+        try (Ctx c = open(cfg, root)) {
+            seedCalls(c);
+            assertEquals(422, neighbors(c.port,
+                    "{\"dataset\":\"calls_ds\",\"sourceCol\":\"caller\",\"targetCol\":\"callee\"}").statusCode());
         }
     }
 

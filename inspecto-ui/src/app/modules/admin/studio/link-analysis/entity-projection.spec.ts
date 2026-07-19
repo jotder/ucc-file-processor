@@ -171,6 +171,34 @@ describe('EntityProjectionGraphSource', () => {
     });
 });
 
+describe('EntityProjectionGraphSource.expand (Phase E, incremental expand)', () => {
+    const ds: Dataset = {
+        id: 'links-ds', name: 'Links', kind: 'physical', sourceName: 'links',
+        query: null, physicalRef: null, columns: [], measures: [], calculated: [],
+    };
+
+    it('calls /inv/projection/neighbors with the node label as value and folds the result', async () => {
+        const inv = {
+            neighbors: (req: { value: string }) => {
+                expect(req.value).toBe('bob');
+                return of({ rows: [{ source: 'alice', target: 'bob', kind: null, count: 1 }], truncated: false });
+            },
+        } as never;
+        const src = new EntityProjectionGraphSource({ get: () => of(ds) } as never, inv);
+        const g = await src.expand('entity:bob', 'bob', {
+            projection: { datasetId: 'links-ds', sourceCol: 'source', targetCol: 'target' },
+        }) as ProjectedGraph;
+        expect(g.nodes.map((n) => n.id).sort()).toEqual(['entity:alice', 'entity:bob']);
+    });
+
+    it('refuses a multi-mapping query (no way to know which mapping owns the node)', async () => {
+        const src = new EntityProjectionGraphSource({ get: () => of(ds) } as never, {} as never);
+        await expect(src.expand('entity:bob', 'bob', {
+            projections: [{ datasetId: 'links-ds', sourceCol: 'a', targetCol: 'b' }],
+        })).rejects.toThrow(/single-mapping/);
+    });
+});
+
 describe('projectTriples', () => {
     it('folds triples with the same shapes as the client fold (ids, kind·count, cap)', () => {
         const g = projectTriples(

@@ -16,6 +16,8 @@ import { LinkAnalysisService, LinkAnalysisView } from './link-analysis.service';
 
 const DS: Dataset = { id: 'links-ds', name: 'Links', kind: 'physical', sourceName: 'links', columns: [], measures: [], calculated: [] };
 
+const TEST_COLOR = '#ff0000'; // a literal test value passed to setNodeColor(), not app styling — ds-allow
+
 /** A tiny two-cluster graph: a–b–c plus d–e. */
 const GRAPH: G6GraphData = {
     nodes: ['a', 'b', 'c', 'd', 'e'].map((id) => ({ id, data: { label: id.toUpperCase(), kind: id < 'd' ? 'entity' : 'other' } })),
@@ -26,7 +28,7 @@ const GRAPH: G6GraphData = {
     ],
 };
 
-function create(opts: { fail?: boolean; views?: LinkAnalysisView[] } = {}) {
+function create(opts: { fail?: boolean; views?: LinkAnalysisView[]; expand?: GraphSource['expand'] } = {}) {
     const queried: unknown[] = [];
     const fakeSource: GraphSource = {
         id: 'entity-projection',
@@ -35,6 +37,7 @@ function create(opts: { fail?: boolean; views?: LinkAnalysisView[] } = {}) {
             queried.push(q);
             return opts.fail ? Promise.reject(new Error('bad mapping')) : Promise.resolve(GRAPH);
         },
+        expand: opts.expand,
     };
     const save = vi.fn((v: LinkAnalysisView) => of(v));
     TestBed.configureTestingModule({
@@ -129,6 +132,85 @@ describe('LinkAnalysisComponent', () => {
         c.runConnectedComponents();
         expect(c.components()).toHaveLength(2);
         expect(c.components()[0]).toHaveLength(3); // a-b-c is the larger component, sorted first
+    });
+
+    it('expandNode (Phase E): merges the source\'s one-hop neighborhood into the loaded graph, filters intact', async () => {
+        const expand = vi.fn(async () => ({
+            nodes: [{ id: 'f', data: { label: 'F', kind: 'entity' } }],
+            edges: [{ id: 'c->f', source: 'c', target: 'f', data: { kind: 'link' } }],
+        }));
+        const { fixture } = create({ expand });
+        fixture.detectChanges();
+        await runQuery(fixture);
+        const c = fixture.componentInstance;
+        c.onSearch('a'); // some filter/analysis state that must survive the merge
+
+        await c.expandNode('c', 'C');
+        expect(expand).toHaveBeenCalledWith('c', 'C', expect.objectContaining({ projection: expect.anything() }));
+        expect(c.graph()?.nodes.map((n) => n.id).sort()).toEqual(['a', 'b', 'c', 'd', 'e', 'f']);
+        expect(c.graph()?.edges.map((e) => e.id)).toContain('c->f');
+        expect(c.emphasis()?.nodeIds).toEqual(['a']); // untouched by the merge
+    });
+
+    it('expandNode is a no-op when the source has no expand()', async () => {
+        const { fixture } = create();
+        fixture.detectChanges();
+        await runQuery(fixture);
+        const c = fixture.componentInstance;
+        await c.expandNode('c', 'C');
+        expect(c.graph()).toEqual(GRAPH); // unchanged
+    });
+
+    it('undo/redo (Phase G): a sequence of display mutations restores exact prior signal values', async () => {
+        const { fixture } = create();
+        fixture.detectChanges();
+        await runQuery(fixture);
+        const c = fixture.componentInstance;
+        expect(c.canUndo()).toBe(false);
+
+        c.setNodeColor('entity', TEST_COLOR);
+        expect(c.nodeColors()).toEqual({ entity: TEST_COLOR });
+        expect(c.canUndo()).toBe(true);
+
+        c.toggleKind('other', false); // a second, independent mutation
+        expect(c.kindFilter()).toEqual(['entity']);
+
+        c.undoPresentation();
+        expect(c.kindFilter()).toEqual([]); // back to before the toggle
+        expect(c.nodeColors()).toEqual({ entity: TEST_COLOR }); // the color change is untouched
+        expect(c.canRedo()).toBe(true);
+
+        c.undoPresentation();
+        expect(c.nodeColors()).toEqual({}); // back to before the color change
+        expect(c.canUndo()).toBe(false);
+
+        c.redoPresentation();
+        c.redoPresentation();
+        expect(c.nodeColors()).toEqual({ entity: TEST_COLOR });
+        expect(c.kindFilter()).toEqual(['entity']);
+        expect(c.canRedo()).toBe(false);
+    });
+
+    it('undo/redo: a fresh run() clears history (stale snapshots would reference a different graph)', async () => {
+        const { fixture } = create();
+        fixture.detectChanges();
+        await runQuery(fixture);
+        const c = fixture.componentInstance;
+        c.setNodeColor('entity', TEST_COLOR);
+        expect(c.canUndo()).toBe(true);
+        await runQuery(fixture);
+        expect(c.canUndo()).toBe(false);
+    });
+
+    it('exportGraphml (Phase F): downloads the displayed graph as generic GraphML', async () => {
+        const { fixture } = create();
+        fixture.detectChanges();
+        await runQuery(fixture);
+        const c = fixture.componentInstance;
+        const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined);
+        c.exportGraphml();
+        expect(clickSpy).toHaveBeenCalled();
+        clickSpy.mockRestore();
     });
 
     it('smart form: auto-collapses to the selected-values summary after a run, and edit reopens it', async () => {

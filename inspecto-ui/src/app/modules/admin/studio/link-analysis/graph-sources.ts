@@ -1,7 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 import { CatalogService, InvService, PipelinesService } from 'app/inspecto/api';
-import { G6GraphData, GraphSource, GraphSourceQuery } from 'app/inspecto/graph';
+import { G6GraphData, GraphSource, GraphSourceQuery, mergeGraphs } from 'app/inspecto/graph';
 import { deriveComponentGraph } from 'app/inspecto/component-model';
 import { toG6Data } from 'app/modules/admin/catalog/catalog-graph';
 import { ComponentsDataProvider } from 'app/modules/admin/catalog/components-data-provider';
@@ -24,9 +24,18 @@ export class LineageGraphSource implements GraphSource {
     constructor(private catalog: CatalogService) {}
 
     async query(q: GraphSourceQuery): Promise<G6GraphData> {
-        const g = await firstValueFrom(this.catalog.graph({
-            from: q.from, depth: q.depth, direction: q.direction,
+        const roots = q.roots?.length ? q.roots : [q.from];
+        const graphs = await Promise.all(roots.map((from) => firstValueFrom(this.catalog.graph({
+            from, depth: q.depth, direction: q.direction,
             kinds: q.kinds, edgeKinds: q.edgeKinds, overlay: q.overlay,
+        })).then((g) => toG6Data(g.nodes, g.edges))));
+        return graphs.length > 1 ? mergeGraphs(graphs) : graphs[0];
+    }
+
+    /** Phase E: one more hop from `nodeId` — cheap, `/catalog/graph` already supports `from`+`depth`. */
+    async expand(nodeId: string, _nodeLabel: string, q: GraphSourceQuery): Promise<G6GraphData> {
+        const g = await firstValueFrom(this.catalog.graph({
+            from: nodeId, depth: 1, direction: q.direction, kinds: q.kinds, edgeKinds: q.edgeKinds,
         }));
         return toG6Data(g.nodes, g.edges);
     }
@@ -52,12 +61,18 @@ export class PipelineGraphSource implements GraphSource {
     constructor(private pipelines: PipelinesService) {}
 
     async query(q: GraphSourceQuery): Promise<G6GraphData> {
-        if (!q.from) throw new Error('The provenance source needs a pipeline (query.from).');
-        const g = await firstValueFrom(this.pipelines.graph(q.from));
-        if (!q.counts) return toPipelineG6Data(g);
-        const batches = await firstValueFrom(this.pipelines.provenanceBatches(q.from)).catch(() => []);
+        const roots = q.roots?.length ? q.roots : q.from ? [q.from] : [];
+        if (!roots.length) throw new Error('The provenance source needs a pipeline (query.from/roots).');
+        const graphs = await Promise.all(roots.map((pipeline) => this.queryOne(pipeline, q.counts)));
+        return graphs.length > 1 ? mergeGraphs(graphs) : graphs[0];
+    }
+
+    private async queryOne(pipeline: string, counts?: boolean): Promise<G6GraphData> {
+        const g = await firstValueFrom(this.pipelines.graph(pipeline));
+        if (!counts) return toPipelineG6Data(g);
+        const batches = await firstValueFrom(this.pipelines.provenanceBatches(pipeline)).catch(() => []);
         if (!batches.length) return toPipelineG6Data(g);
-        const rows = await firstValueFrom(this.pipelines.provenance(q.from, batches[0].batchId)).catch(() => []);
+        const rows = await firstValueFrom(this.pipelines.provenance(pipeline, batches[0].batchId)).catch(() => []);
         return toPipelineG6Data(g, provenanceCounts(rows));
     }
 }

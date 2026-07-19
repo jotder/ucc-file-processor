@@ -240,6 +240,14 @@
                     </div>
                 </mat-menu>
 
+                <button mat-icon-button (click)="undoPresentation()" [disabled]="!canUndo()"
+                        matTooltip="Undo (Ctrl+Z)" aria-label="Undo the last display/filter change">
+                    <mat-icon svgIcon="heroicons_outline:arrow-uturn-left"></mat-icon>
+                </button>
+                <button mat-icon-button (click)="redoPresentation()" [disabled]="!canRedo()"
+                        matTooltip="Redo (Ctrl+Y)" aria-label="Redo the last undone display/filter change">
+                    <mat-icon svgIcon="heroicons_outline:arrow-uturn-right"></mat-icon>
+                </button>
                 <button mat-icon-button (click)="fitToScreen()" matTooltip="Fit to screen" aria-label="Fit the graph to the screen">
                     <mat-icon svgIcon="heroicons_outline:viewfinder-circle"></mat-icon>
                 </button>
@@ -253,6 +261,12 @@
                 </button>
                 <button mat-icon-button (click)="exportJson()" matTooltip="Export JSON" aria-label="Export as JSON">
                     <mat-icon svgIcon="heroicons_outline:code-bracket"></mat-icon>
+                </button>
+                <button mat-icon-button (click)="exportSvg()" matTooltip="Export SVG" aria-label="Export as SVG">
+                    <mat-icon svgIcon="heroicons_outline:photo"></mat-icon>
+                </button>
+                <button mat-icon-button (click)="exportGraphml()" matTooltip="Export GraphML" aria-label="Export as GraphML">
+                    <mat-icon svgIcon="heroicons_outline:share"></mat-icon>
                 </button>
             }
         </div>
@@ -455,12 +469,26 @@
                                                     <mat-option value="in">Upstream</mat-option>
                                                 </mat-select>
                                             </mat-form-field>
+                                            <mat-form-field subscriptSizing="dynamic" class="w-56">
+                                                <mat-label>Extra roots (optional, comma-separated)</mat-label>
+                                                <mat-icon matPrefix class="icon-size-5" svgIcon="heroicons_outline:plus"></mat-icon>
+                                                <input matInput formControlName="extraRoots" placeholder="e.g. table:orders, table:invoices" />
+                                            </mat-form-field>
                                         }
                                         @case ('provenance') {
                                             <mat-form-field subscriptSizing="dynamic" class="w-56">
                                                 <mat-label>Pipeline</mat-label>
                                                 <mat-icon matPrefix class="icon-size-5" svgIcon="heroicons_outline:queue-list"></mat-icon>
                                                 <mat-select formControlName="pipeline">
+                                                    @for (p of pipelines(); track p.name) {
+                                                        <mat-option [value]="p.name">{{ p.name }}</mat-option>
+                                                    }
+                                                </mat-select>
+                                            </mat-form-field>
+                                            <mat-form-field subscriptSizing="dynamic" class="w-56">
+                                                <mat-label>Extra pipelines (optional)</mat-label>
+                                                <mat-icon matPrefix class="icon-size-5" svgIcon="heroicons_outline:plus"></mat-icon>
+                                                <mat-select formControlName="extraPipelines" multiple>
                                                     @for (p of pipelines(); track p.name) {
                                                         <mat-option [value]="p.name">{{ p.name }}</mat-option>
                                                     }

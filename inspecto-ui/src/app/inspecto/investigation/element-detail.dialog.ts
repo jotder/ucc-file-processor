@@ -28,10 +28,16 @@ export interface ElementDetailData {
     branch?: 'collapse' | 'expand';
     /** The Incident/Case this element represents, if the host could resolve one — offers "Open record". */
     objectRef?: ElementObjectRef;
+    /**
+     * Phase E incremental expand: the host's GraphSource can fetch this node's one-hop neighborhood
+     * and merge it in — offers "Fetch neighbors". Distinct from `branch` (which only shows/hides
+     * already-loaded descendants); this one re-queries for new data.
+     */
+    expandable?: boolean;
 }
 
 /** What the caller should do next; closing without a choice does nothing. */
-export type ElementDetailResult = 'focus' | 'collapse' | 'expand' | 'open-record' | undefined;
+export type ElementDetailResult = 'focus' | 'collapse' | 'expand' | 'open-record' | 'expand-neighbors' | undefined;
 
 /**
  * **Element detail popup** (investigation studios — Link Analysis, Geo Map Analysis): full details
@@ -66,6 +72,12 @@ export type ElementDetailResult = 'focus' | 'collapse' | 'expand' | 'open-record
                 <button mat-button (click)="close('expand')">
                     <mat-icon svgIcon="heroicons_outline:plus-circle"></mat-icon>
                     Expand branch
+                </button>
+            }
+            @if (data.expandable) {
+                <button mat-button (click)="close('expand-neighbors')">
+                    <mat-icon svgIcon="heroicons_outline:arrow-path"></mat-icon>
+                    Fetch neighbors
                 </button>
             }
             <button mat-button (click)="close('focus')">

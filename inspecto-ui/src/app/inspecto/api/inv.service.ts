@@ -32,6 +32,12 @@ export interface ProjectionRequest {
   limit?: number;
 }
 
+/** {@code POST /inv/projection/neighbors} request — a mapping plus the entity value to expand. */
+export interface NeighborsRequest extends ProjectionRequest {
+  /** The entity's raw projected value — rows where it's either endpoint. */
+  value: string;
+}
+
 /**
  * Investigation-studio backend (INV-1): the real DuckDB-side Entity Projection over a Dataset —
  * the server half of the Link Analysis studio's `entity-projection` GraphSource. Offline/mock mode
@@ -44,5 +50,10 @@ export class InvService {
 
   project(req: ProjectionRequest): Observable<ProjectionResult> {
     return this.http.post<ProjectionResult>(apiUrl('/inv/projection'), req);
+  }
+
+  /** Phase E incremental expand: the one-hop neighborhood of `req.value` within the mapping. */
+  neighbors(req: NeighborsRequest): Observable<ProjectionResult> {
+    return this.http.post<ProjectionResult>(apiUrl('/inv/projection/neighbors'), req);
   }
 }
