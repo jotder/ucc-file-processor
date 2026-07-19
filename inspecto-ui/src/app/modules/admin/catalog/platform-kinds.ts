@@ -1,5 +1,5 @@
 import { AuthoredPipeline } from 'app/inspecto/api';
-import { ComponentKind, Part, Ref, Wiring, getKind, pipelineRefs, registerKind } from 'app/inspecto/component-model';
+import { ComponentKind, Part, Ref, Wiring, getKind, hasEditorRoute, pipelineRefs, registerEditorRoute, registerKind } from 'app/inspecto/component-model';
 
 /**
  * P2 of the component-model adoption plan: register the platform's **existing** kinds on the unified registry
@@ -25,7 +25,8 @@ export const TRANSFORM_KIND = atomicKind('transform', 'Transformer');
 export const SINK_KIND = atomicKind('sink', 'Writer');
 export const RULE_KIND = atomicKind('rule', 'Rule');
 // A Requirement joins the reuse-graph via its `delivered-by` ref (`requirementRefs`, C1 follow-up).
-export const REQUIREMENT_KIND = atomicKind('requirement', 'Requirement');
+// Its "editor" is the Requirements pane (dialog-based detail, no /:id route).
+export const REQUIREMENT_KIND: ComponentKind = { ...atomicKind('requirement', 'Requirement'), authoring: { editorKey: 'requirement' } };
 
 const ATOMIC_KINDS: ComponentKind[] = [GRAMMAR_KIND, SCHEMA_KIND, TRANSFORM_KIND, SINK_KIND, RULE_KIND, REQUIREMENT_KIND];
 
@@ -63,4 +64,7 @@ export const PLATFORM_KIND_IDS: string[] = [...ATOMIC_KINDS.map((k) => k.id), PI
 export function registerPlatformKinds(): void {
     for (const k of ATOMIC_KINDS) if (!getKind(k.id)) registerKind(k);
     if (!getKind(PIPELINE_KIND.id)) registerKind<AuthoredPipeline>(PIPELINE_KIND);
+    // Editor routes (S7): both panes are dialog/canvas-based — no /:id detail route, the pane is the target.
+    if (!hasEditorRoute('pipeline')) registerEditorRoute('pipeline', () => ['/pipelines']);
+    if (!hasEditorRoute('requirement')) registerEditorRoute('requirement', () => ['/requirements']);
 }

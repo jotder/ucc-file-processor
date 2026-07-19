@@ -391,6 +391,9 @@ export interface AssistResult {
   applyVia?: string | null;
   message?: string | null;
   data: Record<string, unknown>;
+  /** Optional server-shaped A2UI artifact (S7) — when present, the assist panel renders it through
+   *  the generic `<inspecto-a2ui-render>` host instead of composing one from the `data` bag. */
+  artifact?: Record<string, unknown>;
 }
 
 /** The assist skills exposed at POST /assist/{intent}. `propose-decision` (R5) makes the Assist a

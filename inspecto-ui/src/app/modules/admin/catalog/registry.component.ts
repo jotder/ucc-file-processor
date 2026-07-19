@@ -8,7 +8,15 @@ import { firstValueFrom } from 'rxjs';
 import type { ColDef } from 'ag-grid-community';
 import { DecisionRulesService, JobsService, PipelinesService } from 'app/inspecto/api';
 import { RequirementsService } from 'app/inspecto/requirement';
-import { Component as ModelComponent, Part, deriveComponentGraph, refsForComponent } from 'app/inspecto/component-model';
+import { Component as ModelComponent, Part, deriveComponentGraph, refsForComponent, resolveEditorLink } from 'app/inspecto/component-model';
+// Side-effect: register the Studio / jobs / decision-rule ComponentKinds + their editor routes so
+// `resolveEditorLink` covers every kind this pane loads (all registrations are guarded).
+import 'app/modules/admin/studio/datasets/dataset.kind';
+import 'app/modules/admin/studio/queries/query.kind';
+import 'app/modules/admin/studio/widgets/widget.kind';
+import 'app/modules/admin/studio/dashboards/dashboard.kind';
+import 'app/modules/admin/jobs/job.kind';
+import 'app/modules/admin/decision-rules/decision-rule.kind';
 import { G6GraphData } from 'app/inspecto/graph';
 import { DataTableComponent } from 'app/inspecto/data-table';
 import { InspectoEmptyStateComponent } from 'app/inspecto/components/empty-state.component';
@@ -24,14 +32,6 @@ export const REGISTRY_KINDS = ['dataset', 'query', 'widget', 'dashboard', 'gramm
 /** The kinds a pipeline node may bind (mirrors `PIPELINE_KIND.allowedPartKinds`); a node's `use=<kind>/<id>`
  *  ref is turned into a part only for these, so source→connection refs don't clutter the graph. */
 const PIPELINE_REF_KINDS = new Set(['grammar', 'schema', 'transform', 'sink']);
-
-/** Editors that exist today, for the node-detail "Open" link; kinds without one (atomic registry kinds) get none. */
-const EDITOR_PATH: Record<string, string> = {
-    dataset: '/catalog/datasets',
-    query: '/studio/queries',
-    widget: '/studio/widgets',
-    dashboard: '/studio/dashboards',
-};
 
 /**
  * **Registry / reuse-graph** (adoption-plan P3): a single lens over every component kind. Loads all registry
@@ -189,14 +189,10 @@ export class RegistryComponent implements OnInit {
         this.selectedId.set(id);
     }
 
-    /** The in-app editor route for a component, or null when its kind has no editor yet. */
+    /** The in-app editor route for a component (S7: resolved kind → editorKey → registered route),
+     *  or null when its kind declares no editor (atomic registry kinds) — fail closed. */
     editorLink(c: ModelComponent): string[] | null {
-        if (c.kind === 'pipeline') return ['/pipelines']; // the Pipelines editor page
-        if (c.kind === 'job') return ['/jobs']; // the Jobs pane (dialog-based editing, no /:id route)
-        if (c.kind === 'decision-rule') return ['/decision-rules']; // the Decision Rules pane (dialog-based editing)
-        if (c.kind === 'requirement') return ['/requirements']; // the Requirements pane (dialog-based detail)
-        const path = EDITOR_PATH[c.kind];
-        return path ? [path, c.id] : null;
+        return resolveEditorLink(c.kind, c.id);
     }
 }
 

@@ -1,4 +1,4 @@
-import { ComponentKind, ConfigFinding, getKind, registerKind } from 'app/inspecto/component-model';
+import { ComponentKind, ConfigFinding, getKind, hasEditorRoute, registerEditorRoute, registerKind } from 'app/inspecto/component-model';
 import { DatasetConfig } from './dataset-types';
 
 /**
@@ -38,4 +38,7 @@ export function validateDatasetConfig(config: unknown): ConfigFinding[] {
 // Side-effect registration (guarded so a re-import / repeated spec load doesn't trip the dup-id guard).
 if (!getKind(DATASET_KIND.id)) {
     registerKind(DATASET_KIND);
+}
+if (!hasEditorRoute('dataset')) {
+    registerEditorRoute('dataset', (id) => ['/catalog/datasets', id]);
 }

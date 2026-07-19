@@ -1,4 +1,4 @@
-import { ComponentKind, ConfigFinding, Ref, getKind, queryRefs, registerKind } from 'app/inspecto/component-model';
+import { ComponentKind, ConfigFinding, Ref, getKind, hasEditorRoute, queryRefs, registerEditorRoute, registerKind } from 'app/inspecto/component-model';
 import { QueryConfig } from './query-types';
 
 /**
@@ -39,4 +39,7 @@ export function validateQueryConfig(config: unknown): ConfigFinding[] {
 
 if (!getKind(QUERY_KIND.id)) {
     registerKind(QUERY_KIND);
+}
+if (!hasEditorRoute('query')) {
+    registerEditorRoute('query', (id) => ['/studio/queries', id]);
 }

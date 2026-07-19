@@ -1,5 +1,5 @@
 import type { DecisionRule } from 'app/inspecto/api/decision-rules.service';
-import { ComponentKind, ConfigFinding, Ref, decisionRuleRefs, getKind, registerKind } from 'app/inspecto/component-model';
+import { ComponentKind, ConfigFinding, Ref, decisionRuleRefs, getKind, hasEditorRoute, registerEditorRoute, registerKind } from 'app/inspecto/component-model';
 
 /**
  * The `decision-rule` {@link ComponentKind} — R5 of the living-operational-system roadmap: the
@@ -39,4 +39,8 @@ export function validateDecisionRuleConfig(config: unknown): ConfigFinding[] {
 
 if (!getKind(DECISION_RULE_KIND.id)) {
     registerKind(DECISION_RULE_KIND);
+}
+// The Decision Rules pane edits via dialogs (no /:id route) — the pane itself is the editor target.
+if (!hasEditorRoute('decision-rule')) {
+    registerEditorRoute('decision-rule', () => ['/decision-rules']);
 }

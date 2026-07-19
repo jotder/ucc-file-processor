@@ -1,5 +1,5 @@
 import type { JobDetail } from 'app/inspecto/api/jobs.service';
-import { ComponentKind, ConfigFinding, Part, Ref, Wiring, getKind, jobRefs, registerKind } from 'app/inspecto/component-model';
+import { ComponentKind, ConfigFinding, Part, Ref, Wiring, getKind, hasEditorRoute, jobRefs, registerEditorRoute, registerKind } from 'app/inspecto/component-model';
 
 /**
  * The `job` {@link ComponentKind} — R2 of the living-operational-system roadmap: the Execution
@@ -46,4 +46,8 @@ export function validateJobConfig(config: unknown): ConfigFinding[] {
 
 if (!getKind(JOB_KIND.id)) {
     registerKind(JOB_KIND);
+}
+// The Jobs pane edits via dialogs (no /:id route) — the pane itself is the editor target.
+if (!hasEditorRoute('job')) {
+    registerEditorRoute('job', () => ['/jobs']);
 }

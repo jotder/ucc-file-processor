@@ -1,4 +1,4 @@
-import { ComponentKind, ConfigFinding, Part, Ref, Wiring, dashboardRefs, getKind, registerKind } from 'app/inspecto/component-model';
+import { ComponentKind, ConfigFinding, Part, Ref, Wiring, dashboardRefs, getKind, hasEditorRoute, registerEditorRoute, registerKind } from 'app/inspecto/component-model';
 import { DashboardConfig } from './dashboard-types';
 
 /**
@@ -47,4 +47,7 @@ export function validateDashboardConfig(config: unknown): ConfigFinding[] {
 
 if (!getKind(DASHBOARD_KIND.id)) {
     registerKind(DASHBOARD_KIND);
+}
+if (!hasEditorRoute('dashboard')) {
+    registerEditorRoute('dashboard', (id) => ['/studio/dashboards', id]);
 }

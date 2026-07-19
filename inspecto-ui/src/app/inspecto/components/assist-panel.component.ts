@@ -8,6 +8,8 @@ import { MatInputModule } from '@angular/material/input';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { ToastrService } from 'ngx-toastr';
 import { AssistIntent, AssistResult, AssistService } from 'app/inspecto/api';
+import { A2uiArtifact, isRecord } from 'app/inspecto/a2ui/a2ui-artifact';
+import { A2uiRenderComponent } from 'app/inspecto/a2ui/a2ui-render.component';
 
 /** SQL-producing intents that can return a sampleRows preview. */
 const SQL_INTENTS = ['kpi-to-sql', 'report-sql'];
@@ -15,10 +17,12 @@ const SQL_INTENTS = ['kpi-to-sql', 'report-sql'];
 /**
  * Reusable assist panel — a self-contained "ask the agent" widget for any of the 7 intents
  * (ported from inspector-ui onto Material + Tailwind). It renders the input (free text + optional
- * sample-rows toggle for SQL intents), POSTs to /assist/{intent}, and renders the AssistResult with
- * intent-aware sections: SQL + sample table, draft .toon (copyable), nextRuns, summary, narrative,
- * findings, plus a raw fallback. Degrades gracefully on 503 (agent absent) / 404 (unknown intent).
- * All draft-only.
+ * sample-rows toggle for SQL intents), POSTs to /assist/{intent}, and renders the AssistResult.
+ * The artifact-shaped sections (humanReadable / narrative / sampleRows / findings — or a
+ * server-shaped `result.artifact`) render through the generic `<inspecto-a2ui-render>` host (S7);
+ * the result-level chrome (status header, message/rationale, SQL + draft .toon copy blocks,
+ * nextRuns, citations/links, raw fallback) stays panel-owned. Degrades gracefully on 503 (agent
+ * absent) / 404 (unknown intent). All draft-only.
  */
 @Component({
     selector: 'app-assist-panel',
@@ -31,6 +35,7 @@ const SQL_INTENTS = ['kpi-to-sql', 'report-sql'];
         MatIconModule,
         MatInputModule,
         MatProgressSpinnerModule,
+        A2uiRenderComponent,
     ],
     templateUrl: './assist-panel.component.html',
 })
@@ -112,6 +117,37 @@ export class AssistPanelComponent implements OnInit {
         return this.sampleRows.length ? Object.keys(this.sampleRows[0]) : [];
     }
 
+    /**
+     * The result's renderable A2UI artifact (S7): a server-shaped `result.artifact` (or legacy
+     * `data.artifact`) is used as-is; otherwise the migrated data-bag sections (humanReadable /
+     * narrative / sampleRows / findings) compose into one artifact rendered through the generic
+     * `<inspecto-a2ui-render>` host. Null when there is nothing artifact-shaped to render.
+     */
+    get artifact(): A2uiArtifact | null {
+        if (!this.result) return null;
+        const served = this.result.artifact ?? this.d('artifact');
+        if (isRecord(served) && typeof served['kind'] === 'string') return served as unknown as A2uiArtifact;
+        const parts: A2uiArtifact[] = [];
+        if (this.humanReadable) parts.push({ kind: 'text', config: { text: this.humanReadable } });
+        if (this.narrative) parts.push({ kind: 'text', config: { text: this.narrative } });
+        if (this.sampleRows.length) {
+            parts.push({
+                kind: 'data-table',
+                title: `Sample rows (${this.sampleRows.length})`,
+                config: { rows: this.sampleRows, columns: this.sampleColumns },
+            });
+        }
+        if (this.findings.length) {
+            parts.push({
+                kind: 'data-table',
+                title: 'Findings',
+                config: { rows: this.findings, columns: ['severity', 'fieldPath', 'message'] },
+            });
+        }
+        if (!parts.length) return null;
+        return parts.length === 1 ? parts[0] : { kind: 'text', config: {}, parts };
+    }
+
     copy(text?: string): void {
         if (!text) return;
         navigator.clipboard?.writeText(text).then(
@@ -126,10 +162,5 @@ export class AssistPanelComponent implements OnInit {
         } catch {
             return String(v);
         }
-    }
-
-    cell(row: Record<string, unknown>, col: string): string {
-        const v = row[col];
-        return v === null || v === undefined ? '' : String(v);
     }
 }

@@ -40,11 +40,10 @@
             @if (result.rationale) {
                 <p class="text-secondary text-sm italic">{{ result.rationale }}</p>
             }
-            @if (humanReadable) {
-                <p>{{ humanReadable }}</p>
-            }
-            @if (narrative) {
-                <div class="whitespace-pre-wrap">{{ narrative }}</div>
+            <!-- S7: humanReadable / narrative / sampleRows / findings (or a server-shaped
+                 result.artifact) render through the generic A2UI host -->
+            @if (artifact; as a) {
+                <inspecto-a2ui-render [artifact]="a" />
             }
 
             <!-- SQL -->
@@ -57,33 +56,6 @@
                         </button>
                     </div>
                     <pre class="overflow-auto rounded bg-gray-100 p-3 text-xs dark:bg-gray-800">{{ sql }}</pre>
-                </div>
-            }
-
-            <!-- sample rows -->
-            @if (sampleRows.length) {
-                <div>
-                    <div class="font-semibold">Sample rows ({{ sampleRows.length }})</div>
-                    <div class="mt-1 overflow-auto">
-                        <table class="w-full text-xs">
-                            <thead>
-                                <tr>
-                                    @for (c of sampleColumns; track c) {
-                                        <th scope="col" class="border-b px-2 py-1 text-left">{{ c }}</th>
-                                    }
-                                </tr>
-                            </thead>
-                            <tbody>
-                                @for (r of sampleRows; track $index) {
-                                    <tr>
-                                        @for (c of sampleColumns; track c) {
-                                            <td class="border-b px-2 py-1">{{ cell(r, c) }}</td>
-                                        }
-                                    </tr>
-                                }
-                            </tbody>
-                        </table>
-                    </div>
                 </div>
             }
 
@@ -109,31 +81,6 @@
                             <li>{{ r }}</li>
                         }
                     </ul>
-                </div>
-            }
-
-            <!-- findings -->
-            @if (findings.length) {
-                <div>
-                    <div class="font-semibold">Findings</div>
-                    <table class="mt-1 w-full text-xs">
-                        <thead>
-                            <tr>
-                                <th scope="col" class="border-b px-2 py-1 text-left">Severity</th>
-                                <th scope="col" class="border-b px-2 py-1 text-left">Field</th>
-                                <th scope="col" class="border-b px-2 py-1 text-left">Message</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @for (f of findings; track $index) {
-                                <tr>
-                                    <td class="border-b px-2 py-1">{{ f.severity }}</td>
-                                    <td class="border-b px-2 py-1">{{ f.fieldPath }}</td>
-                                    <td class="border-b px-2 py-1">{{ f.message }}</td>
-                                </tr>
-                            }
-                        </tbody>
-                    </table>
                 </div>
             }
 

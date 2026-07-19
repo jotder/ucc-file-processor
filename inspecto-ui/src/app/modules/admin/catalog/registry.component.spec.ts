@@ -94,6 +94,21 @@ describe('RegistryComponent', () => {
         expect(edges.filter((e) => e.startsWith('requirement/prose_req'))).toEqual([]);
     });
 
+    it('resolves editor links via the kind registry (S7): routed, pane-based, and none', () => {
+        configure({});
+        const c = TestBed.createComponent(RegistryComponent).componentInstance;
+        c.ngOnInit(); // registers the platform kinds (+ editor routes); the *.kind side-effect imports cover the rest
+        expect(c.editorLink({ kind: 'widget', id: 'w1', name: 'w1', config: {} })).toEqual(['/studio/widgets', 'w1']);
+        expect(c.editorLink({ kind: 'dataset', id: 'd1', name: 'd1', config: {} })).toEqual(['/catalog/datasets', 'd1']);
+        // Dialog-based panes keep their id-less pane link.
+        expect(c.editorLink({ kind: 'pipeline', id: 'p1', name: 'p1', config: {} })).toEqual(['/pipelines']);
+        expect(c.editorLink({ kind: 'job', id: 'j1', name: 'j1', config: {} })).toEqual(['/jobs']);
+        expect(c.editorLink({ kind: 'requirement', id: 'r1', name: 'r1', config: {} })).toEqual(['/requirements']);
+        // Atomic kinds without an editor fail closed.
+        expect(c.editorLink({ kind: 'grammar', id: 'g1', name: 'g1', config: {} })).toBeNull();
+        expect(c.editorLink({ kind: 'no-such-kind', id: 'x', name: 'x', config: {} })).toBeNull();
+    });
+
     it('renders the empty (no-graph) state with no a11y violations', async () => {
         configure({});
         const fixture = TestBed.createComponent(RegistryComponent);
