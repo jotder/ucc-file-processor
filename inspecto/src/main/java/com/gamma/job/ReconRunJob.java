@@ -1,5 +1,7 @@
 package com.gamma.job;
 
+import com.gamma.ops.ObjectService;
+import com.gamma.ops.ObjectType;
 import com.gamma.pipeline.ComponentRegistry;
 import com.gamma.pipeline.ComponentStore;
 import com.gamma.pipeline.ViewStore;
@@ -11,6 +13,7 @@ import com.gamma.signal.Severity;
 import java.nio.file.Path;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.function.Supplier;
 
 /**
  * The {@code recon.run} Job Type (DAT-7 "Ops" follow-up) — runs a saved {@code reconciliation} component
@@ -20,8 +23,11 @@ import java.util.Map;
  * {@link ReconConfigLoader}), so a scheduled reconciliation reconciles identically to a manual one.
  *
  * <p>Signal severity is {@code WARNING} when any Break exists, else {@code INFO} — an honest ledger fact a
- * future Alert Rule can watch. Promoting a breach to an Incident is a separate, deliberately-unshipped
- * follow-up (it rides the event/signal backbone's consequence path, not this Job).
+ * future Alert Rule can watch. A breach ({@code breaks > 0}) also opens a managed {@link ObjectType#INCIDENT}
+ * (deduped to one open Incident per reconciliation), the same signal→Incident wiring the alert path does, so
+ * a scheduled reconciliation's breaks enter the triage workflow rather than only the signal ledger. The
+ * {@link ObjectService} is resolved through a supplier (it is wired onto the {@code JobService} after this
+ * built-in is constructed); a {@code null} supplier value leaves the Job signal-only.
  *
  * <p>Follows the built-in convention of constructor-injected {@code dataDir} plus reading the component
  * registry from {@code -Dassist.write.root} at run time (as {@link MaterializeTask}/{@code ReportJob}).
@@ -33,10 +39,14 @@ final class ReconRunJob implements Job {
 
     private final JobConfig cfg;
     private final String dataDir;
+    /** Live view of this space's {@link ObjectService} (wired post-construction on the JobService); its value
+     *  is {@code null} until wired and on the bare-JobService test constructors — then the Job stays signal-only. */
+    private final Supplier<ObjectService> objects;
 
-    ReconRunJob(JobConfig cfg, String dataDir) {
+    ReconRunJob(JobConfig cfg, String dataDir, Supplier<ObjectService> objects) {
         this.cfg = cfg;
         this.dataDir = dataDir;
+        this.objects = objects;
     }
 
     @Override public String name() { return cfg.name(); }
@@ -88,10 +98,39 @@ final class ReconRunJob implements Job {
         payload.put("matchedKeys", r.summary().get("matchedKeys"));
         ctx.signals().emit("recon.run.completed", breaks > 0 ? Severity.WARNING : Severity.INFO, payload);
         ctx.log().info("reconciliation complete", "reconciliation", reconId, "breaks", breaks);
+        if (breaks > 0) openIncident(ctx, reconId, missingLeft, missingRight, valueBreak, breaks);
 
         return JobResult.ok("recon.run '" + reconId + "': " + breaks + " break(s) ("
                 + missingLeft + " missing-left, " + missingRight + " missing-right, " + valueBreak + " value-break)",
                 (System.nanoTime() - t0) / 1_000_000L);
+    }
+
+    /**
+     * Open a managed {@link ObjectType#INCIDENT} for a reconciliation breach, deduped to one open Incident
+     * per reconciliation (correlationId = the reconciliation id) so a nightly schedule doesn't hand the
+     * operator a clone every run. No-op when no {@link ObjectService} is wired. Best-effort: a failure here
+     * is logged to the run and never fails the run itself (the signal is already the durable ledger fact).
+     */
+    private void openIncident(JobContext ctx, String reconId, long missingLeft, long missingRight,
+                              long valueBreak, long breaks) {
+        ObjectService svc = objects == null ? null : objects.get();
+        if (svc == null) return;
+        try {
+            if (!svc.active(ObjectType.INCIDENT, reconId).isEmpty()) return;   // one open Incident per reconciliation
+            Map<String, String> attrs = new LinkedHashMap<>();
+            attrs.put("reconciliation", reconId);
+            attrs.put("breaks", String.valueOf(breaks));
+            attrs.put("missingLeft", String.valueOf(missingLeft));
+            attrs.put("missingRight", String.valueOf(missingRight));
+            attrs.put("valueBreak", String.valueOf(valueBreak));
+            svc.open(ObjectType.INCIDENT, "Reconciliation " + reconId + " — " + breaks + " break(s)",
+                    breaks + " break(s): " + missingLeft + " missing-left, " + missingRight
+                            + " missing-right, " + valueBreak + " value-break",
+                    "WARNING", reconId, attrs);
+        } catch (RuntimeException e) {
+            ctx.log().warn("could not open Incident for reconciliation breach", "reconciliation", reconId,
+                    "error", e.getMessage());
+        }
     }
 
     private static long num(Object v) {

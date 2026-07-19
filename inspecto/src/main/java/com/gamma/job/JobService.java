@@ -118,6 +118,9 @@ public final class JobService implements AutoCloseable {
     /** This space's event ledger — the on-signal Trigger source (P1c). Set by the host ({@code CollectorService});
      *  {@code null} (e.g. the bare-{@code JobService} test constructors) disables on-signal dispatch. */
     private volatile EventLog eventLog;
+    /** This space's Object Engine, wired post-construction ({@link #objects(com.gamma.ops.ObjectService)}) so
+     *  the {@code recon.run} built-in can promote a breach to an Incident; {@code null} until wired. */
+    private volatile com.gamma.ops.ObjectService objects;
     /** One coalescer per on-signal Job, so a burst of matching signals folds into one follow-up Run (§8.4). */
     private final Map<String, TriggerCoalescer> signalCoalescers = new ConcurrentHashMap<>();
     /** Loop cut: a signal-triggered Run beyond this chain depth does not fire (§8.4) — {@code -Djobs.signal.maxChainDepth}. */
@@ -257,7 +260,7 @@ public final class JobService implements AutoCloseable {
                 "Runs a saved Reconciliation over its Datasets and emits a signal carrying the Break counts.",
                 List.of(ParameterDecl.required("reconciliation", ParamType.STRING, "Saved reconciliation component id")),
                 List.of("recon.run.completed"), List.of()),
-                c -> new ReconRunJob(c, dataDir)));
+                c -> new ReconRunJob(c, dataDir, () -> this.objects)));
         // Classpath providers (optional Maven modules — the "classpath way", §12.4). ServiceLoader finds
         // none in the base build; a provider whose id collides with a built-in (registered first) is
         // rejected, fail-closed. Hot-deployable Job Packs (isolated classloaders) arrive in P2c.
@@ -339,6 +342,12 @@ public final class JobService implements AutoCloseable {
     /** Bind this service to its space's event ledger (the on-signal Trigger source). Call before {@link #start()}. */
     public void eventLog(EventLog eventLog) {
         this.eventLog = eventLog;
+    }
+
+    /** Bind this service to its space's Object Engine so {@code recon.run} can promote a breach to an Incident.
+     *  Optional; read live by the built-in through a supplier, so ordering vs construction doesn't matter. */
+    public void objects(com.gamma.ops.ObjectService objects) {
+        this.objects = objects;
     }
 
     /**

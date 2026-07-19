@@ -6,6 +6,10 @@ import com.gamma.enrich.EnrichmentConfig;
 import com.gamma.etl.BatchEvent;
 import com.gamma.etl.PipelineConfig;
 import com.gamma.etl.PipelineConfigBatchTest;
+import com.gamma.ops.InMemoryObjectStore;
+import com.gamma.ops.ObjectQuery;
+import com.gamma.ops.ObjectService;
+import com.gamma.ops.ObjectType;
 import com.gamma.service.StatusStore;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -165,5 +169,40 @@ class AlertServiceTest {
         AlertService svc = new AlertService(List.of(scoped), configs(cfg), store(ledger));
 
         assertEquals(0, svc.evaluateAll().size(), "no ledger row matches 'when' — nothing to breach");
+    }
+
+    // ── signal→Incident promotion (critical/error breaches enter triage) ─────────────
+
+    private static int count(ObjectService objects, ObjectType type) {
+        return objects.query(ObjectQuery.builder().objectType(type).build()).size();
+    }
+
+    @Test
+    void criticalBreachPromotesToIncidentAlongsideTheAlert(@TempDir Path dir) throws Exception {
+        PipelineConfig cfg = PipelineConfig.load(PipelineConfigBatchTest.writePipeline(dir, "").toString());
+        List<Map<String, String>> ledger = List.of(
+                row("FAILED", 10, 0, 0, 100, LocalDateTime.now().minusMinutes(5)));
+        ObjectService objects = new ObjectService(new InMemoryObjectStore());
+        AlertRule critical = new AlertRule("r-crit", "failed_batches", "gte", 1, "1h", "critical", "MINI_ETL");
+        AlertService svc = new AlertService(List.of(critical), configs(cfg), store(ledger), objects);
+
+        assertEquals(1, svc.evaluateAll().size(), "the critical rule breaches");
+        assertEquals(1, count(objects, ObjectType.ALERT), "the ALERT object is still recorded");
+        assertEquals(1, count(objects, ObjectType.INCIDENT), "a critical breach also opens an Incident");
+    }
+
+    @Test
+    void warningBreachStaysAnAlertWithNoIncident(@TempDir Path dir) throws Exception {
+        PipelineConfig cfg = PipelineConfig.load(PipelineConfigBatchTest.writePipeline(dir, "").toString());
+        List<Map<String, String>> ledger = List.of(
+                row("FAILED", 10, 0, 0, 100, LocalDateTime.now().minusMinutes(5)));
+        ObjectService objects = new ObjectService(new InMemoryObjectStore());
+        // rule() builds a WARNING-severity rule.
+        AlertService svc = new AlertService(List.of(rule("failed_batches", "gte", 1, "1h", "MINI_ETL")),
+                configs(cfg), store(ledger), objects);
+
+        assertEquals(1, svc.evaluateAll().size(), "the warning rule breaches");
+        assertEquals(1, count(objects, ObjectType.ALERT), "it records an ALERT object");
+        assertEquals(0, count(objects, ObjectType.INCIDENT), "but a warning breach does not open an Incident");
     }
 }

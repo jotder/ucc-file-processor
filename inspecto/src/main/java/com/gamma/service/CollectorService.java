@@ -343,6 +343,9 @@ public final class CollectorService implements AutoCloseable {
         this.linkStore = ServiceStores.openLinkStore(root);
         this.noteStore = ServiceStores.openNoteStore(root);
         this.objects = new com.gamma.ops.ObjectService(objectStore, java.util.Map.of(), linkStore, noteStore);
+        // Give the Job engine this space's Object Engine so the recon.run built-in can promote a breach to
+        // an Incident (deduped per reconciliation). Wired after both exist; a null-safe no-op when no jobs.
+        if (this.jobs != null) this.jobs.objects(this.objects);
         // Phase D2: promote selected domain events to managed objects (SEQUENCE_GAP → ALERT) via an EventLog
         // subscriber. Registered unconditionally (independent of *_alert.toon rules — a gap is not a batch
         // metric) and de-registered in close() so repeated service instances don't accumulate listeners.

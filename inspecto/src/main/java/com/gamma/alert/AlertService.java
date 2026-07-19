@@ -241,9 +241,33 @@ public final class AlertService {
             if (eventId != null) attrs.put("causedByEvent", eventId);
             objects.open(ObjectType.ALERT, rule.name() + " on " + pipeline, alert.message(),
                     rule.severity(), pipeline, attrs);
+            promoteToIncident(rule, alert, pipeline, attrs);
         } catch (RuntimeException e) {
             log.warn("could not persist alert object for rule {}: {}", rule.name(), e.getMessage());
         }
+    }
+
+    /**
+     * Auto-promote a <em>high-severity</em> (critical / error) alert breach to a managed
+     * {@link ObjectType#INCIDENT} so it enters the triage workflow, not only the alert feed — the same
+     * signal→Incident wiring {@code ExpectationRoutes} already does for violated Expectations. Lower
+     * severities stay alerts. Deduped across windows exactly like the ALERT object above (one active
+     * INCIDENT per rule+pipeline), carrying the same breach attributes. Best-effort within the enclosing
+     * try — a promotion failure never disturbs evaluation.
+     */
+    private void promoteToIncident(AlertRule rule, Alert alert, String pipeline, Map<String, String> attrs) {
+        if (!isHighSeverity(rule.severity())) return;
+        boolean active = objects.active(ObjectType.INCIDENT, pipeline).stream()
+                .anyMatch(o -> rule.name().equals(o.attributes().get("rule")));
+        if (active) return;
+        objects.open(ObjectType.INCIDENT, rule.name() + " on " + pipeline, alert.message(),
+                rule.severity(), pipeline, new LinkedHashMap<>(attrs));
+    }
+
+    /** Whether a rule severity warrants an Incident (critical / error) rather than staying an alert. */
+    private static boolean isHighSeverity(String severity) {
+        return severity != null
+                && (severity.equalsIgnoreCase("critical") || severity.equalsIgnoreCase("error"));
     }
 
     // ── metric math over ledger rows ─────────────────────────────────────────────────────

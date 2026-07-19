@@ -53,7 +53,7 @@ class ReconRunJobTest {
         JobConfig cfg = new JobConfig("nightly_recon", "recon.run", null, null, true, false,
                 Map.of("reconciliation", "orders_recon"), null, null);
         CapturingContext ctx = new CapturingContext(Map.of("reconciliation", "orders_recon"));
-        JobResult result = new ReconRunJob(cfg, dataDir.toString()).run(ctx);
+        JobResult result = new ReconRunJob(cfg, dataDir.toString(), () -> null).run(ctx);
 
         assertEquals("SUCCESS", result.status(), result.message());
         assertTrue(result.message().contains("3 break(s)"), result.message());
@@ -69,11 +69,44 @@ class ReconRunJobTest {
     }
 
     @Test
+    void breachOpensAnIncidentDedupedPerReconciliation(@TempDir Path dir) throws Exception {
+        Path writeRoot = dir.resolve("cfg");
+        Path dataDir = dir.resolve("data");
+        seedStore(dataDir, "orders_a", "VALUES ('EU','voice',100.0),('EU','data',118.0),('MEA','voice',10.0)");
+        seedStore(dataDir, "orders_b", "VALUES ('EU','voice',100.0),('EU','data',114.0),('APAC','sms',7.0)");
+        ComponentStore store = new ComponentStore(writeRoot.resolve("registry"));
+        store.write("dataset", "a_ds", Map.of("physicalRef", "orders_a"));
+        store.write("dataset", "b_ds", Map.of("physicalRef", "orders_b"));
+        store.write("reconciliation", "orders_recon", Map.of(
+                "datasets", List.of("a_ds", "b_ds"),
+                "keyColumns", List.of("region", "product"),
+                "compareColumns", List.of(Map.of("column", "amount", "toleranceType", "percent", "tolerance", 0.5))));
+        System.setProperty("assist.write.root", writeRoot.toString());
+
+        com.gamma.ops.ObjectService objects = new com.gamma.ops.ObjectService(new com.gamma.ops.InMemoryObjectStore());
+        JobConfig cfg = new JobConfig("nightly_recon", "recon.run", null, null, true, false,
+                Map.of("reconciliation", "orders_recon"), null, null);
+        ReconRunJob job = new ReconRunJob(cfg, dataDir.toString(), () -> objects);
+
+        job.run(new CapturingContext(Map.of("reconciliation", "orders_recon")));
+        assertEquals(1, incidentCount(objects), "3 breaks ⇒ one Incident opened");
+
+        // a second run while the first Incident is still open must not clone it
+        job.run(new CapturingContext(Map.of("reconciliation", "orders_recon")));
+        assertEquals(1, incidentCount(objects), "deduped to one open Incident per reconciliation");
+    }
+
+    private static int incidentCount(com.gamma.ops.ObjectService objects) {
+        return objects.query(com.gamma.ops.ObjectQuery.builder()
+                .objectType(com.gamma.ops.ObjectType.INCIDENT).build()).size();
+    }
+
+    @Test
     void unknownReconciliationFailsClosed(@TempDir Path dir) throws Exception {
         System.setProperty("assist.write.root", dir.resolve("cfg").toString());
         JobConfig cfg = new JobConfig("r", "recon.run", null, null, true, false,
                 Map.of("reconciliation", "ghost"), null, null);
-        ReconRunJob job = new ReconRunJob(cfg, dir.resolve("data").toString());
+        ReconRunJob job = new ReconRunJob(cfg, dir.resolve("data").toString(), () -> null);
         assertThrows(IllegalArgumentException.class, () -> job.run(new CapturingContext(Map.of())));
     }
 

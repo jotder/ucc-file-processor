@@ -2,6 +2,7 @@ package com.gamma.control;
 
 import com.gamma.event.EventLog;
 import com.gamma.job.JobService;
+import com.gamma.ops.ObjectType;
 import com.gamma.pipeline.ComponentRegistry;
 import com.gamma.pipeline.ComponentStore;
 import com.gamma.query.ConditionTree;
@@ -153,9 +154,25 @@ final class DecisionRoutes implements RouteModule {
             }
             case "create-alert" -> {
                 String alertName = paramStr(c, "rule", ruleName);
-                emitSignal("decision-rule.create-alert", "decision-rule:" + ruleName, Map.of("alert", alertName));
+                String severity = paramStr(c, "severity", "warning");
+                // Always record the decision on the ledger.
+                emitSignal("decision-rule.create-alert", "decision-rule:" + ruleName,
+                        Map.of("alert", alertName, "severity", severity));
                 status = "executed";
-                detail = "recorded create-alert stub for '" + alertName + "' (alert authoring is out of scope here — see AlertRoutes)";
+                // High-severity (critical/error) decisions open a managed Incident, deduped to one open
+                // Incident per rule (correlationId = the rule), so they enter triage — the same signal→Incident
+                // wiring the alert/recon paths use. Lower severities stay a ledger signal only.
+                String corr = "decision-rule:" + ruleName;
+                if (isHighSeverity(severity) && api.service().objects().active(ObjectType.INCIDENT, corr).isEmpty()) {
+                    api.service().objects().open(ObjectType.INCIDENT, "Decision Rule " + alertName,
+                            "Raised by Decision Rule '" + ruleName + "'", severity, corr,
+                            Map.of("rule", ruleName, "decisionRule", ruleName, "severity", severity));
+                    detail = "opened Incident for '" + alertName + "' (" + severity + ")";
+                } else if (isHighSeverity(severity)) {
+                    detail = "decision '" + alertName + "' — Incident already open";
+                } else {
+                    detail = "recorded create-alert signal for '" + alertName + "' (" + severity + ")";
+                }
             }
             case "start-job" -> {
                 String jobId = targetId(c);
@@ -195,6 +212,12 @@ final class DecisionRoutes implements RouteModule {
 
     private static String targetId(Map<String, Object> c) {
         return c.get("target") instanceof Map<?, ?> t && t.get("id") != null ? String.valueOf(t.get("id")) : null;
+    }
+
+    /** Whether a decision severity warrants a managed Incident (critical / error) rather than a ledger signal. */
+    private static boolean isHighSeverity(String severity) {
+        return severity != null
+                && (severity.equalsIgnoreCase("critical") || severity.equalsIgnoreCase("error"));
     }
 
     @SuppressWarnings("unchecked")

@@ -140,6 +140,44 @@ class ControlApiDecisionRulesTest {
         }
     }
 
+    // ── apply: create-alert consequence → Incident promotion (critical/error only) ──
+
+    @Test
+    void applyCreateAlertPromotesCriticalToIncidentDeduped(@TempDir Path cfg, @TempDir Path wr) throws Exception {
+        try (Ctx c = open(cfg, wr)) {
+            String rule = "{\"name\":\"cost_breach\",\"targetType\":\"pipeline\",\"target\":\"orders\","
+                    + "\"consequences\":[{\"action\":\"create-alert\","
+                    + "\"params\":{\"rule\":\"cost_alert\",\"severity\":\"critical\"}}]}";
+            send(c.port, "POST", "/decision-rules", rule);
+
+            JsonNode consequence = json(send(c.port, "POST", "/decision-rules/cost_breach/apply", null))
+                    .get("executed").get(0);
+            assertEquals("executed", consequence.get("status").asText());
+            assertTrue(consequence.get("detail").asText().contains("Incident"), consequence.get("detail").asText());
+
+            assertEquals(1, json(send(c.port, "GET", "/objects?type=INCIDENT", null)).size(),
+                    "a critical create-alert consequence opens a managed Incident");
+
+            // re-apply while the Incident is open → deduped, still one
+            send(c.port, "POST", "/decision-rules/cost_breach/apply", null);
+            assertEquals(1, json(send(c.port, "GET", "/objects?type=INCIDENT", null)).size(),
+                    "one open Incident per rule — re-apply does not clone it");
+        }
+    }
+
+    @Test
+    void applyCreateAlertWarningStaysSignalOnly(@TempDir Path cfg, @TempDir Path wr) throws Exception {
+        try (Ctx c = open(cfg, wr)) {
+            String rule = "{\"name\":\"soft\",\"targetType\":\"pipeline\",\"target\":\"orders\","
+                    + "\"consequences\":[{\"action\":\"create-alert\","
+                    + "\"params\":{\"rule\":\"soft_alert\",\"severity\":\"warning\"}}]}";
+            send(c.port, "POST", "/decision-rules", rule);
+            json(send(c.port, "POST", "/decision-rules/soft/apply", null));
+            assertEquals(0, json(send(c.port, "GET", "/objects?type=INCIDENT", null)).size(),
+                    "a warning create-alert stays a ledger signal — no Incident");
+        }
+    }
+
     // ── helpers ─────────────────────────────────────────────────────────────────
 
     private HttpResponse<String> send(int port, String method, String path, String body) throws Exception {
