@@ -1,3 +1,5 @@
+import { provideHttpClient } from '@angular/common/http';
+import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import { provideRouter } from '@angular/router';
@@ -25,6 +27,8 @@ function create(agent: ReturnType<typeof agentMock>) {
         providers: [
             provideNoopAnimations(),
             provideRouter([{ path: 'runs', loadChildren: () => Promise.resolve([]) }]),
+            provideHttpClient(),
+            provideHttpClientTesting(),
             { provide: AgentService, useValue: agent },
             { provide: ToastrService, useValue: { error: vi.fn() } },
             { provide: GammaConfigService, useValue: { config$: of({ scheme: 'dark' }) } },

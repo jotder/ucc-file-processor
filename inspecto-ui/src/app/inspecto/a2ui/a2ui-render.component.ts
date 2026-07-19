@@ -1,5 +1,6 @@
-import { ChangeDetectionStrategy, Component, computed, forwardRef, inject, input } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, forwardRef, inject, input, signal } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
+import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { Router } from '@angular/router';
 import { ColDef } from 'ag-grid-community';
 import { ChartData, ChartOptions, ChartType } from 'chart.js';
@@ -7,6 +8,8 @@ import { InspectoChartComponent } from 'app/inspecto/components/chart.component'
 import { InspectoEmptyStateComponent } from 'app/inspecto/components/empty-state.component';
 import { DataTableComponent } from 'app/inspecto/data-table';
 import { KpiComponent } from 'app/inspecto/viz/plugins/kpi.component';
+import { DecisionRulesService } from 'app/inspecto/api/decision-rules.service';
+import { apiErrorMessage } from 'app/inspecto/api/api-base';
 import { A2uiArtifact, isRecord } from './a2ui-artifact';
 import { isNavigableTarget } from './route-validation';
 
@@ -20,6 +23,22 @@ interface ResolvedNavigateAction {
     valid: boolean;
 }
 
+/** An `invoke` action — its target names an existing Decision Rule to dry-run then, on explicit
+ *  human confirmation, apply (S6). */
+interface InvokeAction {
+    label: string;
+    target: string;
+}
+
+/** Per-invoke-action UI state, keyed by target — a human must dry-run, see the diff, then take a
+ *  SEPARATE "Confirm & Apply" action; nothing mutates on the first click. */
+interface InvokeState {
+    phase: 'idle' | 'simulating' | 'ready' | 'applying' | 'applied' | 'error';
+    matched?: number;
+    total?: number;
+    message?: string;
+}
+
 /**
  * A2UI render host (S4, spike §4.3) — the agent-emitted counterpart of `viz-render.component.ts`:
  * an `@switch` on the artifact's `kind` dispatching to the trusted design-system components.
@@ -27,15 +46,21 @@ interface ResolvedNavigateAction {
  * **fail-closed**: an unknown kind — or a known kind with unusable config — degrades to the shared
  * empty-state placeholder. No agent content is ever rendered as HTML; `text` is plain text.
  *
- * `actions` render as buttons below the body — `navigate` intents only (S6 adds `invoke`), each
- * validated against the live router config; a target that doesn't resolve stays disabled. `parts`
- * render recursively, capped at {@link MAX_PART_DEPTH}.
+ * `actions` render as buttons below the body. `navigate` intents are validated against the live
+ * router config; a target that doesn't resolve stays disabled. `invoke` intents (S6 — gated agentic
+ * write) render a two-step confirm-then-apply flow against an existing Decision Rule: "Dry-run"
+ * calls `POST /decision-rules/{target}/simulate` (no mutation, shows matched/total), then a SEPARATE
+ * "Confirm & Apply" button — never auto-applied — calls `POST /decision-rules/{target}/apply` through
+ * the same gated endpoint the human-facing Decision Rules UI uses, threading this chat's agent
+ * session id as `X-Agent-Session` so the audit trail attributes the mutation to `agent:<sessionId>`.
+ * `parts` render recursively, capped at {@link MAX_PART_DEPTH}.
  */
 @Component({
     selector: 'inspecto-a2ui-render',
     standalone: true,
     imports: [
         MatButtonModule,
+        MatProgressSpinnerModule,
         InspectoChartComponent,
         InspectoEmptyStateComponent,
         DataTableComponent,
@@ -85,16 +110,58 @@ interface ResolvedNavigateAction {
                     }
                 </div>
             }
+            @if (invokeActions().length) {
+                <div class="flex flex-col gap-2">
+                    @for (action of invokeActions(); track action.target) {
+                        <div class="flex flex-wrap items-center gap-2">
+                            @switch (invokeState(action.target).phase) {
+                                @case ('idle') {
+                                    <button mat-stroked-button (click)="dryRun(action)">{{ action.label }} (dry-run)</button>
+                                }
+                                @case ('simulating') {
+                                    <mat-progress-spinner diameter="16" mode="indeterminate" aria-label="Running the dry-run" />
+                                    <span class="text-secondary text-sm">Running dry-run…</span>
+                                }
+                                @case ('ready') {
+                                    <span class="text-sm" role="status">
+                                        Dry-run: {{ invokeState(action.target).matched }} of {{ invokeState(action.target).total }} rows match.
+                                    </span>
+                                    <button mat-flat-button color="primary" (click)="confirmApply(action)">Confirm &amp; apply</button>
+                                    <button mat-button (click)="decline(action)">Cancel</button>
+                                }
+                                @case ('applying') {
+                                    <mat-progress-spinner diameter="16" mode="indeterminate" aria-label="Applying" />
+                                    <span class="text-secondary text-sm">Applying…</span>
+                                }
+                                @case ('applied') {
+                                    <span class="text-sm" role="status">{{ invokeState(action.target).message }}</span>
+                                }
+                                @case ('error') {
+                                    <span class="text-sm text-red-600 dark:text-red-400" role="alert">{{ invokeState(action.target).message }}</span>
+                                    <button mat-button (click)="decline(action)">Dismiss</button>
+                                }
+                            }
+                        </div>
+                    }
+                </div>
+            }
         </div>
     `,
 })
 export class A2uiRenderComponent {
     private router = inject(Router);
+    private decisionRules = inject(DecisionRulesService);
 
     /** The agent-emitted artifact descriptor (render-only data — see {@link A2uiArtifact}). */
     readonly artifact = input.required<A2uiArtifact>();
     /** Current nesting level — set by the recursive `parts` render, capped at {@link MAX_PART_DEPTH}. */
     readonly depth = input(0);
+    /** The hosting chat's agent session id (S6) — threaded into `apply` as `X-Agent-Session` so a
+     *  confirmed invoke audits as `agent:<sessionId>`. `null`/absent still dry-runs and applies fine —
+     *  it just audits as the default human actor, same as any other apply. */
+    readonly sessionId = input<string | null>(null);
+
+    private readonly invokeStates = signal<Record<string, InvokeState>>({});
 
     /** Kind as a string (a malformed non-string kind falls to the `@default` placeholder). */
     readonly kind = computed<string>(() => {
@@ -171,8 +238,7 @@ export class A2uiRenderComponent {
         return Array.isArray(parts) ? parts.filter((p): p is A2uiArtifact => isRecord(p)) : [];
     });
 
-    /** The renderable actions: `navigate` intents only, each validated against the router config.
-     *  Other intents (S6 `invoke`) are hidden; an unresolvable target renders a disabled button. */
+    /** The renderable `navigate` actions, each validated against the router config. */
     readonly navigateActions = computed<ResolvedNavigateAction[]>(() => {
         const actions: unknown = this.artifact()?.actions;
         if (!Array.isArray(actions)) return [];
@@ -185,8 +251,72 @@ export class A2uiRenderComponent {
         return resolved;
     });
 
+    /** The renderable `invoke` actions (S6) — a non-empty string `target` (the Decision Rule name) is
+     *  the only static check possible client-side; existence is checked server-side by `simulate`. */
+    readonly invokeActions = computed<InvokeAction[]>(() => {
+        const actions: unknown = this.artifact()?.actions;
+        if (!Array.isArray(actions)) return [];
+        const resolved: InvokeAction[] = [];
+        for (const a of actions as unknown[]) {
+            if (!isRecord(a) || a['intent'] !== 'invoke' || typeof a['label'] !== 'string') continue;
+            if (typeof a['target'] === 'string' && a['target']) resolved.push({ label: a['label'], target: a['target'] });
+        }
+        return resolved;
+    });
+
     /** In-app router navigation only — the template disables invalid targets; this re-checks anyway. */
     navigate(action: ResolvedNavigateAction): void {
         if (action.valid) void this.router.navigateByUrl(action.target);
+    }
+
+    /** Current UI state for one `invoke` action's target — `idle` until dry-run is clicked. */
+    invokeState(target: string): InvokeState {
+        return this.invokeStates()[target] ?? { phase: 'idle' };
+    }
+
+    private patchInvokeState(target: string, state: InvokeState): void {
+        this.invokeStates.update((s) => ({ ...s, [target]: state }));
+    }
+
+    /** Step 1: dry-run the target Decision Rule via `simulate` — never mutates anything. Shows the
+     *  matched/total diff; the human must still take the separate {@link confirmApply} action. */
+    dryRun(action: InvokeAction): void {
+        this.patchInvokeState(action.target, { phase: 'simulating' });
+        this.decisionRules.simulate(action.target, []).subscribe({
+            next: (rule) => {
+                const sim = rule.lastSimulation;
+                this.patchInvokeState(action.target, { phase: 'ready', matched: sim?.matched ?? 0, total: sim?.total ?? 0 });
+            },
+            error: (err) => this.patchInvokeState(action.target, {
+                phase: 'error',
+                message: apiErrorMessage(err, `Could not dry-run '${action.target}'.`),
+            }),
+        });
+    }
+
+    /** Step 2 — a SEPARATE, explicit human action (never auto-fired from {@link dryRun}): apply the
+     *  rule's consequences for real through the same gated `/decision-rules/{name}/apply` endpoint the
+     *  human-facing Decision Rules UI uses, threading this chat's agent session id so the audit trail
+     *  attributes it to `agent:<sessionId>` rather than the browsing human. */
+    confirmApply(action: InvokeAction): void {
+        this.patchInvokeState(action.target, { phase: 'applying' });
+        this.decisionRules.apply(action.target, this.sessionId() ?? undefined).subscribe({
+            next: (result) => {
+                const ran = result.executed.filter((e) => e.status === 'executed').length;
+                this.patchInvokeState(action.target, {
+                    phase: 'applied',
+                    message: `Applied '${action.target}' — ${ran} of ${result.executed.length} consequence(s) executed.`,
+                });
+            },
+            error: (err) => this.patchInvokeState(action.target, {
+                phase: 'error',
+                message: apiErrorMessage(err, `Could not apply '${action.target}'.`),
+            }),
+        });
+    }
+
+    /** Decline the proposal (or dismiss an error) — resets to idle; nothing was ever mutated. */
+    decline(action: InvokeAction): void {
+        this.patchInvokeState(action.target, { phase: 'idle' });
     }
 }

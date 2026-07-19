@@ -1,3 +1,5 @@
+import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
+import { provideHttpClient } from '@angular/common/http';
 import { TestBed } from '@angular/core/testing';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import { provideRouter, Router } from '@angular/router';
@@ -20,17 +22,20 @@ const TEST_ROUTES = [
     },
 ];
 
-function create(artifact: A2uiArtifact) {
+function create(artifact: A2uiArtifact, sessionId?: string) {
     TestBed.configureTestingModule({
         imports: [A2uiRenderComponent],
         providers: [
             provideNoopAnimations(),
             provideRouter(TEST_ROUTES),
+            provideHttpClient(),
+            provideHttpClientTesting(),
             { provide: GammaConfigService, useValue: { config$: of({ scheme: 'dark' }) } },
         ],
     });
     const fixture = TestBed.createComponent(A2uiRenderComponent);
     fixture.componentRef.setInput('artifact', artifact);
+    if (sessionId !== undefined) fixture.componentRef.setInput('sessionId', sessionId);
     return fixture;
 }
 
@@ -90,7 +95,7 @@ describe('A2uiRenderComponent', () => {
         expect(c.kpiLabel()).toBe('Value');
     });
 
-    it('renders only navigate-intent actions; a bogus target is disabled and never navigates', () => {
+    it('renders only navigate-intent actions in the navigate group; a bogus target is disabled and never navigates', () => {
         const fixture = create({
             kind: 'text',
             config: { text: 'go' },
@@ -98,24 +103,94 @@ describe('A2uiRenderComponent', () => {
                 { label: 'Open catalog', intent: 'navigate', target: '/catalog/datasets' },
                 { label: 'Bogus', intent: 'navigate', target: '/no-such-route' },
                 { label: 'External', intent: 'navigate', target: 'https://evil.example' },
-                { label: 'Materialize', intent: 'invoke', target: '/runs' }, // S6 — hidden this slice
+                { label: 'Materialize', intent: 'invoke', target: 'high_cost' }, // S6 — its own group, see below
             ],
         });
         fixture.detectChanges();
         const router = TestBed.inject(Router);
         const navigate = vi.spyOn(router, 'navigateByUrl').mockResolvedValue(true);
 
-        const buttons = Array.from((fixture.nativeElement as HTMLElement).querySelectorAll('button'));
-        expect(buttons.map((b) => b.textContent?.trim())).toEqual(['Open catalog', 'Bogus', 'External']);
-        expect(buttons[0].disabled).toBe(false);
-        expect(buttons[1].disabled).toBe(true);
-        expect(buttons[2].disabled).toBe(true);
+        const c = fixture.componentInstance;
+        expect(c.navigateActions().map((a) => a.label)).toEqual(['Open catalog', 'Bogus', 'External']);
+        expect(c.invokeActions().map((a) => a.label)).toEqual(['Materialize']);
 
-        buttons[1].click();
-        buttons[2].click();
+        const buttons = Array.from((fixture.nativeElement as HTMLElement).querySelectorAll('button'));
+        const navButtons = buttons.filter((b) => ['Open catalog', 'Bogus', 'External'].includes(b.textContent?.trim() ?? ''));
+        expect(navButtons.length).toBe(3);
+        expect(navButtons[0].disabled).toBe(false);
+        expect(navButtons[1].disabled).toBe(true);
+        expect(navButtons[2].disabled).toBe(true);
+
+        navButtons[1].click();
+        navButtons[2].click();
         expect(navigate).not.toHaveBeenCalled();
-        buttons[0].click();
+        navButtons[0].click();
         expect(navigate).toHaveBeenCalledWith('/catalog/datasets');
+    });
+
+    describe('invoke actions (S6 — gated agentic write)', () => {
+        it('starts idle, dry-runs via simulate (no mutation) on click, then requires a SEPARATE confirm to apply', () => {
+            const fixture = create({
+                kind: 'text',
+                config: { text: 'go' },
+                actions: [{ label: 'Quarantine high-cost rows', intent: 'invoke', target: 'high_cost' }],
+            }, 'sess-1');
+            fixture.detectChanges();
+            const http = TestBed.inject(HttpTestingController);
+            const c = fixture.componentInstance;
+
+            expect(c.invokeState('high_cost').phase).toBe('idle');
+
+            let btn = (fixture.nativeElement as HTMLElement).querySelector('button') as HTMLButtonElement;
+            expect(btn.textContent).toContain('dry-run');
+            btn.click();
+            fixture.detectChanges();
+            expect(c.invokeState('high_cost').phase).toBe('simulating');
+
+            const simulateReq = http.expectOne((r) => r.url.includes('/decision-rules/high_cost/simulate') && r.method === 'POST');
+            simulateReq.flush({ lastSimulation: { matched: 3, total: 10, checkedAt: 1 } });
+            fixture.detectChanges();
+            expect(c.invokeState('high_cost').phase).toBe('ready');
+            expect(c.invokeState('high_cost').matched).toBe(3);
+            expect(c.invokeState('high_cost').total).toBe(10);
+            // No apply call has been made yet — declining now would mutate nothing.
+            http.expectNone((r) => r.url.includes('/apply'));
+
+            const buttons = Array.from((fixture.nativeElement as HTMLElement).querySelectorAll('button'));
+            const confirmBtn = buttons.find((b) => b.textContent?.includes('Confirm')) as HTMLButtonElement;
+            confirmBtn.click();
+            fixture.detectChanges();
+            expect(c.invokeState('high_cost').phase).toBe('applying');
+
+            const applyReq = http.expectOne((r) => r.url.includes('/decision-rules/high_cost/apply') && r.method === 'POST');
+            expect(applyReq.request.headers.get('X-Agent-Session')).toBe('sess-1');
+            applyReq.flush({ rule: 'high_cost', executed: [{ action: 'quarantine', status: 'executed', detail: 'ok' }] });
+            fixture.detectChanges();
+            expect(c.invokeState('high_cost').phase).toBe('applied');
+            http.verify();
+        });
+
+        it('declining after a dry-run (Cancel) never calls apply', () => {
+            const fixture = create({
+                kind: 'text',
+                config: { text: 'go' },
+                actions: [{ label: 'Quarantine', intent: 'invoke', target: 'high_cost' }],
+            });
+            fixture.detectChanges();
+            const http = TestBed.inject(HttpTestingController);
+            const c = fixture.componentInstance;
+
+            (fixture.nativeElement as HTMLElement).querySelector('button')!.dispatchEvent(new Event('click'));
+            fixture.detectChanges();
+            http.expectOne((r) => r.url.includes('/simulate')).flush({ lastSimulation: { matched: 1, total: 1, checkedAt: 1 } });
+            fixture.detectChanges();
+            expect(c.invokeState('high_cost').phase).toBe('ready');
+
+            c.decline({ label: 'Quarantine', target: 'high_cost' });
+            expect(c.invokeState('high_cost').phase).toBe('idle');
+            http.expectNone((r) => r.url.includes('/apply'));
+            http.verify();
+        });
     });
 
     it('renders nested parts recursively, capped at depth 3', () => {

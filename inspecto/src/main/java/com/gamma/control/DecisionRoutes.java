@@ -159,20 +159,44 @@ final class DecisionRoutes implements RouteModule {
                 emitSignal("decision-rule.create-alert", "decision-rule:" + ruleName,
                         Map.of("alert", alertName, "severity", severity));
                 status = "executed";
-                // High-severity (critical/error) decisions open a managed Incident, deduped to one open
-                // Incident per rule (correlationId = the rule), so they enter triage — the same signal→Incident
-                // wiring the alert/recon paths use. Lower severities stay a ledger signal only.
+                // Author a real Alert Rule (S6) through the exact same validation/persistence path as the
+                // human-facing POST /alerts/rules, when the consequence's params carry enough of an
+                // alert-rule body to be valid (metric+comparator+threshold+window, or dataset+measure —
+                // see AlertRule's constructor). A consequence that (like the pre-S6 stub shape) only
+                // carries {rule, severity} — not enough to author a real rule — stays ledger-signal-only,
+                // exactly as before; this is a deliberate, conservative scope cut (see event-signal-backbone
+                // plan S6 report) rather than inventing defaults for fields with no sane default
+                // (a threshold, a window).
+                String authoredDetail = null;
+                if (looksLikeAlertRuleBody(c)) {
+                    Map<String, Object> alertBody = new LinkedHashMap<>(params(c));
+                    alertBody.putIfAbsent("name", alertName);
+                    alertBody.putIfAbsent("severity", severity.toUpperCase(java.util.Locale.ROOT));
+                    try {
+                        AlertRoutes.authorFromConsequence(api, alertBody);
+                        authoredDetail = "authored Alert Rule '" + alertName + "'";
+                    } catch (ApiException | IOException authoringFailure) {
+                        authoredDetail = "could not author Alert Rule '" + alertName + "': " + authoringFailure.getMessage();
+                    }
+                }
+                // High-severity (critical/error) decisions also open a managed Incident, deduped to one
+                // open Incident per rule (correlationId = the rule), so they enter triage — the same
+                // signal→Incident wiring the alert/recon paths use. Lower severities stay a ledger signal
+                // (+ the authored rule, when authored) only.
                 String corr = "decision-rule:" + ruleName;
+                String incidentDetail = null;
                 if (isHighSeverity(severity) && api.service().objects().active(ObjectType.INCIDENT, corr).isEmpty()) {
                     api.service().objects().open(ObjectType.INCIDENT, "Decision Rule " + alertName,
                             "Raised by Decision Rule '" + ruleName + "'", severity, corr,
                             Map.of("rule", ruleName, "decisionRule", ruleName, "severity", severity));
-                    detail = "opened Incident for '" + alertName + "' (" + severity + ")";
+                    incidentDetail = "opened Incident for '" + alertName + "' (" + severity + ")";
                 } else if (isHighSeverity(severity)) {
-                    detail = "decision '" + alertName + "' — Incident already open";
-                } else {
-                    detail = "recorded create-alert signal for '" + alertName + "' (" + severity + ")";
+                    incidentDetail = "decision '" + alertName + "' — Incident already open";
                 }
+                detail = java.util.stream.Stream.of(authoredDetail, incidentDetail)
+                        .filter(java.util.Objects::nonNull)
+                        .reduce((a, b) -> a + "; " + b)
+                        .orElse("recorded create-alert signal for '" + alertName + "' (" + severity + ")");
             }
             case "start-job" -> {
                 String jobId = targetId(c);
@@ -224,6 +248,25 @@ final class DecisionRoutes implements RouteModule {
     private static String paramStr(Map<String, Object> c, String key, String fallback) {
         if (c.get("params") instanceof Map<?, ?> p && p.get(key) != null) return String.valueOf(p.get(key));
         return fallback;
+    }
+
+    /** A consequence's {@code params} block as a map (empty if absent/malformed). */
+    @SuppressWarnings("unchecked")
+    private static Map<String, Object> params(Map<String, Object> c) {
+        return c.get("params") instanceof Map<?, ?> p ? (Map<String, Object>) p : Map.of();
+    }
+
+    /** Whether a {@code create-alert} consequence's {@code params} carry enough of an alert-rule body
+     *  to attempt real authoring (see {@link com.gamma.alert.AlertRule}'s constructor): either a ledger
+     *  metric rule ({@code comparator}+{@code threshold}+{@code metric}+{@code window}) or a measure rule
+     *  ({@code comparator}+{@code threshold}+{@code dataset}+{@code measure}). The pre-S6 stub shape
+     *  ({@code rule}, {@code severity} only) does not, and stays ledger-signal-only. */
+    private static boolean looksLikeAlertRuleBody(Map<String, Object> c) {
+        Map<String, Object> p = params(c);
+        boolean hasComparatorAndThreshold = p.get("comparator") != null && p.get("threshold") != null;
+        boolean ledgerMetric = p.get("metric") != null && p.get("window") != null;
+        boolean measureRule = p.get("dataset") != null && p.get("measure") != null;
+        return hasComparatorAndThreshold && (ledgerMetric || measureRule);
     }
 
     private static void emitSignal(String type, String source, Map<String, Object> payload) {

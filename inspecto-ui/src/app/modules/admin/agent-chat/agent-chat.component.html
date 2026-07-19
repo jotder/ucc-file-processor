@@ -44,7 +44,7 @@
                             }
                             @if (m.artifact; as artifact) {
                                 <div class="mt-3">
-                                    <inspecto-a2ui-render [artifact]="artifact" />
+                                    <inspecto-a2ui-render [artifact]="artifact" [sessionId]="sessionIdValue()" />
                                 </div>
                             }
                             @if (m.navigationTarget; as target) {

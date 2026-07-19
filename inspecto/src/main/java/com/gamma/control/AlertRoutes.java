@@ -89,6 +89,21 @@ final class AlertRoutes implements RouteModule {
         return Map.of("deleted", name);
     }
 
+    /**
+     * Shared authoring entry point (S6) reused by {@code DecisionRoutes}' {@code create-alert}
+     * consequence: parse + validate exactly like the human {@code POST}/{@code PUT /alerts/rules}
+     * (never duplicate {@link AlertRule#fromMap} validation), persist via the same {@link ComponentStore},
+     * and arm in the running {@link AlertService}. Upserts (create if absent, update if present) so a
+     * Decision Rule firing repeatedly against the same alert name converges rather than 409ing.
+     */
+    static Map<String, Object> authorFromConsequence(ApiContext api, Map<String, Object> body) throws IOException {
+        ComponentStore store = new ComponentStore(WriteGates.requireWriteRoot(api, "alert rule write").resolve("registry"));
+        AlertRule rule = parse(body);
+        Map<String, Object> content = write(store, rule.name(), rule.toMap());
+        alerts(api).upsert(rule);
+        return content;
+    }
+
     // ── helpers ─────────────────────────────────────────────────────────────────
 
     private ComponentStore store(ApiContext api) {

@@ -76,8 +76,12 @@ export class DecisionRulesService {
     }
 
     /** Execute the rule's consequences through the Execution/Signal networks (R5) — emit-signal / create-alert
-     *  land on the Signal Ledger. Returns what ran. */
-    apply(name: string): Observable<DecisionApplyResult> {
-        return this.http.post<DecisionApplyResult>(apiUrl(`/decision-rules/${encodeURIComponent(name)}/apply`), {});
+     *  land on the Signal Ledger. Returns what ran. Passing `agentSessionId` (S6 — an agent/decision
+     *  proposal a human just confirmed, e.g. an A2UI `invoke` action) attaches it as
+     *  `X-Agent-Session`, so the backend audit trail attributes the mutation to `agent:<sessionId>`
+     *  instead of the browsing human — additive only, omitted for every existing (human) caller. */
+    apply(name: string, agentSessionId?: string): Observable<DecisionApplyResult> {
+        const options = agentSessionId ? { headers: { 'X-Agent-Session': agentSessionId } } : undefined;
+        return this.http.post<DecisionApplyResult>(apiUrl(`/decision-rules/${encodeURIComponent(name)}/apply`), {}, options);
     }
 }

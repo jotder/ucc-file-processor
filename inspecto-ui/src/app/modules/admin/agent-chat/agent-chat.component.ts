@@ -101,6 +101,12 @@ export class AgentChatComponent {
         void this.router.navigateByUrl(target);
     }
 
+    /** The open agent session id, for `<inspecto-a2ui-render>`'s S6 `invoke` confirm-apply flow to
+     *  thread as `X-Agent-Session` — so an apply this chat confirms audits as `agent:<sessionId>`. */
+    sessionIdValue(): string | null {
+        return this.sessionId();
+    }
+
     private stream(sessionId: string, question: string): void {
         this.question.setValue('');
         this.busy.set(true);

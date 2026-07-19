@@ -140,14 +140,33 @@ interface ApiContext {
      *  Used by query execution to resolve a dataset's {@code physicalRef} to its at-rest Parquet (W4). */
     Path dataRoot();
 
+    /** Request header set by the client-side agent surface (S6) when a mutating call executes a
+     *  human-confirmed agent/decision proposal — e.g. the A2UI {@code invoke} confirm-then-apply flow —
+     *  so the audit trail can attribute it to the agent session rather than the browsing human. Additive
+     *  only: absent on every existing caller, so the default (human) path is unchanged. */
+    String HEADER_AGENT_SESSION = "X-Agent-Session";
+
     /** The acting identity for the audit trail. When the security module authenticated this request
-     *  (W6), the resolved {@link Subject}'s id is authoritative. Otherwise (Personal edition, or a public
-     *  route no {@link Authenticator} ran on) the actor is the caller-supplied {@code X-Actor} header,
-     *  defaulting to {@code appUser} — the historic auth-free behaviour, unchanged. */
+     *  (W6), the resolved {@link Subject}'s id is authoritative. Otherwise, when the request carries
+     *  {@link #HEADER_AGENT_SESSION} (S6 — an agent-confirmed apply), the actor is {@code agent:<sessionId>}.
+     *  Otherwise (Personal edition, or a public route no {@link Authenticator} ran on) the actor is the
+     *  caller-supplied {@code X-Actor} header, defaulting to {@code appUser} — the historic auth-free
+     *  behaviour, unchanged. */
     static String actor(HttpExchange ex) {
         if (ex.getAttribute(ATTR_SUBJECT) instanceof Subject s) return s.id();
+        String agentSession = ex.getRequestHeaders().getFirst(HEADER_AGENT_SESSION);
+        if (agentSession != null && !agentSession.isBlank()) return "agent:" + agentSession.trim();
         String a = ex.getRequestHeaders().getFirst("X-Actor");
         return (a == null || a.isBlank()) ? "appUser" : a.trim();
+    }
+
+    /** The audit {@code actorType} for this request: {@code "agent"} when {@link #HEADER_AGENT_SESSION}
+     *  is present (and no authenticated human {@link Subject} overrides it), else the historic
+     *  {@code "user"}. Additive-only companion to {@link #actor} — see there for precedence. */
+    static String actorType(HttpExchange ex) {
+        if (ex.getAttribute(ATTR_SUBJECT) instanceof Subject) return "user";
+        String agentSession = ex.getRequestHeaders().getFirst(HEADER_AGENT_SESSION);
+        return (agentSession != null && !agentSession.isBlank()) ? "agent" : "user";
     }
 
     /** The originating client IP — the first {@code X-Forwarded-For} hop when present (proxy/dev), else
