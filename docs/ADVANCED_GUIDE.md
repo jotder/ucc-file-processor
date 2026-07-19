@@ -485,6 +485,43 @@ depends on them before they are removed — removal stays gated on that soak.
 - **Catalog:** `GET /catalog`, `/catalog/kpis`, `/catalog/graph`, `/catalog/tables/{id}`.
 - **Assist:** `GET /assist/diagnoses|settings|metrics`, `POST /assist/settings|settings/test|{intent}` (503 if absent).
 
+**Added since W7 (post-2026-07-08 shipped features — regen 2026-07-20):**
+
+- **Nav / menus:** `GET/PUT /nav/menus` — per-space `NavMenus` tree; PUT *(canAuthorWorkbench; 422 bad version)*.
+- **Signals:** `GET /signals`, `GET /signals/stream` (SSE) — Signal Backbone read surface.
+- **Auth / session (Standard):** `POST /auth/exchange|refresh|logout` — public paths, httpOnly refresh cookie *(503 on Personal)*.
+- **Decision rules:** `GET/POST /decision-rules`, `PUT/DELETE /decision-rules/{id}` *(canAuthorWorkbench)*,
+  `POST /decision-rules/{id}/simulate` (dry-run over sample rows), `POST /decision-rules/{id}/apply` *(canOperateRuns)*.
+- **Expectations:** `GET/POST /expectations`, `PUT/DELETE /expectations/{id}` *(canAuthorWorkbench)*,
+  `POST /expectations/evaluate` / `/{id}/evaluate`.
+- **Views:** `GET /views`, `GET /views/{id}`, `GET /views/{id}/data?limit=` — `sink.view` materialized-data preview.
+- **Notifications (beyond alerts):** `GET /notifications`, `/notifications/stream` (SSE), `/notifications/unread-count`,
+  `POST /notifications/read-all`, `POST /notifications/{id}/read`, `DELETE /notifications/{id}`,
+  `GET/PUT /notifications/preferences`, `GET/POST /notifications/channels`, `PUT/DELETE /notifications/channels/{id}`
+  *(channel writes: canAuthorWorkbench)*.
+- **Workflows:** `GET /workflows/{type}` — authored `*_workflow.toon` override if registered, else the default state machine.
+- **Investigation / link analysis (INV-1):** `POST /inv/projection` (entity-projection fold; *503 no write root, 404 unknown
+  dataset, 422 bad column*), `POST /inv/projection/neighbors` (one-hop expand; same gates). Multi-root/export/undo are
+  client-side only, no additional routes.
+- **Enrichment preview:** `POST /enrichment/preview` — dry-run a draft enrichment spec over inline sample rows, persists nothing.
+- **DB / table browser:** `GET /db/catalog`, `GET /db/table` *(403 path-jail, 404 unknown store/format)*,
+  `POST /db/query` *(422 bad SQL, 503 sandbox unavailable)*.
+- **Reconciliation:** `POST /recon/columns`, `POST /recon/run`, `POST /recon/breaks` — plus the scheduled `recon.run` Job type.
+- **Connection workbench:** `POST /connections/{id}/probe`, `GET /connections/{id}/explore?path=`,
+  `GET /connections/{id}/sample`, `POST /connections/test?target=` (test an unsaved profile; `target=proxy` probes the proxy hop).
+- **Bundle / Exchange:** `POST /bundle/export|preview|import` *(import: canAuthorWorkbench)*; `GET/POST /exchange/offers`,
+  `POST /exchange/refresh`, `POST /exchange/requests`, `GET /exchange/grants`,
+  `POST /exchange/grants/{id}/approve|deny|revoke|pin|expiry`, `GET /exchange/datasets|widgets/{owner}/{item}`
+  *(403 no active grant)* — capabilities `canOfferDatasets`/`canRequestShares`/`canApproveShares`.
+- **Agent:** `POST /agent/sessions`, `POST /agent/sessions/{id}/ask[/stream]` (SSE), `GET /agent/cases[/{id}]`.
+- **Cursor pagination adopters** (opaque keyset via `metadata.pagination`, v1-only): `GET /jobs/runs`, `GET /objects`,
+  `GET /jobs`, `GET /events`.
+
+_Not yet re-verified against code in this pass (surfaced by a route scan, worth a follow-up spot-check before relying on
+exact gating): `/bi/*`, `/access/*`, `/datasources*`, `/export`/`/import*`, `/lineage`, `/queues*`, `/requirements*`,
+`/settings/branding|geo`, `/dashboards/{id}/share` + `/public/dashboards/*`, `/spaces*`, `/tags*`, `/cases/rules*`,
+`/provenance*`._
+
 ---
 
 ## 11. Troubleshooting playbooks (symptom → investigate → fix)

@@ -286,5 +286,9 @@ the rest are planned in subsequent phases. Features that can't run offline (remo
   (`ControlApiFlowCrudTest`, `PipelineJobRunnerTest`) or are consumed by APIs without a file fixture.
 - `json` / `text_regex` frontends are `[LIVE]` — runnable examples can now be added to the suite.
 - No subscriber `.dat` / plugin-binary sample data in the repo — synthesize for those examples.
-- `package.ps1` pre-creates inbox/database dirs only for `adjustment` + `voucher`; the example suite
-  sidesteps this by being self-contained (each example owns its `out/`).
+- ~~`package.ps1` pre-creates inbox/database dirs only for `adjustment` + `voucher`~~ **stale, corrected
+  2026-07-20**: `package.ps1` does not pre-create any adapter inbox/database dirs — the bundle's own
+  comment (line 21) tells the operator to create `file-processor-deploy/inbox/<adapter>/` manually;
+  dir creation is the `ura` CLI's `prepare-inbox` command (adapter-agnostic, not adjustment/voucher-
+  specific). The example suite sidesteps all of this by being self-contained (each example owns its
+  `out/`).

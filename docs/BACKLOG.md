@@ -30,8 +30,7 @@ _(none open — the `package.ps1` bundle smoke-test row closed 2026-07-20, see �
 | API-5 | Legacy route **physical deletion** — sunset mechanism + `inspecto_legacy_api_requests_total` meter shipped (W8); delete after the signed **30-days-at-zero soak** | Soak-gated policy call |
 | EOI-7b | Publish eoiagent `0.1.0` artifacts to a registry (v0.1.0 cut + pinned 2026-07-08; CI rebuilds from tag meanwhile) | Infra/product call |
 | BI-4 | Scheduled report delivery: CSV + real PNG rendering shipped (`TablePngRenderer`, commit 28ac9da); **PDF rendering still open** — no PDF library on the classpath (checked all poms), needs either vendoring one offline (e.g. OpenPDF) or a smaller PNG-wrapped-in-PDF fallback | Backend/Standard scope — build-policy call on vendoring a PDF dependency offline |
-| AGT-5 P1 | Investigation: timeline/diff/anomaly tools, `root_cause_analysis`, Case Store, event ingress | Open (P0 shipped + hardened) — `superpower/embedded-intelligence-plan.md` §8 |
-| AGT-5 P2–P5 | Author-everything (L1) → gated action (L2) + approvals inbox → bounded autonomy (L3) → learning | Open — same |
+| AGT-5 P2–P5 | Author-everything (L1) → gated action (L2) + approvals inbox → bounded autonomy (L3) → learning | Open — `superpower/embedded-intelligence-plan.md` §8 (P0+P1 SHIPPED, distilled into `okf/backend/agent/embedded-intelligence.md`) |
 | AGT-5 cuts | QA-only (`incident_explain` waits on the eoiagent host seam); local-models-only | Open scope cuts — same |
 | AGT-6 | AI behind every screen / agent graphs | PLANNED |
 | SPC-5 | Per-tenant ABAC (rides the SEC-7 grants model; absorbs per-resource ACLs/ownership) | PLANNED (Enterprise) |
@@ -100,10 +99,9 @@ Q4 Requirements SLA (declined, revisit with roles) · X-Actor retirement (overla
 |---|---|---|
 | User-guide audit P1: #8 KPI authoring + Measure-reuse doc; #10 quarantine remediation/replay doc (or file product gap "D-ETL") | Open | `archived-documents/superpower-reviews/user-guide-audit.md` |
 | User-guide audit P2: #11 de-jargon ("pro/pro max", "Stage-2"); #12 parser format-list alignment + GLOSSARY §6-B Matrix tense | Open | same |
-| ADVANCED_GUIDE Control-API section regen (post-W7 route changes) | Open | review sweep |
-| Open product questions: `canOnboardConnections` split, sunset timing, structured queries client-compiled | Awaiting product | `REQUIREMENTS.md` §7 |
-| Interview backlog Qs: #2 parser required-vs-advanced, #5 Incident/Case mandatory fields + assignment model, #6 template scope, #7 KPI target ownership | Awaiting product | `archived-documents/plans-archive/frontend-review-and-completion-plan.md` §6 |
-| FEATURE_INVENTORY gaps: LDIF `record_split` proposal; structured/`text_regex` block records; missing example files; `package.ps1` dir pre-creation | Open (snapshot 2026-06-20 — verify vs code) | `FEATURE_INVENTORY.md` |
+| Open product questions: `canOnboardConnections` split, sunset timing, structured queries client-compiled | Draft recommendations ready, awaiting product sign-off | `REQUIREMENTS.md` §7; recs in `superpower/product-decisions-recommendations.md` §1-4 |
+| Interview backlog Qs: #2 parser required-vs-advanced, #5 Incident/Case mandatory fields + assignment model, #6 template scope, #7 KPI target ownership | Draft recommendations ready (except #2, flagged as a genuine UX blocker), awaiting product sign-off | `archived-documents/plans-archive/frontend-review-and-completion-plan.md` §6; recs in `superpower/product-decisions-recommendations.md` §5-8 |
+| FEATURE_INVENTORY gaps, re-verified 2026-07-20: `record_split` still genuinely unsupported (`PipelineConfigParser` rejects anything but one-record-per-line) · json/text_regex example files still missing from `examples/` (frontends are `[LIVE]`, just no runnable sample) — both still open; the `package.ps1` dir-pre-creation claim was **stale, corrected in the doc** (no adapter-specific dir creation exists; that's the `ura` CLI's `prepare-inbox`) | Open (2 genuine gaps remain; 1 stale claim fixed) | `FEATURE_INVENTORY.md` §6 |
 | Template seed-pack enrichment (frontend C7) — continuous, not discrete | Ongoing | — |
 
 ## 8. Duplicate map (same work, multiple IDs — update all sources when closing)
