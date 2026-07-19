@@ -74,8 +74,6 @@ former root reference docs** (each index lists them):
 
 - [`superpower/embedded-intelligence-plan.md`](superpower/embedded-intelligence-plan.md) — AGT-5: P0
   spine shipped + hardened; **P1–P5 open** (§8 = live phasing).
-- [`superpower/storage-layout-and-sharing-plan.md`](superpower/storage-layout-and-sharing-plan.md) —
-  storage-layout contract (shipped L0→S3) + **open UI Exchange-surfaces track** (§3.6).
 - [`superpower/modularization-optimization-plan.md`](superpower/modularization-optimization-plan.md) —
   PROPOSED, analysis unexecuted; headline Musts indexed in `BACKLOG.md`.
 - [`superpower/a2ui-agent-rendered-ui-spike.md`](superpower/a2ui-agent-rendered-ui-spike.md) — A2UI

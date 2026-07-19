@@ -17,6 +17,7 @@ v1 contract, queries, observability, the job scheduler, and multi-space hosting.
 * [Jobs](jobs.md) - `JobService` cron/event/manual scheduling, the off-bus trigger handoff, and the
   v1 async run model (202 + `runId`).
 * [Multi-space](multi-space.md) - `SpaceManager`/`SpaceContext`/`SpaceMigrator` and the MDC-based singleton isolation.
+* [Exchange — cross-space sharing](exchange-sharing.md) - grant-mediated, read-only Dataset/Widget sharing across Spaces; offer/request/approve ledger, snapshot/live delivery, version pin + drift.
 * [API stability policy](api-stability.md) - the Java `@PublicApi` surface contract (the HTTP counterpart is [api-v1](api-v1.md)).
 * [Metadata bundle](metadata-bundle.md) - export/preview/import of authored config across installs (`BundleRoutes`; schema in `docs/api/schemas/`).
 * [Onboarding authoring](onboarding-authoring.md) - the draft lifecycle (`/config/*`), stateless sample previews, the pipeline/enrichment register pair, and `produces: reference`.

@@ -274,7 +274,7 @@ Contract rules enforced by the check: canonical subdirs (`data/ audit/ duckdb/`)
 embedded-DB file (`*.duckdb`/`*.db`/`*.wal`) may sit outside `duckdb/`; no unrecognised top-level entry
 may appear at the Space root. `_shared/` under `-Dspaces.root` is **not** a Space (discovery admits only
 dirs with a `config/` subtree, so it is skipped) — see
-[storage-layout-and-sharing-plan](../../../superpower/storage-layout-and-sharing-plan.md) §2.
+[storage-layout-and-sharing-plan](../../../archived-documents/plans-archive/storage-layout-and-sharing-plan.md) §2.
 
 ⚠️ **All `dirs.*` paths in pipeline configs resolve against the JVM working directory, not the Space
 root** — write them bundle-root-relative (`spaces/<id>/config/…`, `spaces/<id>/data/…`). Only the
