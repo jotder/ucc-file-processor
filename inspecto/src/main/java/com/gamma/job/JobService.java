@@ -214,7 +214,7 @@ public final class JobService implements AutoCloseable {
                         ParameterDecl.optional("out_dir", ParamType.STRING, null, "Delivery directory (enables artifact + REPORT_READY)"),
                         ParameterDecl.optional("format", ParamType.STRING, null, "json | csv"),
                         ParameterDecl.optional("dataset", ParamType.DATASET_REF, null, "Dataset id (scope=dataset)")),
-                List.of(), List.of(ArtifactDecl.report("report"))),
+                List.of(EventType.REPORT_READY), List.of(ArtifactDecl.report("report"))),
                 c -> new ReportJob(c, reports, dataDir)));
         registry.register(JobTypeProvider.of(new JobTypeDescriptor("maintenance", "Maintenance",
                 "Built-in housekeeping task (cleanup / ledger_prune / runlog_prune / storage_report / "
@@ -831,6 +831,13 @@ public final class JobService implements AutoCloseable {
     /** One Job Type's descriptor by id (R3, {@code GET /jobs/types/{id}}), if registered. */
     public Optional<JobTypeDescriptor> jobType(String id) {
         return registry.descriptor(id);
+    }
+
+    /** The one type catalog spanning every registered Job Type's declared {@code emits} (§4.3, S1) — the
+     *  single source {@code MaintenanceJob.schedulerAudit} (or any future producer-side auditor) reads to
+     *  flag a Job Type emitting a signal type it never declared. */
+    public JobTypeCatalog jobTypeCatalog() {
+        return JobTypeCatalog.of(jobTypes());
     }
 
     /** Loaded Job Pack inventory (id, version, hash, types, state) — {@code GET /jobs/packs} (§12, R8). */

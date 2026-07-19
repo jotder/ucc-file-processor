@@ -71,9 +71,7 @@ public final class EventType {
 
     // ── job / enrichment ────────────────────────────────────────────────────────────
     public static final String JOB_STARTED   = "JOB_STARTED";
-    public static final String JOB_SUCCEEDED = "JOB_SUCCEEDED";
     public static final String JOB_FAILED    = "JOB_FAILED";
-    public static final String ENRICHMENT_RUN = "ENRICHMENT_RUN";
     /** The one signal-ledger event type (job-framework §8.1). A {@code com.gamma.signal.Signal} persists
      *  as an Event of this type; its dotted signal-type, severity and JSON payload ride in the attributes,
      *  its correlationId in the first-class field. {@code GET /signals} is the ledger view over these. */
@@ -111,7 +109,6 @@ public final class EventType {
     public static final String REPORT_READY    = "REPORT_READY";
     /** A data-quality {@code Expectation} evaluated with violating records (ING-6) — raises an Incident + notifies. */
     public static final String EXPECTATION_FAILED = "EXPECTATION_FAILED";
-    public static final String CONFIG_VALIDATED = "CONFIG_VALIDATED";
 
     /** A managed object (ALERT/INCIDENT/…) was created in its workflow's initial state (Phase 2). */
     public static final String OBJECT_OPENED   = "OBJECT_OPENED";

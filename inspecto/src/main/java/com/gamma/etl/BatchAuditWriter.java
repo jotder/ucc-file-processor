@@ -1,8 +1,15 @@
 package com.gamma.etl;
 
+import com.gamma.event.EventLog;
+import com.gamma.signal.Ref;
+import com.gamma.signal.Severity;
+import com.gamma.signal.Signal;
 import com.gamma.util.CsvLedger;
 
+import java.time.Instant;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
@@ -106,6 +113,49 @@ public final class BatchAuditWriter {
                     batch.pipeline(), batch.batchId(), batch.status(),
                     partitions, batch.totalOutputRows(), batch.durationMs(), batch.rejectedCount(),
                     batch.error(), offendingFile, errorRows));
+        }
+        emitBatchSignal(batch, files, lineageRows);
+    }
+
+    /**
+     * Additive S1 step (event-signal-backbone-plan §4.2): also land this terminal batch as a canonical
+     * {@code pipeline.batch.committed|failed} Signal on the one ledger, alongside the existing
+     * {@link #commitListener} {@link BatchEvent} fan-out above (both fire; {@link BatchEventBus}
+     * subscribers are untouched — this is additive, not a replacement). Uses {@link EventLog#current()},
+     * the established idiom for code with no injected per-space handle (mirrors {@code ReportJob}'s
+     * {@code REPORT_READY} emission). Safe from inside the ingest path: {@code JobService.mirrorPipelineCommit}
+     * already emits a Signal via {@code EventLog.emit} synchronously from within a {@code BatchEventBus}
+     * subscriber invoked from this same {@code flush} call — one hop later than here.
+     */
+    private void emitBatchSignal(BatchRow batch, List<FileRow> files, List<LineageRow> lineageRows) {
+        boolean success = "SUCCESS".equals(batch.status());
+        List<String> partitions = lineageRows.stream()
+                .map(LineageRow::partition).distinct().collect(Collectors.toList());
+        String offendingFile = files.stream()
+                .filter(f -> f.error() != null && !f.error().isBlank())
+                .map(FileRow::filename).findFirst().orElse(null);
+        long errorRows = files.stream().mapToLong(FileRow::errorRows).sum();
+
+        // Map.copyOf (Event's payload/attribute immutability, Event.java) rejects null values, so
+        // only put optional error-detail fields when present — mirrors BatchEvent's own null-ability.
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("status", batch.status());
+        payload.put("outputRows", batch.totalOutputRows());
+        payload.put("durationMs", batch.durationMs());
+        payload.put("rejectedCount", batch.rejectedCount());
+        payload.put("partitions", partitions);
+        if (batch.error() != null && !batch.error().isBlank()) payload.put("error", batch.error());
+        if (offendingFile != null) payload.put("offendingFile", offendingFile);
+        payload.put("errorRows", errorRows);
+
+        String type = success ? "pipeline.batch.committed" : "pipeline.batch.failed";
+        Signal signal = new Signal(null, type, Instant.now(), success ? Severity.INFO : Severity.WARN,
+                Ref.of("pipeline", batch.pipeline()), Ref.of("pipeline", batch.pipeline()),
+                batch.batchId(), null, null, null, type, payload, 1);
+        try {
+            EventLog.current().emit(signal.toEvent());
+        } catch (RuntimeException ignored) {
+            // an observability sink must never break the batch commit it is announcing
         }
     }
 

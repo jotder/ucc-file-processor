@@ -9,6 +9,7 @@ import com.gamma.agent.kernel.agent.CapabilityRegistry;
 import com.gamma.agent.kernel.model.ModelRouter;
 import com.gamma.agent.kernel.observe.AgentCompleted;
 import com.gamma.agent.kernel.observe.AuditSink;
+import com.gamma.agent.kernel.observe.EventLogAuditSink;
 import com.gamma.agent.kernel.orchestrate.SyncOrchestrator;
 import com.gamma.agent.model.AssistModelSettings;
 import com.gamma.agent.model.DelegatingModelRouter;
@@ -98,10 +99,12 @@ public final class UccAssistAgent implements AssistAgent {
         this(router, null);
     }
 
-    /** Inject a router and an {@link AuditSink} (e.g. a capturing list in tests). {@code null} ⇒ log-only. */
+    /** Inject a router and an {@link AuditSink} (e.g. a capturing list in tests). {@code null} ⇒
+     *  {@link EventLogAuditSink}, so real runs (the ServiceLoader no-arg constructor) land agent
+     *  telemetry as canonical Signals on the ledger instead of discarding it. */
     public UccAssistAgent(ModelRouter router, AuditSink audit) {
         this.router = router;
-        this.audit = (audit == null) ? AuditSink.NONE : audit;
+        this.audit = (audit == null) ? new EventLogAuditSink() : audit;
     }
 
     @Override
