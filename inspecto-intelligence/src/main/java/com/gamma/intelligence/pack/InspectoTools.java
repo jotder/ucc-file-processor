@@ -6,21 +6,38 @@ import com.eoiagent.core.ToolCall;
 import com.eoiagent.core.ToolResult;
 import com.eoiagent.core.ToolSpec;
 import com.eoiagent.tool.Tool;
+import com.gamma.config.spec.Finding;
+import com.gamma.etl.PipelineConfig;
+import com.gamma.job.JobRun;
+import com.gamma.job.JobService;
+import com.gamma.pipeline.ComponentRegistry;
+import com.gamma.pipeline.ComponentStore;
 import com.gamma.service.CollectorService;
 import com.gamma.signal.Severity;
 import com.gamma.signal.Signal;
 import com.gamma.signal.Signals;
+import com.gamma.sql.SqlGuard;
+import com.gamma.util.BrowsableStore;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.sql.SQLException;
+import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 /**
@@ -28,6 +45,12 @@ import java.util.stream.Stream;
  * ground answers in {@code docs/} (the canonical vocabulary + product docs); {@code status_get}
  * grounds them in the live {@link CollectorService}. All read-only, evidence-producing, never throw —
  * an expected failure (unknown term, no matches) is an {@code ok=false} {@link ToolResult}.
+ *
+ * <p>The AGT-5 P1 investigation tier (plan §3 "Analyze") adds four analysis tools on the same
+ * pattern: {@code timeline_build} (signals + job runs + component saves, one ordered window),
+ * {@code diff_batches} (two batch-ledger entries compared), {@code config_versions_diff}
+ * (ComponentStore {@code .history} structural diff) and {@code anomaly_scan} (deterministic
+ * z-score/threshold SQL math over a browsable store — the model judges, tools compute).
  */
 final class InspectoTools {
 
@@ -38,8 +61,28 @@ final class InspectoTools {
     }
 
     static List<Tool> tools(CollectorService service) {
+        return tools(service, defaultComponents(), service::browsableStores);
+    }
+
+    /**
+     * The full belt with the P1 analysis seams explicit — the component registry ({@code null} when no
+     * {@code -Dassist.write.root} is configured; the registry-backed tools degrade honestly) and the
+     * DB-backed browse stores. Package-private so tests can substitute seeded stores, mirroring the
+     * agent's package-private test constructor.
+     */
+    static List<Tool> tools(CollectorService service, ComponentStore components,
+                            Supplier<List<BrowsableStore>> browseStores) {
         return List.of(glossaryLookup(), docsSearch(), statusGet(service),
-                signalsQuery(service), signalTimeline(service));
+                signalsQuery(service), signalTimeline(service),
+                timelineBuild(service, components), diffBatches(service),
+                configVersionsDiff(components), anomalyScan(browseStores));
+    }
+
+    /** The component registry the control routes read — {@code -Dassist.write.root/registry} — or
+     *  {@code null} when no write root is configured (same resolution as the maintenance jobs). */
+    private static ComponentStore defaultComponents() {
+        String wr = System.getProperty("assist.write.root");
+        return wr == null || wr.isBlank() ? null : new ComponentStore(Path.of(wr).resolve("registry"));
     }
 
     private static Tool glossaryLookup() {
@@ -211,6 +254,401 @@ final class InspectoTools {
             if (!visited.contains(s.signalId())) out.add(s); // cycle remnants, timestamp-ordered
         }
         return out;
+    }
+
+    // ── AGT-5 P1 slice A: investigation analysis tools ──────────────────────────
+
+    private static final int TIMELINE_BUILD_CAP = 500;
+    private static final DateTimeFormatter AUDIT_TS = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+    private static final int DIFF_VALUE_MAX_CHARS = 200;
+    private static final int ANOMALY_DEFAULT_LIMIT = 20;
+    private static final int ANOMALY_MAX_LIMIT = 200;
+    private static final double ANOMALY_DEFAULT_Z_CUTOFF = 3.0;
+
+    /** One merged timeline entry; {@code matchText} is the extra text the optional focus filter scans. */
+    private record TimelineEntry(Instant at, String kind, String summary, String ref,
+                                 String severity, String matchText) {
+        Map<String, Object> toMap() {
+            Map<String, Object> m = new LinkedHashMap<>();
+            m.put("at", at.toString());
+            m.put("kind", kind);
+            m.put("summary", summary);
+            m.put("ref", ref);
+            if (severity != null) m.put("severity", severity);
+            return m;
+        }
+    }
+
+    private static Tool timelineBuild(CollectorService service, ComponentStore components) {
+        ToolSpec spec = new ToolSpec("timeline_build",
+                "Merge everything that happened in a time window — all signals, job runs and component "
+                        + "config saves — into one ascending timeline; optional focus text filters entries",
+                "{\"type\":\"object\",\"properties\":{"
+                        + "\"sinceMinutes\":{\"type\":\"integer\"},"
+                        + "\"untilMinutes\":{\"type\":\"integer\"},"
+                        + "\"focus\":{\"type\":\"string\"}},"
+                        + "\"required\":[\"sinceMinutes\"]}",
+                false, Role.USER, Capability.READ_METADATA);
+        return new FunctionTool(spec, call -> {
+            Integer sinceMinutes = intArg(call, "sinceMinutes");
+            if (sinceMinutes == null) return error("sinceMinutes is required");
+            if (sinceMinutes == INVALID_INT) return error("sinceMinutes must be an integer");
+            Integer untilMinutes = intArg(call, "untilMinutes");
+            if (untilMinutes == INVALID_INT) return error("untilMinutes must be an integer");
+            long now = System.currentTimeMillis();
+            long sinceMs = now - sinceMinutes * 60_000L;
+            Long untilMs = untilMinutes == null ? null : now - untilMinutes * 60_000L;
+            if (untilMs != null && untilMs <= sinceMs)
+                return error("untilMinutes must lie inside the sinceMinutes window");
+            List<TimelineEntry> entries = new ArrayList<>();
+            List<Signal> signals = Signals.query(service.events(), null, sinceMs, untilMs, null, null,
+                    TIMELINE_BUILD_CAP + 1);
+            for (Signal s : signals) {
+                entries.add(new TimelineEntry(s.at(), "signal",
+                        s.type() + (s.message() == null ? "" : ": " + s.message()),
+                        s.signalId(), s.severity().name().toLowerCase(Locale.ROOT),
+                        s.type() + " " + s.correlationId() + " " + s.payload()));
+            }
+            addJobRuns(service, sinceMs, untilMs, entries);
+            addConfigChanges(components, sinceMs, untilMs, entries);
+            String focus = arg(call, "focus");
+            if (focus != null && !focus.isBlank()) {
+                String needle = focus.trim().toLowerCase(Locale.ROOT);
+                entries.removeIf(e -> !(e.summary() + " " + e.ref() + " " + e.matchText())
+                        .toLowerCase(Locale.ROOT).contains(needle));
+            }
+            entries.sort(Comparator.comparing(TimelineEntry::at)
+                    .thenComparing(TimelineEntry::ref, Comparator.nullsFirst(Comparator.naturalOrder())));
+            boolean truncated = entries.size() > TIMELINE_BUILD_CAP || signals.size() > TIMELINE_BUILD_CAP;
+            List<TimelineEntry> capped = entries.size() > TIMELINE_BUILD_CAP
+                    ? entries.subList(0, TIMELINE_BUILD_CAP) : entries;
+            return ok(Map.of("count", capped.size(), "truncated", truncated,
+                    "timeline", capped.stream().map(TimelineEntry::toMap).toList()));
+        });
+    }
+
+    /** Job runs whose start time falls in the window, as {@code job-run} entries (FAILED → error). */
+    private static void addJobRuns(CollectorService service, long sinceMs, Long untilMs,
+                                   List<TimelineEntry> entries) {
+        service.jobService().ifPresent(js -> {
+            for (JobService.JobView job : js.jobs()) {
+                for (JobRun r : js.runsFor(job.name())) {
+                    Instant at = parseAuditTs(r.startTime());
+                    if (at == null || !inWindow(at, sinceMs, untilMs)) continue;
+                    boolean failed = "FAILED".equalsIgnoreCase(r.status());
+                    entries.add(new TimelineEntry(at, "job-run",
+                            "job " + r.job() + " " + String.valueOf(r.status()).toLowerCase(Locale.ROOT)
+                                    + " (" + r.durationMs() + " ms)",
+                            r.runId(), failed ? "error" : null,
+                            r.job() + " " + r.status() + " " + r.message()));
+                }
+            }
+        });
+    }
+
+    /** Component saves in the window: the live file's save plus every archived {@code .history} version. */
+    private static void addConfigChanges(ComponentStore components, long sinceMs, Long untilMs,
+                                         List<TimelineEntry> entries) {
+        if (components == null) return;
+        List<String> types = new ArrayList<>(ComponentStore.WRITABLE_TYPES);
+        java.util.Collections.sort(types);
+        for (String type : types) {
+            List<ComponentRegistry.Component> comps;
+            try {
+                comps = components.list(type);
+            } catch (RuntimeException e) {
+                continue; // a type dir the registry can't scan never blocks the rest
+            }
+            for (ComponentRegistry.Component c : comps) {
+                try {
+                    Instant current = Files.getLastModifiedTime(c.path()).toInstant();
+                    if (inWindow(current, sinceMs, untilMs)) {
+                        entries.add(new TimelineEntry(current, "config-change",
+                                c.ref() + " saved (current)", "component:" + c.ref(), null, c.ref()));
+                    }
+                } catch (IOException ignored) {
+                    // a torn-down live file only loses its own entry
+                }
+                for (ComponentStore.ComponentVersion v : components.versions(type, c.name())) {
+                    if (!inWindow(v.savedAt(), sinceMs, untilMs)) continue;
+                    entries.add(new TimelineEntry(v.savedAt(), "config-change",
+                            c.ref() + " saved (v" + v.version() + ")", "component:" + c.ref(), null, c.ref()));
+                }
+            }
+        }
+    }
+
+    private static boolean inWindow(Instant at, long sinceMs, Long untilMs) {
+        long t = at.toEpochMilli();
+        return t >= sinceMs && (untilMs == null || t <= untilMs);
+    }
+
+    /** The audit CSV / run-log timestamp format ({@code yyyy-MM-dd HH:mm:ss}, local time) → Instant. */
+    private static Instant parseAuditTs(String s) {
+        if (s == null || s.isBlank()) return null;
+        try {
+            return LocalDateTime.parse(s.trim(), AUDIT_TS).atZone(ZoneId.systemDefault()).toInstant();
+        } catch (DateTimeParseException e) {
+            return null;
+        }
+    }
+
+    private static Tool diffBatches(CollectorService service) {
+        ToolSpec spec = new ToolSpec("diff_batches",
+                "Compare two batch-ledger entries of one pipeline: per-batch status, row count, "
+                        + "duration and start time, plus the delta between them",
+                "{\"type\":\"object\",\"properties\":{"
+                        + "\"pipeline\":{\"type\":\"string\"},"
+                        + "\"batchA\":{\"type\":\"string\"},"
+                        + "\"batchB\":{\"type\":\"string\"}},"
+                        + "\"required\":[\"pipeline\",\"batchA\",\"batchB\"]}",
+                false, Role.USER, Capability.READ_METADATA);
+        return new FunctionTool(spec, call -> {
+            String pipeline = arg(call, "pipeline");
+            String batchA = arg(call, "batchA");
+            String batchB = arg(call, "batchB");
+            if (pipeline == null || pipeline.isBlank()) return error("pipeline is required");
+            if (batchA == null || batchA.isBlank()) return error("batchA is required");
+            if (batchB == null || batchB.isBlank()) return error("batchB is required");
+            Optional<PipelineConfig> cfg = service.configFor(pipeline);
+            if (cfg.isEmpty()) return error("unknown pipeline: '" + pipeline + "'");
+            List<Map<String, String>> rows = service.statusStore().batches(cfg.get());
+            Map<String, String> a = batchRow(rows, batchA);
+            if (a == null) return error("batch '" + batchA + "' not found in pipeline '" + pipeline + "'");
+            Map<String, String> b = batchRow(rows, batchB);
+            if (b == null) return error("batch '" + batchB + "' not found in pipeline '" + pipeline + "'");
+            Map<String, Object> delta = new LinkedHashMap<>();
+            delta.put("rowCount", longDelta(a.get("total_output_rows"), b.get("total_output_rows")));
+            delta.put("durationMs", longDelta(a.get("duration_ms"), b.get("duration_ms")));
+            String sa = a.get("status");
+            String sb = b.get("status");
+            delta.put("status", Objects.equals(sa, sb) ? "unchanged" : sa + " -> " + sb);
+            return ok(Map.of("pipeline", pipeline,
+                    "batchA", batchView(a), "batchB", batchView(b), "delta", delta));
+        });
+    }
+
+    private static Map<String, String> batchRow(List<Map<String, String>> rows, String batchId) {
+        return rows.stream().filter(r -> batchId.equals(r.get("batch_id"))).findFirst().orElse(null);
+    }
+
+    /** The comparison view over one raw {@code _batches_} audit row (every CSV cell is a string). */
+    private static Map<String, Object> batchView(Map<String, String> row) {
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("status", row.get("status"));
+        m.put("rowCount", parseLongOrNull(row.get("total_output_rows")));
+        m.put("durationMs", parseLongOrNull(row.get("duration_ms")));
+        m.put("startedAt", row.get("start_time"));
+        return m;
+    }
+
+    private static Long parseLongOrNull(String s) {
+        if (s == null || s.isBlank()) return null;
+        try {
+            return Long.valueOf(s.trim());
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+
+    /** {@code B - A} over two numeric audit cells, or {@code null} when either side is unparseable. */
+    private static Long longDelta(String a, String b) {
+        Long la = parseLongOrNull(a);
+        Long lb = parseLongOrNull(b);
+        return la == null || lb == null ? null : lb - la;
+    }
+
+    private static Tool configVersionsDiff(ComponentStore components) {
+        ToolSpec spec = new ToolSpec("config_versions_diff",
+                "Structural diff of two archived versions of a registry component (ComponentStore-backed "
+                        + "kinds only — grammar/schema/transform/sink/query/expectation etc.; pipeline "
+                        + "configs keep no version history). Defaults to the latest two versions.",
+                "{\"type\":\"object\",\"properties\":{"
+                        + "\"type\":{\"type\":\"string\"},"
+                        + "\"id\":{\"type\":\"string\"},"
+                        + "\"fromVersion\":{\"type\":\"integer\"},"
+                        + "\"toVersion\":{\"type\":\"integer\"}},"
+                        + "\"required\":[\"type\",\"id\"]}",
+                false, Role.USER, Capability.READ_METADATA);
+        return new FunctionTool(spec, call -> {
+            if (components == null) return error("component registry unavailable (set -Dassist.write.root)");
+            String type = arg(call, "type");
+            String id = arg(call, "id");
+            if (type == null || type.isBlank()) return error("type is required");
+            if (id == null || id.isBlank()) return error("id is required");
+            Integer from = intArg(call, "fromVersion");
+            if (from == INVALID_INT) return error("fromVersion must be an integer");
+            Integer to = intArg(call, "toVersion");
+            if (to == INVALID_INT) return error("toVersion must be an integer");
+            if ((from == null) != (to == null))
+                return error("provide both fromVersion and toVersion, or neither");
+            List<ComponentStore.ComponentVersion> versions;
+            try {
+                versions = components.versions(type, id);   // newest first
+            } catch (IllegalArgumentException e) {
+                return error(e.getMessage());
+            }
+            int fromV;
+            int toV;
+            Map<String, Object> fromContent;
+            Map<String, Object> toContent;
+            if (from == null) {
+                if (versions.size() < 2)
+                    return error("fewer than two archived versions for " + type + "/" + id
+                            + " (found " + versions.size() + ")");
+                toV = versions.get(0).version();
+                toContent = versions.get(0).content();
+                fromV = versions.get(1).version();
+                fromContent = versions.get(1).content();
+            } else {
+                fromV = from;
+                toV = to;
+                Optional<Map<String, Object>> f = components.versionContent(type, id, fromV);
+                if (f.isEmpty()) return error("version " + fromV + " not found for " + type + "/" + id);
+                Optional<Map<String, Object>> t = components.versionContent(type, id, toV);
+                if (t.isEmpty()) return error("version " + toV + " not found for " + type + "/" + id);
+                fromContent = f.get();
+                toContent = t.get();
+            }
+            Map<String, Object> added = new LinkedHashMap<>();
+            List<String> removed = new ArrayList<>();
+            Map<String, Object> changed = new LinkedHashMap<>();
+            for (Map.Entry<String, Object> e : toContent.entrySet()) {
+                if (!fromContent.containsKey(e.getKey())) {
+                    added.put(e.getKey(), bounded(e.getValue()));
+                } else if (!Objects.equals(fromContent.get(e.getKey()), e.getValue())) {
+                    Map<String, Object> ch = new LinkedHashMap<>();
+                    ch.put("from", bounded(fromContent.get(e.getKey())));
+                    ch.put("to", bounded(e.getValue()));
+                    changed.put(e.getKey(), ch);
+                }
+            }
+            for (String k : fromContent.keySet()) {
+                if (!toContent.containsKey(k)) removed.add(k);
+            }
+            return ok(Map.of("type", type, "id", id, "fromVersion", fromV, "toVersion", toV,
+                    "added", added, "removed", removed, "changed", changed));
+        });
+    }
+
+    /** Stringified diff value, bounded to {@value #DIFF_VALUE_MAX_CHARS} chars. */
+    private static String bounded(Object v) {
+        String s = String.valueOf(v);
+        return s.length() <= DIFF_VALUE_MAX_CHARS ? s : s.substring(0, DIFF_VALUE_MAX_CHARS) + "…";
+    }
+
+    private static Tool anomalyScan(Supplier<List<BrowsableStore>> browseStores) {
+        ToolSpec spec = new ToolSpec("anomaly_scan",
+                "Deterministic outlier scan over a numeric column of a DB-backed operational store "
+                        + "table: z-score (default, cutoff 3.0) or a fixed threshold bound — pure SQL "
+                        + "math, no model",
+                "{\"type\":\"object\",\"properties\":{"
+                        + "\"table\":{\"type\":\"string\"},"
+                        + "\"column\":{\"type\":\"string\"},"
+                        + "\"method\":{\"type\":\"string\",\"enum\":[\"zscore\",\"threshold\"]},"
+                        + "\"threshold\":{\"type\":\"number\"},"
+                        + "\"limit\":{\"type\":\"integer\"}},"
+                        + "\"required\":[\"table\",\"column\"]}",
+                false, Role.USER, Capability.READ_METADATA);
+        return new FunctionTool(spec, call -> {
+            String table = arg(call, "table");
+            String column = arg(call, "column");
+            if (table == null || table.isBlank()) return error("table is required");
+            if (column == null || column.isBlank()) return error("column is required");
+            String method = arg(call, "method");
+            method = method == null || method.isBlank() ? "zscore" : method.trim().toLowerCase(Locale.ROOT);
+            if (!method.equals("zscore") && !method.equals("threshold"))
+                return error("unknown method '" + method + "' (expected zscore|threshold)");
+            Double threshold = doubleArg(call, "threshold");
+            if (threshold != null && threshold.isNaN()) return error("threshold must be a number");
+            if (method.equals("threshold") && threshold == null)
+                return error("threshold is required for method=threshold");
+            Integer limit = intArg(call, "limit");
+            if (limit == INVALID_INT) return error("limit must be an integer");
+            int cap = limit == null ? ANOMALY_DEFAULT_LIMIT : Math.min(Math.max(limit, 1), ANOMALY_MAX_LIMIT);
+            BrowsableStore store = browseStores.get().stream()
+                    .filter(s -> s.browseTables().contains(table)).findFirst().orElse(null);
+            if (store == null) return error("unknown table: '" + table + "' (no DB-backed store exposes it)");
+            String t = sqlIdent(table);
+            String c = sqlIdent(column);
+            try {
+                String statsSql = "SELECT avg(" + c + ") AS __mean, stddev_pop(" + c + ") AS __sd, "
+                        + "count(" + c + ") AS __n FROM " + t;
+                List<Finding> findings = SqlGuard.check(statsSql);
+                if (!findings.isEmpty()) return error(findings.get(0).message());
+                BrowsableStore.Page stats = store.browseQuery(statsSql, 1, 0);
+                Map<String, Object> s0 = stats.rows().isEmpty() ? Map.of() : stats.rows().get(0);
+                if (!(s0.get("__mean") instanceof Number meanN))
+                    return error("column '" + column + "' has no numeric values in table '" + table + "'");
+                double mean = meanN.doubleValue();
+                double sd = s0.get("__sd") instanceof Number sdN ? sdN.doubleValue() : 0d;
+                long scanned = s0.get("__n") instanceof Number n ? n.longValue() : 0L;
+                String zExpr = sd > 0 ? "((" + c + " - " + mean + ") / " + sd + ")" : "NULL";
+                String where;
+                String order;
+                if (method.equals("zscore")) {
+                    double cutoff = threshold == null ? ANOMALY_DEFAULT_Z_CUTOFF : threshold;
+                    if (sd <= 0)
+                        return ok(scanResult(table, column, method, mean, sd, scanned, List.of(), false));
+                    where = "abs" + zExpr + " > " + cutoff;
+                    order = "abs" + zExpr + " DESC";
+                } else {
+                    where = c + " > " + threshold;
+                    order = c + " DESC";
+                }
+                String outSql = "SELECT *, " + zExpr + " AS __z FROM " + t
+                        + " WHERE " + where + " ORDER BY " + order;
+                findings = SqlGuard.check(outSql);
+                if (!findings.isEmpty()) return error(findings.get(0).message());
+                BrowsableStore.Page page = store.browseQuery(outSql, cap, 0);
+                String idCol = page.columns().isEmpty() ? null : page.columns().get(0).name();
+                List<Map<String, Object>> flagged = new ArrayList<>();
+                for (Map<String, Object> row : page.rows()) {
+                    Map<String, Object> f = new LinkedHashMap<>();
+                    f.put("value", row.get(column));
+                    if (idCol != null && !idCol.equalsIgnoreCase(column)) f.put("rowIdentifier", row.get(idCol));
+                    f.put("zscore", row.get("__z") instanceof Number zn ? zn.doubleValue() : null);
+                    flagged.add(f);
+                }
+                return ok(scanResult(table, column, method, mean, sd, scanned, flagged, page.truncated()));
+            } catch (SQLException | RuntimeException e) {
+                return error("scan failed: " + e.getMessage());
+            }
+        });
+    }
+
+    private static Map<String, Object> scanResult(String table, String column, String method,
+                                                  double mean, double stddev, long scanned,
+                                                  List<Map<String, Object>> rows, boolean truncated) {
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("table", table);
+        m.put("column", column);
+        m.put("method", method);
+        m.put("mean", mean);
+        m.put("stddev", stddev);
+        m.put("scanned", scanned);
+        m.put("flagged", rows.size());
+        m.put("truncated", truncated);
+        m.put("rows", rows);
+        return m;
+    }
+
+    /** Double-quote an identifier for server-built SQL (matches {@code BrowsableStore.quoteIdent}). */
+    private static String sqlIdent(String ident) {
+        return "\"" + ident.replace("\"", "\"\"") + "\"";
+    }
+
+    /** Missing → null; a number or numeric string → its double value; anything else → {@code NaN}. */
+    private static Double doubleArg(ToolCall call, String key) {
+        Map<String, Object> args = call.arguments() == null ? Map.of() : call.arguments();
+        Object v = args.get(key);
+        if (v == null) return null;
+        if (v instanceof Number n) return n.doubleValue();
+        try {
+            return Double.valueOf(String.valueOf(v).trim());
+        } catch (NumberFormatException e) {
+            return Double.NaN;
+        }
     }
 
     /** Strict severity parse for tool input: null/blank → no floor; unknown name → thrown (→ error(...)). */
