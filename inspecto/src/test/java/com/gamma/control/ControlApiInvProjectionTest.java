@@ -115,6 +115,42 @@ class ControlApiInvProjectionTest {
     }
 
     @Test
+    void attrColsJoinTheFoldKeyAndRoundTripInOutput(@TempDir Path cfg, @TempDir Path root) throws Exception {
+        try (Ctx c = open(cfg, root)) {
+            seedCalls(c);
+            HttpResponse<String> r = project(c.port, """
+                    {"dataset":"calls_ds","sourceCol":"caller","targetCol":"callee","attrCols":["channel"]}""");
+            assertEquals(200, r.statusCode(), r.body());
+            JsonNode rows = JSON.readTree(r.body()).at("/data/rows");
+            assertEquals(2, rows.size(), "channel is uniform per pair here, so the fold is unchanged: " + rows);
+            JsonNode aliceBob = rows.get(0);
+            assertEquals("alice", aliceBob.get("source").asText());
+            assertEquals(2, aliceBob.get("count").asInt());
+            assertEquals("sms", aliceBob.get("attrs").get("channel").asText());
+        }
+    }
+
+    @Test
+    void attrColsSplitAFoldedPairWhenTheAttributeValueDiffers(@TempDir Path cfg, @TempDir Path root) throws Exception {
+        try (Ctx c = open(cfg, root)) {
+            new ViewStore(c.root.resolve("views")).write(new ViewDefinition("mixed_view", "flow-x", List.of(),
+                    "SELECT * FROM (VALUES "
+                            + "('alice','bob','sms'),"
+                            + "('alice','bob','call')"
+                            + ") AS t(caller,callee,channel)",
+                    "2026-07-08T00:00:00Z"));
+            new ComponentStore(c.root.resolve("registry")).write("dataset", "mixed_ds", Map.of("view", "mixed_view"));
+
+            HttpResponse<String> r = project(c.port, """
+                    {"dataset":"mixed_ds","sourceCol":"caller","targetCol":"callee","attrCols":["channel"]}""");
+            assertEquals(200, r.statusCode(), r.body());
+            JsonNode rows = JSON.readTree(r.body()).at("/data/rows");
+            assertEquals(2, rows.size(), "differing attr values fold into separate rows, not one merged row: " + rows);
+            for (JsonNode row : rows) assertEquals(1, row.get("count").asInt());
+        }
+    }
+
+    @Test
     void failsClosed(@TempDir Path cfg, @TempDir Path root) throws Exception {
         try (Ctx c = open(cfg, root)) {
             seedCalls(c);
@@ -125,6 +161,9 @@ class ControlApiInvProjectionTest {
                     "non-identifier column");
             assertEquals(422, project(c.port,
                     "{\"dataset\":\"calls_ds\",\"sourceCol\":\"caller\"}").statusCode(), "missing targetCol");
+            assertEquals(422, project(c.port, """
+                    {"dataset":"calls_ds","sourceCol":"caller","targetCol":"callee","attrCols":["a b"]}""")
+                    .statusCode(), "non-identifier attrCols entry");
         }
     }
 

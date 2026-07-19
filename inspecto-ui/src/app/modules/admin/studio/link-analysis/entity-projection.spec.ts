@@ -7,6 +7,7 @@ import {
     PROJECTION_NODE_CAP,
     ProjectedGraph,
     isProjectionError,
+    mergeProjectedGraphs,
     projectEntities,
     projectTriples,
 } from './entity-projection';
@@ -48,6 +49,18 @@ describe('projectEntities', () => {
         const g = projectEntities(many, { datasetId: 'd', sourceCol: 'a', targetCol: 'b' }) as ProjectedGraph;
         expect(g.nodes).toHaveLength(PROJECTION_NODE_CAP);
         expect(g.truncated).toBe(true);
+    });
+
+    it('attrCols join the fold key and round-trip onto the edge (differing values split a folded pair)', () => {
+        const mixed = [
+            { source: 's', target: 't', channel: 'sms' },
+            { source: 's', target: 't', channel: 'call' },
+        ];
+        const g = projectEntities(mixed, { datasetId: 'd', sourceCol: 'source', targetCol: 'target', attrCols: ['channel'] }) as ProjectedGraph;
+        expect(g.edges).toHaveLength(2);
+        expect(g.edges.every((e) => (e.data as unknown as { count: number }).count === 1)).toBe(true);
+        const smsEdge = g.edges.find((e) => e.data.attrs?.channel === 'sms');
+        expect(smsEdge).toBeDefined();
     });
 
     it('tags nodes from a caseId/incidentId column with an objectRef; other columns get none (R8)', () => {
@@ -107,6 +120,28 @@ describe('EntityProjectionGraphSource', () => {
         await expect(
             src.query({ projection: { datasetId: 'links-ds', sourceCol: 'bogus', targetCol: 'target' } }),
         ).rejects.toThrow(/bogus/);
+    });
+
+    it('multi-mapping: merges N mappings into one graph via q.projections, type-scoping node ids', async () => {
+        const inv = {
+            project: (req: { dataset: string }) => {
+                if (req.dataset === 'phones-ds') {
+                    return of({ rows: [{ source: '555-0101', target: '555-0102', kind: null, count: 1 }], truncated: false });
+                }
+                return of({ rows: [{ source: '555-0101', target: 'acct-9', kind: null, count: 1 }], truncated: false });
+            },
+        } as never;
+        const src = new EntityProjectionGraphSource({ get: () => of(ds) } as never, inv);
+        const g = await src.query({
+            projections: [
+                { datasetId: 'phones-ds', sourceCol: 'a', targetCol: 'b', entityType: 'phone' },
+                { datasetId: 'accounts-ds', sourceCol: 'a', targetCol: 'b', entityType: 'account' },
+            ],
+        });
+        // The same value '555-0101' surfaces under two entity types and stays two distinct nodes.
+        expect(g.nodes.map((n) => n.id).sort()).toEqual([
+            'entity:account:555-0101', 'entity:account:acct-9', 'entity:phone:555-0101', 'entity:phone:555-0102',
+        ]);
     });
 
     it('is backend-first: aggregated triples become the graph, no dataset row fetch (INV-1)', async () => {
@@ -173,5 +208,33 @@ describe('projectTriples', () => {
         );
         expect(g.nodes.find((n) => n.id === 'entity:inc-1')!.data.objectRef).toEqual({ id: 'inc-1', type: 'INCIDENT' });
         expect(g.nodes.find((n) => n.id === 'entity:tower-9')!.data.objectRef).toBeUndefined();
+    });
+
+    it('carries the backend attrs through onto the edge data (Phase B, attrCols passthrough)', () => {
+        const g = projectTriples(
+            [{ source: 'a', target: 'b', kind: 'sms', count: 1, attrs: { channel: 'sms' } }],
+            false,
+        );
+        expect(g.edges[0].data.attrs).toEqual({ channel: 'sms' });
+    });
+});
+
+describe('mergeProjectedGraphs', () => {
+    it('dedups nodes by id, concatenates edges, and ORs truncation across mappings', () => {
+        const a: ProjectedGraph = {
+            nodes: [{ id: 'entity:x', data: { label: 'x', kind: 'entity' } }],
+            edges: [{ id: 'e1', source: 'entity:x', target: 'entity:y', data: { kind: 'link' } }],
+            truncated: true,
+        };
+        const b: ProjectedGraph = {
+            nodes: [{ id: 'entity:x', data: { label: 'stale', kind: 'entity' } }, { id: 'entity:z', data: { label: 'z', kind: 'entity' } }],
+            edges: [{ id: 'e2', source: 'entity:x', target: 'entity:z', data: { kind: 'link' } }],
+            truncated: false,
+        };
+        const merged = mergeProjectedGraphs([a, b]);
+        expect(merged.nodes.map((n) => n.id)).toEqual(['entity:x', 'entity:z']);
+        expect(merged.nodes.find((n) => n.id === 'entity:x')!.data.label).toBe('x'); // first mapping wins
+        expect(merged.edges.map((e) => e.id)).toEqual(['e1', 'e2']);
+        expect(merged.truncated).toBe(true);
     });
 });

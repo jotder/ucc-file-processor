@@ -115,6 +115,20 @@ describe('LinkAnalysisComponent', () => {
         c.runCommunities();
         expect(c.communities()).toHaveLength(2);
         expect(c.emphasis()?.groups?.get('a')).toBe(c.emphasis()?.groups?.get('c'));
+
+        c.pathFrom.set('a');
+        c.pathTo.set('c');
+        c.runAllPaths();
+        expect(c.allPathsResult()).toHaveLength(1);
+        expect(c.allPathsResult()[0].nodeIds).toEqual(['a', 'b', 'c']);
+
+        c.pathTo.set('e');
+        c.runAllPaths();
+        expect(c.analysisError()).toMatch(/No path/);
+
+        c.runConnectedComponents();
+        expect(c.components()).toHaveLength(2);
+        expect(c.components()[0]).toHaveLength(3); // a-b-c is the larger component, sorted first
     });
 
     it('smart form: auto-collapses to the selected-values summary after a run, and edit reopens it', async () => {

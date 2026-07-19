@@ -10,6 +10,8 @@ export interface ProjectionTriple {
   /** The link kind from `linkKindCol`, or null when the projection is untyped. */
   kind: string | null;
   count: number;
+  /** Values of `attrCols`, keyed by column name — present only when the request sent `attrCols`. */
+  attrs?: Record<string, string | null>;
 }
 
 export interface ProjectionResult {
@@ -25,6 +27,8 @@ export interface ProjectionRequest {
   sourceCol: string;
   targetCol: string;
   linkKindCol?: string;
+  /** Extra columns to carry as per-edge attributes; differing values split a folded pair into separate rows. */
+  attrCols?: string[];
   limit?: number;
 }
 

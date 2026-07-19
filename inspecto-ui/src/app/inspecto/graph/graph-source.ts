@@ -22,6 +22,13 @@ export interface EntityProjection {
     targetCol: string;
     linkKindCol?: string;
     attrCols?: string[];
+    /**
+     * Multi-mapping merges (P3, `projections`) are **type-scoped**: an `entityType` distinguishes a
+     * `person` entity named "Bob" from an `account` entity named "Bob" so they don't silently merge
+     * into one node just because their projected value happens to match. Ignored (and the id scheme
+     * stays plain `entity:<value>`, unchanged since 2026-07-08) when only one mapping runs.
+     */
+    entityType?: string;
 }
 
 /**
@@ -44,6 +51,11 @@ export interface GraphSourceQuery {
     counts?: boolean;
     /** P3: the Dataset column→Entity/Link mapping (entity-projection only). */
     projection?: EntityProjection;
+    /**
+     * P3 multi-entity/multi-dataset mapping: run several {@link EntityProjection}s and merge the
+     * results into one graph (entity-projection only). When present, takes precedence over `projection`.
+     */
+    projections?: EntityProjection[];
 }
 
 /** One pluggable origin of graph data. `query()` may hit the backend or derive client-side. */

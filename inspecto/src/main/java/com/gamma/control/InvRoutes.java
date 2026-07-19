@@ -21,11 +21,15 @@ import java.util.regex.Pattern;
  * fold the Link Analysis studio's mock-first {@code entity-projection} GraphSource was designed against
  * ({@code docs/superpower/link-analysis-and-graphsource.md} §7).
  *
- * <p>{@code POST /inv/projection} — body {@code {dataset, sourceCol, targetCol, linkKindCol?, limit?}} →
- * {@code {rows:[{source,target,kind,count}], truncated}}: distinct {@code (source, target[, kind])} pairs
- * with folded row counts, heaviest first. The G6 node/edge <em>presentation</em> fold (entity nodes, edge
- * kind·count labels, the 500-node cap) deliberately stays client-side where it already lives — this endpoint
- * is the aggregation, so the projection scales to Datasets far beyond what the browser could fold row-by-row.
+ * <p>{@code POST /inv/projection} — body {@code {dataset, sourceCol, targetCol, linkKindCol?, attrCols?, limit?}}
+ * → {@code {rows:[{source,target,kind,count,attrs?}], truncated}}: distinct {@code (source, target[, kind]
+ * [, ...attrCols])} tuples with folded row counts, heaviest first. When {@code attrCols} is given, each
+ * column joins the fold key — a folded edge with differing attribute values across rows becomes separate
+ * output rows, one per distinct attribute combination, consistent with the "identical tuples fold" contract
+ * above (no attribute value is silently dropped). The G6 node/edge <em>presentation</em> fold (entity nodes,
+ * edge kind·count labels, the 500-node cap) deliberately stays client-side where it already lives — this
+ * endpoint is the aggregation, so the projection scales to Datasets far beyond what the browser could fold
+ * row-by-row.
  *
  * <p>Fail-closed like {@link BiRoutes}: write root unset → 503; unknown dataset → 404; a non-identifier
  * column or unusable dataset → 422. Column names are validated identifiers — no caller SQL text enters
@@ -49,6 +53,7 @@ final class InvRoutes implements RouteModule {
         String sourceCol = ident(body, "sourceCol", true);
         String targetCol = ident(body, "targetCol", true);
         String kindCol = ident(body, "linkKindCol", false);
+        List<String> attrCols = attrCols(body);
         int limit = body.get("limit") instanceof Number n
                 ? Math.max(1, Math.min(MAX_LIMIT, n.intValue())) : DEFAULT_LIMIT;
 
@@ -67,10 +72,18 @@ final class InvRoutes implements RouteModule {
         // Server-built from validated identifiers only; one extra row detects truncation.
         String src = q(sourceCol), tgt = q(targetCol);
         String kindSel = kindCol != null ? ", CAST(" + q(kindCol) + " AS VARCHAR) AS kind" : "";
+        StringBuilder attrSel = new StringBuilder();
+        for (int i = 0; i < attrCols.size(); i++) {
+            attrSel.append(", CAST(").append(q(attrCols.get(i))).append(" AS VARCHAR) AS attr_").append(i);
+        }
+        StringBuilder groupBy = new StringBuilder("GROUP BY 1, 2");
+        int nextGroupIdx = 3;
+        if (kindCol != null) groupBy.append(", ").append(nextGroupIdx++);
+        for (int i = 0; i < attrCols.size(); i++) groupBy.append(", ").append(nextGroupIdx++);
         String sql = "SELECT CAST(" + src + " AS VARCHAR) AS source, CAST(" + tgt + " AS VARCHAR) AS target"
-                + kindSel + ", COUNT(*) AS cnt FROM " + q(datasetId)
+                + kindSel + attrSel + ", COUNT(*) AS cnt FROM " + q(datasetId)
                 + " WHERE " + src + " IS NOT NULL AND " + tgt + " IS NOT NULL"
-                + " GROUP BY 1, 2" + (kindCol != null ? ", 3" : "")
+                + " " + groupBy
                 + " ORDER BY cnt DESC, source, target";
 
         try {
@@ -83,6 +96,11 @@ final class InvRoutes implements RouteModule {
                 out.put("target", row.get("target"));
                 out.put("kind", kindCol != null ? row.get("kind") : null);
                 out.put("count", row.get("cnt"));
+                if (!attrCols.isEmpty()) {
+                    Map<String, Object> attrs = new LinkedHashMap<>();
+                    for (int i = 0; i < attrCols.size(); i++) attrs.put(attrCols.get(i), row.get("attr_" + i));
+                    out.put("attrs", attrs);
+                }
                 rows.add(out);
             }
             Map<String, Object> out = new LinkedHashMap<>();
@@ -92,6 +110,20 @@ final class InvRoutes implements RouteModule {
         } catch (SQLException e) {
             throw new ApiException(422, "projection failed: " + e.getMessage());
         }
+    }
+
+    /** Optional {@code attrCols: string[]} — each validated as a safe identifier. */
+    private static List<String> attrCols(Map<String, Object> body) {
+        Object raw = body.get("attrCols");
+        if (!(raw instanceof List<?> list)) return List.of();
+        List<String> out = new ArrayList<>(list.size());
+        for (Object o : list) {
+            String v = String.valueOf(o);
+            if (!SAFE_IDENT.matcher(v).matches())
+                throw new ApiException(422, "unsafe column identifier '" + v + "' for attrCols");
+            out.add(v);
+        }
+        return out;
     }
 
     private static String ident(Map<String, Object> body, String key, boolean required) {

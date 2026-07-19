@@ -29,14 +29,14 @@ _(none open — the `package.ps1` bundle smoke-test row closed 2026-07-20, see �
 | NFR-7 | Compliance certifications | PARTIAL (not started) |
 | API-5 | Legacy route **physical deletion** — sunset mechanism + `inspecto_legacy_api_requests_total` meter shipped (W8); delete after the signed **30-days-at-zero soak** | Soak-gated policy call |
 | EOI-7b | Publish eoiagent `0.1.0` artifacts to a registry (v0.1.0 cut + pinned 2026-07-08; CI rebuilds from tag meanwhile) | Infra/product call |
-| BI-4 | Scheduled report **delivery**: CSV export ships as a `type:'report'` Job; **real PDF/PNG rendering** is placeholder text | Backend/Standard scope |
+| BI-4 | Scheduled report delivery: CSV + real PNG rendering shipped (`TablePngRenderer`, commit 28ac9da); **PDF rendering still open** — no PDF library on the classpath (checked all poms), needs either vendoring one offline (e.g. OpenPDF) or a smaller PNG-wrapped-in-PDF fallback | Backend/Standard scope — build-policy call on vendoring a PDF dependency offline |
 | AGT-5 P1 | Investigation: timeline/diff/anomaly tools, `root_cause_analysis`, Case Store, event ingress | Open (P0 shipped + hardened) — `superpower/embedded-intelligence-plan.md` §8 |
 | AGT-5 P2–P5 | Author-everything (L1) → gated action (L2) + approvals inbox → bounded autonomy (L3) → learning | Open — same |
 | AGT-5 cuts | QA-only (`incident_explain` waits on the eoiagent host seam); local-models-only | Open scope cuts — same |
 | AGT-6 | AI behind every screen / agent graphs | PLANNED |
 | SPC-5 | Per-tenant ABAC (rides the SEC-7 grants model; absorbs per-resource ACLs/ownership) | PLANNED (Enterprise) |
 | E1 | Enterprise distributed tier / Stage-2 streaming | Demand-gated |
-| INV-1 | Entity Projection backend (Link Analysis is UI/mock-projected today) | Open |
+| INV-1 | Entity Projection backend **shipped** (2026-07-08, `POST /inv/projection` + persisted `link-analysis-view`); UI calls it first, mock is offline-fallback only. **2026-07-20 shipped**: (A) `allPaths`/`connectedComponents` wired into the Analysis-tab UI; (B) `attrCols` passthrough end-to-end — `InvRoutes` extends `GROUP BY` per attr column (differing values split a fold, never silently drop data), UI gets an attribute-columns multi-select; (C) multi-entity/multi-dataset mapping — `GraphSourceQuery.projections[]`, N calls to the existing endpoint merged client-side via `mergeProjectedGraphs`, type-scoped node ids (`entity:<entityType>:<value>`) so same-value entities of different types don't silently merge, UI "Add another mapping" row. Genuinely open: multi-root seeds, incremental expand (no "neighbors of X" query exists for entity-projection — would need a new endpoint), SVG/GraphML export, undo/redo — plus a schema-relationship model (infer relationships from schema, not just user-picked columns), which is genuinely unstarted and scoped as a separate follow-on, not part of this slice | Open (A/B/C shipped) — see `link-analysis-studio-plan.md` §6-7 |
 
 ## 3. Feature follow-ons (deferral sections of shipped work)
 

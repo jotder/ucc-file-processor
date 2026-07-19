@@ -27,7 +27,11 @@ export interface G6Edge {
     id: string;
     source: string;
     target: string;
-    data: { kind: string };
+    data: {
+        kind: string;
+        /** Extra per-edge attributes (entity-projection `attrCols`), keyed by source column name. */
+        attrs?: Record<string, string | null>;
+    };
 }
 
 export interface G6GraphData {

@@ -1,6 +1,6 @@
 import { DecimalPipe } from '@angular/common';
 import { ChangeDetectionStrategy, Component, ElementRef, OnInit, ViewChild, computed, inject, signal } from '@angular/core';
-import { FormBuilder, ReactiveFormsModule, Validators, AbstractControl, ValidatorFn } from '@angular/forms';
+import { FormArray, FormBuilder, FormGroup, ReactiveFormsModule, Validators, AbstractControl, ValidatorFn } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatButtonToggleModule } from '@angular/material/button-toggle';
 import { MatCheckboxModule } from '@angular/material/checkbox';
@@ -21,14 +21,17 @@ import { InspectoSkeletonComponent } from 'app/inspecto/components/skeleton.comp
 import { DataTableComponent } from 'app/inspecto/data-table';
 import { TransferMenuComponent } from 'app/inspecto/transfer';
 import {
+    EntityProjection,
     G6GraphData,
     GraphSelection,
     GraphSourceId,
     GraphSourceQuery,
     NodeScore,
     PatternStep,
+    allPaths,
     betweennessCentrality,
     collapseBranches,
+    connectedComponents,
     degreeCentrality,
     descendants,
     detectCommunities,
@@ -70,7 +73,7 @@ function uniqueNameValidator(taken: () => string[]): ValidatorFn {
     };
 }
 
-type AnalysisTab = 'path' | 'explain' | 'centrality' | 'communities' | 'pattern';
+type AnalysisTab = 'path' | 'explain' | 'centrality' | 'communities' | 'pattern' | 'all-paths' | 'components';
 
 /** One line of the collapsed-query status (left-pane summary + the top status bar chips). */
 interface QuerySummaryItem {
@@ -121,9 +124,11 @@ export class LinkAnalysisComponent implements OnInit {
     /** The analysis tool groups (the Analysis-tab accordion = the graph-algorithms toolbox). */
     readonly tools: { id: AnalysisTab; label: string; icon: string }[] = [
         { id: 'path', label: 'Shortest path', icon: 'heroicons_outline:arrows-right-left' },
+        { id: 'all-paths', label: 'All paths', icon: 'heroicons_outline:share' },
         { id: 'explain', label: 'Explain node', icon: 'heroicons_outline:light-bulb' },
         { id: 'centrality', label: 'Centrality', icon: 'heroicons_outline:star' },
         { id: 'communities', label: 'Communities', icon: 'heroicons_outline:user-group' },
+        { id: 'components', label: 'Connected components', icon: 'heroicons_outline:squares-2x2' },
         { id: 'pattern', label: 'Pattern match', icon: 'heroicons_outline:magnifying-glass-circle' },
     ];
 
@@ -141,10 +146,45 @@ export class LinkAnalysisComponent implements OnInit {
         sourceCol: [''],
         targetCol: [''],
         linkKindCol: [''],
+        attrCols: [[] as string[]],
+        /** Only meaningful once a second mapping exists (Phase C) — see {@link EntityProjection.entityType}. */
+        entityType: [''],
     });
 
     /** Columns offered by the projection mapping selects — the picked Dataset's columns (or its sample rows'). */
     readonly datasetColumns = signal<string[]>([]);
+
+    /**
+     * Extra entity-projection mappings beyond the primary one above (Phase C, multi-entity/multi-dataset
+     * mapping): each row is its own Dataset + column mapping, merged client-side into one graph by
+     * {@link mergeProjectedGraphs} — no new backend endpoint, {@code /inv/projection} runs once per row.
+     */
+    readonly extraMappings = this.fb.array<FormGroup>([]);
+    /** Column choices per extra-mapping row, indexed like `extraMappings.controls`. */
+    readonly extraMappingColumns = signal<string[][]>([]);
+
+    private newMappingGroup() {
+        return this.fb.nonNullable.group({
+            datasetId: [''], sourceCol: [''], targetCol: [''], linkKindCol: [''],
+            attrCols: [[] as string[]], entityType: ['', Validators.required],
+        });
+    }
+
+    addMapping(): void {
+        const group = this.newMappingGroup();
+        const i = this.extraMappings.length;
+        group.controls.datasetId.valueChanges.subscribe((id) => {
+            const cols = this.columnsForDataset(id);
+            this.extraMappingColumns.update((all) => all.map((c, idx) => (idx === i ? cols : c)));
+        });
+        this.extraMappings.push(group);
+        this.extraMappingColumns.update((all) => [...all, []]);
+    }
+
+    removeMapping(i: number): void {
+        this.extraMappings.removeAt(i);
+        this.extraMappingColumns.update((all) => all.filter((_, idx) => idx !== i));
+    }
 
     // ── result state ──
     readonly loading = signal(false);
@@ -164,6 +204,16 @@ export class LinkAnalysisComponent implements OnInit {
         const q = run.query;
         switch (run.sourceId) {
             case 'entity-projection': {
+                if (q.projections?.length) {
+                    return q.projections.map((p) => {
+                        const ds = this.datasets().find((d) => d.id === p.datasetId);
+                        return {
+                            icon: 'heroicons_outline:table-cells',
+                            label: p.entityType ?? 'Mapping',
+                            value: `${ds?.name ?? p.datasetId}: ${p.sourceCol} → ${p.targetCol}`,
+                        };
+                    });
+                }
                 const p = q.projection;
                 if (!p) return [];
                 const ds = this.datasets().find((d) => d.id === p.datasetId);
@@ -172,6 +222,7 @@ export class LinkAnalysisComponent implements OnInit {
                     { icon: 'heroicons_outline:arrow-long-right', label: 'Mapping', value: `${p.sourceCol} → ${p.targetCol}` },
                 ];
                 if (p.linkKindCol) items.push({ icon: 'heroicons_outline:hashtag', label: 'Link type', value: p.linkKindCol });
+                if (p.attrCols?.length) items.push({ icon: 'heroicons_outline:tag', label: 'Attributes', value: p.attrCols.join(', ') });
                 return items;
             }
             case 'lineage':
@@ -305,10 +356,12 @@ export class LinkAnalysisComponent implements OnInit {
     readonly analysisError = signal('');
     readonly emphasis = signal<GraphEmphasis | null>(null);
     readonly pathResult = signal<{ hops: string[] } | null>(null);
+    readonly allPathsResult = signal<GraphSelection[]>([]);
     readonly explainText = signal('');
     readonly ranking = signal<NodeScore[]>([]);
     readonly communityMethod = signal<'label-prop' | 'louvain'>('label-prop');
     readonly communities = signal<{ id: string; members: string[] }[]>([]);
+    readonly components = signal<string[][]>([]);
     /** The pattern-match motif — step 0 = the start node; each later step traverses one edge. */
     readonly patternSteps = signal<PatternStep[]>([{}, { direction: 'out' }]);
     readonly patternMatches = signal<GraphSelection[]>([]);
@@ -343,30 +396,41 @@ export class LinkAnalysisComponent implements OnInit {
     }
 
     private onDatasetPicked(id: string): void {
+        this.datasetColumns.set(this.columnsForDataset(id));
+    }
+
+    /** The columns a mapping row's Dataset select should offer — declared columns, or sampled ones. */
+    private columnsForDataset(id: string): string[] {
         const ds = this.datasets().find((d) => d.id === id);
-        if (!ds) {
-            this.datasetColumns.set([]);
-            return;
-        }
+        if (!ds) return [];
         const declared = ds.columns.map((c) => c.name);
         const sampled = Object.keys(SAMPLE_SOURCES[ds.sourceName]?.[0] ?? {});
-        this.datasetColumns.set(declared.length ? declared : sampled);
+        return declared.length ? declared : sampled;
     }
 
     /** The query the current form + source amounts to (also what a saved view persists). */
     private buildQuery(): GraphSourceQuery | { error: string } {
         const f = this.queryForm.getRawValue();
         switch (this.sourceId()) {
-            case 'entity-projection':
+            case 'entity-projection': {
                 if (!f.datasetId || !f.sourceCol || !f.targetCol) {
                     return { error: 'Pick a dataset plus its source and target columns.' };
                 }
-                return {
-                    projection: {
-                        datasetId: f.datasetId, sourceCol: f.sourceCol, targetCol: f.targetCol,
-                        linkKindCol: f.linkKindCol || undefined,
-                    },
+                const primary: EntityProjection = {
+                    datasetId: f.datasetId, sourceCol: f.sourceCol, targetCol: f.targetCol,
+                    linkKindCol: f.linkKindCol || undefined,
+                    attrCols: f.attrCols.length ? f.attrCols : undefined,
+                    entityType: f.entityType || undefined,
                 };
+                const extras = this.extraMappings.controls
+                    .map((g) => g.getRawValue())
+                    .filter((m) => m.datasetId && m.sourceCol && m.targetCol) as EntityProjection[];
+                if (!extras.length) return { projection: primary };
+                if (extras.some((m) => !m.entityType) || !primary.entityType) {
+                    return { error: 'Every mapping needs an entity type when combining more than one.' };
+                }
+                return { projections: [primary, ...extras] };
+            }
             case 'provenance':
                 if (!f.pipeline) return { error: 'Pick a pipeline.' };
                 return { from: f.pipeline, counts: f.counts };
@@ -450,15 +514,21 @@ export class LinkAnalysisComponent implements OnInit {
                 return this.communities().length ? `${this.communities().length} found` : '';
             case 'pattern':
                 return this.patternMatches().length ? `${this.patternMatches().length} matches` : '';
+            case 'all-paths':
+                return this.allPathsResult().length ? `${this.allPathsResult().length} paths` : '';
+            case 'components':
+                return this.components().length ? `${this.components().length} found` : '';
         }
     }
 
     private resetAnalysis(): void {
         this.emphasis.set(null);
         this.pathResult.set(null);
+        this.allPathsResult.set([]);
         this.explainText.set('');
         this.ranking.set([]);
         this.communities.set([]);
+        this.components.set([]);
         this.patternMatches.set([]);
         this.analysisError.set('');
         this.pathFrom.set('');
@@ -726,6 +796,38 @@ export class LinkAnalysisComponent implements OnInit {
     }
 
     focusCommunity(members: string[]): void {
+        this.emphasis.set({ nodeIds: members, edgeIds: [] });
+    }
+
+    runAllPaths(): void {
+        const g = this.displayed();
+        if (!g || !this.pathFrom() || !this.pathTo()) return;
+        this.analysisError.set('');
+        const paths = allPaths(g, this.pathFrom(), this.pathTo());
+        this.allPathsResult.set(paths);
+        if (!paths.length) {
+            this.emphasis.set(null);
+            this.analysisError.set('No path connects the two nodes.');
+            return;
+        }
+        this.emphasis.set({
+            nodeIds: [...new Set(paths.flatMap((p) => p.nodeIds))],
+            edgeIds: [...new Set(paths.flatMap((p) => p.edgeIds))],
+        });
+    }
+
+    focusAllPath(p: GraphSelection): void {
+        this.emphasis.set({ nodeIds: p.nodeIds, edgeIds: p.edgeIds });
+    }
+
+    runConnectedComponents(): void {
+        const g = this.displayed();
+        if (!g) return;
+        this.analysisError.set('');
+        this.components.set(connectedComponents(g));
+    }
+
+    focusComponent(members: string[]): void {
         this.emphasis.set({ nodeIds: members, edgeIds: [] });
     }
 

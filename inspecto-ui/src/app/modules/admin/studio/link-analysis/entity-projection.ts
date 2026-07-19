@@ -22,6 +22,34 @@ import { SAMPLE_SOURCES } from 'app/modules/admin/studio/datasets/dataset-source
 export const PROJECTION_NODE_CAP = 500;
 
 /**
+ * The Entity node id for a projected value. Type-scoped (`entity:<entityType>:<value>`) when a
+ * multi-mapping merge supplies an `entityType`, so a `person` "Bob" stays distinct from an `account`
+ * "Bob" (Phase C). Unscoped `entity:<value>` (unchanged since 2026-07-08) otherwise — the single-mapping
+ * path never sets `entityType`, so its ids and every existing saved view/export stay byte-identical.
+ */
+function entityId(entityType: string | undefined, value: string): string {
+    return entityType ? `entity:${entityType}:${value}` : `entity:${value}`;
+}
+
+/**
+ * Merge several {@link ProjectedGraph}s (one per {@link EntityProjection} mapping) into one graph:
+ * nodes dedup by id (first mapping wins the node's display data), edges concatenate as-is (their ids
+ * already carry source/target/kind/attrs, so a genuine duplicate collapses naturally). `truncated` is
+ * true if any input mapping truncated.
+ */
+export function mergeProjectedGraphs(graphs: ProjectedGraph[]): ProjectedGraph {
+    const nodes = new Map<string, G6Node>();
+    const edges = new Map<string, G6Edge>();
+    let truncated = false;
+    for (const g of graphs) {
+        for (const n of g.nodes) if (!nodes.has(n.id)) nodes.set(n.id, n);
+        for (const e of g.edges) if (!edges.has(e.id)) edges.set(e.id, e);
+        truncated = truncated || g.truncated;
+    }
+    return { nodes: [...nodes.values()], edges: [...edges.values()], truncated };
+}
+
+/**
  * Investigation pivot (ui-design-review R8): when a projection column is named for an operational
  * object — `caseId`/`incidentId`/`objectId` (case-insensitive) — the entities it produces ARE record
  * references, so their nodes carry an `objectRef` and the detail dialog offers "Open record".
@@ -54,11 +82,11 @@ export function projectEntities(rows: Record<string, unknown>[], p: EntityProjec
     if (rows.length && !(p.targetCol in rows[0])) return { error: `Column '${p.targetCol}' is not in the dataset.` };
 
     const nodes = new Map<string, G6Node>();
-    const edges = new Map<string, G6Edge & { data: { kind: string; count: number } }>();
+    const edges = new Map<string, G6Edge & { data: { kind: string; count: number; attrs?: Record<string, string | null> } }>();
     let truncated = false;
 
     const ensure = (value: string, column: string): string | null => {
-        const id = `entity:${value}`;
+        const id = entityId(p.entityType, value);
         if (!nodes.has(id)) {
             if (nodes.size >= PROJECTION_NODE_CAP) {
                 truncated = true;
@@ -77,13 +105,18 @@ export function projectEntities(rows: Record<string, unknown>[], p: EntityProjec
         const tid = ensure(t, p.targetCol);
         if (!sid || !tid) continue;
         const kind = p.linkKindCol ? String(row[p.linkKindCol] ?? 'link') : 'link';
-        const key = `${sid}->${tid}:${kind}`;
+        const attrs = p.attrCols?.length
+            ? Object.fromEntries(p.attrCols.map((c) => [c, row[c] == null ? null : String(row[c])]))
+            : undefined;
+        // attrs join the fold key — differing values split a folded pair into separate edges,
+        // mirroring the backend's GROUP BY semantics (docs/BACKLOG.md INV-1).
+        const key = `${sid}->${tid}:${kind}${attrs ? ':' + JSON.stringify(attrs) : ''}`;
         const existing = edges.get(key);
         if (existing) {
             existing.data.count++;
             existing.data.kind = `${kind} · ${existing.data.count}`;
         } else {
-            edges.set(key, { id: key, source: sid, target: tid, data: { kind, count: 1 } });
+            edges.set(key, { id: key, source: sid, target: tid, data: { kind, count: 1, attrs } });
         }
     }
     return { nodes: [...nodes.values()], edges: [...edges.values()], truncated };
@@ -100,7 +133,7 @@ export function projectTriples(triples: ProjectionTriple[], serverTruncated: boo
     let truncated = serverTruncated;
 
     const ensure = (value: string, column?: string): string | null => {
-        const id = `entity:${value}`;
+        const id = entityId(p?.entityType, value);
         if (!nodes.has(id)) {
             if (nodes.size >= PROJECTION_NODE_CAP) {
                 truncated = true;
@@ -120,10 +153,10 @@ export function projectTriples(triples: ProjectionTriple[], serverTruncated: boo
         if (!sid || !tid) continue;
         const kind = t.kind ?? 'link';
         edges.push({
-            id: `${sid}->${tid}:${kind}`,
+            id: `${sid}->${tid}:${kind}${t.attrs ? ':' + JSON.stringify(t.attrs) : ''}`,
             source: sid,
             target: tid,
-            data: { kind: t.count > 1 ? `${kind} · ${t.count}` : kind },
+            data: { kind: t.count > 1 ? `${kind} · ${t.count}` : kind, attrs: t.attrs },
         });
     }
     return { nodes: [...nodes.values()], edges, truncated };
@@ -149,8 +182,17 @@ export class EntityProjectionGraphSource implements GraphSource {
     ) {}
 
     async query(q: GraphSourceQuery): Promise<ProjectedGraph> {
-        const p = q.projection;
-        if (!p?.datasetId) throw new Error('The entity-projection source needs a Dataset mapping.');
+        if (q.projections?.length) {
+            const graphs = await Promise.all(q.projections.map((p) => this.queryOne(p)));
+            return mergeProjectedGraphs(graphs);
+        }
+        if (!q.projection) throw new Error('The entity-projection source needs a Dataset mapping.');
+        return this.queryOne(q.projection);
+    }
+
+    /** One mapping's projection: backend-first, falling back to the client sample fold on failure. */
+    private async queryOne(p: EntityProjection): Promise<ProjectedGraph> {
+        if (!p.datasetId) throw new Error('The entity-projection source needs a Dataset mapping.');
         if (!p.sourceCol || !p.targetCol) throw new Error('The mapping needs a source and a target column.');
         try {
             const res = await firstValueFrom(this.inv.project({
@@ -158,6 +200,7 @@ export class EntityProjectionGraphSource implements GraphSource {
                 sourceCol: p.sourceCol,
                 targetCol: p.targetCol,
                 linkKindCol: p.linkKindCol || undefined,
+                attrCols: p.attrCols?.length ? p.attrCols : undefined,
             }));
             return projectTriples(res.rows, res.truncated, p);
         } catch {
