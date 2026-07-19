@@ -17,12 +17,12 @@ Prove the built artifact actually serves, not just that tests pass.
    is missing/stale (delegate to the `verify-runner` agent if a full build is needed).
 2. **Launch** (auth-free core — no token):
    ```powershell
-   java --enable-native-access=ALL-UNNAMED -cp inspecto\target\file-processor-*.jar `
-        com.gamma.control.ControlApi inspecto\config
+   java --enable-native-access=ALL-UNNAMED -Dspaces.root=spaces -cp inspecto\target\file-processor-*.jar `
+        com.gamma.control.ControlApi
    ```
    Run in the background; default port :8080.
 3. **Probe** — `GET /health` must be 200, then the focus endpoints for this smoke
-   (e.g. `/spaces`, `/flows/node-types`, `/views`). Use `curl -s` and capture status + body.
+   (e.g. `/spaces`, `/spaces/demo/jobs`, `/spaces/demo/views`). Use `curl -s` and capture status + body.
 4. **Optional e2e** — `E2E_BASE_URL=http://localhost:8080 npm run test:ci -- --include src/e2e/**`
    in `inspecto-ui/` when the focus is UI-visible.
 5. **Always stop the server** — even on failure.
