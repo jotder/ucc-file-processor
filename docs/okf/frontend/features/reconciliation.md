@@ -29,9 +29,12 @@ with per-column tolerances; a **Break** is `missing_left | missing_right | value
 * Runs are manual from the Board (no auto-refresh), **or scheduled**: the `recon.run` built-in Job Type
   (`ReconRunJob`, 2026-07-18) runs a saved `reconciliation` on a `cron:` and emits a `recon.run.completed`
   Signal carrying the Break counts (`WARNING` when any break exists) — it builds the identical
-  `ReconService.Spec` the interactive route does, via the shared `ReconConfigLoader`. Alert Rule → Incident
-  promotion on a breach is still a designed-for follow-up (it rides the event/signal consequence path, not
-  this Job). Break-level assignment stays with Cases.
+  `ReconService.Spec` the interactive route does, via the shared `ReconConfigLoader`. **A breach
+  (`breaks > 0`) also opens a managed `ObjectType.INCIDENT`** (2026-07-19), deduped to one open Incident
+  per reconciliation (correlationId = the reconciliation id), reusing the `ExpectationRoutes`
+  dedup+open pattern; `ObjectService` reaches `ReconRunJob` via a `Supplier` `JobService` wires
+  post-construction (`JobService.objects(...)`, resolved lazily since the built-in is constructed
+  before the Object Engine exists). Break-level assignment stays with Cases.
 
 As-built design (archived):
 [`reconciliation-board-design.md`](../../../archived-documents/plans-archive/reconciliation-board-design.md) ·

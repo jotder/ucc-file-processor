@@ -51,6 +51,11 @@ WSO2-style gateway + external IAM can front it later without reshaping routes. D
   over the DuckDB run projection (`DbJobRunStore.recentRuns(limit, job, afterStartTime, afterRunId)` +
   `countRuns`, `ORDER BY start_time DESC, run_id DESC`, keyset SQL dialect-neutral for DuckDB + Postgres).
   Legacy/unversioned callers get the same bare list as before. Other list families adopt the same seam
-  on demand.
+  on demand. **Second adopter (2026-07-19): `GET /objects`** — with a twist: unlike `/jobs/runs`, this
+  route has a SEC-7d visibility post-filter (`ObjectRoutes.visibleOnly`), so an SQL-side keyset would
+  make `total`/page sizing wrong or leaky under that filter. The keyset (`createdAt DESC, id DESC`)
+  instead runs **in-route over the already-visibility-filtered set** — acceptable because operational
+  objects are explicitly low-volume by design (`ObjectQuery.unbounded()` widens the query, the route
+  slices/encodes the cursor itself). Legacy offset view unchanged.
 * **Multi-space** — the space segment sits **after** the version: `/api/v1/spaces/{id}/…`
   (see [multi-space](multi-space.md)).

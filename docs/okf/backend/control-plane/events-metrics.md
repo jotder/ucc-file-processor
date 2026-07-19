@@ -41,9 +41,17 @@ timestamp: 2026-07-16T00:00:00Z
 * **Channel destinations admin CRUD** (2026-07-18) — `GET/POST /notifications/channels` +
   `PUT/DELETE /notifications/channels/{id}` manage persisted `ChannelConfig` records
   (`{id, kind, target, description?, enabled, createdAt}`) as a `channel` `ComponentStore` kind, per
-  space (write-root 503 → 422 missing fields → 409 dup / 404 unknown; `canAuthorWorkbench`). This is
-  **authored config only** — the live delivery path still resolves channels from the `notify.*` JVM
-  flags via the SPI above; wiring persisted destinations into dispatch is the open follow-up.
+  space (write-root 503 → 422 missing fields → 409 dup / 404 unknown; `canAuthorWorkbench`).
+* **Persisted channels are wired into dispatch** (2026-07-19) — `NotificationService.dispatch` reads a
+  live `Supplier<List<ChannelConfig>>` (backed by `<write-root>/registry`, resolved per space, no
+  restart needed on edits) alongside the SPI-discovered channels above. For each enabled `ChannelConfig`
+  whose `kind` matches a discovered `NotificationChannel.id()` (case-insensitive), it delivers through
+  that transport via a new `default void deliver(Notification n, String target)` (delegates to
+  `deliver(n)` for impls that resolve their destination from `notify.*` flags instead). A `kind` with no
+  matching transport, or a disabled destination, delivers nothing. **Still open**: `ChannelConfig` has
+  no `template` field, so a persisted channel can't override the rule-level `NotificationTemplate` — that
+  rides the notification-templating slice of the in-flight Signal Backbone plan
+  (`docs/superpower/event-signal-backbone-plan.md` S2), not this seam.
 * **`AuditTrail`** — a central interceptor in `ControlApi.dispatch` records every successful
   state-changing request plus non-GET forbidden-route attempts (actor/action/target, secret
   scrubbing, immutable store). One seam covers all routes; 405 immutability is inherent to dispatch.
@@ -58,6 +66,12 @@ timestamp: 2026-07-16T00:00:00Z
   `*_alert.toon`: the write routes arm rules in the running `AlertService` **in-process** (always
   present, empty until armed); a restart re-arms from the persisted files.
   Gate coverage: `ControlApiAlertRuleWriteTest`.
+* **Alert → Incident promotion** (2026-07-19) — `AlertService.persistAlertObject` still always opens an
+  `ObjectType.ALERT`; a **critical or error** severity rule additionally opens a deduped
+  `ObjectType.INCIDENT` (one open Incident per rule+pipeline, same guard as the ALERT dedup), so a
+  high-severity breach enters the triage workflow, not only the alert feed. Lower severities stay
+  alerts. Reuses the `ExpectationRoutes` signal→Incident dedup+open pattern (`active(INCIDENT, corr)`
+  then `open(INCIDENT, …)`) — see also `jobs.md` (recon breaches) and `decision-rules.md` (`create-alert`).
 
 The matching UI surfaces are the [events](../../frontend/features/events.md) and
 [dashboard](../../frontend/features/dashboard.md) screens in the frontend bundle.

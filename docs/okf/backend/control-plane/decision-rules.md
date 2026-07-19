@@ -54,7 +54,11 @@ identically to what the UI authors and `ConditionTree` evaluates.
 ## Record-routing consequences run during live pipeline execution
 
 `apply` executes real platform consequences on demand (`emit-signal`, `start-job`,
-`trigger-pipeline`; stub signals for `create-alert`/`render-widget`/`generate-report`/`invoke-api`).
+`trigger-pipeline`; stub signals for `render-widget`/`generate-report`/`invoke-api`). **`create-alert`**
+(2026-07-19) always records a `decision-rule.create-alert` ledger signal, and additionally opens a
+deduped `ObjectType.INCIDENT` (one per rule) when its `params.severity` is `critical`/`error` — a lower
+severity stays signal-only. Reuses the same `ExpectationRoutes`-style dedup+open pattern as the
+Alert/Recon promotions (`events-metrics.md`, `reconciliation.md`).
 The **record-routing** consequences (`route`/`tag`/`quarantine`/`drop`) are applied by the engine
 itself, per batch, via `com.gamma.etl.DecisionRuleApplier` — invoked from
 `BatchIngestStrategy.writeAndTrace`, the shared tail of every ingest path (Java parse engine +

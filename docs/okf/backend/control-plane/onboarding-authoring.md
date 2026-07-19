@@ -29,7 +29,11 @@ indexed, catalog-visible, never executed; D3 of the design). Shipped P0–P3, 20
 
 - `POST /config/preview/parsing {config, sample_text}` → `ComponentPreview.parsing` — the draft is
   interpreted by the real config parser, read with the engine's own DuckDB idioms per frontend;
-  `all_varchar=true` (raw ingest is 100% VARCHAR; also keeps `java.time` out of the JSON).
+  `all_varchar=true` for delimited/NDJSON (raw ingest is 100% VARCHAR; also keeps `java.time` out of
+  the JSON). **`format: array|auto` (2026-07-19 fix)**: `read_json` has no `all_varchar` option, so
+  `jsonSelect` instead casts every column with `SELECT COLUMNS(*)::VARCHAR FROM read_json(...)` —
+  before this fix, an auto-detected timestamp came back as a DuckDB `TIMESTAMP` (a non-serializable
+  `java.time` value), inconsistent with every other format's raw-string preview.
 - `POST /config/preview/schema {config:{raw:{fields}}, sampleRows}` → `ComponentPreview.schema`
   TRY_CAST split → `{columns, okCount, rejectedCount, rejectedRows}`.
 - `POST /enrichment/preview {config:{…enrichment draft…}, sampleRows}` → `EnrichmentEngine.preview` — seeds

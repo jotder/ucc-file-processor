@@ -107,7 +107,7 @@ shape above means it drops in without UI changes when picked up.
 | **M2** | Nav mock API merges the Menu tree; sidebar shows custom groups; `refresh()` updates live | Seed a tree → groups appear in sidebar; edit → refresh reflects |
 | **M3** | `w/:nodeId` route + `MenuItemHostComponent` renders bound dashboard/widget/view | Click a leaf → the artifact renders; broken binding → empty state |
 | **M4** | Builder pane (tree editor + component picker + search/sort) under Settings | Build `Revenue › TopX › top usages` end-to-end in preview |
-| **M5** _(BACKLOG)_ | Favorites + look-and-feel polish + a11y + `/design` note + seeded example (Revenue/FMS) | deferred |
+| **M5** _(BACKLOG)_ | Favorites + look-and-feel polish + a11y + `/design` note + seeded example (Revenue/FMS) | **a11y (ARIA tree roles: `role=tree/treeitem/group`, `aria-selected`/`aria-expanded`) + a generic opt-in seed example SHIPPED 2026-07-19** (git `ffdaa59`, no OKF concept exists for menu-builder — this row is the record); favorites + `/design` gallery entry + a themed Telecom-specific seed still open |
 
 Ship UI-only → **master-only** (per release-workflow; inspecto-ui is a master-line feature —
 `4.x` has no inspecto-ui). Commit per slice; push only on explicit ask.
