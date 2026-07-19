@@ -150,7 +150,7 @@
                 [exportable]="false"
                 [pageSize]="50"
                 [serverPage]="true"
-                [hasMore]="events.length >= fLimit"
+                [hasMore]="hasMore"
                 (loadMore)="loadMore()"
             />
         }

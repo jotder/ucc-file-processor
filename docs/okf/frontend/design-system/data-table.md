@@ -44,9 +44,12 @@ seed), and per-capability overrides `searchable`/`exportable`/`queryable`/`savab
 * **`stateKey`** (also on [tree-table](tree-table.md)) opts a host into grid-state persistence — column
   order/width/visibility + sort survive reloads per key (~8 hosts opted in).
 * **Honest high-volume loading**: opt-in `[serverPage]` + `[hasMore]` + `(loadMore)` renders a
-  "showing N — Load more" strip (mirrors `[serverRun]`); the backing fetch widens `?limit=` and
-  refetches. Adopted by object-mail, audit-logs, events — never silently cap a list. (True offset
-  paging per pane is deliberately deferred until a pane outgrows widen-and-refetch.)
+  "showing N — Load more" strip (mirrors `[serverRun]`); the host fetches the NEXT page
+  (`?limit=<pageSize>&offset=<rows loaded>`) and appends it — true offset paging (R6, 2026-07-19; no
+  refetch from 0). Adopted by object-mail, audit-logs, events — never silently cap a list. Full
+  refetches (filter change, refresh, live-tail tick) reset to page 0; `hasMore` re-derives from
+  `page.length >= pageSize`. The mock handlers (`ops.handler.ts` `pageSlice`) mirror the backend's
+  `offset` semantics so offline paging behaves identically.
 * **Keyboard layer** (document-level, review R3): **`/`** opens + focuses the first visible searchable
   table's quick filter; opt-in **`[keyNav]`** gives **j/k** row focus, **Enter** = `(rowClick)` (opens
   the host's detail), **x** = toggle selection — piloted on the incidents/cases mail list. Typed input

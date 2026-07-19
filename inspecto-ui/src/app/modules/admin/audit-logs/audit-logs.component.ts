@@ -72,9 +72,11 @@ export class AuditLogsComponent implements OnInit {
     /** True once either audit type's fetch returned a full page — there may be more (R6a). */
     readonly hasMore = signal(false);
 
-    /** Newest N events per audit type (widened by Load more); the pro table pages/filters client-side. */
+    /** Page size per audit type — Load more appends the next offset page (R6 true offset paging). */
     private static readonly LIMIT = 1000;
-    readonly limit = signal(AuditLogsComponent.LIMIT);
+    /** Rows fetched so far per type — the next page's offset. A full reload resets both. */
+    private auditCount = 0;
+    private deniedCount = 0;
 
     readonly columnDefs: ColDef<AuditRow>[] = [
         { headerName: 'Time', width: 180, valueGetter: (p) => p.data?.ts, valueFormatter: (p) => fmtDateTime(p.value) },
@@ -93,12 +95,14 @@ export class AuditLogsComponent implements OnInit {
 
     load(): void {
         this.loading.set(true);
-        const lim = this.limit();
+        const lim = AuditLogsComponent.LIMIT;
         forkJoin([
             this.api.search({ type: 'AUDIT', limit: lim }),
             this.api.search({ type: 'ACCESS_DENIED', limit: lim }),
         ]).subscribe({
             next: ([audit, denied]) => {
+                this.auditCount = audit.length;
+                this.deniedCount = denied.length;
                 this.hasMore.set(audit.length >= lim || denied.length >= lim);
                 this.rows.set(
                     [...audit, ...denied]
@@ -109,15 +113,32 @@ export class AuditLogsComponent implements OnInit {
             },
             error: () => {
                 this.rows.set([]);
+                this.hasMore.set(false);
                 this.loading.set(false);
             },
         });
     }
 
-    /** Widen the per-type page and refetch — the honest alternative to silently capping (R6a). */
+    /** Fetch the NEXT offset page per type and append — true offset paging (R6; no refetch from 0). */
     loadMore(): void {
-        this.limit.update((n) => n + AuditLogsComponent.LIMIT);
-        this.load();
+        this.loading.set(true);
+        const lim = AuditLogsComponent.LIMIT;
+        forkJoin([
+            this.api.search({ type: 'AUDIT', limit: lim, offset: this.auditCount }),
+            this.api.search({ type: 'ACCESS_DENIED', limit: lim, offset: this.deniedCount }),
+        ]).subscribe({
+            next: ([audit, denied]) => {
+                this.auditCount += audit.length;
+                this.deniedCount += denied.length;
+                this.hasMore.set(audit.length >= lim || denied.length >= lim);
+                const page = [...audit, ...denied]
+                    .sort((a, b) => b.ts - a.ts)
+                    .map((e) => AuditLogsComponent.toRow(e));
+                this.rows.update((r) => [...r, ...page]);
+                this.loading.set(false);
+            },
+            error: () => this.loading.set(false),
+        });
     }
 
     private static toRow(e: EventRow): AuditRow {

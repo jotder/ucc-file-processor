@@ -296,16 +296,16 @@ export class ObjectMailComponent implements OnInit {
 
     /** Page size (ui-design-review R6a — the previous hardcoded `limit: 500` truncated silently). */
     private static readonly PAGE = 500;
-    readonly limit = signal(ObjectMailComponent.PAGE);
-    /** True once a load returned a full page — there may be more the operator hasn't seen. */
-    readonly hasMore = computed(() => this.objects().length >= this.limit());
+    /** True once the last fetched page came back full — there may be more the operator hasn't seen (R6). */
+    readonly hasMore = signal(false);
 
     reload(): void {
         this.loadTags();
         this.loading.set(true);
-        this.api.list({ type: this.type, limit: this.limit() }).subscribe({
+        this.api.list({ type: this.type, limit: ObjectMailComponent.PAGE }).subscribe({
             next: (o) => {
                 this.objects.set(o);
+                this.hasMore.set(o.length >= ObjectMailComponent.PAGE);
                 this.loading.set(false);
                 this.selected.set([]);
                 const open = this.detail();
@@ -313,15 +313,26 @@ export class ObjectMailComponent implements OnInit {
             },
             error: () => {
                 this.objects.set([]);
+                this.hasMore.set(false);
                 this.loading.set(false);
             },
         });
     }
 
-    /** Widen the page and refetch — the honest alternative to silently capping at PAGE (R6a). */
+    /** Fetch the NEXT offset page and append — true offset paging (R6; no refetch from 0).
+     *  Selection and the open detail are untouched; a full reload resets back to page 0. */
     loadMore(): void {
-        this.limit.update((n) => n + ObjectMailComponent.PAGE);
-        this.reload();
+        this.loading.set(true);
+        this.api
+            .list({ type: this.type, limit: ObjectMailComponent.PAGE, offset: this.objects().length })
+            .subscribe({
+                next: (page) => {
+                    this.objects.update((o) => [...o, ...page]);
+                    this.hasMore.set(page.length >= ObjectMailComponent.PAGE);
+                    this.loading.set(false);
+                },
+                error: () => this.loading.set(false),
+            });
     }
 
     // ── nav interactions ──────────────────────────────────────────────────────────

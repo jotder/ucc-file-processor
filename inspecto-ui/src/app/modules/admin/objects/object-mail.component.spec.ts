@@ -172,7 +172,7 @@ describe('ObjectMailComponent', () => {
         await expectNoA11yViolations(fixture.nativeElement);
     });
 
-    it('offers Load more once a fetch returns a full page, and widens the limit on click (R6a)', async () => {
+    it('offers Load more once a fetch returns a full page, and appends the next offset page on click (R6)', async () => {
         const fullPage = Array.from({ length: 500 }, (_, i) => incident(`p${i}`, 'IDENTIFIED'));
         const api = {
             list: vi.fn(() => of(fullPage)),
@@ -205,6 +205,8 @@ describe('ObjectMailComponent', () => {
         const c = fixture.componentInstance;
         expect(c.hasMore()).toBe(true);
         c.loadMore();
-        expect((api.list as unknown as Mock).mock.calls[1][0]).toMatchObject({ limit: 1000 });
+        // The next page is fetched at offset = rows already loaded and APPENDED — no refetch from 0.
+        expect((api.list as unknown as Mock).mock.calls[1][0]).toMatchObject({ limit: 500, offset: 500 });
+        expect(c.objects().length).toBe(1000);
     });
 });

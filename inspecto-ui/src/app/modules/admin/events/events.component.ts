@@ -70,6 +70,8 @@ export class EventsComponent implements OnInit, OnDestroy {
 
     events: EventRow[] = [];
     loading = false;
+    /** True when the last fetched page came back full — there may be more (R6). */
+    hasMore = false;
     live = false;
     /** Live-tail cadence in seconds (operator-selectable); the toggle uses whatever is chosen here. */
     readonly liveSecondsOptions = LIVE_TAIL_SECONDS;
@@ -136,12 +138,21 @@ export class EventsComponent implements OnInit, OnDestroy {
         };
     }
 
-    /** Widen the fetch limit and refetch — the honest alternative to silently capping (R6a/R6b).
-     *  The widened value joins the limit dropdown so the select stays truthful. */
+    /** Fetch the NEXT offset page and append — true offset paging (R6; no refetch from 0).
+     *  Any full refetch (filter change, refresh, live-tail tick) resets back to page 0. */
     loadMore(): void {
-        this.fLimit += 1000;
-        if (!this.limitOptions.includes(this.fLimit)) this.limitOptions.push(this.fLimit);
-        this.load();
+        this.loading = true;
+        this.api.search({ ...this.buildFilter(), offset: this.events.length }).subscribe({
+            next: (rows) => {
+                this.events = [...this.events, ...rows];
+                this.hasMore = rows.length >= this.fLimit;
+                this.loading = false;
+            },
+            error: () => {
+                this.loading = false;
+                this.toastr.error('Failed to load more events');
+            },
+        });
     }
 
     /** Run the current query. `silent` (live-tail tick) keeps the grid visible instead of flashing the loader. */
@@ -150,12 +161,14 @@ export class EventsComponent implements OnInit, OnDestroy {
         this.api.search(this.buildFilter()).subscribe({
             next: (rows) => {
                 this.events = rows;
+                this.hasMore = rows.length >= this.fLimit;
                 this.loading = false;
             },
             error: () => {
                 this.loading = false;
                 if (!silent) {
                     this.events = [];
+                    this.hasMore = false;
                     this.toastr.error('Failed to load events');
                 }
             },

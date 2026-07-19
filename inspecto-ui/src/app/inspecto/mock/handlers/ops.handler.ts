@@ -760,10 +760,10 @@ function autoApplyTagRules(store: MockStore, space: string, obj: OperationalObje
     if (tags.size && obj.attributes) obj.attributes['tags'] = [...tags].join(',');
 }
 
-/** Apply the GET /objects query semantics: type/status/severity/assignee/correlationId exact, `q` substring, `limit`. */
+/** Apply the GET /objects query semantics: type/status/severity/assignee/correlationId exact, `q` substring, `offset`+`limit` (offset paging, R6 — mirrors the real ObjectQuery). */
 export function filterObjects(rows: OperationalObject[], params: Record<string, string>): OperationalObject[] {
     const q = params['q']?.toLowerCase();
-    let out = rows
+    const out = rows
         .filter((o) => !params['type'] || o.objectType === params['type'].toUpperCase())
         .filter((o) => !params['status'] || o.status === params['status'].toUpperCase())
         .filter((o) => !params['severity'] || o.severity === params['severity'].toUpperCase())
@@ -771,9 +771,15 @@ export function filterObjects(rows: OperationalObject[], params: Record<string, 
         .filter((o) => !params['correlationId'] || o.correlationId === params['correlationId'])
         .filter((o) => !q || (o.title + ' ' + o.description).toLowerCase().includes(q))
         .sort((a, b) => b.updatedAt - a.updatedAt);
+    return pageSlice(out, params);
+}
+
+/** Apply `?offset=&limit=` over filtered rows — the mock mirror of the backend's offset paging (R6). */
+function pageSlice<T>(rows: T[], params: Record<string, string>): T[] {
+    const offset = Number(params['offset']);
+    const from = Number.isFinite(offset) && offset > 0 ? offset : 0;
     const limit = Number(params['limit']);
-    if (Number.isFinite(limit) && limit > 0) out = out.slice(0, limit);
-    return out;
+    return Number.isFinite(limit) && limit > 0 ? rows.slice(from, from + limit) : rows.slice(from);
 }
 
 /** Correlation subgraph via undirected BFS from `root` up to `depth` hops; edges among included nodes only. */
@@ -838,21 +844,19 @@ export function projectAlerts(store: MockStore, space: string): FiredAlert[] {
 /**
  * Apply the GET /events/search query semantics over stored rows: newest-first; `level` is a MINIMUM on
  * the {@link EVENT_LEVELS} ladder; `type`/`pipeline`/`correlationId` exact; `q` case-insensitive
- * substring on message|source; `limit` caps the page.
+ * substring on message|source; `offset`+`limit` select the page (offset paging, R6 — mirrors the real EventQuery).
  */
 export function filterEvents(rows: EventRow[], params: Record<string, string>): EventRow[] {
     const minLevel = params['level'] ? EVENT_LEVELS.indexOf(params['level'] as (typeof EVENT_LEVELS)[number]) : -1;
     const q = params['q']?.toLowerCase();
-    let out = rows
+    const out = rows
         .filter((e) => minLevel < 0 || EVENT_LEVELS.indexOf(e.level as (typeof EVENT_LEVELS)[number]) >= minLevel)
         .filter((e) => !params['type'] || e.type === params['type'])
         .filter((e) => !params['pipeline'] || e.pipeline === params['pipeline'])
         .filter((e) => !params['correlationId'] || e.correlationId === params['correlationId'])
         .filter((e) => !q || e.message.toLowerCase().includes(q) || e.source.toLowerCase().includes(q))
         .sort((a, b) => b.ts - a.ts);
-    const limit = Number(params['limit']);
-    if (Number.isFinite(limit) && limit > 0) out = out.slice(0, limit);
-    return out;
+    return pageSlice(out, params);
 }
 
 /** Matching events as CSV text (GET /events/export) — same column order as the real exporter. */

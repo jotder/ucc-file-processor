@@ -155,7 +155,8 @@ export class DataTableComponent {
     readonly serverRun = input(false);
     /** Opt-in server paging (ui-design-review R6b, mirrors the {@link serverRun} seam): when true and
      *  the host reports {@link hasMore}, an honest "Showing N — Load more" strip renders above the grid;
-     *  the click emits {@link loadMore} and the host refetches at a wider limit, feeding `rows` back. */
+     *  the click emits {@link loadMore} and the host fetches the NEXT offset page (`offset = rows.length`)
+     *  and appends it to `rows` (true offset paging, R6 — no refetch from 0). */
     readonly serverPage = input(false);
     /** Server paging: the host's "a full page came back — there may be more" flag. */
     readonly hasMore = input(false);
@@ -176,7 +177,7 @@ export class DataTableComponent {
     readonly ruleSaved = output<RuleTemplate>();
     /** Emitted when "Run on server" is pressed — the SQL to execute against the host's backend. */
     readonly runOnServer = output<string>();
-    /** Server paging: emitted when "Load more" is pressed — the host refetches at a wider limit. */
+    /** Server paging: emitted when "Load more" is pressed — the host fetches the next offset page and appends. */
     readonly loadMore = output<void>();
 
     /** ag-Grid selection config: checkbox multi-row wins over legacy single-select. */

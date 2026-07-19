@@ -112,10 +112,12 @@ src/app/
   its own backend and feeds results back via `[rows]` (the data-table clears its client-run overlay first).
   Default off, so the ~4 client-side-only hosts (alerts/events/audit-logs/enrichment) are unaffected; the
   Data Browser wires it to `POST /db/query`. **Honest paging is opt-in via `[serverPage]="true"
-  [hasMore]="…" (loadMore)="…"` (ui-design-review R6b)**: when the host's fetch came back a full page,
+  [hasMore]="…" (loadMore)="…"` (ui-design-review R6)**: when the host's fetch came back a full page,
   the table renders a "Showing N — there may be more" strip whose Load more emits `(loadMore)`; the host
-  widens its `limit` and refetches (never silently cap a list — adopters: object-mail, audit-logs, events;
-  data-browser uses its stats line + the same widen-and-refetch idiom). **Layout persistence is opt-in via `[stateKey]="'<pane>'"`**
+  fetches the NEXT page (`offset = rows already loaded`, page-size `limit`) and APPENDS it — true offset
+  paging, no refetch from 0 (never silently cap a list — adopters: object-mail, audit-logs, events; any
+  full refetch — filter change, refresh, live-tail tick — resets to page 0 and re-derives `hasMore` from
+  `page.length >= pageSize`; data-browser still uses its stats line + the older widen-and-refetch idiom). **Layout persistence is opt-in via `[stateKey]="'<pane>'"`**
   (data-table AND tree-table): column widths/order/visibility/sort, quick search, chooser selection (and
   the tree-table's expanded set) survive navigation/reload per space (`GridStateService`,
   `inspecto.grid.<space>.<key>` in localStorage; "Reset layout" lives in the column chooser). Give every
