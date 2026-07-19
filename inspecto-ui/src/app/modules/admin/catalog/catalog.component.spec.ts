@@ -3,7 +3,7 @@ import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import { MatDialog } from '@angular/material/dialog';
 import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
 import { of, throwError } from 'rxjs';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { GammaConfigService } from '@gamma/services/config';
 import { CatalogService, ExchangeService, MetadataGraph, MetadataNode, PipelinesService, SessionService, SpacesService } from 'app/inspecto/api';
 import { ToastrService } from 'ngx-toastr';
@@ -91,10 +91,14 @@ describe('CatalogComponent', () => {
     });
 
     it('deep-links to the Lineage tab and runs the traversal from ?tab=graph&from=', () => {
-        const c = create({}, { tab: 'graph', from: 'stream:orders' }).componentInstance;
+        // EMPTY_GRAPH so the G6 canvas is NOT mounted in jsdom: GraphViewComponent.rebuild()
+        // short-circuits on data.nodes.length===0; a non-empty graph would `new Graph().render()`,
+        // which throws an unhandled clearRect error under jsdom and fails the vitest run (non-zero exit).
+        const graph = vi.fn(() => of(EMPTY_GRAPH));
+        const c = create({ graph }, { tab: 'graph', from: 'stream:orders' }).componentInstance;
         expect(c.activeTab).toBe('graph');
         expect(c.graphFrom).toBe('stream:orders');
-        expect(c.graph?.nodes).toEqual([TABLE]); // runGraph ran on init from the deep-link
+        expect(graph).toHaveBeenCalledWith(expect.objectContaining({ from: 'stream:orders' })); // traversal ran with the deep-link root
     });
 
     it('opens the requested tab without a from and does not traverse', () => {
