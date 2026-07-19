@@ -231,6 +231,64 @@ public final class ParquetEventStore implements EventStore {
         return out;
     }
 
+    @Override
+    public synchronized List<Event> page(int limit, Long afterTs, String afterId) {
+        int n = Math.max(0, limit);
+        List<Event> merged = new ArrayList<>();
+        // 1) unflushed buffer (newest facts) — keyset-filter in memory
+        for (Event e : buffer) if (EventStore.afterKey(e, afterTs, afterId)) merged.add(e);
+        // 2) on-disk Parquet — keyset predicate + order in SQL (skip when nothing has been flushed yet)
+        if (hasParquet()) merged.addAll(pageParquet(n, afterTs, afterId));
+        merged.sort(KEYSET_ORDER);
+        return new ArrayList<>(merged.subList(0, Math.min(n, merged.size())));
+    }
+
+    /** One SQL keyset page over the Parquet files: strictly older than {@code (afterTs, afterId)}, newest-first. */
+    private List<Event> pageParquet(int limit, Long afterTs, String afterId) {
+        String reader = SqlViews.reader("PARQUET", root + "/**/*.parquet", true);
+        String where = afterTs == null ? ""
+                : " WHERE (ts_ms < ? OR (ts_ms = ? AND event_id < ?))";
+        String sql = "SELECT event_id, ts_ms, level, type, source, pipeline, correlation_id, message, attributes, payload"
+                + " FROM " + reader + where + " ORDER BY ts_ms DESC, event_id DESC LIMIT ?";
+        List<Event> out = new ArrayList<>();
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            int i = 1;
+            if (afterTs != null) {
+                ps.setLong(i++, afterTs);
+                ps.setLong(i++, afterTs);
+                ps.setString(i++, afterId == null ? "" : afterId);
+            }
+            ps.setInt(i, limit);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    out.add(new Event(rs.getString("event_id"), rs.getLong("ts_ms"),
+                            EventLevel.parse(rs.getString("level")), rs.getString("type"),
+                            rs.getString("source"), rs.getString("pipeline"),
+                            rs.getString("correlation_id"), rs.getString("message"),
+                            JsonAttributes.fromJson(rs.getString("attributes")),
+                            JsonAttributes.fromPayloadJson(rs.getString("payload"))));
+                }
+            }
+        } catch (SQLException e) {
+            log.warn("Event Parquet page failed: {}", e.getMessage());
+        }
+        return out;
+    }
+
+    @Override
+    public synchronized long count() {
+        long total = buffer.size();
+        if (!hasParquet()) return total;
+        String reader = SqlViews.reader("PARQUET", root + "/**/*.parquet", true);
+        try (PreparedStatement ps = conn.prepareStatement("SELECT COUNT(*) FROM " + reader);
+             ResultSet rs = ps.executeQuery()) {
+            if (rs.next()) total += rs.getLong(1);
+        } catch (SQLException e) {
+            log.warn("Event Parquet count failed: {}", e.getMessage());
+        }
+        return total;
+    }
+
     /** Comma-separated quoted level names at or above {@code min} — values are enum names, so safe to inline. */
     private static String levelInList(EventLevel min) {
         List<String> names = new ArrayList<>();

@@ -66,6 +66,20 @@ public final class InMemoryEventStore implements EventStore {
         return out;
     }
 
+    @Override
+    public synchronized List<Event> page(int limit, Long afterTs, String afterId) {
+        return ring.stream()
+                .sorted(KEYSET_ORDER)   // ring is insertion-ordered; the keyset needs (ts, id) strictly
+                .filter(e -> EventStore.afterKey(e, afterTs, afterId))
+                .limit(Math.max(0, limit))
+                .toList();
+    }
+
+    @Override
+    public synchronized long count() {
+        return ring.size();
+    }
+
     /** Current ring size (diagnostics/tests). */
     public synchronized int size() {
         return ring.size();

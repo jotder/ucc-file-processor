@@ -56,6 +56,16 @@ WSO2-style gateway + external IAM can front it later without reshaping routes. D
   make `total`/page sizing wrong or leaky under that filter. The keyset (`createdAt DESC, id DESC`)
   instead runs **in-route over the already-visibility-filtered set** — acceptable because operational
   objects are explicitly low-volume by design (`ObjectQuery.unbounded()` widens the query, the route
-  slices/encodes the cursor itself). Legacy offset view unchanged.
+  slices/encodes the cursor itself). Legacy offset view unchanged. **Third + fourth adopters
+  (2026-07-19): `GET /jobs` and `GET /events`** — one of each variant. `/jobs` follows the `/objects`
+  in-route pattern (the registry is an in-memory materialized `JobView` list, low-volume; single-part
+  keyset `name` — unique, so name order is total; `JobRoutes.jobsPage`). `/events` follows the
+  `/jobs/runs` store-side pattern (events are high-volume rolling Parquet): `EventStore` gained
+  `page(limit, afterTs, afterId)` + `count()` (defaults for API compat; exact overrides in both bundled
+  stores — ring walk in `InMemoryEventStore`, SQL keyset predicate
+  `(ts_ms < ? OR (ts_ms = ? AND event_id < ?)) ORDER BY ts_ms DESC, event_id DESC` merged with the
+  unflushed buffer in `ParquetEventStore`). Note the v1 `/events` view pages the **full retained
+  history**, unlike the legacy view which only serves the live-tail ring. Tests:
+  `ControlApiJobsPageTest` · `ControlApiEventsPageTest` (incl. a shared-timestamp id-tiebreak resume).
 * **Multi-space** — the space segment sits **after** the version: `/api/v1/spaces/{id}/…`
   (see [multi-space](multi-space.md)).

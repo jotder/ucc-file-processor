@@ -33,8 +33,13 @@ final class JobRoutes implements RouteModule {
         // The job *list* is a collection read: a space with no registered jobs returns an empty list
         // (the codebase-wide empty-collection convention), NOT the 404 that jobs(api) raises for the
         // item routes below. Read-only — never lazily creates a JobService (that's the write path's job).
-        // Optional ?limit=&offset= (ui-design-review R6a) — absent limit returns every job, unchanged.
-        api.get("/jobs", (e, m) -> api.service().jobService().<Object>map(s -> ApiContext.paged(s.jobs(), e)).orElseGet(java.util.List::of));
+        // Legacy: optional ?limit=&offset= (ui-design-review R6a) — absent limit returns every job,
+        // unchanged. On /api/v1 the list is instead cursor-paginated (jobsPage), sharing this one route.
+        api.get("/jobs", (e, m) -> {
+            java.util.List<JobService.JobView> all =
+                    api.service().jobService().map(JobService::jobs).orElseGet(java.util.List::of);
+            return ApiContext.v1(e) ? jobsPage(all, e) : ApiContext.paged(all, e);
+        });
         // Job CRUD (Scheduler write actions). Requires canAuthorWorkbench (W6; a no-op on Personal).
         // Persisted as <write-root>/jobs/<name>_job.toon; the write also hot-registers the job on the
         // live JobService (JobService.upsertJob/removeJob) so it takes effect without a restart.
@@ -349,5 +354,33 @@ final class JobRoutes implements RouteModule {
         }
         ApiContext.pagination(e, cursor, nextCursor, limit, store.countRuns(job));
         return rows;
+    }
+
+    /**
+     * {@code GET /api/v1/jobs?limit=&cursor=} — one cursor-paginated page of the job registry, sorted by
+     * name (unique, so a single-part keyset resumes unambiguously). The registry is an in-memory
+     * materialized list (configured jobs — low-volume by design), so the keyset runs in-route over the
+     * sorted list, mirroring the {@code /objects} adopter rather than the SQL-side {@code /jobs/runs} one.
+     * The v1 envelope's {@code metadata.pagination} carries {@code cursor/nextCursor/limit/total}.
+     */
+    private static Object jobsPage(java.util.List<JobService.JobView> all, HttpExchange e) {
+        int limit = Math.max(1, Math.min(500, ApiContext.parseIntOr(ApiContext.query(e, "limit"), 50)));
+        String cursor = ApiContext.query(e, "cursor");
+        java.util.List<String> key = Cursor.decode(cursor);
+        String afterName = key.size() == 1 ? key.get(0) : null;
+
+        java.util.List<JobService.JobView> sorted = all.stream()
+                .sorted(java.util.Comparator.comparing(JobService.JobView::name)).toList();
+        long total = sorted.size();
+        java.util.List<JobService.JobView> after = sorted.stream()
+                .filter(j -> afterName == null || j.name().compareTo(afterName) > 0)
+                .toList();
+        boolean hasMore = after.size() > limit;
+        java.util.List<JobService.JobView> page = hasMore ? after.subList(0, limit) : after;
+        String nextCursor = hasMore && !page.isEmpty()
+                ? Cursor.encode(java.util.List.of(page.get(page.size() - 1).name()))
+                : null;
+        ApiContext.pagination(e, cursor, nextCursor, limit, total);
+        return page;
     }
 }

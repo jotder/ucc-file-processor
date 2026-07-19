@@ -20,7 +20,10 @@ final class EventRoutes implements RouteModule {
 
     @Override
     public void register(ApiContext api) {
-        api.get("/events", (e, m) -> toMaps(api.service().events().recent(ApiContext.parseIntOr(ApiContext.query(e, "limit"), 50))));
+        // Legacy: the newest ?limit= events from the live-tail ring, byte-for-byte unchanged. On /api/v1
+        // the list is instead cursor-paginated over the full retained history (eventsPage), sharing the route.
+        api.get("/events", (e, m) -> ApiContext.v1(e) ? eventsPage(api, e)
+                : toMaps(api.service().events().recent(ApiContext.parseIntOr(ApiContext.query(e, "limit"), 50))));
         api.get("/events/search", (e, m) -> toMaps(api.service().events().query(eventQuery(e, EventQuery.DEFAULT_LIMIT))));
         api.get("/events/export", (e, m) -> exportEvents(api, e));
         api.get("/events/views", (e, m) -> api.service().savedViews().list());
@@ -35,6 +38,44 @@ final class EventRoutes implements RouteModule {
 
     private static List<Map<String, Object>> toMaps(List<Event> events) {
         return events.stream().map(Event::toMap).toList();
+    }
+
+    /**
+     * {@code GET /api/v1/events?limit=&cursor=} — one cursor-paginated page of the full retained event
+     * history (buffer + Parquet), newest first (keyset {@code (ts, eventId)}). The opaque {@code cursor}
+     * resumes strictly after the previous page's last row, so pages don't drift as new events land —
+     * unlike the legacy view, which only ever serves the live-tail ring. Events are high-volume, so the
+     * keyset runs store-side ({@link com.gamma.event.EventStore#page}) — the SQL-predicate variant of the
+     * {@code /jobs/runs} adopter, not the in-route {@code /objects} one. The v1 envelope's
+     * {@code metadata.pagination} carries {@code cursor/nextCursor/limit/total}.
+     */
+    private static Object eventsPage(ApiContext api, HttpExchange e) {
+        int limit = Math.max(1, Math.min(500, ApiContext.parseIntOr(ApiContext.query(e, "limit"), 50)));
+        String cursor = ApiContext.query(e, "cursor");
+        List<String> key = Cursor.decode(cursor);
+        Long afterTs = key.size() == 2 ? parseLongOrNull(key.get(0)) : null;
+        String afterId = key.size() == 2 ? key.get(1) : null;
+
+        List<Event> rows = api.service().events().page(limit + 1, afterTs, afterId);
+        boolean hasMore = rows.size() > limit;
+        if (hasMore) rows = rows.subList(0, limit);
+        String nextCursor = null;
+        if (hasMore && !rows.isEmpty()) {
+            Event last = rows.get(rows.size() - 1);
+            nextCursor = Cursor.encode(List.of(String.valueOf(last.ts()),
+                    last.eventId() == null ? "" : last.eventId()));
+        }
+        ApiContext.pagination(e, cursor, nextCursor, limit, api.service().events().count());
+        return toMaps(rows);
+    }
+
+    /** Cursor key parts are strings; an unparsable timestamp part means "start from the top" (decode-total). */
+    private static Long parseLongOrNull(String s) {
+        try {
+            return Long.parseLong(s);
+        } catch (RuntimeException e) {
+            return null;
+        }
     }
 
     /** Build an {@link EventQuery} from {@code ?level=&type=&pipeline=&correlationId=&q=&from=&to=&limit=&offset=}. */
