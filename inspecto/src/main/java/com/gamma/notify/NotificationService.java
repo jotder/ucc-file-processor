@@ -12,6 +12,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 /**
  * Turns operational {@link Event}s into in-app {@link Notification}s. Registered as an
@@ -43,23 +44,41 @@ public final class NotificationService implements AutoCloseable {
             new NotificationRateLimiter(NotificationRateLimiter.DEFAULT_MAX_PER_HOUR, NotificationRateLimiter.ONE_HOUR_MS);
     /** External SPI delivery channels (e.g. email), discovered via {@link ServiceLoader}; empty in the core. */
     private final List<NotificationChannel> channels;
+    /** Live view of the operator's persisted {@link ChannelConfig} destinations (admin CRUD), resolved at
+     *  dispatch time so channel edits take effect without a restart; {@code List::of} when none are wired. */
+    private final Supplier<List<ChannelConfig>> channelConfigs;
     private final ExecutorService workers = Executors.newVirtualThreadPerTaskExecutor();
     private final CopyOnWriteArrayList<Consumer<Notification>> listeners = new CopyOnWriteArrayList<>();
     /** Callbacks run on {@link #close()} to unblock open SSE streams (each interrupts its blocked thread). */
     private final CopyOnWriteArrayList<Runnable> streamClosers = new CopyOnWriteArrayList<>();
 
-    /** Production constructor: external channels are discovered via {@link ServiceLoader} (none in the core). */
+    /** Production constructor: external SPI channels are discovered via {@link ServiceLoader} (none in the
+     *  core), with no persisted {@link ChannelConfig} destinations wired. */
     public NotificationService(NotificationStore store, NotificationRules rules, NotificationPreferences prefs) {
-        this(store, rules, prefs, discoverChannels());
+        this(store, rules, prefs, discoverChannels(), List::of);
     }
 
-    /** Test/explicit constructor: inject the external channel list directly. */
+    /** Production constructor: discover SPI channels and wire a live view of the operator's persisted
+     *  {@link ChannelConfig} destinations (admin CRUD), delivered through the matching SPI transport by kind. */
+    public NotificationService(NotificationStore store, NotificationRules rules, NotificationPreferences prefs,
+                               Supplier<List<ChannelConfig>> channelConfigs) {
+        this(store, rules, prefs, discoverChannels(), channelConfigs);
+    }
+
+    /** Test/explicit constructor: inject the external channel list directly (no persisted destinations). */
     public NotificationService(NotificationStore store, NotificationRules rules, NotificationPreferences prefs,
                                List<NotificationChannel> channels) {
+        this(store, rules, prefs, channels, List::of);
+    }
+
+    /** Full constructor: explicit SPI channels + a persisted-{@link ChannelConfig} supplier. */
+    public NotificationService(NotificationStore store, NotificationRules rules, NotificationPreferences prefs,
+                               List<NotificationChannel> channels, Supplier<List<ChannelConfig>> channelConfigs) {
         this.store = store;
         this.rules = rules;
         this.prefs = prefs;
         this.channels = List.copyOf(channels);
+        this.channelConfigs = channelConfigs;
         if (!this.channels.isEmpty())
             log.info("Notification channels: {}", this.channels.stream().map(NotificationChannel::id).toList());
     }
@@ -128,16 +147,36 @@ public final class NotificationService implements AutoCloseable {
                     }
                 }
             }
-            // External SPI channels (email, …): delivered only when enabled for this category.
+            // External SPI channels configured from notify.* flags: delivered only when enabled for this category.
             for (NotificationChannel ch : channels) {
                 if (!prefs.enabled(n.category(), ch.id())) continue;
                 try { ch.deliver(n); } catch (Exception ex) {
                     log.warn("channel {} delivery failed: {}", ch.id(), ex.getMessage());
                 }
             }
+            // Persisted channel destinations (admin CRUD): deliver each enabled ChannelConfig through the SPI
+            // transport whose id names its kind, to the config's own target — so an operator-managed
+            // destination delivers without a restart. No transport for a kind ⇒ nothing to deliver through.
+            for (ChannelConfig cfg : channelConfigs.get()) {
+                if (!cfg.enabled()) continue;
+                NotificationChannel ch = channelByKind(cfg.kind());
+                if (ch == null || !prefs.enabled(n.category(), ch.id())) continue;
+                try { ch.deliver(n, cfg.target()); } catch (Exception ex) {
+                    log.warn("channel {} → {} delivery failed: {}", ch.id(), cfg.target(), ex.getMessage());
+                }
+            }
         } catch (RuntimeException ex) {
             log.warn("failed to dispatch notification for event {}: {}", e.eventId(), ex.getMessage());
         }
+    }
+
+    /** The discovered SPI transport whose {@link NotificationChannel#id() id} names this persisted channel's
+     *  {@code kind} (case-insensitive), or {@code null} when no such transport is on the classpath. */
+    private NotificationChannel channelByKind(String kind) {
+        if (kind == null) return null;
+        for (NotificationChannel ch : channels)
+            if (ch.id().equalsIgnoreCase(kind)) return ch;
+        return null;
     }
 
     @Override

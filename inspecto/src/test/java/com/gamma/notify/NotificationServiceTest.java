@@ -114,4 +114,50 @@ class NotificationServiceTest {
         assertEquals(1, delivered.size(), "email channel delivered (enabled for pipeline)");
         assertEquals("Pipeline orders failed", delivered.get(0).title());
     }
+
+    @Test
+    void persistedChannelDeliveredThroughMatchingTransportToItsTarget() {
+        NotificationStore store = new InMemoryNotificationStore();
+        NotificationPreferences prefs = new NotificationPreferences();
+        prefs.set("pipeline", Map.of(NotificationPreferences.IN_APP, true, NotificationPreferences.EMAIL, true));
+        List<String> targets = new CopyOnWriteArrayList<>();
+        NotificationChannel email = new NotificationChannel() {
+            public String id() { return NotificationPreferences.EMAIL; }
+            public void deliver(Notification n) { targets.add("flag"); }
+            public void deliver(Notification n, String target) { targets.add(target); }
+        };
+        // A persisted EMAIL destination (kind matches the transport id, case-insensitively).
+        ChannelConfig cfg = new ChannelConfig("c1", "EMAIL", "ops@x.com", null, true, 0L);
+        NotificationService svc = new NotificationService(store, NotificationRules.defaults(), prefs,
+                List.of(email), () -> List.of(cfg));
+
+        svc.onEvent(batchFailed("orders", "b1", "boom"));
+        svc.close();
+
+        assertTrue(targets.contains("ops@x.com"),
+                "the persisted EMAIL destination delivered through the matching transport, to its own target");
+    }
+
+    @Test
+    void persistedChannelSkippedWhenDisabledOrNoTransportForItsKind() {
+        NotificationStore store = new InMemoryNotificationStore();
+        NotificationPreferences prefs = new NotificationPreferences();
+        prefs.set("pipeline", Map.of(NotificationPreferences.IN_APP, true, NotificationPreferences.EMAIL, true));
+        List<String> targets = new CopyOnWriteArrayList<>();
+        NotificationChannel email = new NotificationChannel() {
+            public String id() { return NotificationPreferences.EMAIL; }
+            public void deliver(Notification n) { }
+            public void deliver(Notification n, String target) { targets.add(target); }
+        };
+        ChannelConfig disabled = new ChannelConfig("c1", "EMAIL", "off@x.com", null, false, 0L);
+        ChannelConfig noTransport = new ChannelConfig("c2", "SLACK", "http://hook", null, true, 0L);
+        NotificationService svc = new NotificationService(store, NotificationRules.defaults(), prefs,
+                List.of(email), () -> List.of(disabled, noTransport));
+
+        svc.onEvent(batchFailed("orders", "b1", "boom"));
+        svc.close();
+
+        assertTrue(targets.isEmpty(),
+                "a disabled destination and one with no transport for its kind both deliver nothing");
+    }
 }

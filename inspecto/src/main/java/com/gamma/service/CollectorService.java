@@ -380,8 +380,13 @@ public final class CollectorService implements AutoCloseable {
         // the emit/ingest thread (which may hold ingestLock inside the synchronous bus publish).
         this.notifications = ServiceStores.openNotificationStore(root);
         this.notificationPreferences = new com.gamma.notify.NotificationPreferences();
+        // Persisted channel destinations (admin CRUD) live under <write-root>/registry as `channel`
+        // components — the same per-space write root the channel routes write to (this space's config dir,
+        // else the global -Dassist.write.root). Resolved live at dispatch time so channel edits take effect
+        // without a restart; best-effort (a missing root / unreadable registry yields no destinations).
         this.notificationService = new com.gamma.notify.NotificationService(
-                notifications, com.gamma.notify.NotificationRules.defaults(), notificationPreferences);
+                notifications, com.gamma.notify.NotificationRules.defaults(), notificationPreferences,
+                this::persistedChannels);
         this.notificationSubscriber = notificationService::onEvent;
         this.eventLog.addSubscriber(notificationSubscriber);
         String viewsFile = System.getProperty("events.views.file");
@@ -398,6 +403,30 @@ public final class CollectorService implements AutoCloseable {
         // Initial population so the read surface (catalog, pathFor, configFor, pipelines) is live
         // before the first poll cycle. Unloadable configs are warned and skipped.
         configRegistry.rebuild(this.registry);
+    }
+
+    /** The operator's persisted {@link com.gamma.notify.ChannelConfig} channel destinations for this space
+     *  (admin CRUD), read live from {@code <write-root>/registry} — this space's config dir, else the global
+     *  {@code -Dassist.write.root} (the same root the channel routes write to). Best-effort: no write root, an
+     *  unreadable registry, or a malformed entry yields no (that) destination, never an exception. */
+    private java.util.List<com.gamma.notify.ChannelConfig> persistedChannels() {
+        java.nio.file.Path writeRoot = root.config();
+        if (writeRoot == null) {
+            String wr = System.getProperty("assist.write.root");
+            writeRoot = (wr == null || wr.isBlank()) ? null : java.nio.file.Path.of(wr);
+        }
+        if (writeRoot == null) return java.util.List.of();
+        try {
+            return new com.gamma.pipeline.ComponentStore(writeRoot.resolve("registry")).list("channel").stream()
+                    .map(c -> {
+                        try { return com.gamma.notify.ChannelConfig.fromMap(c.content(), 0L); }
+                        catch (RuntimeException malformed) { return null; }
+                    })
+                    .filter(java.util.Objects::nonNull)
+                    .toList();
+        } catch (RuntimeException unreadable) {
+            return java.util.List.of();
+        }
     }
 
     /** Drop the catalog's cached structural graph; the next access rebuilds it (config-only, cheap). */
