@@ -18,6 +18,7 @@ import com.eoiagent.platform.AgentPlatform;
 import com.eoiagent.platform.PlatformBuilder;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.gamma.intelligence.context.ContextBroker;
 import com.gamma.intelligence.pack.InspectoPack;
 import com.gamma.intelligence.spi.IntelligenceAgent;
 import com.gamma.service.CollectorService;
@@ -50,6 +51,7 @@ public final class InspectoIntelligenceAgent implements IntelligenceAgent {
     private CollectorService service;
     private InspectoPack pack;
     private AgentPlatform platform;
+    private ContextBroker contextBroker;
 
     /** Discovered/registered via {@link CollectorService}; builds its gateway from {@link GatewayFactory}. */
     public InspectoIntelligenceAgent() {
@@ -74,6 +76,7 @@ public final class InspectoIntelligenceAgent implements IntelligenceAgent {
     @Override
     public void start() {
         pack = new InspectoPack(service);
+        contextBroker = new ContextBroker(service);
         platform = new PlatformBuilder()
                 .pack(pack)
                 .llmGateway(gatewayOverride != null ? gatewayOverride : GatewayFactory.build())
@@ -84,8 +87,14 @@ public final class InspectoIntelligenceAgent implements IntelligenceAgent {
     @Override
     public AgentSessionResult openSession(AgentSessionRequest request) {
         Role role = pack.policyProfile().mapRole(request.role());
+        // S5: compose the situation frame (identity + focus + live Signal overlay) once per session
+        // and supply it through eoiagent's session attributes seam; ContextBroker is deterministic and
+        // budget-bounded (unit-tested). Surfacing attributes into the model prompt is the host layer's
+        // concern — this wires the supply side; the tools (signals_query/signal_timeline) are the part
+        // the model actively pulls from.
+        Map<String, String> attributes = Map.of("situation", contextBroker.frame(request.role(), request.page()));
         SessionRequest sessionRequest = new SessionRequest(new UserId(UUID.randomUUID().toString()),
-                role, DeploymentProfile.OFFLINE, toPageContext(request.page()), Map.of());
+                role, DeploymentProfile.OFFLINE, toPageContext(request.page()), attributes);
         AgentSession session = platform.agentService().open(sessionRequest);
         String sessionId = UUID.randomUUID().toString();
         sessions.put(sessionId, session);

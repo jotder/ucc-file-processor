@@ -7,11 +7,15 @@ import com.eoiagent.core.ToolResult;
 import com.eoiagent.core.ToolSpec;
 import com.eoiagent.tool.Tool;
 import com.gamma.service.CollectorService;
+import com.gamma.signal.Severity;
+import com.gamma.signal.Signal;
+import com.gamma.signal.Signals;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -34,7 +38,8 @@ final class InspectoTools {
     }
 
     static List<Tool> tools(CollectorService service) {
-        return List.of(glossaryLookup(), docsSearch(), statusGet(service));
+        return List.of(glossaryLookup(), docsSearch(), statusGet(service),
+                signalsQuery(service), signalTimeline(service));
     }
 
     private static Tool glossaryLookup() {
@@ -91,6 +96,148 @@ final class InspectoTools {
                             "committedBatches", v.committedBatches())))
                     .orElseGet(() -> error("unknown pipeline: '" + pipelineId + "'"));
         });
+    }
+
+    private static final int SIGNALS_DEFAULT_LIMIT = 50;
+    private static final int SIGNALS_MAX_LIMIT = 200;
+    private static final int SIGNALS_DEFAULT_SINCE_MINUTES = 60;
+    private static final int TIMELINE_DEFAULT_SINCE_MINUTES = 24 * 60;
+    private static final int TIMELINE_FETCH_LIMIT = 500;
+
+    private static Tool signalsQuery(CollectorService service) {
+        ToolSpec spec = new ToolSpec("signals_query",
+                "Search the operational signal ledger: recent signals filtered by dotted type "
+                        + "(exact or prefix.* glob), time window, severity floor and correlationId",
+                "{\"type\":\"object\",\"properties\":{"
+                        + "\"type\":{\"type\":\"string\"},"
+                        + "\"sinceMinutes\":{\"type\":\"integer\"},"
+                        + "\"minSeverity\":{\"type\":\"string\"},"
+                        + "\"correlationId\":{\"type\":\"string\"},"
+                        + "\"limit\":{\"type\":\"integer\"}}}",
+                false, Role.USER, Capability.READ_METADATA);
+        return new FunctionTool(spec, call -> {
+            Integer sinceMinutes = intArg(call, "sinceMinutes");
+            Integer limit = intArg(call, "limit");
+            if (sinceMinutes == INVALID_INT) return error("sinceMinutes must be an integer");
+            if (limit == INVALID_INT) return error("limit must be an integer");
+            Severity minSeverity;
+            try {
+                minSeverity = severityArg(arg(call, "minSeverity"));
+            } catch (IllegalArgumentException e) {
+                return error(e.getMessage());
+            }
+            long sinceMs = System.currentTimeMillis()
+                    - (sinceMinutes == null ? SIGNALS_DEFAULT_SINCE_MINUTES : sinceMinutes) * 60_000L;
+            int cap = limit == null ? SIGNALS_DEFAULT_LIMIT : Math.min(Math.max(limit, 1), SIGNALS_MAX_LIMIT);
+            List<Signal> signals = Signals.query(service.events(), arg(call, "type"), sinceMs, null,
+                    minSeverity, arg(call, "correlationId"), cap);
+            return ok(Map.of("count", signals.size(),
+                    "signals", signals.stream().map(Signal::toMap).toList()));
+        });
+    }
+
+    private static Tool signalTimeline(CollectorService service) {
+        ToolSpec spec = new ToolSpec("signal_timeline",
+                "Reconstruct the causal timeline of signals for one correlationId — use for "
+                        + "'why did X fail' questions; entries carry causedBy links and citable signalIds",
+                "{\"type\":\"object\",\"properties\":{"
+                        + "\"correlationId\":{\"type\":\"string\"},"
+                        + "\"sinceMinutes\":{\"type\":\"integer\"}},"
+                        + "\"required\":[\"correlationId\"]}",
+                false, Role.USER, Capability.READ_METADATA);
+        return new FunctionTool(spec, call -> {
+            String correlationId = arg(call, "correlationId");
+            if (correlationId == null || correlationId.isBlank()) return error("correlationId is required");
+            Integer sinceMinutes = intArg(call, "sinceMinutes");
+            if (sinceMinutes == INVALID_INT) return error("sinceMinutes must be an integer");
+            long sinceMs = System.currentTimeMillis()
+                    - (sinceMinutes == null ? TIMELINE_DEFAULT_SINCE_MINUTES : sinceMinutes) * 60_000L;
+            List<Signal> matched = Signals.query(service.events(), null, sinceMs, null, null,
+                    correlationId, TIMELINE_FETCH_LIMIT);
+            if (matched.isEmpty()) return error("no signals for correlationId '" + correlationId + "'");
+            List<Map<String, Object>> timeline = new ArrayList<>();
+            for (Signal s : causationOrder(matched)) {
+                Map<String, Object> entry = new LinkedHashMap<>();
+                entry.put("signalId", s.signalId());
+                entry.put("at", s.at().toString());
+                entry.put("type", s.type());
+                entry.put("severity", s.severity().name().toLowerCase(Locale.ROOT));
+                entry.put("message", s.message());
+                entry.put("causedBy", s.causationId());
+                entry.put("payload", s.payload());
+                timeline.add(entry);
+            }
+            return ok(Map.of("correlationId", correlationId, "count", timeline.size(),
+                    "timeline", timeline));
+        });
+    }
+
+    /**
+     * Causation-aware order: roots (no {@code causationId}, or one pointing outside the set —
+     * "orphans" included, never dropped) sorted oldest-first by timestamp then signalId, each
+     * followed depth-first by its causal children in the same sort. Any cycle remnants are appended
+     * timestamp-ordered so nothing is ever lost.
+     */
+    private static List<Signal> causationOrder(List<Signal> signals) {
+        List<Signal> sorted = new ArrayList<>(signals);
+        sorted.sort(java.util.Comparator.comparing(Signal::at)
+                .thenComparing(Signal::signalId, java.util.Comparator.nullsFirst(java.util.Comparator.naturalOrder())));
+        java.util.Set<String> ids = new java.util.HashSet<>();
+        for (Signal s : sorted) ids.add(s.signalId());
+        Map<String, List<Signal>> children = new LinkedHashMap<>();
+        List<Signal> roots = new ArrayList<>();
+        for (Signal s : sorted) {
+            String cause = s.causationId();
+            if (cause != null && ids.contains(cause) && !cause.equals(s.signalId())) {
+                children.computeIfAbsent(cause, k -> new ArrayList<>()).add(s);
+            } else {
+                roots.add(s);
+            }
+        }
+        List<Signal> out = new ArrayList<>(sorted.size());
+        java.util.Set<String> visited = new java.util.HashSet<>();
+        java.util.Deque<Signal> stack = new java.util.ArrayDeque<>();
+        for (Signal root : roots) {
+            stack.push(root);
+            while (!stack.isEmpty()) {
+                Signal s = stack.pop();
+                if (!visited.add(s.signalId())) continue;
+                out.add(s);
+                List<Signal> kids = children.getOrDefault(s.signalId(), List.of());
+                for (int i = kids.size() - 1; i >= 0; i--) stack.push(kids.get(i)); // preserve sort order
+            }
+        }
+        for (Signal s : sorted) {
+            if (!visited.contains(s.signalId())) out.add(s); // cycle remnants, timestamp-ordered
+        }
+        return out;
+    }
+
+    /** Strict severity parse for tool input: null/blank → no floor; unknown name → thrown (→ error(...)). */
+    private static Severity severityArg(String raw) {
+        if (raw == null || raw.isBlank()) return null;
+        try {
+            return Severity.valueOf(raw.trim().toUpperCase(Locale.ROOT));
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException("unknown severity '" + raw
+                    + "' (expected trace|debug|info|warn|error|critical)");
+        }
+    }
+
+    /** Sentinel returned by {@link #intArg} for a present-but-unparseable integer argument. */
+    private static final Integer INVALID_INT = Integer.MIN_VALUE;
+
+    /** Missing → null; a number or numeric string → its int value; anything else → {@link #INVALID_INT}. */
+    private static Integer intArg(ToolCall call, String key) {
+        Map<String, Object> args = call.arguments() == null ? Map.of() : call.arguments();
+        Object v = args.get(key);
+        if (v == null) return null;
+        if (v instanceof Number n) return n.intValue();
+        try {
+            return Integer.valueOf(String.valueOf(v).trim());
+        } catch (NumberFormatException e) {
+            return INVALID_INT;
+        }
     }
 
     /** Case-insensitive substring search over every {@code .md} file under {@link #DOCS_ROOT}. */
