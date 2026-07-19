@@ -20,6 +20,11 @@ import { MenuNodeDialog, MenuNodeDialogData, MenuNodeDialogResult } from './menu
     standalone: true,
     imports: [MatButtonModule, MatIconModule, MatMenuModule, MatTooltipModule, MenuTreeNodeComponent],
     changeDetection: ChangeDetectionStrategy.OnPush,
+    host: {
+        role: 'treeitem',
+        '[attr.aria-selected]': 'selectedId() === node().id',
+        '[attr.aria-expanded]': "(node().children?.length ?? 0) > 0 ? 'true' : null",
+    },
     template: `
         <div
             class="group flex items-center gap-2 rounded-lg py-1.5 pr-1"
@@ -70,16 +75,20 @@ import { MenuNodeDialog, MenuNodeDialogData, MenuNodeDialogResult } from './menu
             </mat-menu>
         </div>
 
-        @for (child of node().children ?? []; track child.id) {
-            <app-menu-tree-node
-                [node]="child"
-                [parentId]="node().id"
-                [siblings]="node().children ?? []"
-                [depth]="depth() + 1"
-                [selectedId]="selectedId()"
-                (select)="select.emit($event)"
-                (changed)="changed.emit()"
-            />
+        @if ((node().children ?? []).length) {
+            <div role="group">
+                @for (child of node().children ?? []; track child.id) {
+                    <app-menu-tree-node
+                        [node]="child"
+                        [parentId]="node().id"
+                        [siblings]="node().children ?? []"
+                        [depth]="depth() + 1"
+                        [selectedId]="selectedId()"
+                        (select)="select.emit($event)"
+                        (changed)="changed.emit()"
+                    />
+                }
+            </div>
         }
     `,
 })

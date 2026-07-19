@@ -42,23 +42,33 @@ import { MenuTreeNodeComponent } from './menu-tree-node.component';
                 <div class="bg-card shrink-0 rounded-2xl p-4 shadow lg:w-96">
                     <div class="mb-2 flex items-center justify-between">
                         <h2 class="text-sm font-semibold uppercase tracking-wider opacity-60">Your menus</h2>
-                        <button mat-stroked-button (click)="addMenu()">
-                            <mat-icon class="icon-size-4" svgIcon="heroicons_outline:plus"></mat-icon>
-                            <span class="ml-1">Add menu</span>
-                        </button>
+                        <div class="flex items-center gap-2">
+                            @if (!nodes().length) {
+                                <button mat-stroked-button (click)="loadExample()">
+                                    <mat-icon class="icon-size-4" svgIcon="heroicons_outline:sparkles"></mat-icon>
+                                    <span class="ml-1">Load example</span>
+                                </button>
+                            }
+                            <button mat-stroked-button (click)="addMenu()">
+                                <mat-icon class="icon-size-4" svgIcon="heroicons_outline:plus"></mat-icon>
+                                <span class="ml-1">Add menu</span>
+                            </button>
+                        </div>
                     </div>
 
                     @if (nodes().length) {
-                        @for (n of nodes(); track n.id) {
-                            <app-menu-tree-node
-                                [node]="n"
-                                [parentId]="null"
-                                [siblings]="nodes()"
-                                [selectedId]="selectedId()"
-                                (select)="selectedId.set($event)"
-                                (changed)="onChanged()"
-                            />
-                        }
+                        <div role="tree" aria-label="Your menus">
+                            @for (n of nodes(); track n.id) {
+                                <app-menu-tree-node
+                                    [node]="n"
+                                    [parentId]="null"
+                                    [siblings]="nodes()"
+                                    [selectedId]="selectedId()"
+                                    (select)="selectedId.set($event)"
+                                    (changed)="onChanged()"
+                                />
+                            }
+                        </div>
                     } @else {
                         <inspecto-empty-state
                             icon="heroicons_outline:queue-list"
@@ -116,6 +126,13 @@ export class MenuBuilderComponent {
                 this.selectedId.set(id);
                 this.onChanged();
             });
+    }
+
+    /** Populate a starter example tree (opt-in; only offered on an empty tree, so it never clobbers edits). */
+    loadExample(): void {
+        const id = this.menuApi.mutate((s) => s.seedExample());
+        this.selectedId.set(id);
+        this.onChanged();
     }
 
     /** A tree edit landed — re-fetch the sidebar so the custom groups reflect the change. */

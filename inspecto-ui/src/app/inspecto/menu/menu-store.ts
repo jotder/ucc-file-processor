@@ -113,6 +113,20 @@ export class MenuStore {
         return this.addChild(parentId, { title, icon, binding });
     }
 
+    /**
+     * Populate a starter example — one menu with a sub-menu and a placed report — so a new Space has a
+     * copy-me template instead of a blank slate (menu-builder-plan O3). Built from the same ops the
+     * builder uses (normal id generation); the caller decides when to run it (opt-in, empty tree only).
+     * Returns the top-level menu's id.
+     */
+    seedExample(): string {
+        const revenue = this.addMenu('Revenue', 'heroicons_outline:banknotes');
+        const overview = this.addSubMenu(revenue, 'Overview', 'heroicons_outline:chart-bar');
+        this.attach(overview, 'Revenue dashboard', { kind: 'dashboard', componentId: 'revenue_overview' },
+            'heroicons_outline:presentation-chart-line');
+        return revenue;
+    }
+
     private addChild(parentId: string | null, partial: Omit<MenuNode, 'id'>): string {
         const id = this.idGen();
         this.tree = { ...this.tree, nodes: insertChild(this.tree.nodes, parentId, { id, ...partial }) };

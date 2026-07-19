@@ -19,6 +19,19 @@ describe('MenuStore', () => {
         expect(s.find(rev)?.children?.[0].id).toBe(top);
     });
 
+    it('seeds a starter example: one menu → sub-menu → a placed report', () => {
+        const s = store();
+        const top = s.seedExample();
+        const menu = s.find(top)!;
+        expect(s.nodes()).toHaveLength(1);
+        expect(menu.title).toBe('Revenue');
+        const sub = menu.children![0];
+        expect(sub.title).toBe('Overview');
+        const leaf = sub.children![0];
+        expect(leaf.binding).toEqual({ kind: 'dashboard', componentId: 'revenue_overview' });
+        expect(leaf.children).toBeUndefined();
+    });
+
     it('attaches a leaf bound to a component (no children)', () => {
         const s = store();
         const rev = s.addMenu('Revenue');
