@@ -73,10 +73,9 @@ former root reference docs** (each index lists them):
 ## In-flight plans (`superpower/` — plans live here ONLY while active)
 
 - [`superpower/embedded-intelligence-plan.md`](superpower/embedded-intelligence-plan.md) — AGT-5: P0
-  spine shipped + hardened; **P1–P5 open** (§8 = live phasing).
-- [`superpower/agt5-p1-investigation-plan.md`](superpower/agt5-p1-investigation-plan.md) — AGT-5 P1
-  design of record (slices A–E: analysis tools, goalKind seam, RCA/impact playbooks, Case Store,
-  triage ingress) — ACTIVE 2026-07-19.
+  spine + **P1 investigation tier SHIPPED** (2026-07-20, distilled into
+  [`okf/backend/agent/embedded-intelligence.md`](okf/backend/agent/embedded-intelligence.md));
+  **P2–P5 open** (§8 = live phasing).
 - [`superpower/modularization-optimization-plan.md`](superpower/modularization-optimization-plan.md) —
   PROPOSED, analysis unexecuted; headline Musts indexed in `BACKLOG.md`.
 - [`superpower/living-operational-system.md`](superpower/living-operational-system.md) — standing

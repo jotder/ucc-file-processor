@@ -270,17 +270,16 @@ citations, live off a running CollectorService, deterministic under `StubLlmGate
 configured local Ollama, streamable over SSE; reflex layer untouched; CPU-only CI green.
 `incident_explain` and hosted-provider support move to P1/Standard+ alongside the items below.*
 
-**P1 — Investigation.** `timeline_build`/`diff_batches`/`config_versions_diff`/`anomaly_scan`
-tools; `root_cause_analysis` + `impact_analysis` playbooks; Case Store + `/agent/cases`; event
-ingress (generalized FailureReactor → triage queue feeding the deliberative layer).
-*Substrate SHIPPED (2026-07-19, `docs/okf/backend/control-plane/signal-backbone.md`): the
-`signals_query`/`signal_timeline` tools, the `ContextBroker` situation frame (identity + focus +
-live Signal overlay), and the `agent.*` telemetry ledger all landed as S1/S5 of the signal-backbone
-plan. Still open for P1 proper: `timeline_build`/`diff_batches`/`config_versions_diff`/
-`anomaly_scan` as distinct tools (today `signal_timeline` covers the causation-chain case only),
-Case Store + `/agent/cases`, and the RCA/impact-analysis playbooks themselves.*
-*Exit: a seeded Incident (broken batch + config change) yields a correct ranked RCA with evidence
-and a fix draft, deterministically under the fake provider.*
+**P1 — Investigation. ✅ SHIPPED (2026-07-20).** All slices A–E landed and pushed; as-built facts
+distilled into [`docs/okf/backend/agent/embedded-intelligence.md`](../okf/backend/agent/embedded-intelligence.md),
+design of record archived at `docs/archived-documents/plans-archive/agt5-p1-investigation-plan.md`.
+Delivered: the four analysis tools (`timeline_build`/`diff_batches`/`config_versions_diff`/
+`anomaly_scan`), the `root_cause_analysis` + `impact_analysis` playbooks (deterministic
+orchestration + single-shot synthesis via `Investigator`), the `CaseStore` + `/agent/cases[/{id}]`,
+the `TriageQueue` autonomous ingress (opt-in, `-Dintelligence.triage.enabled`) with the two new
+`expectation.violated`/`alert-rule.fired` Signals, and the eoiagent `goalKind` seam. Exit test met:
+a seeded Incident (broken batch + config change) yields a ranked RCA with evidence and a fix draft,
+deterministically under `StubLlmGateway`.
 
 **P2 — Author everything (L1).** `component_draft` across kinds + validator repair loop;
 `pipeline_author` (parser test + simulate), `query_author`, `kpi_report_builder`,
