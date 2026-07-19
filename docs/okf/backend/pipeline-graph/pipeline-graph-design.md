@@ -882,7 +882,13 @@ Actionable, phase-aligned, derived from §8 + the §13 corrections. `[ ]` = not 
   `on_commit` rejected** (`ON_COMMIT_SAME_GRAPH`, R5), duplicate ids, no-entry-node, empty-graph (warning).
   `validateOrThrow` for the execution path. **Deferred:** validating a rel against a node type's emitted/accepted
   relations needs the node-output contract (T9) — there is a seam for it. 8 tests. Additive, full suite 695 green.
-- [ ] **T15.** Adaptive back-pressure defaults (§3.5) as configurable, not hard-coded.
+- [ ] **T15.** Adaptive back-pressure defaults (§3.5) as configurable, not hard-coded. **Scope clarified
+  2026-07-19:** the §3.5 *levers* are already configurable — worker ceiling (`-Dsources.max` ×
+  `processing.threads` × `processing.duckdb_threads`), per-cycle admission (`batch.max_files`/`max_bytes`),
+  DuckDB `memory_limit`, and the per-source `CircuitBreaker`/`RateLimiter`. What is genuinely **unbuilt** is
+  the *adaptive lag-driven throttling* itself (halve the admission cap when `oldestInboxAge > 3 × pollInterval`
+  or `pending > 10 × perCycleCap`, with hysteresis) — §3.5's last paragraph is a design, not shipped code. So
+  this row is a **new feature to build**, not a constant-extraction; the multipliers become its config once it exists.
 
 ### Phase 4 — Flow-graph API + G6 visualisation (read-first)
 - [x] **T16 (done — shipped by T31, checklist row was stale).** `GET /pipelines/{id}/graph` (`PipelineRoutes.java`,
@@ -941,8 +947,10 @@ Actionable, phase-aligned, derived from §8 + the §13 corrections. `[ ]` = not 
   create/edit/delete (mirrors the connections-CRUD pane), a per-kind `ComponentFormDialog` (structured fields;
   transform operator+JSON config) with an inline **Test** panel driving the T18 dry-run endpoints
   (`ComponentsService`), plus nav + lazy route. Tests: `ComponentsComponent`(3, incl. axe a11y); token-guard +
-  prod build green. **Pending:** the **flow-topology editor** (node/edge CRUD on the G6 canvas) and wiring
-  authored flows into the live executor (T32).
+  prod build green. **Pending (corrected 2026-07-19):** only the **flow-topology editor** (node/edge CRUD on the G6
+  canvas) remains — UI work. Wiring authored flows into the live executor **shipped under T32**
+  (2026-07-18, `PipelineJobRunner implements Job` → `PipelineExecutor`, `JobType.PIPELINE`); the earlier
+  "and wiring authored flows into the live executor" clause here was stale.
 - [x] **T32 (done 2026-07-18 — live execution of authored job-flows, incl. the UI view-consumer).** Run authored `*_flow.toon`
   flows for real. Authored flows are **job-style** (`source_store` → `transform` → sink `store`), so they run
   as a new `JobType.PIPELINE` hosted by the existing `JobService` (cron/event/manual + audit + deletion fence +
