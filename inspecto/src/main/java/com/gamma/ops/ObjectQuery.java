@@ -39,6 +39,13 @@ public record ObjectQuery(ObjectType objectType, String status, String severity,
         return new Builder().limit(limit).build();
     }
 
+    /** This query's filters with the paging bounds widened to all matches ({@link #MAX_LIMIT}, offset 0) —
+     *  the ordered source set a caller slices itself (keyset pagination, scope-filtered analytics). */
+    public ObjectQuery unbounded() {
+        return new ObjectQuery(objectType, status, severity, assignee, owner, correlationId, textContains,
+                MAX_LIMIT, 0);
+    }
+
     public static Builder builder() {
         return new Builder();
     }

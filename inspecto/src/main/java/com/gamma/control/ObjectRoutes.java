@@ -31,7 +31,7 @@ final class ObjectRoutes implements RouteModule {
 
     @Override
     public void register(ApiContext api) {
-        api.get("/objects", (e, m) -> toObjectMaps(visibleOnly(api.service().objects().query(objectQuery(e)), e)));
+        api.get("/objects", (e, m) -> objectsList(api, e));
         // Registered before the /objects/{id} catch-all so "analytics" is not read as an id (C4).
         api.get("/objects/analytics", (e, m) -> api.service().objects().analytics(parseObjectType(ApiContext.query(e, "type"))));
         api.post("/objects", (e, m) -> createObject(api, api.body(e)));
@@ -164,6 +164,57 @@ final class ObjectRoutes implements RouteModule {
 
     private static List<Map<String, Object>> toObjectMaps(List<OperationalObject> objs) {
         return objs.stream().map(OperationalObject::toMap).toList();
+    }
+
+    /** The keyset order for {@code /objects} pagination: {@code createdAt DESC, id DESC} (a total order, so a
+     *  cursor resumes unambiguously even when several objects share a {@code createdAt}). */
+    private static final java.util.Comparator<OperationalObject> KEYSET_ORDER =
+            java.util.Comparator.comparingLong(OperationalObject::createdAt)
+                    .thenComparing(OperationalObject::id).reversed();
+
+    /**
+     * {@code GET /objects} — the object list. Legacy (unversioned) callers keep the exact
+     * {@code ?limit=&offset=} offset slice, byte-for-byte unchanged. On the {@code /api/v1} surface the
+     * list is instead cursor-paginated ({@link #objectsPage}), so the two share this one route.
+     */
+    private Object objectsList(ApiContext api, HttpExchange e) {
+        if (!ApiContext.v1(e))
+            return toObjectMaps(visibleOnly(api.service().objects().query(objectQuery(e)), e));
+        return objectsPage(api, e);
+    }
+
+    /**
+     * {@code GET /api/v1/objects?...&cursor=} — one cursor-paginated page, newest first (keyset
+     * {@code (createdAt, id)}). The opaque {@code cursor} resumes strictly after the previous page's last
+     * row, so pages don't drift as new objects open. Because SEC-7d visibility is a post-query filter
+     * (see {@link #visibleOnly}), the keyset runs over the <em>visible</em> set — objects are low-volume,
+     * and this keeps {@code total} scoped so a page never leaks the count of objects outside the caller's
+     * grants. The v1 envelope's {@code metadata.pagination} carries {@code cursor/nextCursor/limit/total}.
+     */
+    private Object objectsPage(ApiContext api, HttpExchange e) {
+        ObjectQuery q = objectQuery(e);
+        int limit = q.limit();
+        String cursor = ApiContext.query(e, "cursor");
+        List<String> key = Cursor.decode(cursor);
+        Long afterCreatedAt = key.size() == 2 ? parseLongOr(key.get(0), Long.MIN_VALUE) : null;
+        String afterId = key.size() == 2 ? key.get(1) : null;
+
+        List<OperationalObject> visible = visibleOnly(api.service().objects().query(q.unbounded()), e)
+                .stream().sorted(KEYSET_ORDER).toList();
+        long total = visible.size();
+        List<OperationalObject> after = visible.stream()
+                .filter(o -> afterCreatedAt == null || o.createdAt() < afterCreatedAt
+                        || (o.createdAt() == afterCreatedAt && o.id().compareTo(afterId) < 0))
+                .toList();
+        boolean hasMore = after.size() > limit;
+        List<OperationalObject> page = hasMore ? after.subList(0, limit) : after;
+        String nextCursor = null;
+        if (hasMore && !page.isEmpty()) {
+            OperationalObject last = page.get(page.size() - 1);
+            nextCursor = Cursor.encode(List.of(String.valueOf(last.createdAt()), last.id()));
+        }
+        ApiContext.pagination(e, cursor, nextCursor, limit, total);
+        return toObjectMaps(page);
     }
 
     /** Build an {@link ObjectQuery} from {@code ?type=&status=&severity=&assignee=&owner=&correlationId=&q=&limit=&offset=}. */
