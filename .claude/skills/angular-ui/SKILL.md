@@ -319,9 +319,17 @@ src/app/
 
 1. `npm run lint:tokens` — design-system guard green.
 2. `npm run build` (production) — AOT type-check + budgets green.
-3. `npm run test:ci` — unit + a11y specs green (add an `expectNoA11yViolations` for new components).
+3. `npm run test:ci` — unit + a11y specs green. **Check the EXIT CODE, not just the pass count**: an
+   unhandled error (e.g. a G6/AntV or MapLibre canvas mounting in jsdom) makes vitest exit non-zero
+   even with 0 test failures → CI red. `GraphViewComponent` only mounts a canvas when
+   `data.nodes.length > 0`, so test graph-hosting components on the empty/no-graph path (`EMPTY_GRAPH`)
+   and assert traversal via a spy, never by rendering populated graph data. Add an
+   `expectNoA11yViolations` for new components.
 4. **Verify in the preview** (`.claude/launch.json` servers): load the route, confirm behavior in the DOM
    (`preview_eval`/snapshot — screenshots time out in this env), check `preview_console_logs` for errors.
+   **The preview browser does NOT deliver `ResizeObserver` callbacks** (it renders from DOM snapshots, no
+   continuous paint loop) — RO-driven behavior (chart/graph/map container-resize) can't be exercised
+   in-preview; rely on the unit test (observer wired + disconnected) + the shared RO→`resize()` precedent.
 5. If a pattern changed, update the `/design` gallery **and this skill** (the shared, profile-independent
    source of truth). Do **not** record UI conventions in per-profile session memory — teammates on this
    sandbox (e.g. `jotder`) each run under a different Windows profile and won't see it.
