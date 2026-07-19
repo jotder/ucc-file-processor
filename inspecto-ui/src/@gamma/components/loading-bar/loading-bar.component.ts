@@ -55,22 +55,34 @@ export class GammaLoadingBarComponent implements OnChanges, OnInit, OnDestroy {
      */
     ngOnInit(): void {
         // Subscribe to the service
+        //
+        // Assignments are deferred to a microtask so a value pushed
+        // synchronously during this initial subscribe (e.g. progress
+        // jumping from its initial state to 0) lands after the current
+        // change-detection tick instead of mutating the bound field
+        // mid-tick, which trips dev-mode's checkNoChanges (NG0100).
         this._gammaLoadingService.mode$
             .pipe(takeUntil(this._unsubscribeAll))
             .subscribe((value) => {
-                this.mode = value;
+                Promise.resolve().then(() => {
+                    this.mode = value;
+                });
             });
 
         this._gammaLoadingService.progress$
             .pipe(takeUntil(this._unsubscribeAll))
             .subscribe((value) => {
-                this.progress = value;
+                Promise.resolve().then(() => {
+                    this.progress = value;
+                });
             });
 
         this._gammaLoadingService.show$
             .pipe(takeUntil(this._unsubscribeAll))
             .subscribe((value) => {
-                this.show = value;
+                Promise.resolve().then(() => {
+                    this.show = value;
+                });
             });
     }
 
