@@ -404,7 +404,22 @@ $readme = $readme -replace '\.\./docs/', 'docs/'
 Set-Content -Path "$bundleDir\README.md" -Value $readme -NoNewline
 $docsSrc = Join-Path $sandboxRoot 'docs'
 if (Test-Path $docsSrc) {
-    Copy-Item $docsSrc "$bundleDir\docs" -Recurse -Force
+    # Copy file-by-file (not one Copy-Item -Recurse) so a single locked/inaccessible
+    # file (e.g. held by another process/AV) can't silently truncate the rest of the
+    # tree under $ErrorActionPreference = 'Stop' — a whole-tree recursive copy was
+    # observed to abort at the first such file and skip every remaining item.
+    $docsOut = "$bundleDir\docs"
+    Get-ChildItem -Path $docsSrc -Recurse -File | ForEach-Object {
+        $srcFile = $_
+        $destPath = Join-Path $docsOut $srcFile.FullName.Substring($docsSrc.Length + 1)
+        try {
+            $destDir = Split-Path $destPath -Parent
+            if (-not (Test-Path $destDir)) { New-Item -ItemType Directory -Path $destDir -Force | Out-Null }
+            Copy-Item $srcFile.FullName -Destination $destPath -Force -ErrorAction Stop
+        } catch {
+            Write-Warning "docs copy: skipped '$($srcFile.FullName)' ($($_.Exception.Message))"
+        }
+    }
 }
 
 # ── step 8: zip ───────────────────────────────────────────────────────────────
