@@ -1,6 +1,7 @@
 package com.gamma.intelligence;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * A complete answer from the embedded intelligence agent (AGT-5, P0) — the wire shape of
@@ -8,14 +9,17 @@ import java.util.List;
  * model that produces it lives in the optional {@code file-processor-intelligence} module.
  *
  * @param kind             one of {@code TEXT}, {@code NAVIGATION}, {@code CLARIFICATION},
- *                          {@code ERROR} (mirrors the platform's {@code AnswerKind}; P0 never
- *                          returns {@code INLINE_ARTIFACT} — that's a P2 authoring capability)
+ *                          {@code ERROR}, {@code INLINE_ARTIFACT} (mirrors the platform's
+ *                          {@code AnswerKind})
  * @param text             the prose answer
  * @param citations        grounding sources backing the answer, if any
  * @param navigationTarget the catalog {@code pageId} to route to, or {@code null} when {@code kind}
  *                          is not {@code NAVIGATION}
+ * @param artifact         the A2UI artifact JSON ({@code {"kind": "chart"|"kpi"|"text"|"data-table", ...}}),
+ *                          or {@code null} when the answer carries none
  */
-public record AgentAskResult(String kind, String text, List<Citation> citations, String navigationTarget) {
+public record AgentAskResult(String kind, String text, List<Citation> citations, String navigationTarget,
+                              Map<String, Object> artifact) {
 
     public AgentAskResult {
         citations = citations == null ? List.of() : List.copyOf(citations);

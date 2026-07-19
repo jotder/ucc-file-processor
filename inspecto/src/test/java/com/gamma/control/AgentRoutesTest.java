@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.gamma.etl.PipelineConfigBatchTest;
 import com.gamma.etl.TestConfigs;
+import com.gamma.intelligence.AgentAnswerSink;
 import com.gamma.intelligence.AgentAskRequest;
 import com.gamma.intelligence.AgentAskResult;
 import com.gamma.intelligence.AgentSessionRequest;
@@ -106,6 +107,34 @@ class AgentRoutesTest {
     }
 
     @Test
+    void askStreamEmitsAnArtifactFrameBeforeComplete(@TempDir Path dir) throws Exception {
+        try (Ctx ctx = open(dir, new FakeIntelligenceAgent())) {
+            HttpResponse<String> opened = send(ctx.port(), "POST", "/agent/sessions", "{}");
+            String sessionId = JSON.readTree(opened.body()).get("sessionId").asText();
+
+            HttpResponse<String> streamed = send(ctx.port(), "POST",
+                    "/agent/sessions/" + sessionId + "/ask/stream", "{\"question\":\"stream this\"}");
+            assertEquals(200, streamed.statusCode());
+            String body = streamed.body();
+            int artifactIdx = body.indexOf("event: artifact");
+            int completeIdx = body.indexOf("event: complete");
+            assertTrue(artifactIdx >= 0, "expected an event: artifact frame");
+            assertTrue(artifactIdx < completeIdx, "artifact frame must precede the complete frame");
+
+            // Extract the data: line belonging to the artifact frame and parse it (Map.of()'s
+            // iteration order is unspecified/randomized per JVM run, so compare structurally).
+            String afterArtifact = body.substring(artifactIdx);
+            String dataPrefix = "data: ";
+            int dataIdx = afterArtifact.indexOf(dataPrefix);
+            String artifactJson = afterArtifact.substring(dataIdx + dataPrefix.length(),
+                    afterArtifact.indexOf('\n', dataIdx));
+            JsonNode artifactNode = JSON.readTree(artifactJson);
+            assertEquals("chart", artifactNode.get("kind").asText());
+            assertTrue(artifactNode.get("config").isObject());
+        }
+    }
+
+    @Test
     void askStreamOnAnUnknownSessionIsAnErrorEventNotA404(@TempDir Path dir) throws Exception {
         try (Ctx ctx = open(dir, new FakeIntelligenceAgent())) {
             HttpResponse<String> r = send(ctx.port(), "POST",
@@ -144,7 +173,18 @@ class AgentRoutesTest {
             if (!sessions.containsKey(sessionId)) {
                 throw new IllegalArgumentException("unknown session: '" + sessionId + "'");
             }
-            return new AgentAskResult("TEXT", "echo: " + request.question(), List.of(), null);
+            return new AgentAskResult("TEXT", "echo: " + request.question(), List.of(), null, null);
+        }
+
+        @Override
+        public void askStream(String sessionId, AgentAskRequest request, AgentAnswerSink sink) {
+            try {
+                AgentAskResult result = ask(sessionId, request);
+                sink.onArtifact(Map.of("kind", "chart", "config", Map.of()));
+                sink.onComplete(result);
+            } catch (IllegalArgumentException e) {
+                sink.onError(e.getMessage());
+            }
         }
     }
 }

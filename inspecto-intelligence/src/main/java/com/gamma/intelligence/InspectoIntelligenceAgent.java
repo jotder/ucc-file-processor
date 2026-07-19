@@ -16,16 +16,20 @@ import com.eoiagent.host.SessionRequest;
 import com.eoiagent.model.LlmGateway;
 import com.eoiagent.platform.AgentPlatform;
 import com.eoiagent.platform.PlatformBuilder;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.gamma.intelligence.pack.InspectoPack;
 import com.gamma.intelligence.spi.IntelligenceAgent;
 import com.gamma.service.CollectorService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.IOException;
 import java.time.Instant;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -37,6 +41,9 @@ import java.util.concurrent.ConcurrentHashMap;
 public final class InspectoIntelligenceAgent implements IntelligenceAgent {
 
     private static final Logger log = LoggerFactory.getLogger(InspectoIntelligenceAgent.class);
+    private static final ObjectMapper JSON = new ObjectMapper();
+    private static final String ARTIFACT_MIME_TYPE = "application/vnd.a2ui+json";
+    private static final Set<String> ARTIFACT_KINDS = Set.of("text", "kpi", "chart", "data-table");
 
     private final Map<String, AgentSession> sessions = new ConcurrentHashMap<>();
     private final LlmGateway gatewayOverride;
@@ -105,7 +112,10 @@ public final class InspectoIntelligenceAgent implements IntelligenceAgent {
         UserMessage msg = new UserMessage(request.question(), toPageContext(request.page()), Instant.now());
         session.askStream(msg, new AnswerSink() {
             @Override public void onToken(String token) { sink.onToken(token); }
-            @Override public void onArtifact(InlineArtifact artifact) { /* P0 answers never carry one */ }
+            @Override public void onArtifact(InlineArtifact artifact) {
+                Map<String, Object> parsed = parseArtifact(artifact);
+                if (parsed != null) sink.onArtifact(parsed);
+            }
             @Override public void onComplete(AgentAnswer finalAnswer) { sink.onComplete(toResult(finalAnswer)); }
             @Override public void onError(EoiAgentException error) { sink.onError(error.getMessage()); }
         });
@@ -120,16 +130,43 @@ public final class InspectoIntelligenceAgent implements IntelligenceAgent {
         if (platform != null) platform.close();
     }
 
-    private static AgentAskResult toResult(AgentAnswer answer) {
+    // Test seam: package-private (not private) so a unit test can call this directly with a
+    // hand-built AgentAnswer/InlineArtifact, bypassing the live AgentSession path (no eoiagent
+    // tool/session can produce an INLINE_ARTIFACT answer today).
+    static AgentAskResult toResult(AgentAnswer answer) {
         List<AgentAskResult.Citation> citations = answer.citations() == null ? List.of()
                 : answer.citations().stream().map(InspectoIntelligenceAgent::toCitation).toList();
         NavigationIntent nav = answer.navigation();
         return new AgentAskResult(answer.kind().name(), answer.text(), citations,
-                nav == null ? null : nav.targetPageId());
+                nav == null ? null : nav.targetPageId(), parseArtifact(answer.artifact()));
     }
 
     private static AgentAskResult.Citation toCitation(Citation c) {
         return new AgentAskResult.Citation(c.sourceId(), c.locator());
+    }
+
+    /**
+     * Parses an {@link InlineArtifact}'s payload into our A2UI JSON convention (eoiagent defines
+     * neither {@code mimeType} nor the shape inside {@code data} — that's ours to define). Fails
+     * closed: any missing/unrecognized mime type, malformed JSON, or an unknown/missing
+     * {@code "kind"} yields {@code null} rather than breaking the answer.
+     */
+    private static Map<String, Object> parseArtifact(InlineArtifact artifact) {
+        if (artifact == null) return null;
+        if (!ARTIFACT_MIME_TYPE.equals(artifact.mimeType())) return null;
+        Map<String, Object> parsed;
+        try {
+            parsed = JSON.readValue(artifact.data(), new TypeReference<Map<String, Object>>() {});
+        } catch (IOException | RuntimeException e) {
+            log.warn("Dropping malformed A2UI artifact: {}", e.getMessage());
+            return null;
+        }
+        Object kind = parsed.get("kind");
+        if (!(kind instanceof String s) || !ARTIFACT_KINDS.contains(s)) {
+            log.warn("Dropping A2UI artifact with missing/unknown kind: {}", kind);
+            return null;
+        }
+        return parsed;
     }
 
     @SuppressWarnings("unchecked")

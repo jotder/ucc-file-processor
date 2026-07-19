@@ -52,10 +52,12 @@ final class AgentRoutes implements RouteModule {
     }
 
     /**
-     * Server-Sent Events variant of {@code ask}: one {@code data:} event per token, then a terminal
-     * {@code event: complete} carrying the {@link AgentAskResult} JSON, or {@code event: error}. An
-     * unknown session surfaces as an {@code error} SSE frame (never a 404) — the response's headers,
-     * including the status, are already committed by the time streaming starts.
+     * Server-Sent Events variant of {@code ask}: one {@code data:} event per token, an optional
+     * {@code event: artifact} frame carrying an A2UI artifact JSON (before completion, when the
+     * answer produced one), then a terminal {@code event: complete} carrying the
+     * {@link AgentAskResult} JSON, or {@code event: error}. An unknown session surfaces as an
+     * {@code error} SSE frame (never a 404) — the response's headers, including the status, are
+     * already committed by the time streaming starts.
      */
     private void streamAsk(IntelligenceAgent agent, String sessionId, AgentAskRequest request, HttpExchange e) {
         try {
@@ -68,6 +70,13 @@ final class AgentRoutes implements RouteModule {
         OutputStream out = e.getResponseBody();
         AgentAnswerSink sink = new AgentAnswerSink() {
             @Override public void onToken(String token) { writeSse(out, null, token); }
+            @Override public void onArtifact(Map<String, Object> artifact) {
+                try {
+                    writeSse(out, "artifact", ApiContext.JSON.writeValueAsString(artifact));
+                } catch (com.fasterxml.jackson.core.JsonProcessingException ex) {
+                    writeSse(out, "error", "failed to serialize the artifact: " + ex.getMessage());
+                }
+            }
             @Override public void onComplete(AgentAskResult result) {
                 try {
                     writeSse(out, "complete", ApiContext.JSON.writeValueAsString(result));

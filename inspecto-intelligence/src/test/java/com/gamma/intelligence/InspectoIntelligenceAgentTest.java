@@ -1,9 +1,14 @@
 package com.gamma.intelligence;
 
+import com.eoiagent.core.AgentAnswer;
+import com.eoiagent.core.AnswerKind;
+import com.eoiagent.core.InlineArtifact;
+import com.eoiagent.core.RunId;
 import com.eoiagent.model.StubLlmGateway;
 import com.gamma.service.CollectorService;
 import org.junit.jupiter.api.Test;
 
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
 
@@ -57,5 +62,43 @@ class InspectoIntelligenceAgentTest {
         InspectoIntelligenceAgent agent = open(StubLlmGateway.builder().defaultReplyText("ok").build());
         agent.close();
         agent.close(); // idempotent, no throw
+    }
+
+    // S4: no live eoiagent session/tool produces an INLINE_ARTIFACT answer today (checked
+    // DefaultAgentSession, eoiagent-examples, eoiagent-app-reference — no producer anywhere), so
+    // these two tests construct the AgentAnswer/InlineArtifact directly and drive the package-private
+    // toResult(...) test seam, bypassing the live AgentSession path entirely.
+
+    @Test
+    void toResultParsesAValidInlineArtifactIntoTheA2uiMap() {
+        AgentAnswer answer = new AgentAnswer(AnswerKind.INLINE_ARTIFACT, "here's a chart",
+                new InlineArtifact("application/vnd.a2ui+json", "title",
+                        "{\"kind\":\"chart\",\"config\":{}}".getBytes(StandardCharsets.UTF_8), Map.of()),
+                null, List.of(), new RunId("run-1"));
+
+        AgentAskResult result = InspectoIntelligenceAgent.toResult(answer);
+
+        assertEquals(Map.of("kind", "chart", "config", Map.of()), result.artifact());
+    }
+
+    @Test
+    void toResultDropsAnArtifactThatFailsValidationRatherThanThrowing() {
+        AgentAnswer wrongMimeType = new AgentAnswer(AnswerKind.INLINE_ARTIFACT, "here's a chart",
+                new InlineArtifact("text/plain", "title",
+                        "{\"kind\":\"chart\",\"config\":{}}".getBytes(StandardCharsets.UTF_8), Map.of()),
+                null, List.of(), new RunId("run-2"));
+        assertNull(InspectoIntelligenceAgent.toResult(wrongMimeType).artifact());
+
+        AgentAnswer malformedJson = new AgentAnswer(AnswerKind.INLINE_ARTIFACT, "here's a chart",
+                new InlineArtifact("application/vnd.a2ui+json", "title",
+                        "not json".getBytes(StandardCharsets.UTF_8), Map.of()),
+                null, List.of(), new RunId("run-3"));
+        assertNull(InspectoIntelligenceAgent.toResult(malformedJson).artifact());
+
+        AgentAnswer unknownKind = new AgentAnswer(AnswerKind.INLINE_ARTIFACT, "here's a chart",
+                new InlineArtifact("application/vnd.a2ui+json", "title",
+                        "{\"kind\":\"unknown-kind\"}".getBytes(StandardCharsets.UTF_8), Map.of()),
+                null, List.of(), new RunId("run-4"));
+        assertNull(InspectoIntelligenceAgent.toResult(unknownKind).artifact());
     }
 }
