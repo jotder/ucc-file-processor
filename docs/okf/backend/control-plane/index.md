@@ -14,6 +14,7 @@ v1 contract, queries, observability, the job scheduler, and multi-space hosting.
 * [Decision rules](decision-rules.md) - `/decision-rules` CRUD + sample-driven `simulate` over the
   `query-types` condition tree, evaluated by the shared `ConditionTree` engine (query-eval.ts parity).
 * [Events & metrics](events-metrics.md) - `EventLog` (synchronous bus), `MetricRegistry`, `StabilityGate`.
+* [Signal backbone](signal-backbone.md) - the canonical `Signal` envelope (`Ref`, 6-level `Severity`), projected to notification templating, AG-UI streaming, A2UI artifacts, agent context tools, and the gated agentic write path (`invoke` confirm-then-apply).
 * [Jobs](jobs.md) - `JobService` cron/event/manual scheduling, the off-bus trigger handoff, and the
   v1 async run model (202 + `runId`).
 * [Multi-space](multi-space.md) - `SpaceManager`/`SpaceContext`/`SpaceMigrator` and the MDC-based singleton isolation.

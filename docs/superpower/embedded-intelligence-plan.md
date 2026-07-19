@@ -273,8 +273,12 @@ configured local Ollama, streamable over SSE; reflex layer untouched; CPU-only C
 **P1 — Investigation.** `timeline_build`/`diff_batches`/`config_versions_diff`/`anomaly_scan`
 tools; `root_cause_analysis` + `impact_analysis` playbooks; Case Store + `/agent/cases`; event
 ingress (generalized FailureReactor → triage queue feeding the deliberative layer).
-*Substrate note (2026-07-19): the signal tools + event ingress + agent-telemetry ledger are now
-planned as slices S1/S5 of `event-signal-backbone-plan.md` (combined plan) — P1 builds on them.*
+*Substrate SHIPPED (2026-07-19, `docs/okf/backend/control-plane/signal-backbone.md`): the
+`signals_query`/`signal_timeline` tools, the `ContextBroker` situation frame (identity + focus +
+live Signal overlay), and the `agent.*` telemetry ledger all landed as S1/S5 of the signal-backbone
+plan. Still open for P1 proper: `timeline_build`/`diff_batches`/`config_versions_diff`/
+`anomaly_scan` as distinct tools (today `signal_timeline` covers the causation-chain case only),
+Case Store + `/agent/cases`, and the RCA/impact-analysis playbooks themselves.*
 *Exit: a seeded Incident (broken batch + config change) yields a correct ranked RCA with evidence
 and a fix draft, deterministically under the fake provider.*
 
@@ -287,6 +291,14 @@ pass rate; every draft carries validation evidence.*
 **P3 — Gated action (L2).** ApprovalGate wiring + approvals inbox (UI + routes) + checkpoint/
 resume; act tools (`component_apply`, `job_run`, `schedule_apply`, `alert_ack`, `pipeline_rerun`,
 `component_rollback`); `runbook_operator` with 2–3 seeded runbooks.
+*Substrate SHIPPED for one narrow case (2026-07-19, S6 of the signal-backbone plan): the exact
+"agent proposes → dry-run diff shown → human approves (a separate, explicit confirm) → applies,
+fully audited (`actor=agent:*`) → declining mutates nothing" pattern now exists end-to-end for
+A2UI `invoke` actions against an existing, human-authored Decision Rule — reusing the plan's
+`simulate`/`apply` gate split, no new gate machinery, no gate weakened. Still open for P3 proper:
+a real approvals inbox (UI + routes, today it's per-artifact inline confirm only, no queue), the
+full act-tool roster above, `runbook_operator`, and generalizing beyond "invoke an existing rule"
+to `component_apply`-style authored-then-applied drafts (P2).*
 *Exit: end-to-end "agent proposes → dry-run diff shown → human approves → agent applies + verifies →
 undo works", fully audited.*
 
