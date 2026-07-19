@@ -1,5 +1,7 @@
 package com.gamma.notify;
 
+import com.gamma.util.DottedPath;
+
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -25,22 +27,10 @@ public final class NotificationTemplate {
         Matcher m = VAR.matcher(template);
         StringBuilder out = new StringBuilder();
         while (m.find()) {
-            Object v = resolve(context, m.group(1));
+            Object v = DottedPath.resolve(context, m.group(1));
             m.appendReplacement(out, Matcher.quoteReplacement(v == null ? "" : String.valueOf(v)));
         }
         m.appendTail(out);
         return out.toString();
-    }
-
-    /** Walk a dotted path ({@code a.b.c}) through nested maps; {@code null} if any hop is missing. */
-    private static Object resolve(Map<String, Object> context, String path) {
-        if (context == null) return null;
-        Object cur = context;
-        for (String key : path.split("\\.")) {
-            if (!(cur instanceof Map<?, ?> map)) return null;
-            cur = map.get(key);
-            if (cur == null) return null;
-        }
-        return cur;
     }
 }

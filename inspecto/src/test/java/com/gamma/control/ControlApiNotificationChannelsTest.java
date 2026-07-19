@@ -53,15 +53,22 @@ class ControlApiNotificationChannelsTest {
             // empty before any save
             assertTrue(json(send(c.port, "GET", base, null)).isEmpty());
 
-            // create — enabled defaults true, a createdAt stamp is issued
+            // create — enabled defaults true, a createdAt stamp is issued, an authored `template` round-trips
             HttpResponse<String> createResp = send(c.port, "POST", base,
-                    "{\"id\":\"ops_mail\",\"kind\":\"EMAIL\",\"target\":\"ops@example.com\",\"description\":\"Ops inbox\"}");
+                    "{\"id\":\"ops_mail\",\"kind\":\"EMAIL\",\"target\":\"ops@example.com\",\"description\":\"Ops inbox\","
+                            + "\"template\":\"[{{type}} @ {{time}}] {{message}}\"}");
             assertEquals(200, createResp.statusCode(), createResp.body());
             JsonNode made = json(createResp);
             assertEquals("EMAIL", made.get("kind").asText());
             assertTrue(made.get("enabled").asBoolean(), "enabled defaults true");
+            assertEquals("[{{type}} @ {{time}}] {{message}}", made.get("template").asText(),
+                    "the per-channel template round-trips through create");
             long createdAt = made.get("createdAt").asLong();
             assertTrue(createdAt > 0, "a createdAt stamp is issued");
+
+            assertEquals("[{{type}} @ {{time}}] {{message}}",
+                    json(send(c.port, "GET", base, null)).get(0).get("template").asText(),
+                    "the template round-trips through GET too");
 
             // 422 missing target; 409 duplicate id
             assertEquals(422, send(c.port, "POST", base, "{\"id\":\"x\",\"kind\":\"EMAIL\"}").statusCode());

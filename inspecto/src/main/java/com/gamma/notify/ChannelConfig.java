@@ -7,21 +7,22 @@ import java.util.Map;
  * A persisted notification-channel <em>destination</em> the operator manages through the
  * {@code /notifications/channels*} admin CRUD — {@code id}, {@code kind} (e.g. {@code EMAIL}/{@code WEBHOOK}),
  * the {@code target} deliveries go to (an address / a URL), an optional {@code description}, an
- * {@code enabled} flag and a {@code createdAt} stamp. It is <b>authored config only</b>: the live delivery
- * path still resolves channels from the {@code notify.*} JVM flags via the {@link NotificationChannel} SPI
- * ({@code ServiceLoader}); wiring these persisted destinations into dispatch is a separate follow-up.
+ * {@code enabled} flag, a {@code createdAt} stamp, and an optional per-channel {@code template} — a
+ * {@code {{var}}}-style body override ({@link NotificationTemplate}) rendered against the triggering
+ * {@link NotificationRule}'s own context (event-signal-backbone-plan §4.5.1); blank/{@code null} falls
+ * back to the rule's default body (see {@code NotificationService.dispatch}).
  *
  * <p>Distinct from the {@link NotificationChannel} SPI interface (a delivery implementation) — this is the
  * managed record of where a channel points, persisted as a {@code channel} component per space.
  */
 public record ChannelConfig(String id, String kind, String target, String description,
-                            boolean enabled, long createdAt) {
+                            boolean enabled, long createdAt, String template) {
 
     /**
      * Parse + validate a channel from a request/stored map. {@code id}/{@code kind}/{@code target} are
      * required (blank → {@link IllegalArgumentException} → 422); {@code enabled} defaults true; {@code
      * createdAt} is taken from the map when present (a round-tripped/updated record) else {@code
-     * defaultCreatedAt} (a fresh create).
+     * defaultCreatedAt} (a fresh create); {@code template} is optional (blank/absent ⇒ {@code null}).
      */
     public static ChannelConfig fromMap(Map<String, Object> m, long defaultCreatedAt) {
         String id = require(m, "id");
@@ -30,7 +31,8 @@ public record ChannelConfig(String id, String kind, String target, String descri
         String description = str(m, "description");
         boolean enabled = !(m.get("enabled") instanceof Boolean b) || b;
         long createdAt = m.get("createdAt") instanceof Number n ? n.longValue() : defaultCreatedAt;
-        return new ChannelConfig(id, kind, target, description, enabled, createdAt);
+        String template = str(m, "template");
+        return new ChannelConfig(id, kind, target, description, enabled, createdAt, template);
     }
 
     /** The wire shape the UI's {@code NotificationChannel} consumes. */
@@ -42,6 +44,7 @@ public record ChannelConfig(String id, String kind, String target, String descri
         m.put("description", description);
         m.put("enabled", enabled);
         m.put("createdAt", createdAt);
+        m.put("template", template);
         return m;
     }
 

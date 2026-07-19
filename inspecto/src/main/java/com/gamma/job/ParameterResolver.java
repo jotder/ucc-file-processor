@@ -14,6 +14,8 @@ import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import com.gamma.util.DottedPath;
+
 /**
  * Resolves a Job's declared {@link ParameterDecl}s to concrete values for one Run (job-framework §7.2,
  * the parameter slice of P1b/P3a + P3a-2). For each declaration the first hit wins across the layers:
@@ -100,7 +102,7 @@ final class ParameterResolver {
                         .map(t -> t.atZone(ctx.zone()).toInstant().toString()).orElse(null);
             default:
                 if (expr.startsWith("$signal.")) {
-                    Object v = ctx.signalPayload().get(expr.substring("$signal.".length()));
+                    Object v = DottedPath.resolve(ctx.signalPayload(), expr.substring("$signal.".length()));
                     return v == null ? null : String.valueOf(v);
                 }
                 Matcher m = DATE_FN.matcher(expr);

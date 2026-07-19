@@ -1,18 +1,22 @@
 package com.gamma.job;
 
+import com.gamma.util.DottedPath;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
 /**
  * Minimal guard evaluator for a Job's {@code when:} expression over the firing Signal's payload
- * ({@code $signal.<field>}) — job-framework §8.2. Grammar is flat (no parentheses): {@code ||} of
- * {@code &&} of single comparisons ({@code == != > < >= <=}). Operands are {@code $signal.<field>}, a
+ * ({@code $signal.<path>}, dotted) — job-framework §8.2. Grammar is flat (no parentheses): {@code ||} of
+ * {@code &&} of single comparisons ({@code == != > < >= <=}). Operands are {@code $signal.<path>}, a
  * quoted string, a number, or a bare token (compared as a string). A missing field or unparsable term
  * is <b>false</b> (fail-closed — a guard that can't be evaluated does not run the Job).
  *
- * <p>Deliberately small and self-contained for P1c; consolidation with the shared Query Core
- * {@code $}-resolver (§7.3) is future work.
+ * <p>{@code $signal.<path>} walks the firing Signal's payload via the shared dotted-path resolver
+ * ({@link DottedPath}, event-signal-backbone-plan §4.4) — the same walk {@link ParameterResolver}'s
+ * {@code $signal.} bind and {@link com.gamma.notify.NotificationTemplate} use, so a flat field
+ * ({@code $signal.errorRate}) and a nested one ({@code $signal.stats.errorRate}) both resolve.
  */
 final class WhenGuard {
 
@@ -41,9 +45,9 @@ final class WhenGuard {
         return false;   // no recognised operator
     }
 
-    /** {@code $signal.<field>} → payload value; quoted → literal; else the bare token. */
+    /** {@code $signal.<path>} → dotted-path payload value; quoted → literal; else the bare token. */
     private static Object resolve(String tok, Map<String, Object> payload) {
-        if (tok.startsWith("$signal.")) return payload.get(tok.substring("$signal.".length()));
+        if (tok.startsWith("$signal.")) return DottedPath.resolve(payload, tok.substring("$signal.".length()));
         if (tok.length() >= 2 && (tok.charAt(0) == '"' || tok.charAt(0) == '\'')
                 && tok.charAt(tok.length() - 1) == tok.charAt(0))
             return tok.substring(1, tok.length() - 1);

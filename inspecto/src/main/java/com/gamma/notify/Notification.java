@@ -63,6 +63,13 @@ public record Notification(String id, long ts, String category, String sourceTyp
                 NotificationState.ARCHIVED, dedupeKey, readAt);
     }
 
+    /** This notification with {@code body} replaced — used to render a per-channel {@code ChannelConfig}
+     *  template in place of the rule's default body for one delivery, without mutating the stored/in-app
+     *  copy (event-signal-backbone-plan §4.5.1). */
+    Notification withBody(String body) {
+        return new Notification(id, ts, category, sourceType, sourceId, title, body, state, dedupeKey, readAt);
+    }
+
     /** The event time as an ISO-8601 UTC string. */
     public String timestamp() {
         return ISO.format(Instant.ofEpochMilli(ts));

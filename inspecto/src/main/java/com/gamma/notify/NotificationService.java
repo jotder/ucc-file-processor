@@ -157,11 +157,16 @@ public final class NotificationService implements AutoCloseable {
             // Persisted channel destinations (admin CRUD): deliver each enabled ChannelConfig through the SPI
             // transport whose id names its kind, to the config's own target — so an operator-managed
             // destination delivers without a restart. No transport for a kind ⇒ nothing to deliver through.
+            // A channel with its own `template` renders that (against the rule's own context) in place of
+            // the rule's default body; blank/null template ⇒ unchanged behaviour (§4.5.1).
             for (ChannelConfig cfg : channelConfigs.get()) {
                 if (!cfg.enabled()) continue;
                 NotificationChannel ch = channelByKind(cfg.kind());
                 if (ch == null || !prefs.enabled(n.category(), ch.id())) continue;
-                try { ch.deliver(n, cfg.target()); } catch (Exception ex) {
+                Notification toDeliver = cfg.template() == null || cfg.template().isBlank()
+                        ? n
+                        : n.withBody(NotificationTemplate.render(cfg.template(), NotificationRule.context(e)));
+                try { ch.deliver(toDeliver, cfg.target()); } catch (Exception ex) {
                     log.warn("channel {} → {} delivery failed: {}", ch.id(), cfg.target(), ex.getMessage());
                 }
             }

@@ -38,7 +38,9 @@ public record NotificationRule(String eventType, EventLevel minLevel, String cat
                 NotificationTemplate.render(dedupeKeyTemplate, ctx));
     }
 
-    /** The interpolation context for an event: top-level fields, its {@code attributes}, and the recipient. */
+    /** The interpolation context for an event: top-level fields, {@code time} (event-signal-backbone-plan
+     *  §4.4's {@code {{time}}}), the legacy flat {@code attributes} and the structured {@code payload}
+     *  (S0's {@link Event#payload()}) side by side, and the recipient. */
     static Map<String, Object> context(Event e) {
         Map<String, Object> ctx = new LinkedHashMap<>();
         ctx.put("eventId", e.eventId());
@@ -48,7 +50,10 @@ public record NotificationRule(String eventType, EventLevel minLevel, String cat
         ctx.put("pipeline", e.pipeline());
         ctx.put("correlationId", e.correlationId());
         ctx.put("message", e.message());
+        ctx.put("ts", e.ts());
+        ctx.put("time", e.timestamp());
         ctx.put("attributes", e.attributes());
+        ctx.put("payload", e.payload());
         // In the auth-free core the recipient is always appUser; an edition fills in real identity.
         ctx.put("recipient", Map.of("first_name", "appUser", "name", "appUser"));
         return ctx;
