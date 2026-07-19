@@ -22,6 +22,7 @@ import com.gamma.intelligence.context.ContextBroker;
 import com.gamma.intelligence.investigation.Case;
 import com.gamma.intelligence.investigation.CaseStore;
 import com.gamma.intelligence.investigation.Incident;
+import com.gamma.intelligence.investigation.TriageQueue;
 import com.gamma.intelligence.pack.InspectoPack;
 import com.gamma.intelligence.pack.Investigator;
 import com.gamma.pipeline.ComponentStore;
@@ -60,6 +61,7 @@ public final class InspectoIntelligenceAgent implements IntelligenceAgent {
     private AgentPlatform platform;
     private ContextBroker contextBroker;
     private LlmGateway gateway;
+    private TriageQueue triage;
 
     /** Discovered/registered via {@link CollectorService}; builds its gateway from {@link GatewayFactory}. */
     public InspectoIntelligenceAgent() {
@@ -91,6 +93,14 @@ public final class InspectoIntelligenceAgent implements IntelligenceAgent {
                 .llmGateway(gateway)
                 .start();
         log.info("Intelligence platform assembled: {} v{}", platform.pack().name(), platform.pack().version());
+
+        // Slice E: autonomous triage is opt-in. When enabled, subscribe to the canonical Signal bus
+        // and run an RCA investigation (L1 — Case + draft only) on each error/critical breach.
+        if (TriageQueue.enabled()) {
+            triage = new TriageQueue(this::investigate);
+            triage.attach(service.eventLog());
+            log.info("Autonomous triage enabled ({}=true): investigating error/critical signals", TriageQueue.ENABLED_FLAG);
+        }
     }
 
     @Override
@@ -174,6 +184,10 @@ public final class InspectoIntelligenceAgent implements IntelligenceAgent {
 
     @Override
     public void close() {
+        if (triage != null) {
+            try { triage.close(); } catch (RuntimeException e) { log.warn("Error closing triage: {}", e.getMessage()); }
+            triage = null;
+        }
         for (AgentSession session : sessions.values()) {
             try { session.close(); } catch (RuntimeException e) { log.warn("Error closing session: {}", e.getMessage()); }
         }

@@ -9,6 +9,9 @@ import com.gamma.expectation.ExpectationEvaluator;
 import com.gamma.ops.ObjectType;
 import com.gamma.pipeline.ComponentRegistry;
 import com.gamma.pipeline.ComponentStore;
+import com.gamma.signal.Ref;
+import com.gamma.signal.Severity;
+import com.gamma.signal.Signal;
 import com.sun.net.httpserver.HttpExchange;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -183,6 +186,19 @@ final class ExpectationRoutes implements RouteModule {
                     .attr("kind", exp.kind())
                     .attr("violations", violations)
                     .attr("severity", exp.severity()));
+
+            // AGT-5 P1 D4: the canonical expectation.violated Signal, additive to the legacy event
+            // above — the triage layer subscribes to Signals, and RCA is otherwise blind to quality
+            // breaches. Same correlationId so triage dedupes against the open Incident.
+            Map<String, Object> payload = new LinkedHashMap<>();
+            payload.put("expectation", exp.name());
+            payload.put("kind", exp.kind());
+            payload.put("violations", violations);
+            payload.put("severity", exp.severity());
+            EventLog.current().emit(new Signal(null, "expectation.violated", java.time.Instant.now(),
+                    Severity.parse(exp.severity()), Ref.of("expectation", exp.name()),
+                    Ref.of(exp.targetType(), exp.target()), correlationId, null, null, null,
+                    title + " — " + description, payload, 1).toEvent());
         } catch (RuntimeException e) {
             log.warn("could not raise incident for failed expectation {}: {}", exp.name(), e.getMessage());
         }

@@ -10,10 +10,14 @@ import com.gamma.event.EventType;
 import com.gamma.ops.ObjectService;
 import com.gamma.ops.ObjectType;
 import com.gamma.service.StatusStore;
+import com.gamma.signal.Ref;
+import com.gamma.signal.Severity;
+import com.gamma.signal.Signal;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.time.Duration;
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayDeque;
@@ -211,7 +215,32 @@ public final class AlertService {
                 .attr("severity", rule.severity())
                 .build();
         EventLog.current().emit(firedEvent);
+        emitFiredSignal(rule, display, cooldownScope, alert, value, nowMs);
         persistAlertObject(rule, alert, display, value, firedEvent.eventId());
+    }
+
+    /**
+     * Emit the canonical {@code alert-rule.fired} Signal alongside the legacy {@code ALERT_FIRED}
+     * event (AGT-5 P1 D4 — additive; the legacy event stays for the Event Viewer / notifications).
+     * Correlated by rule+scope so the triage layer dedupes re-fires of the same breach. Never
+     * disturbs evaluation — a signal hiccup is logged and swallowed.
+     */
+    private void emitFiredSignal(AlertRule rule, String display, String cooldownScope, Alert alert,
+                                 double value, long nowMs) {
+        try {
+            Map<String, Object> payload = new LinkedHashMap<>();
+            payload.put("rule", rule.name());
+            payload.put("metric", alert.metric());
+            payload.put("value", value);
+            payload.put("severity", rule.severity());
+            Signal s = new Signal(null, "alert-rule.fired", Instant.ofEpochMilli(nowMs),
+                    Severity.parse(rule.severity()), Ref.of("alert-rule", rule.name()),
+                    Ref.of("pipeline", display), "alert:" + rule.name() + "|" + cooldownScope,
+                    null, null, null, alert.message(), payload, 1);
+            EventLog.current().emit(s.toEvent());
+        } catch (RuntimeException e) {
+            log.warn("could not emit alert-rule.fired signal for {}: {}", rule.name(), e.getMessage());
+        }
     }
 
     /**

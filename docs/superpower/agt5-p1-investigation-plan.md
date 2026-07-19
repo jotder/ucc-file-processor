@@ -51,9 +51,19 @@ a correct ranked RCA with evidence and a fix draft, deterministically under the 
 
 > **Progress (2026-07-20):** Slice **A SHIPPED** (`feat(agent)` 7f34711 — the four tools, belt now
 > 9). Slice **D SHIPPED** (Case Store + `GET /agent/cases[/{id}]`, 60469fc). Slice **C SHIPPED**
-> (RCA/impact playbooks — see D-note below). Remaining: **E** (triage ingress + missing Signals),
-> **B** (eoiagent goalKind seam — cross-repo, deferred to last per operator). Chosen sequence:
-> D→C→E in-repo, then B.
+> (RCA/impact playbooks — see D-note below). Slice **E SHIPPED** (triage ingress + the two missing
+> Signals — see E-note below). Remaining: **B** (eoiagent goalKind seam — cross-repo, deferred to
+> last per operator). Chosen sequence: D→C→E in-repo done; **B is all that remains for P1.**
+>
+> **Slice E as-built:** Two canonical Signals now emit additively at their eval sites —
+> `alert-rule.fired` (`AlertService.fire`) and `expectation.violated` (`ExpectationRoutes.raiseIncident`),
+> alongside the legacy `ALERT_FIRED`/`EXPECTATION_FAILED` events (no regression). `TriageQueue`
+> (investigation package, parallel to `SignalIngress`) subscribes to the Signal bus with the mandatory
+> deadlock-safe hand-off (bounded queue + owned virtual-thread executor, never inline), an ERROR/CRITICAL
+> floor, an `agent.*` exclusion (no self-investigation loop), and correlationId dedupe; on a clearing
+> signal it runs `Investigator.investigate` (L1 — Case + draft only) and files the Case.
+> **Autonomy is opt-in** — off unless `-Dintelligence.triage.enabled=true` (`TriageQueue.enabled()`,
+> proven default-off in test); the agent wires it in `start()` only when enabled.
 >
 > **Slice C as-built (deviation from the ReAct sketch):** RCA runs as a **deterministic
 > tool-orchestration + single-shot model synthesis** (`Investigator`), not model-driven ReAct — the
@@ -95,7 +105,8 @@ defaults (`recentCases`/`caseById`, empty-degrading like `/assist/diagnoses`) to
 (+ `GET /agent/cases/{id}`) — 503 when module absent, 404 on unknown id. RCA runs will write a Case
 (slice C wires the write). Real-HTTP `AgentRoutesTest` (4 new cases) + `CaseStoreTest` green.
 
-**E — Event ingress + missing Signals.** D4 emissions; `TriageQueue` (D3) with bounded queue +
+**E — Event ingress + missing Signals. ✅ SHIPPED** (see the as-built note above).
+D4 emissions; `TriageQueue` (D3) with bounded queue +
 dedupe + kill-switch config default-off (`intelligence.triage.enabled=false` — autonomy is opt-in);
 on trigger runs `root_cause_analysis` at L1 (Case + draft only, no apply).
 *Verify: seeded FAILED batch Signal → Case appears; disabled by default proven in test.*

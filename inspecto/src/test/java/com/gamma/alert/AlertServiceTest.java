@@ -10,7 +10,10 @@ import com.gamma.ops.InMemoryObjectStore;
 import com.gamma.ops.ObjectQuery;
 import com.gamma.ops.ObjectService;
 import com.gamma.ops.ObjectType;
+import com.gamma.event.EventLog;
+import com.gamma.event.EventType;
 import com.gamma.service.StatusStore;
+import com.gamma.signal.Signal;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -22,6 +25,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Consumer;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -87,6 +92,29 @@ class AlertServiceTest {
                 "the stale row must not dilute the in-window rate");
         assertEquals("MINI_ETL", firedNow.get(0).get("pipeline"));
         assertEquals(1, svc.recent(10).size());
+    }
+
+    @Test
+    void firingAlsoEmitsTheCanonicalAlertRuleFiredSignal(@TempDir Path dir) throws Exception {
+        PipelineConfig cfg = PipelineConfig.load(PipelineConfigBatchTest.writePipeline(dir, "").toString());
+        LocalDateTime now = LocalDateTime.now();
+        List<Map<String, String>> ledger = List.of(row("SUCCESS", 1000, 900, 0, 100, now.minusMinutes(5)));
+        AlertService svc = new AlertService(
+                List.of(rule("error_rate", "gt", 0.05, "1h", null)), configs(cfg), store(ledger));
+
+        List<Signal> signals = new CopyOnWriteArrayList<>();
+        Consumer<com.gamma.event.Event> sub = e -> {
+            if (EventType.SIGNAL.equals(e.type())) signals.add(Signal.fromEvent(e));
+        };
+        EventLog.current().addSubscriber(sub);
+        try {
+            assertEquals(1, svc.evaluateAll().size());
+        } finally {
+            EventLog.current().removeSubscriber(sub);
+        }
+        Signal fired = signals.stream().filter(s -> "alert-rule.fired".equals(s.type())).findFirst().orElse(null);
+        assertTrue(fired != null, "an alert-rule.fired Signal is emitted alongside the legacy event");
+        assertEquals("r-error_rate", fired.payload().get("rule"));
     }
 
     @Test

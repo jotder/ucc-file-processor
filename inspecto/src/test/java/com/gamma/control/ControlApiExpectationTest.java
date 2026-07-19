@@ -6,6 +6,8 @@ import com.gamma.etl.PipelineConfigBatchTest;
 import com.gamma.etl.TestConfigs;
 import com.gamma.ops.ObjectType;
 import com.gamma.service.CollectorService;
+import com.gamma.signal.Signal;
+import com.gamma.signal.Signals;
 import com.gamma.util.DuckDbUtil;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -187,6 +189,12 @@ class ControlApiExpectationTest {
             json(send(c.port, "POST", "/expectations/" + name + "/evaluate", null));
             assertEquals(1, c.svc.objects().active(ObjectType.INCIDENT, correlationId).size(),
                     "a failed evaluation opens one Incident");
+
+            // AGT-5 P1 D4: the failure also emits the canonical expectation.violated Signal (additive).
+            List<Signal> violated = Signals.query(c.svc.events(), "expectation.violated",
+                    null, null, null, correlationId, 10);
+            assertFalse(violated.isEmpty(), "a failed evaluation emits an expectation.violated Signal");
+            assertEquals(name, violated.get(0).payload().get("expectation"));
 
             // re-evaluate while the Incident is still open → still exactly one (deduped)
             json(send(c.port, "POST", "/expectations/" + name + "/evaluate", null));
