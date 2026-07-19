@@ -132,6 +132,14 @@ export class OnboardingShellComponent {
         return this.confirm.confirm('Leave onboarding and discard the unsaved stage changes?', 'Unsaved changes');
     }
 
+    /** Open this data origin in the Catalog's Lineage graph. The origin node id is the engine's
+     *  normalized pipeline id under the kind's token (`stream:` / `ref:`); the graph lifts draft
+     *  pipelines too, so it works before go-live (just with few neighbours). Read-only — every lens. */
+    viewAsGraph(): void {
+        const id = (this.state.kind() === 'reference' ? 'ref:' : 'stream:') + this.state.normalizedName();
+        this.router.navigate(['/catalog'], { queryParams: { tab: 'graph', from: id } });
+    }
+
     async discard(): Promise<void> {
         if (!this.lens.canAuthorWorkbench() || this.state.active()) return;
         const name = this.state.name();

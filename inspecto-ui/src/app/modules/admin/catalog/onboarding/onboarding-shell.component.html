@@ -9,6 +9,12 @@
             </span>
             <inspecto-status-badge [value]="state.lifecycle()" />
             <span class="flex-1"></span>
+            @if (state.config() && !state.missing()) {
+                <button mat-stroked-button type="button" (click)="viewAsGraph()">
+                    <mat-icon svgIcon="heroicons_outline:share" class="icon-size-4"></mat-icon>
+                    <span class="ml-1">View as graph</span>
+                </button>
+            }
             @if (lens.canAuthorWorkbench() && !state.active() && !state.missing()) {
                 <button mat-stroked-button type="button" (click)="discard()">
                     <mat-icon svgIcon="heroicons_outline:trash" class="icon-size-4"></mat-icon>

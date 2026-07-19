@@ -1,6 +1,19 @@
 # Log
 
 ## 2026-07-19
+* **Onboarding "View as graph" → Catalog Lineage deep-link** (BACKLOG §3 Onboarding — "View as graph
+  link"): the onboarding shell header gained a **View as graph** button (every lens, read-only) that
+  navigates to `/catalog` with `{tab:'graph', from: '<stream:|ref:><normalizedName>'}` — the origin node
+  id follows the engine's `IdScheme` (`stream:<pipeline>` for a Stream, `ref:<pipeline>` for a produced
+  Reference; confirmed against `MetadataGraphBuilder`, which lifts **draft** pipelines into the graph too,
+  so it works before go-live). The Catalog component now honours `?tab=<id>` (opens that tab) and, on the
+  Lineage tab, `?from=<nodeId>` (seeds `graphFrom` + runs the traversal on init) — a small `ngOnInit`
+  addition reading `route.snapshot.queryParamMap`; no query params = the prior default (Streams tab).
+  Live-verified end-to-end against the real backend: `?from=stream:orders` opened Lineage and traversed
+  (real neighbours); the onboarding button on a fresh draft opened Lineage with `from=stream:<draft>` (the
+  lifted draft node). Tests: catalog +2 (deep-link runs traversal; tab-without-from stays empty), shell +2
+  (stream vs ref token). DoD green: lint:tokens PASS · build PASS · test:ci 1433/0/5.
+
 * **Menu Builder wired to the real backend** (BACKLOG §3 Menu-builder — "Remaining: UI wiring"): the
   `GET/PUT /nav/menus` backend shipped `fdec9a0` but `MenuService` still persisted to localStorage only.
   New `inspecto/menu/menu-api.ts` `NavMenusService` (`get()`/`put()` over `/nav/menus`, space-scoped by

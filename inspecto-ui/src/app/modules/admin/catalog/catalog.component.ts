@@ -9,7 +9,7 @@ import { MatInputModule } from '@angular/material/input';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSelectModule } from '@angular/material/select';
 import { MatTabsModule } from '@angular/material/tabs';
-import { Router } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { ColDef } from 'ag-grid-community';
 import {
     CatalogService,
@@ -66,6 +66,7 @@ export class CatalogComponent implements OnInit {
     private api = inject(CatalogService);
     private dialog = inject(MatDialog);
     private router = inject(Router);
+    private route = inject(ActivatedRoute);
     protected lens = inject(LensService);
 
     // The two Exchange tabs appear only on a multi-space runtime (bootstrap.features.exchange —
@@ -174,7 +175,22 @@ export class CatalogComponent implements OnInit {
     ];
 
     ngOnInit(): void {
-        this.loadTab();
+        // Deep-link support (e.g. onboarding's "View as graph"): ?tab=<id> opens that tab, and on the
+        // Lineage tab ?from=<nodeId> seeds and runs the traversal immediately.
+        const qp = this.route.snapshot.queryParamMap;
+        const tab = qp.get('tab');
+        if (tab) {
+            const idx = this.tabs.findIndex((t) => t.id === tab);
+            if (idx >= 0) this.tabIndex = idx;
+        }
+        const from = qp.get('from');
+        if (from) this.graphFrom = from;
+
+        if (this.activeTab === 'graph') {
+            if (this.graphFrom.trim()) this.runGraph();
+        } else {
+            this.loadTab();
+        }
     }
 
     loadTab(): void {

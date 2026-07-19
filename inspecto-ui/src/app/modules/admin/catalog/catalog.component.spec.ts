@@ -1,7 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import { MatDialog } from '@angular/material/dialog';
-import { provideRouter } from '@angular/router';
+import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
 import { of, throwError } from 'rxjs';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { GammaConfigService } from '@gamma/services/config';
@@ -20,7 +20,7 @@ const STREAM: MetadataNode = {
 const GRAPH: MetadataGraph = { nodes: [TABLE], edges: [] };
 const EMPTY_GRAPH: MetadataGraph = { nodes: [], edges: [] };
 
-function create(overrides: Partial<CatalogService> = {}) {
+function create(overrides: Partial<CatalogService> = {}, queryParams: Record<string, string> = {}) {
     const api = {
         tables: () => of([TABLE]),
         streams: () => of([]),
@@ -34,6 +34,7 @@ function create(overrides: Partial<CatalogService> = {}) {
         providers: [
             provideNoopAnimations(),
             provideRouter([]),
+            { provide: ActivatedRoute, useValue: { snapshot: { queryParamMap: convertToParamMap(queryParams) } } },
             { provide: CatalogService, useValue: api },
             { provide: MatDialog, useValue: {} },
             { provide: InspectoGridThemeService, useValue: { theme: () => ({}) } },
@@ -87,6 +88,19 @@ describe('CatalogComponent', () => {
         c.runGraph();
         expect(c.graph?.nodes).toEqual([TABLE]);
         expect(c.legend).toEqual([{ kind: 'TABLE', fill: expect.any(String) }]);
+    });
+
+    it('deep-links to the Lineage tab and runs the traversal from ?tab=graph&from=', () => {
+        const c = create({}, { tab: 'graph', from: 'stream:orders' }).componentInstance;
+        expect(c.activeTab).toBe('graph');
+        expect(c.graphFrom).toBe('stream:orders');
+        expect(c.graph?.nodes).toEqual([TABLE]); // runGraph ran on init from the deep-link
+    });
+
+    it('opens the requested tab without a from and does not traverse', () => {
+        const c = create({}, { tab: 'graph' }).componentInstance;
+        expect(c.activeTab).toBe('graph');
+        expect(c.graph).toBeNull(); // no ?from ⇒ empty Lineage tab, user traverses manually
     });
 
     it('renders the empty-graph state with no a11y violations', async () => {
