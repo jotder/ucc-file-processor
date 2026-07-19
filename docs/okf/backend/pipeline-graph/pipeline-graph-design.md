@@ -931,7 +931,7 @@ Actionable, phase-aligned, derived from §8 + the §13 corrections. `[ ]` = not 
   store/format/partition-columns against the sample (row count + bounded sample, no write); `POST
   /components/sink/{id}/test {sampleRows}`. Shared scratch helper `ScratchTables` (seed/count/read/columnNames).
   Tests: `ComponentPreviewTest`(8) · `PipelineDryRunTest`(2) · `ControlApiComponentsTest`(7)/`ControlApiFlowCrudTest`.
-- [~] **T19 (CRUD backend done 2026-06-18; authoring UI pending).** Component + flow CRUD, generalising the
+- [x] **T19 (done — CRUD backend 2026-06-18; component UI 2026-06-18; flow-topology editor closed 2026-07-19, see below).** Component + flow CRUD, generalising the
   connection write pattern (write-root gated, id-sanitised, path-jailed, atomic temp+move). **Component CRUD:**
   `com.gamma.pipeline.ComponentStore` (create/replace/delete/list/get over `<write-root>/registry/<typeDir>/<id>.toon` for
   `grammar`/`schema`/`transform`/`sink` — connection keeps its own secret-masking CRUD; id stamped as the in-file
@@ -947,10 +947,17 @@ Actionable, phase-aligned, derived from §8 + the §13 corrections. `[ ]` = not 
   create/edit/delete (mirrors the connections-CRUD pane), a per-kind `ComponentFormDialog` (structured fields;
   transform operator+JSON config) with an inline **Test** panel driving the T18 dry-run endpoints
   (`ComponentsService`), plus nav + lazy route. Tests: `ComponentsComponent`(3, incl. axe a11y); token-guard +
-  prod build green. **Pending (corrected 2026-07-19):** only the **flow-topology editor** (node/edge CRUD on the G6
-  canvas) remains — UI work. Wiring authored flows into the live executor **shipped under T32**
-  (2026-07-18, `PipelineJobRunner implements Job` → `PipelineExecutor`, `JobType.PIPELINE`); the earlier
-  "and wiring authored flows into the live executor" clause here was stale.
+  prod build green. **Flow-topology editor: already shipped (row closed 2026-07-19, second correction —
+  the earlier same-day correction fixed the executor clause but carried this one forward unverified).**
+  The G6 authoring canvas is `inspecto-ui` `modules/admin/pipelines/pipeline-editor.component.ts` +
+  `pipeline-editor-graph.component.ts` (the Pipelines pane's **Edit** mode, `PipelinesViewMode`): palette
+  drag/click node-add (17 processor types + CONTROL), two-click + Shift-drag edge-add, keyboard delete,
+  per-node config dialogs (`NodeConfigDialog`/`ParserConfigDialog`), dry-run/validate/activate, last-run
+  overlay (T17), all persisted through this row's own `/pipelines/authored` CRUD (`POST`/`GET …/raw`/`PUT`/
+  `DELETE` — live-verified end-to-end 2026-07-19). Landed incrementally from `4ffc378` (2026-06-30,
+  mock-backed) through the T32-era real-route wiring. Wiring authored flows into the live executor
+  **shipped under T32** (2026-07-18, `PipelineJobRunner implements Job` → `PipelineExecutor`,
+  `JobType.PIPELINE`).
 - [x] **T32 (done 2026-07-18 — live execution of authored job-flows, incl. the UI view-consumer).** Run authored `*_flow.toon`
   flows for real. Authored flows are **job-style** (`source_store` → `transform` → sink `store`), so they run
   as a new `JobType.PIPELINE` hosted by the existing `JobService` (cron/event/manual + audit + deletion fence +
