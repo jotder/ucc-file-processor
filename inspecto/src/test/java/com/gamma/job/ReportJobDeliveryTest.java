@@ -7,8 +7,11 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
+import javax.imageio.ImageIO;
+import java.awt.image.BufferedImage;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
@@ -67,6 +70,46 @@ class ReportJobDeliveryTest {
         Path artifact;
         try (Stream<Path> files = Files.list(outDir)) { artifact = files.findFirst().orElseThrow(); }
         assertEquals(4, Files.readAllLines(artifact).size(), "header + all 3 raw rows");
+    }
+
+    @Test
+    void datasetScopePngDeliversReadableTableImage(@TempDir Path writeRoot, @TempDir Path outDir) throws Exception {
+        System.setProperty("java.awt.headless", "true");   // BufferedImage rendering needs no display
+        seedSales(writeRoot);
+        System.setProperty("assist.write.root", writeRoot.toString());
+
+        JobResult r = new ReportJob(job(Map.of(
+                "scope", "dataset", "dataset", "sales_ds", "format", "png",
+                "measures", "sum(amount),count", "group_by", "region",
+                "out_dir", outDir.toString())), null).run();
+
+        assertEquals("SUCCESS", r.status(), r.message());
+        assertTrue(r.message().contains("delivered to"), r.message());
+        Path artifact;
+        try (Stream<Path> files = Files.list(outDir)) { artifact = files.findFirst().orElseThrow(); }
+        assertTrue(artifact.getFileName().toString().matches("weekly_sales_\\d{8}_\\d{6}\\.png"),
+                artifact.toString());
+        BufferedImage img = ImageIO.read(artifact.toFile());
+        assertNotNull(img, "PNG must be readable by ImageIO");
+        assertTrue(img.getWidth() > 100 && img.getHeight() > 60,
+                "plausible table dimensions, got " + img.getWidth() + "x" + img.getHeight());
+    }
+
+    @Test
+    void pngRendererCapsRowsAtSnapshotLimit(@TempDir Path outDir) throws Exception {
+        System.setProperty("java.awt.headless", "true");
+        List<Map<String, Object>> many = new ArrayList<>();
+        for (int i = 0; i < 200; i++) many.add(Map.of("n", i, "label", "row " + i));
+        Path capped = outDir.resolve("capped.png");
+        Path alsoCapped = outDir.resolve("also_capped.png");
+        TablePngRenderer.render("cap_test", many, capped);
+        TablePngRenderer.render("cap_test", many.subList(0, TablePngRenderer.MAX_ROWS + 1), alsoCapped);
+
+        // Both exceed the cap → identical height (MAX_ROWS body rows + the "+N more" footer line).
+        assertEquals(ImageIO.read(alsoCapped.toFile()).getHeight(), ImageIO.read(capped.toFile()).getHeight());
+        Path uncapped = outDir.resolve("uncapped.png");
+        TablePngRenderer.render("cap_test", many.subList(0, 5), uncapped);
+        assertTrue(ImageIO.read(uncapped.toFile()).getHeight() < ImageIO.read(capped.toFile()).getHeight());
     }
 
     @Test

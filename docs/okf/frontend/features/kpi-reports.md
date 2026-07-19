@@ -19,6 +19,7 @@ distinct from the analytical **Dashboards** authored in the [Studio](studio.md);
 * **Scheduled exports** (C6, 2026-07-04): a schedule IS a [Job](jobs.md) — `type: 'report'` with
   `params: {reportKind, dashboardId, format, recipients}`; no separate entity. Dispatch keys on
   `params.dashboardId` presence, *not* on `type === 'report'` (that type predates C6 and covers other
-  report jobs). CSV export is real (serializes the dashboard's tiles); PDF/PNG are placeholders pending a
-  real render pass (backend scope).
+  report jobs). CSV export is real (serializes the dashboard's tiles); PNG is real since BI-4 (backend
+  `TablePngRenderer`, JDK-native Graphics2D — a 50-row table snapshot; CSV stays the full export);
+  PDF remains deferred (offline-blocked: no usable PDF library in the air-gapped .m2).
 * This pane is the **Business lens's home route** (`LENS_HOME.business = 'kpi-reports'`).

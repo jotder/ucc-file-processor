@@ -40,10 +40,11 @@ import java.util.Set;
  *   <li>{@code dataset} (BI-4 export) — a headless BI query over a Dataset: params {@code dataset}
  *       (component id, required), {@code measures} (comma-separated {@code agg(field)}/{@code count};
  *       absent = raw rows), {@code group_by} (comma-separated columns), {@code limit} (default 10000).
- *       Renders CSV by default; reports render JSON.</li>
+ *       Renders CSV by default ({@code format: png} renders a table-image snapshot, capped at
+ *       {@link TablePngRenderer#MAX_ROWS} rows); reports render JSON.</li>
  * </ul>
  *
- * <p>Params: {@code scope}, {@code out_dir}, {@code format} ({@code json} | {@code csv}), and the
+ * <p>Params: {@code scope}, {@code out_dir}, {@code format} ({@code json} | {@code csv} | {@code png}), and the
  * dataset-scope params above.
  */
 final class ReportJob implements Job {
@@ -121,11 +122,15 @@ final class ReportJob implements Job {
         Path dir = Path.of(outDir);
         Files.createDirectories(dir);
         Path artifact = dir.resolve(cfg.name() + "_" + TS.format(LocalDateTime.now())
-                + ("csv".equals(format) ? ".csv" : ".json"));
+                + ("csv".equals(format) ? ".csv" : "png".equals(format) ? ".png" : ".json"));
         if ("csv".equals(format)) {
             if (rows == null) throw new IllegalArgumentException(
                     "format csv requires scope dataset (rollup reports render as json)");
             Files.writeString(artifact, toCsv(rows));
+        } else if ("png".equals(format)) {
+            if (rows == null) throw new IllegalArgumentException(
+                    "format png requires scope dataset (rollup reports render as json)");
+            TablePngRenderer.render(cfg.name(), rows, artifact);
         } else {
             Files.writeString(artifact, JSON.writerWithDefaultPrettyPrinter().writeValueAsString(report));
         }
