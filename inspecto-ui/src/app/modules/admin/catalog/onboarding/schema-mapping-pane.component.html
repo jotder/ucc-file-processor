@@ -65,7 +65,10 @@
                     <mat-option [value]="n">{{ n }}</mat-option>
                 }
             </mat-select>
-            <mat-hint>Drives Hive-style output partitioning — a DATE/TIMESTAMP field is typical.</mat-hint>
+            <mat-hint>
+                Drives Hive-style output partitioning — a DATE/TIMESTAMP field is typical. With no key (or
+                date-less data), records land in a single sentinel partition (<code>year=1900</code>).
+            </mat-hint>
         </mat-form-field>
 
         @if (state.kind() === 'reference') {

@@ -103,6 +103,20 @@ class ComponentPreviewParsingTest {
     }
 
     @Test
+    void jsonArrayKeepsAutoDetectedTimestampsAsStrings() throws Exception {
+        // format: array | auto auto-detects types; an ISO timestamp would become a DuckDB TIMESTAMP →
+        // a java.time object that isn't JSON-serializable on the wire (and renders inconsistently vs the
+        // VARCHAR every other format yields). The preview must hand back a String, like the NDJSON path.
+        PipelineConfig c = cfg(Map.of("frontend", "json", "json", Map.of("format", "array")));
+        ComponentPreview.GrammarResult r = ComponentPreview.parsing(c,
+                "[{\"id\":1,\"at\":\"2026-07-15T10:00:00\"},{\"id\":2,\"at\":\"2026-07-16T11:30:00\"}]");
+        assertEquals(2, r.rowCount(), "both array elements are rows: " + r.rows());
+        Object at = r.rows().get(0).get("at");
+        assertInstanceOf(String.class, at, "an auto-detected timestamp is handed back as a String, not java.time");
+        assertTrue(String.valueOf(at).contains("2026-07-15"), "the timestamp value survives: " + at);
+    }
+
+    @Test
     void binaryFixedWidthIsRejected() throws Exception {
         PipelineConfig c = cfg(Map.of(
                 "frontend", "fixedwidth",

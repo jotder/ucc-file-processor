@@ -285,7 +285,12 @@ public final class ComponentPreview {
      *  Like the engine's {@code read_json}, a malformed document fails the whole file. */
     private static String jsonSelect(PipelineConfig cfg, String path) {
         String format = "array".equals(cfg.json().format()) ? "array" : "auto";
-        return "SELECT * FROM read_json(" + ScratchTables.sqlStr(path)
+        // Cast every column to VARCHAR (the array/auto counterpart of the NDJSON path's json_extract_string)
+        // so an auto-detected timestamp comes back as its raw string, not a DuckDB TIMESTAMP → java.time —
+        // keeping this preview byte-consistent with every other format. read_json has no all_varchar option,
+        // so COLUMNS(*)::VARCHAR does the blanket cast without needing to know the column names. The
+        // parsed→typed hop downstream is where typing becomes explicit, not this raw preview.
+        return "SELECT COLUMNS(*)::VARCHAR FROM read_json(" + ScratchTables.sqlStr(path)
                 + ", format='" + format + "')";
     }
 
