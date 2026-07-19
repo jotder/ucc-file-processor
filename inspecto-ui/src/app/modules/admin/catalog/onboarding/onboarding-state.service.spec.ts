@@ -108,6 +108,30 @@ describe('OnboardingStateService', () => {
         expect(s.stages().find((x) => x.id === 'enrichment')?.optional).toBe(true);
     });
 
+    it('discard cascades to the guided companions and returns the pipeline delete result', () => {
+        const remove = vi.fn((type: string) => of({ type, deleted: true }));
+        const s = create({ remove } as unknown as Partial<ConfigService>);
+        s.name.set('orders_feed');
+        let result: unknown;
+        s.discardDraft().subscribe((r) => (result = r));
+        expect(remove).toHaveBeenCalledWith('pipeline', 'orders_feed');
+        expect(remove).toHaveBeenCalledWith('schema', 'orders_feed_schema');
+        expect(remove).toHaveBeenCalledWith('enrichment', 'orders_feed_enrich');
+        expect(result).toMatchObject({ type: 'pipeline' });
+    });
+
+    it('discard succeeds even when the companions were never authored (404)', () => {
+        const remove = vi.fn((type: string) =>
+            type === 'pipeline' ? of({ type, deleted: true }) : throwError(() => ({ status: 404 })));
+        const s = create({ remove } as unknown as Partial<ConfigService>);
+        s.name.set('x');
+        let result: unknown;
+        let errored = false;
+        s.discardDraft().subscribe({ next: (r) => (result = r), error: () => (errored = true) });
+        expect(errored).toBe(false);
+        expect(result).toMatchObject({ type: 'pipeline' });
+    });
+
     it('exposes the engine-normalized pipeline id for on_pipeline wiring', () => {
         const s = create();
         s.config.set({ name: 'Orders Feed' });

@@ -1,5 +1,5 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
-import { Observable, tap } from 'rxjs';
+import { Observable, catchError, forkJoin, map, of, switchMap, tap } from 'rxjs';
 import { ToastrService } from 'ngx-toastr';
 import { apiErrorMessage, ConfigDeleteResult, ConfigService, ConfigWriteResult, ParsingPreview, SchemaPreview } from 'app/inspecto/api';
 import { mergeBlock } from './onboarding-config-utils';
@@ -179,9 +179,23 @@ export class OnboardingStateService {
         );
     }
 
-    /** Draft discard — the server refuses an active pipeline (409); the shell confirms first. */
+    /**
+     * Draft discard — the server refuses an active pipeline (409); the shell confirms first. Deletes
+     * the pipeline first (the authoritative, gated op), then best-effort cascades the guided companions
+     * so no orphan `<name>_schema` / `<name>_enrich` configs linger. Companion failures (404 = never
+     * authored, or anything else) don't fail the discard — the pipeline is already gone. (The in-memory
+     * registry still ghosts the deleted pipeline for ≤60s; that unregister is a backend concern.)
+     */
     discardDraft(): Observable<ConfigDeleteResult> {
-        return this.configApi.remove('pipeline', this.name());
+        const name = this.name();
+        return this.configApi.remove('pipeline', name).pipe(
+            switchMap((res) =>
+                forkJoin([
+                    this.configApi.remove('schema', `${name}_schema`).pipe(catchError(() => of(null))),
+                    this.configApi.remove('enrichment', `${name}_enrich`).pipe(catchError(() => of(null))),
+                ]).pipe(map(() => res)),
+            ),
+        );
     }
 
     captureSample(name: string, text: string): void {

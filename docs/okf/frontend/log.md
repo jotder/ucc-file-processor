@@ -1,6 +1,17 @@
 # Log
 
 ## 2026-07-19
+* **Onboarding discard cascades to the guided companions** (BACKLOG §3 Onboarding — "discard: … cascade
+  the companion `_schema`/`_enrich` TOONs"): discarding a draft only deleted the pipeline config, leaving
+  orphan `<name>_schema` / `<name>_enrich` files. `OnboardingStateService.discardDraft()` now deletes the
+  pipeline first (the authoritative, gated op — the shell already blocks discard on an active pipeline),
+  then best-effort cascades the two companions (`forkJoin` + `catchError(()=>of(null))` so a 404 "never
+  authored" or any other companion failure doesn't fail the discard — the pipeline is already gone),
+  returning the pipeline delete result. Deletes by the guided naming convention, so a foreign
+  `schema_file` authored elsewhere (different path) is untouched (404 → swallowed). The in-memory
+  registry still ghosts a deleted pipeline for ≤60s — that unregister is a backend concern, left open.
+  Tests: +2 in `onboarding-state.service.spec` (cascade calls pipeline+schema+enrichment and returns the
+  pipeline result; discard still succeeds when companions 404). test:ci 1435/0/5.
 * **Onboarding "View as graph" → Catalog Lineage deep-link** (BACKLOG §3 Onboarding — "View as graph
   link"): the onboarding shell header gained a **View as graph** button (every lens, read-only) that
   navigates to `/catalog` with `{tab:'graph', from: '<stream:|ref:><normalizedName>'}` — the origin node
