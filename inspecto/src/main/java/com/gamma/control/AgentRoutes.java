@@ -49,6 +49,11 @@ final class AgentRoutes implements RouteModule {
             streamAsk(agentOr503(api), ApiContext.name(m), new AgentAskRequest(question, mapField(page)), e);
             return ApiContext.HANDLED;
         });
+        api.get("/agent/cases", (e, m) ->
+                Map.of("cases", agentOr503(api).recentCases(ApiContext.parseIntOr(ApiContext.query(e, "limit"), 50))));
+        api.get("/agent/cases/(.+)", (e, m) ->
+                agentOr503(api).caseById(ApiContext.name(m))
+                        .orElseThrow(() -> new ApiException(404, "unknown case: '" + ApiContext.name(m) + "'")));
     }
 
     /**

@@ -49,6 +49,11 @@ a correct ranked RCA with evidence and a fix draft, deterministically under the 
 
 ## 2. Slices (each independently shippable, GAUNTLET-gated)
 
+> **Progress (2026-07-19):** Slice **A SHIPPED** (`feat(agent)` 7f34711 — the four tools, belt now
+> 9). Slice **D SHIPPED** (Case Store + `GET /agent/cases[/{id}]`). Remaining: **C** (playbooks),
+> **E** (triage ingress + missing Signals), **B** (eoiagent goalKind seam — cross-repo, deferred to
+> last per operator). Chosen sequence: D→C→E in-repo, then B.
+
 **A — Analysis tools (no upstream dep).** `timeline_build`, `diff_batches` (two batch ledger
 entries → row-count/duration/status/schema-delta comparison), `config_versions_diff`
 (ComponentStore history → unified structural diff, scoped to stores that actually keep history —
@@ -68,10 +73,12 @@ scope → change scan (`config_versions_diff`) → hypothesis set → per-hypoth
 reuse-graph blast radius. Golden deterministic test: seeded Incident under `StubLlmGateway`.
 *Verify: the P1 exit test passes.*
 
-**D — Case Store + route.** `CaseStore` (in-memory ring, record: incidentRef, trigger Signal,
-timeline snapshot, hypotheses+evidence, outcome, fix-draft refs, timestamps) + `GET /agent/cases`
-(+ `GET /agent/cases/{id}`), house gate order, 503 when module absent. RCA runs write a Case.
-*Verify: real-HTTP route test mirroring `AgentRoutesTest`.*
+**D — Case Store + route. ✅ SHIPPED.** `CaseStore` (in-memory ring, `Case` record: incidentRef,
+trigger Signal, timeline snapshot, hypotheses+evidence, outcome, fix-draft refs, timestamps) in
+`inspecto-intelligence/.../investigation/`, projected via two additive `IntelligenceAgent` SPI
+defaults (`recentCases`/`caseById`, empty-degrading like `/assist/diagnoses`) to `GET /agent/cases`
+(+ `GET /agent/cases/{id}`) — 503 when module absent, 404 on unknown id. RCA runs will write a Case
+(slice C wires the write). Real-HTTP `AgentRoutesTest` (4 new cases) + `CaseStoreTest` green.
 
 **E — Event ingress + missing Signals.** D4 emissions; `TriageQueue` (D3) with bounded queue +
 dedupe + kill-switch config default-off (`intelligence.triage.enabled=false` — autonomy is opt-in);

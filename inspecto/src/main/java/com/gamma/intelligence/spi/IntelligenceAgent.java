@@ -7,6 +7,10 @@ import com.gamma.intelligence.AgentSessionRequest;
 import com.gamma.intelligence.AgentSessionResult;
 import com.gamma.service.CollectorService;
 
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+
 /**
  * Service-provider interface for the optional embedded-intelligence agent (AGT-5, P0). Successor
  * track to the reflex-layer {@link com.gamma.assist.spi.AssistAgent}: where that SPI answers one
@@ -64,6 +68,22 @@ public interface IntelligenceAgent extends AutoCloseable {
         } catch (IllegalArgumentException e) {
             sink.onError(e.getMessage());
         }
+    }
+
+    /**
+     * The most recent investigation Cases (AGT-5 P1 slice D), newest first, as plain JSON-friendly
+     * maps — the core stays free of the {@code Case} record type, which lives in the optional
+     * {@code file-processor-intelligence} module. Default empty: an implementation without an
+     * investigation tier (or the module absent) yields no cases rather than a 503 — {@code GET
+     * /agent/cases} is a read that degrades, mirroring {@code GET /assist/diagnoses}.
+     */
+    default List<Map<String, Object>> recentCases(int limit) {
+        return List.of();
+    }
+
+    /** One Case by id, or empty when unknown (the control route maps that to 404). */
+    default Optional<Map<String, Object>> caseById(String id) {
+        return Optional.empty();
     }
 
     /** Released on service shutdown. Default no-op. */

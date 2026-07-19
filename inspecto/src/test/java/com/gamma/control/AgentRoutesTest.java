@@ -154,12 +154,66 @@ class AgentRoutesTest {
         }
     }
 
+    @Test
+    void casesRouteIs503WhenNoIntelligenceModuleIsPresent(@TempDir Path dir) throws Exception {
+        try (Ctx ctx = open(dir, null)) {
+            assertEquals(503, send(ctx.port(), "GET", "/agent/cases", null).statusCode());
+            assertEquals(503, send(ctx.port(), "GET", "/agent/cases/case-1", null).statusCode());
+        }
+    }
+
+    @Test
+    void recentCasesReturnsTheSeededCasesNewestFirst(@TempDir Path dir) throws Exception {
+        try (Ctx ctx = open(dir, new FakeIntelligenceAgent(Map.of(
+                "case-1", Map.of("id", "case-1", "outcome", "open"),
+                "case-2", Map.of("id", "case-2", "outcome", "resolved"))))) {
+            HttpResponse<String> r = send(ctx.port(), "GET", "/agent/cases", null);
+            assertEquals(200, r.statusCode());
+            JsonNode cases = JSON.readTree(r.body()).get("cases");
+            assertEquals(2, cases.size());
+        }
+    }
+
+    @Test
+    void caseByIdReturnsTheMatchingCase(@TempDir Path dir) throws Exception {
+        try (Ctx ctx = open(dir, new FakeIntelligenceAgent(Map.of(
+                "case-1", Map.of("id", "case-1", "outcome", "open"))))) {
+            HttpResponse<String> r = send(ctx.port(), "GET", "/agent/cases/case-1", null);
+            assertEquals(200, r.statusCode());
+            assertEquals("open", JSON.readTree(r.body()).get("outcome").asText());
+        }
+    }
+
+    @Test
+    void caseByIdOnAnUnknownIdIs404(@TempDir Path dir) throws Exception {
+        try (Ctx ctx = open(dir, new FakeIntelligenceAgent())) {
+            HttpResponse<String> r = send(ctx.port(), "GET", "/agent/cases/does-not-exist", null);
+            assertEquals(404, r.statusCode());
+        }
+    }
+
     /** A deterministic in-memory agent — no eoiagent/model dependency needed in the core test tree. */
     private static final class FakeIntelligenceAgent implements IntelligenceAgent {
         private final Map<String, String> sessions = new ConcurrentHashMap<>();
+        private final Map<String, Object> cases;
+
+        FakeIntelligenceAgent() { this(Map.of()); }
+        FakeIntelligenceAgent(Map<String, Object> cases) { this.cases = cases; }
 
         @Override public String name() { return "fake-intelligence"; }
         @Override public void init(CollectorService service) {}
+
+        @Override
+        @SuppressWarnings("unchecked")
+        public List<Map<String, Object>> recentCases(int limit) {
+            return cases.values().stream().map(v -> (Map<String, Object>) v).toList();
+        }
+
+        @Override
+        @SuppressWarnings("unchecked")
+        public java.util.Optional<Map<String, Object>> caseById(String id) {
+            return java.util.Optional.ofNullable((Map<String, Object>) cases.get(id));
+        }
 
         @Override
         public AgentSessionResult openSession(AgentSessionRequest request) {

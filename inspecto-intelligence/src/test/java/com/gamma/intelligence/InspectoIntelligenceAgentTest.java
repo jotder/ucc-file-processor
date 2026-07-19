@@ -64,6 +64,25 @@ class InspectoIntelligenceAgentTest {
         agent.close(); // idempotent, no throw
     }
 
+    @Test
+    void recentCasesAndCaseByIdProjectTheStore() {
+        InspectoIntelligenceAgent agent = open(StubLlmGateway.builder().defaultReplyText("ok").build());
+        try {
+            agent.caseStore().add(new com.gamma.intelligence.investigation.Case(
+                    "case-1", "incident:1", Map.of("type", "pipeline.batch.failed"),
+                    List.of(), List.of(), "open", List.of(), java.time.Instant.now()));
+
+            List<Map<String, Object>> recent = agent.recentCases(50);
+            assertEquals(1, recent.size());
+            assertEquals("case-1", recent.get(0).get("id"));
+
+            assertEquals("open", agent.caseById("case-1").orElseThrow().get("outcome"));
+            assertTrue(agent.caseById("nope").isEmpty());
+        } finally {
+            agent.close();
+        }
+    }
+
     // S4: no live eoiagent session/tool produces an INLINE_ARTIFACT answer today (checked
     // DefaultAgentSession, eoiagent-examples, eoiagent-app-reference — no producer anywhere), so
     // these two tests construct the AgentAnswer/InlineArtifact directly and drive the package-private

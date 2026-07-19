@@ -19,6 +19,8 @@ import com.eoiagent.platform.PlatformBuilder;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.gamma.intelligence.context.ContextBroker;
+import com.gamma.intelligence.investigation.Case;
+import com.gamma.intelligence.investigation.CaseStore;
 import com.gamma.intelligence.pack.InspectoPack;
 import com.gamma.intelligence.spi.IntelligenceAgent;
 import com.gamma.service.CollectorService;
@@ -30,6 +32,7 @@ import java.time.Instant;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -47,6 +50,7 @@ public final class InspectoIntelligenceAgent implements IntelligenceAgent {
     private static final Set<String> ARTIFACT_KINDS = Set.of("text", "kpi", "chart", "data-table");
 
     private final Map<String, AgentSession> sessions = new ConcurrentHashMap<>();
+    private final CaseStore caseStore = new CaseStore();
     private final LlmGateway gatewayOverride;
     private CollectorService service;
     private InspectoPack pack;
@@ -128,6 +132,21 @@ public final class InspectoIntelligenceAgent implements IntelligenceAgent {
             @Override public void onComplete(AgentAnswer finalAnswer) { sink.onComplete(toResult(finalAnswer)); }
             @Override public void onError(EoiAgentException error) { sink.onError(error.getMessage()); }
         });
+    }
+
+    @Override
+    public List<Map<String, Object>> recentCases(int limit) {
+        return caseStore.recent(limit).stream().map(Case::toView).toList();
+    }
+
+    @Override
+    public Optional<Map<String, Object>> caseById(String id) {
+        return caseStore.byId(id).map(Case::toView);
+    }
+
+    /** Test seam: no RCA playbook (slice C) exists yet to write Cases, so tests seed the store directly. */
+    CaseStore caseStore() {
+        return caseStore;
     }
 
     @Override
