@@ -49,10 +49,24 @@ a correct ranked RCA with evidence and a fix draft, deterministically under the 
 
 ## 2. Slices (each independently shippable, GAUNTLET-gated)
 
-> **Progress (2026-07-19):** Slice **A SHIPPED** (`feat(agent)` 7f34711 — the four tools, belt now
-> 9). Slice **D SHIPPED** (Case Store + `GET /agent/cases[/{id}]`). Remaining: **C** (playbooks),
-> **E** (triage ingress + missing Signals), **B** (eoiagent goalKind seam — cross-repo, deferred to
-> last per operator). Chosen sequence: D→C→E in-repo, then B.
+> **Progress (2026-07-20):** Slice **A SHIPPED** (`feat(agent)` 7f34711 — the four tools, belt now
+> 9). Slice **D SHIPPED** (Case Store + `GET /agent/cases[/{id}]`, 60469fc). Slice **C SHIPPED**
+> (RCA/impact playbooks — see D-note below). Remaining: **E** (triage ingress + missing Signals),
+> **B** (eoiagent goalKind seam — cross-repo, deferred to last per operator). Chosen sequence:
+> D→C→E in-repo, then B.
+>
+> **Slice C as-built (deviation from the ReAct sketch):** RCA runs as a **deterministic
+> tool-orchestration + single-shot model synthesis** (`Investigator`), not model-driven ReAct — the
+> eoiagent session path is hardwired to `GoalKind.QA` until slice B, and a fixed recipe is fully
+> deterministic under the stub gateway. The playbook gathers evidence by invoking the analysis tools
+> in fixed order (timeline_build → config_versions_diff → diff_batches → anomaly_scan, each
+> best-effort), then asks the model ONCE for ranked hypotheses + a fix draft (JSON), files a `Case`,
+> and persists the fix draft as a DRAFT `ComponentStore` component (`status:draft`,
+> `authoredBy:agent:rca`) when a write root exists. Playbooks are versioned resources under
+> `resources/prompts/`. `impact_analysis` ships as a wired playbook over a timeline-only evidence
+> bundle — reuse-graph blast-radius depth (`dependents`) is a deferral (needs catalog traversal).
+> When B lands, the synthesis step widens to model-driven tool selection without changing the
+> `Investigator` inputs or the `Case` shape.
 
 **A — Analysis tools (no upstream dep).** `timeline_build`, `diff_batches` (two batch ledger
 entries → row-count/duration/status/schema-delta comparison), `config_versions_diff`
@@ -66,7 +80,8 @@ to local `.m2`; then Inspecto side: `AgentAskRequest` gains optional `goalKind`,
 passes it through, unknown value → 400.
 *Verify: eoiagent suite green; Inspecto reactor green; QA default unchanged (regression test).*
 
-**C — Playbooks.** `root_cause_analysis` + `impact_analysis` prompt playbooks under
+**C — Playbooks. ✅ SHIPPED** (see the as-built note above for the deterministic-synthesis deviation).
+`root_cause_analysis` + `impact_analysis` prompt playbooks under
 `inspecto-intelligence/src/main/resources/prompts/` (versioned), wired per §5 layering: RCA =
 scope → change scan (`config_versions_diff`) → hypothesis set → per-hypothesis evidence
 (`diff_batches`/`sql_query`-class tools) → ranked causes + confidence + fix draft; impact =

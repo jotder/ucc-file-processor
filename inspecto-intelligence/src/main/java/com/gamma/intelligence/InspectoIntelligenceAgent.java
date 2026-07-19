@@ -21,7 +21,10 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.gamma.intelligence.context.ContextBroker;
 import com.gamma.intelligence.investigation.Case;
 import com.gamma.intelligence.investigation.CaseStore;
+import com.gamma.intelligence.investigation.Incident;
 import com.gamma.intelligence.pack.InspectoPack;
+import com.gamma.intelligence.pack.Investigator;
+import com.gamma.pipeline.ComponentStore;
 import com.gamma.intelligence.spi.IntelligenceAgent;
 import com.gamma.service.CollectorService;
 import org.slf4j.Logger;
@@ -56,6 +59,7 @@ public final class InspectoIntelligenceAgent implements IntelligenceAgent {
     private InspectoPack pack;
     private AgentPlatform platform;
     private ContextBroker contextBroker;
+    private LlmGateway gateway;
 
     /** Discovered/registered via {@link CollectorService}; builds its gateway from {@link GatewayFactory}. */
     public InspectoIntelligenceAgent() {
@@ -81,9 +85,10 @@ public final class InspectoIntelligenceAgent implements IntelligenceAgent {
     public void start() {
         pack = new InspectoPack(service);
         contextBroker = new ContextBroker(service);
+        gateway = gatewayOverride != null ? gatewayOverride : GatewayFactory.build();
         platform = new PlatformBuilder()
                 .pack(pack)
-                .llmGateway(gatewayOverride != null ? gatewayOverride : GatewayFactory.build())
+                .llmGateway(gateway)
                 .start();
         log.info("Intelligence platform assembled: {} v{}", platform.pack().name(), platform.pack().version());
     }
@@ -144,7 +149,25 @@ public final class InspectoIntelligenceAgent implements IntelligenceAgent {
         return caseStore.byId(id).map(Case::toView);
     }
 
-    /** Test seam: no RCA playbook (slice C) exists yet to write Cases, so tests seed the store directly. */
+    /**
+     * Run the root-cause playbook (slice C) for an incident and file the resulting {@link Case} in the
+     * store (surfaced via {@link #recentCases}/{@link #caseById}). Slice E's triage layer calls this on
+     * a triggering Signal; tests call it directly. Requires {@link #start()} to have wired the gateway.
+     */
+    public Case investigate(Incident incident) {
+        Case c = investigator().investigate(incident);
+        caseStore.add(c);
+        return c;
+    }
+
+    private Investigator investigator() {
+        String wr = System.getProperty("assist.write.root");
+        ComponentStore components = wr == null || wr.isBlank()
+                ? null : new ComponentStore(java.nio.file.Path.of(wr).resolve("registry"));
+        return new Investigator(service, components, service::browsableStores, gateway);
+    }
+
+    /** Test seam: seed/inspect the store directly (e.g. before slice E's triage trigger is wired). */
     CaseStore caseStore() {
         return caseStore;
     }
