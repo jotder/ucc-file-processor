@@ -123,4 +123,47 @@ describe('QueriesComponent (R3)', () => {
         fixture.detectChanges();
         await expectNoA11yViolations(fixture.nativeElement);
     });
+
+    it('defaults a new query to type sql', () => {
+        const { fixture } = create();
+        fixture.detectChanges();
+        const c = fixture.componentInstance;
+        c.newQuery();
+        expect(c.form.controls.type.value).toBe('sql');
+    });
+
+    it('run() in structured mode evaluates the model and populates the preview', async () => {
+        const { fixture } = create();
+        fixture.detectChanges();
+        const c = fixture.componentInstance;
+        c.newQuery();
+        c.form.patchValue({ datasetId: 'cdr_sample', type: 'structured' });
+        c.onStructuredChange({ model: { projection: '*', where: { kind: 'group', op: 'AND', items: [] }, sqlOverride: null }, sql: 'SELECT * FROM cdr' });
+        await c.run();
+        expect(c.preview()?.resolvedSql).toBe('SELECT * FROM cdr');
+        expect(c.preview()?.error).toBeUndefined();
+    });
+
+    it('save() on a structured query persists the model and omits text/parameters', () => {
+        const { fixture, save } = create();
+        fixture.detectChanges();
+        const c = fixture.componentInstance;
+        const model = { projection: ['cost_usd'], where: { kind: 'group' as const, op: 'AND' as const, items: [] }, sqlOverride: null };
+        c.newQuery();
+        c.form.patchValue({ name: 'structured_q', datasetId: 'cdr_sample', type: 'structured' });
+        c.onStructuredChange({ model, sql: 'SELECT cost_usd FROM cdr' });
+        c.save();
+        expect(save).toHaveBeenCalled();
+        expect(save.mock.calls[0][0]).toMatchObject({ id: 'structured_q', type: 'structured', model, text: null, parameters: [] });
+    });
+
+    it('editing an existing structured query round-trips its model into the panel', () => {
+        const { fixture } = create();
+        fixture.detectChanges();
+        const c = fixture.componentInstance;
+        const model = { projection: '*' as const, where: { kind: 'group' as const, op: 'AND' as const, items: [] }, sqlOverride: null };
+        c.editQuery({ ...Q, id: 'structured_q', name: 'structured_q', type: 'structured', text: null, model, parameters: [] });
+        expect(c.form.controls.type.value).toBe('structured');
+        expect(c.structuredModel()).toEqual(model);
+    });
 });

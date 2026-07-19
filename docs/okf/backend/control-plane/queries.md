@@ -23,9 +23,16 @@ renderings (Widgets, Dashboards, exports). Vocabulary: [`GLOSSARY.md`](../../../
 * **Three parameter namespaces, deliberately distinct** — `$name` (runtime query Parameters, resolved
   server-side here) · `:fieldValue` (Expectation/rule templates) · `${ENV:…}` (secret references). Each
   resolver leaves the other two untouched.
-* **Current limits** — `structured` (non-SQL) queries are compiled client-side today; the server
-  returns `422` for them explicitly. Pagination is offset-based in this slice. `graph`/`spatial`/`search`/`api`
-  query types are deliberately not built (geo/link views keep their own query shapes).
+* **Structured editor (2026-07-19 SHIPPED)** — the Query Library authors both types now: the
+  `<inspecto-query-panel>` Query Core builder (projection + nested AND/OR filter, already reused by
+  Decision Rules/Alert Rules/Expectations) is wired in for `type: 'structured'`, `queries.component.ts`.
+  The panel gained an `@Input initialModel` so re-opening a saved structured query seeds its builder
+  state (backward-compatible — other reused call-sites don't bind it, unaffected). `$`-parameters stay
+  SQL-only (detected by scanning `text`; a structured query has no text to scan) — deliberate cut.
+* **Current limits** — `structured` (non-SQL) queries are still compiled/evaluated client-side; the
+  server returns `422` for them explicitly (widgets don't execute *any* bound query server-side yet —
+  a separate, pre-existing follow-on). Pagination is offset-based in this slice. `graph`/`spatial`/
+  `search`/`api` query types are deliberately not built (geo/link views keep their own query shapes).
 * **Contract** — part of the versioned [`/api/v1`](api-v1.md) surface; envelope + error codes apply.
 
 ## Calculated columns (DAT-5, shipped 2026-07-08; authoring UI 2026-07-10)

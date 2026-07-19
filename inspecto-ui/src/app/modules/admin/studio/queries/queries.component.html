@@ -56,38 +56,47 @@
                 <input matInput formControlName="description" autocomplete="off" />
             </mat-form-field>
 
-            <label class="flex flex-col gap-1">
-                <span class="text-secondary text-sm font-medium">SQL</span>
-                <textarea
-                    formControlName="text"
-                    rows="5"
-                    class="bg-default w-full rounded border border-gray-300 p-2 font-mono text-sm dark:border-gray-600"
-                    placeholder="SELECT * FROM data WHERE start_time >= $day(-7)"
-                    aria-label="Query SQL"
-                ></textarea>
-            </label>
+            <mat-button-toggle-group formControlName="type" aria-label="Query type">
+                <mat-button-toggle value="sql">SQL</mat-button-toggle>
+                <mat-button-toggle value="structured">Structured</mat-button-toggle>
+            </mat-button-toggle-group>
 
-            <!-- Parameter chips -->
-            @if (builtinTokens().length || userParamNames().length) {
-                <div class="flex flex-col gap-2">
-                    <span class="text-secondary text-sm font-medium">Parameters</span>
-                    <div class="flex flex-wrap items-center gap-2">
-                        @for (t of builtinTokens(); track t) {
-                            <span class="rounded-full border border-gray-300 px-2 py-0.5 font-mono text-xs dark:border-gray-600">{{ t }}</span>
-                        }
-                        @for (name of userParamNames(); track name) {
-                            <mat-form-field subscriptSizing="dynamic" class="w-48">
-                                <mat-label>${{ name }} default</mat-label>
-                                <input
-                                    matInput
-                                    [value]="paramDefaults()[name] ?? ''"
-                                    (input)="setParamDefault(name, $any($event.target).value)"
-                                    autocomplete="off"
-                                />
-                            </mat-form-field>
-                        }
+            @if (form.controls.type.value === 'sql') {
+                <label class="flex flex-col gap-1">
+                    <span class="text-secondary text-sm font-medium">SQL</span>
+                    <textarea
+                        formControlName="text"
+                        rows="5"
+                        class="bg-default w-full rounded border border-gray-300 p-2 font-mono text-sm dark:border-gray-600"
+                        placeholder="SELECT * FROM data WHERE start_time >= $day(-7)"
+                        aria-label="Query SQL"
+                    ></textarea>
+                </label>
+
+                <!-- Parameter chips -->
+                @if (builtinTokens().length || userParamNames().length) {
+                    <div class="flex flex-col gap-2">
+                        <span class="text-secondary text-sm font-medium">Parameters</span>
+                        <div class="flex flex-wrap items-center gap-2">
+                            @for (t of builtinTokens(); track t) {
+                                <span class="rounded-full border border-gray-300 px-2 py-0.5 font-mono text-xs dark:border-gray-600">{{ t }}</span>
+                            }
+                            @for (name of userParamNames(); track name) {
+                                <mat-form-field subscriptSizing="dynamic" class="w-48">
+                                    <mat-label>${{ name }} default</mat-label>
+                                    <input
+                                        matInput
+                                        [value]="paramDefaults()[name] ?? ''"
+                                        (input)="setParamDefault(name, $any($event.target).value)"
+                                        autocomplete="off"
+                                    />
+                                </mat-form-field>
+                            }
+                        </div>
                     </div>
-                </div>
+                }
+            } @else {
+                <inspecto-query-panel [initialModel]="structuredModel()" [source]="panelSource()" (queryChange)="onStructuredChange($event)" />
             }
 
             <div class="flex flex-wrap items-center gap-2">

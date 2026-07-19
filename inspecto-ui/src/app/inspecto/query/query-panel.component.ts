@@ -51,6 +51,12 @@ export class QueryPanelComponent {
     readonly pageSizes = [25, 50, 100];
 
     private readonly _source = signal<QuerySource>({ name: 'data', rows: [] });
+    private initialModelApplied = false;
+
+    /** A previously-saved model to seed the builder from on its first `source` assignment (e.g. re-opening
+     *  a saved query for edit) — bind before `source` in the template so it's set when the setter reads it.
+     *  Ignored on every later `source` change (a dataset switch still resets to empty, as before). */
+    @Input() initialModel: QueryModel | null = null;
 
     /** The data to query. Reset of the builder happens only when the rows/name/columns actually change. */
     @Input({ required: true }) set source(s: QuerySource) {
@@ -58,9 +64,11 @@ export class QueryPanelComponent {
         if (s.rows === cur.rows && s.name === cur.name && s.columns === cur.columns) return;
         this._source.set(s);
         this.columnsCache.set(s.columns ?? inferColumns(s.rows));
-        this.selectedColumns.set(this.columnsCache().map((c) => c.name));
-        this.where.set(emptyGroup('AND'));
-        this.sqlOverride.set(null);
+        const seed = !this.initialModelApplied ? this.initialModel : null;
+        this.initialModelApplied = true;
+        this.selectedColumns.set(seed && seed.projection !== '*' ? seed.projection : this.columnsCache().map((c) => c.name));
+        this.where.set(seed?.where ?? emptyGroup('AND'));
+        this.sqlOverride.set(seed?.sqlOverride ?? null);
         this.quickFilter.set('');
     }
     @Output() queryChange = new EventEmitter<QueryChange>();

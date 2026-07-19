@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, DestroyRef, OnInit, computed, injec
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
+import { MatButtonToggleModule } from '@angular/material/button-toggle';
 import { MatDialog } from '@angular/material/dialog';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
@@ -11,7 +12,17 @@ import { MatSelectModule } from '@angular/material/select';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { ToastrService } from 'ngx-toastr';
 import { LensService, ParameterContextService, apiErrorMessage } from 'app/inspecto/api';
-import { BUILTIN_PARAMS, ParameterDef, findParameters, resolveParameters } from 'app/inspecto/query';
+import {
+    BUILTIN_PARAMS,
+    ParameterDef,
+    QueryChange,
+    QueryModel,
+    QueryPanelComponent,
+    emptyGroup,
+    evaluateRows,
+    findParameters,
+    resolveParameters,
+} from 'app/inspecto/query';
 import { ResultSet, describeResultSet, recommend } from 'app/inspecto/viz';
 import { registerBuiltinViz } from 'app/inspecto/viz/plugins';
 import { runSql } from 'app/inspecto/data-table/sql/sql-run';
@@ -24,9 +35,14 @@ import { uniqueNameValidator } from 'app/inspecto/investigation/unique-name';
 import { Dataset } from '../datasets/dataset-types';
 import { DatasetsService } from '../datasets/datasets.service';
 import { SAMPLE_SOURCES } from '../datasets/dataset-sources';
-import { Query, buildQuery } from './query-types';
+import { Query, QueryType, buildQuery } from './query-types';
 import { QueriesService } from './queries.service';
 import './query.kind'; // ensure the query kind is registered
+
+/** The default (empty) structured model — a fresh Query Core builder state. */
+function emptyModel(): QueryModel {
+    return { projection: '*', where: emptyGroup('AND'), sqlOverride: null };
+}
 
 // The Show-Me recommender (used in the preview) scores against the registered viz plugins; register the
 // built-ins here so the Query Library works standalone (guarded — no-op if the widgets feature loaded first).
@@ -48,10 +64,12 @@ function tokenName(raw: string): string {
 
 /**
  * **Query Library** — R3 of the living-operational-system roadmap (§4): author reusable `query`
- * components. A query reads a source dataset, holds SQL that may reference `$`-parameters, and previews
- * offline (resolve params → AlaSQL `runSql` → {@link describeResultSet}). One saved query can then be
- * bound by many widgets. Mock-first; everything runs in-browser. Follows the house form rules
- * (ask-the-minimum, duplicate-name = inline block).
+ * components. A query reads a source dataset and is either **SQL** (text, may reference `$`-parameters;
+ * resolve params → AlaSQL `runSql` → {@link describeResultSet}) or **structured** (the shared Query Core
+ * builder, `<inspecto-query-panel>` → {@link evaluateRows} → {@link describeResultSet}; no `$`-parameters
+ * in this slice — there is no SQL text to scan them from). One saved query can then be bound by many
+ * widgets. Mock-first; everything runs in-browser. Follows the house form rules (ask-the-minimum,
+ * duplicate-name = inline block).
  */
 @Component({
     selector: 'app-queries',
@@ -59,6 +77,7 @@ function tokenName(raw: string): string {
     imports: [
         ReactiveFormsModule,
         MatButtonModule,
+        MatButtonToggleModule,
         MatFormFieldModule,
         MatIconModule,
         MatInputModule,
@@ -68,6 +87,7 @@ function tokenName(raw: string): string {
         InspectoAlertComponent,
         InspectoEmptyStateComponent,
         StatusBadgeComponent,
+        QueryPanelComponent,
     ],
     changeDetection: ChangeDetectionStrategy.OnPush,
     templateUrl: './queries.component.html',
@@ -101,6 +121,17 @@ export class QueriesComponent implements OnInit {
         description: [''],
         datasetId: this.fb.nonNullable.control('', Validators.required),
         text: this.fb.nonNullable.control(''),
+        type: this.fb.nonNullable.control<QueryType>('sql'),
+    });
+
+    /** `type: 'structured'` — the live model + compiled SQL emitted by `<inspecto-query-panel>`. */
+    readonly structuredModel = signal<QueryModel>(emptyModel());
+    readonly structuredSql = signal('');
+
+    /** The panel's data source — the selected dataset's sample rows + column metadata. */
+    readonly panelSource = computed(() => {
+        const ds = this.selectedDataset();
+        return { name: ds?.sourceName ?? 'data', rows: SAMPLE_SOURCES[ds?.sourceName ?? ''] ?? [], columns: ds?.columns };
     });
 
     /** Live mirror of the SQL text (drives parameter detection) + the user-declared param defaults/types.
@@ -137,28 +168,41 @@ export class QueriesComponent implements OnInit {
     }
 
     newQuery(): void {
-        this.form.reset({ name: '', description: '', datasetId: '', text: '' });
+        this.form.reset({ name: '', description: '', datasetId: '', text: '', type: 'sql' });
         this.form.controls.name.enable();
         this.form.controls.name.setValidators([Validators.required, Validators.pattern(/^[A-Za-z0-9][A-Za-z0-9._-]*$/), uniqueNameValidator(() => this.queries().map((q) => q.id))]);
         this.form.controls.name.updateValueAndValidity({ emitEvent: false });
         this.paramDefaults.set({});
         this.paramTypes.set({});
         this.text.set('');
+        this.structuredModel.set(emptyModel());
+        this.structuredSql.set('');
         this.preview.set(null);
         this.editingExisting.set(false);
         this.editing.set(true);
     }
 
     editQuery(q: Query): void {
-        this.form.reset({ name: q.name, description: q.description ?? '', datasetId: q.datasetId ?? '', text: q.text ?? '' });
+        this.form.reset({ name: q.name, description: q.description ?? '', datasetId: q.datasetId ?? '', text: q.text ?? '', type: q.type });
         this.form.controls.name.setValidators([Validators.required]);
         this.form.controls.name.disable(); // id is immutable on edit
         this.paramDefaults.set(Object.fromEntries(q.parameters.map((p) => [p.name, p.default ?? ''])));
         this.paramTypes.set(Object.fromEntries(q.parameters.map((p) => [p.name, p.type])));
         this.text.set(q.text ?? '');
+        // Deep-clone: the condition-group editor mutates the bound `ConditionGroup` in place, and this
+        // must not corrupt the cached list item before Save.
+        this.structuredModel.set(q.model ? structuredClone(q.model) : emptyModel());
+        this.structuredSql.set('');
         this.preview.set(null);
         this.editingExisting.set(true);
         this.editing.set(true);
+    }
+
+    /** Live update from `<inspecto-query-panel>` — its projection/filter builder emits both the model and
+     *  its compiled SQL (already resolved against the current source), so nothing here recomputes it. */
+    onStructuredChange(e: QueryChange): void {
+        this.structuredModel.set(e.model);
+        this.structuredSql.set(e.sql);
     }
 
     cancel(): void {
@@ -195,8 +239,20 @@ export class QueriesComponent implements OnInit {
 
     async run(): Promise<void> {
         const ds = this.selectedDataset();
-        const resolvedSql = resolveParameters(this.form.controls.text.value, this.paramDefs(), this.paramCtx.context());
+        const hints = (ds?.columns ?? []).map((c) => ({ name: c.name, type: c.type, role: c.role }));
         this.running.set(true);
+
+        if (this.form.controls.type.value === 'structured') {
+            const source = this.panelSource();
+            const rows = evaluateRows(this.structuredModel(), { name: source.name, rows: source.rows, columns: source.columns });
+            const resultSet = describeResultSet(rows, hints);
+            const recommended = recommend(resultSet).slice(0, 3).map((p) => p.meta.label);
+            this.preview.set({ resolvedSql: this.structuredSql(), resultSet, rows: rows.slice(0, 20), recommended });
+            this.running.set(false);
+            return;
+        }
+
+        const resolvedSql = resolveParameters(this.form.controls.text.value, this.paramDefs(), this.paramCtx.context());
         const rows = SAMPLE_SOURCES[ds?.sourceName ?? ''] ?? [];
         const res = await runSql(resolvedSql, ds?.sourceName ?? 'data', rows);
         if (!res.ok) {
@@ -204,7 +260,6 @@ export class QueriesComponent implements OnInit {
             this.running.set(false);
             return;
         }
-        const hints = (ds?.columns ?? []).map((c) => ({ name: c.name, type: c.type, role: c.role }));
         const resultSet = describeResultSet(res.rows, hints);
         const recommended = recommend(resultSet).slice(0, 3).map((p) => p.meta.label);
         this.preview.set({ resolvedSql, resultSet, rows: res.rows.slice(0, 20), recommended });
@@ -220,11 +275,13 @@ export class QueriesComponent implements OnInit {
             return;
         }
         const ds = this.selectedDataset();
-        const q = buildQuery(name, 'sql', {
+        const type = this.form.controls.type.value;
+        const q = buildQuery(name, type, {
             datasetId: this.form.controls.datasetId.value,
             sourceName: ds?.sourceName,
-            text: this.form.controls.text.value,
-            parameters: this.paramDefs(),
+            text: type === 'sql' ? this.form.controls.text.value : null,
+            model: type === 'structured' ? this.structuredModel() : null,
+            parameters: type === 'sql' ? this.paramDefs() : [],
         });
         q.description = this.form.controls.description.value || undefined;
         this.saving.set(true);
