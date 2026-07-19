@@ -467,6 +467,13 @@ public final class CollectorService implements AutoCloseable {
         return events;
     }
 
+    /** This space's live {@link EventLog} — for a route that needs {@link EventLog#addSubscriber} to
+     *  push freshly-emitted events (e.g. {@code /signals/stream}, event-signal-backbone-plan §S3),
+     *  distinct from {@link #events()} which is the append-only store for poll/history reads. */
+    public EventLog eventLog() {
+        return eventLog;
+    }
+
     /** Operator-saved event views (Phase 1, v4.2.0) — always present (in-memory when no file set). */
     public SavedViewStore savedViews() {
         return savedViews;

@@ -50,6 +50,20 @@ public final class Signals {
         return f.equalsIgnoreCase(signalType);
     }
 
+    /**
+     * The shared type/severity-floor/correlationId predicate used both by the in-store {@link #query}
+     * page filter and by a live subscriber (e.g. {@code /signals/stream}, S3) applying the same filters
+     * to freshly-emitted signals. {@code type} is an exact match or a {@code prefix.*} glob (see
+     * {@link #matchesType}); {@code minSeverity} keeps only signals at or above that floor (natural
+     * enum order, {@code TRACE < ... < CRITICAL}); any filter may be {@code null}/blank to mean "no filter".
+     */
+    public static boolean matches(Signal s, String type, Severity minSeverity, String correlationId) {
+        if (!matchesType(s.type(), type)) return false;
+        if (minSeverity != null && s.severity().ordinal() < minSeverity.ordinal()) return false;
+        if (correlationId != null && !correlationId.isBlank() && !correlationId.equals(s.correlationId())) return false;
+        return true;
+    }
+
     private static String blankToNull(String s) {
         return s == null || s.isBlank() ? null : s;
     }
