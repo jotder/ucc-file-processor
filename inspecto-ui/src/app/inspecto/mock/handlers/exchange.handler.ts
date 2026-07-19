@@ -355,9 +355,9 @@ function findKey(node: unknown, keys: string[]): string | null {
 
 /**
  * Seed the Exchange ledgers once: a partner space ("analytics-hub") offering two datasets — one with a
- * published snapshot and an active grant to `default` (a working "Shared with me"), one un-granted (a
- * requestable catalog entry) — plus a pending inbound request against a `default`-owned offer, so the
- * owner-side approve/deny flow is demoable immediately.
+ * published snapshot (v3) and an active grant to `default` pinned to v2 (a working "Shared with me" that
+ * shows the drift "Behind" chip), one un-granted (a requestable catalog entry) — plus a pending inbound
+ * request against a `default`-owned offer, so the owner-side approve/deny flow is demoable immediately.
  */
 function ensureSeed(store: MockStore): void {
     if (store.list(SERVER_SPACE, EXCHANGE_OFFERS_COLL).length > 0) return;
@@ -402,7 +402,8 @@ function ensureSeed(store: MockStore): void {
             mode: 'snapshot', status: 'active',
             requestedBy: 'appUser', requestedAt: now - 20 * 86_400_000,
             purpose: 'Currency normalization in billing pipelines.',
-            approvedBy: 'analyst', approvedAt: now - 19 * 86_400_000, pin: null, expiresAt: null,
+            // Pinned to v2 while the owner has published v3 → a "Behind" drift chip in the with-me grid.
+            approvedBy: 'analyst', approvedAt: now - 19 * 86_400_000, pin: 'v2', expiresAt: null,
         },
         {
             id: 'analytics-hub~default~dataset~billing_summary',

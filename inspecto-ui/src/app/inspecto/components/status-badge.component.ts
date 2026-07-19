@@ -79,9 +79,13 @@ export function statusBadgeClasses(value: string | null | undefined): string {
     return TONE_CLASSES[statusTone(value)];
 }
 
-/** Full class string (geometry + color) for a status token — for raw HTML renderers. */
-export function statusBadgeHtml(value: string | null | undefined): string {
-    const text = value ?? '';
+/**
+ * Full class string (geometry + color) for a status token — for raw HTML renderers. Pass `label`
+ * to show custom text under a chosen tone (e.g. `statusBadgeHtml('warning', 'Behind')`), mirroring
+ * the component's `value`+`label` split.
+ */
+export function statusBadgeHtml(value: string | null | undefined, label?: string): string {
+    const text = label ?? value ?? '';
     return `<span class="${STATUS_BADGE_BASE} ${statusBadgeClasses(value)}">${text}</span>`;
 }
 

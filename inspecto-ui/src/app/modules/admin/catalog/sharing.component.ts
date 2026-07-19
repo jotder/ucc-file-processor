@@ -16,6 +16,27 @@ import { forkJoin } from 'rxjs';
 import { GrantGovernanceDialog, GrantGovernanceResult } from './grant-governance.dialog';
 import { RequestShareDialog, RequestShareResult } from './request-share.dialog';
 
+/** A grant row annotated with the current published version when its pin trails it (S3 drift), else null. */
+type GrantRow = ExchangeGrant & { behind: string | null };
+
+/** Numeric sequence of a `v<n>` snapshot version (mock `v3` or real `v<epochMillis>`), or null if unparseable. */
+function versionSeq(v: string): number | null {
+    const m = /^v(\d+)$/.exec(v);
+    return m ? Number(m[1]) : null;
+}
+
+/**
+ * The current published version when an active grant's pin trails it (its snapshot is behind), else null.
+ * Refuses to claim drift unless both versions parse to a comparable sequence — a foreign version string
+ * never yields a false "Behind".
+ */
+function driftVersion(g: ExchangeGrant, current: string | undefined): string | null {
+    if (g.status !== 'active' || !g.pin || !current || current === g.pin) return null;
+    const pinned = versionSeq(g.pin);
+    const live = versionSeq(current);
+    return pinned !== null && live !== null && live > pinned ? current : null;
+}
+
 /**
  * The Catalog's cross-Space sharing lens (Exchange, §3.6) — one pane, two views selected by the tab
  * that hosts it:
@@ -60,6 +81,24 @@ export class SharingComponent implements OnInit {
         this.offers().filter((o) => (this.view() === 'with-me' ? o.owner !== this.me() : o.owner === this.me())),
     );
 
+    /** Current published snapshot version per offered item (owner~kind~item → version), for drift detection. */
+    private readonly currentVersion = computed(() => {
+        const m = new Map<string, string>();
+        for (const o of this.offers()) {
+            if (o.freshness?.version) m.set(`${o.owner}~${o.kind}~${o.item}`, o.freshness.version);
+        }
+        return m;
+    });
+
+    /** The view's grants, each annotated with the current version when its pin trails the live snapshot. */
+    readonly myGrantRows = computed<GrantRow[]>(() => {
+        const current = this.currentVersion();
+        return this.myGrants().map((g) => ({
+            ...g,
+            behind: driftVersion(g, current.get(`${g.owner}~${g.kind}~${g.item}`)),
+        }));
+    });
+
     readonly grantColumns: ColDef[] = [
         { field: 'item', headerName: 'Item', flex: 1 },
         { field: 'kind', headerName: 'Kind', width: 110 },
@@ -68,7 +107,19 @@ export class SharingComponent implements OnInit {
         { field: 'mode', headerName: 'Mode', width: 110 },
         { field: 'status', headerName: 'Status', width: 120, cellRenderer: (p: { value: string }) => statusBadgeHtml(p.value) },
         { field: 'purpose', headerName: 'Purpose', flex: 1 },
-        { field: 'pin', headerName: 'Pinned', width: 100, valueFormatter: (p) => p.value ?? '—' },
+        {
+            field: 'pin',
+            headerName: 'Pinned',
+            width: 150,
+            // A pinned snapshot behind the owner's current publish is flagged "Behind" (S3 drift);
+            // the pin row-action re-pins or clears it. `behind` is a `v<n>` string, safe to interpolate.
+            cellRenderer: (p: { value: string | null; data: GrantRow }) =>
+                p.value == null
+                    ? '—'
+                    : p.data.behind
+                      ? `<span title="Current snapshot is ${p.data.behind} — re-pin or clear the pin to update">${p.value} ${statusBadgeHtml('warning', 'Behind')}</span>`
+                      : p.value,
+        },
         { field: 'expiresAt', headerName: 'Expires', width: 170, valueFormatter: (p) => (p.value ? fmtDateTime(p.value) : '—') },
         { field: 'requestedAt', headerName: 'Requested', width: 170, valueFormatter: (p) => fmtDateTime(p.value) },
     ];

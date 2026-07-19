@@ -1,7 +1,11 @@
 # Storage Layout & Cross-Space Sharing — Plan
 
-> **Status: BACKEND SHIPPED L0→S3 (2026-07-09, on `master`, unpushed). UI track (§3.6 surfaces) still
-> open.** Commits: L0 `76e51a9`, S1 `6170123`, S2 `4d175d4`, S2b+S3 (this shift). New backend code:
+> **Status: FULLY SHIPPED — backend L0→S3 (2026-07-09) + UI track (§3.6 surfaces) (2026-07-19).**
+> The §3.6 UI shipped incrementally alongside the backend; the last piece — the **pin-drift "Behind"
+> chip** (a consumer's pinned snapshot version trailing the owner's current publish) — landed
+> 2026-07-19, client-computed in `sharing.component` from the offer freshness already in hand (no new
+> backend). Candidate for OKF-distill + archive per the doc-lifecycle rule.
+> Commits: L0 `76e51a9`, S1 `6170123`, S2 `4d175d4`, S2b+S3 (2026-07-09). New backend code:
 > `com.gamma.exchange` (Exchange/Offer/ShareGrant/SharedRef/Ledger/ExchangeSnapshots/ExchangeSnapshotWriter),
 > `com.gamma.control.{ExchangeRoutes,ExchangeRefResolver}`, `com.gamma.query.SharedRefResolver`,
 > `com.gamma.service.SpaceLayoutContract`. See §5 for the per-phase status.
@@ -231,7 +235,7 @@ empty-state, never stale cached data.
 | **S2 — snapshot mode (Datasets)** | Versioned exchange dirs + atomic `current.toon` pointer flip, `DatasetRelation` snapshot routing, freshness metadata + `EXCHANGE_REFRESHED` signal, consumer deletion fence | ✅ **SHIPPED** — `ExchangeSnapshotWriter`/`ExchangeSnapshots` + `POST /exchange/refresh` (owner-triggered; the cron/`on_signal` *cadence* awaits job-framework P1, but the data path is complete), `SharedRefResolver` grant-checked routing, `ComponentRoutes` fence |
 | **S2b — shared Widgets** | `kind: widget` grants with dataset-grant closure, render-only resolution, revoked empty-state | ✅ **SHIPPED (backend)** — widget offer requires its dataset offer; request auto-pairs the dataset grant; approve activates the pair; revoke cascades; `GET /exchange/widgets/{owner}/{item}` render-authorization. **UI** (library/dashboard placement, empty-state) is in the UI track |
 | **S3 — live mode + governance** | Live `DatasetRelation` routing, revocation/expiry enforcement, version pinning | ✅ **SHIPPED (backend)** — `ExchangeRefResolver` live vs snapshot vs pinned branching; `activeGrant` enforces expiry; `POST /exchange/grants/{id}/{pin,expiry}`. **Per-grant `ConfigSafetyValidator` jail roots proved unnecessary:** shared refs resolve to server-computed *trusted* paths, never config-authored ones. Drift/pinning **UI** is in the UI track |
-| **UI — Exchange surfaces (§3.6)** | Catalog "Shared with me"/"Shared by me", "Offer for sharing…", scope badges, revoked empty-state, pin/drift UI | ⬜ **OPEN** — the remaining track; backend endpoints + `bootstrap.features.exchange` flag are all in place |
+| **UI — Exchange surfaces (§3.6)** | Catalog "Shared with me"/"Shared by me", "Offer for sharing…", scope badges, revoked empty-state, pin/drift UI | ✅ **SHIPPED** — `sharing.component` (both views, grant lifecycle + `GrantGovernanceDialog` pin/expiry), `OfferShareDialog`/`RequestShareDialog`, `<inspecto-status-badge value="shared">` scope badges on datasets/widgets, tabs gated on `SessionService.exchangeEnabled()`. Last piece (2026-07-19): the **pin-drift "Behind" chip** on the Pinned column — an active grant whose pin (`v<n>`) trails the offer's current `freshness.version` renders a warning badge; client-computed (`driftVersion`/`myGrantRows`), the `pin` row-action re-pins/clears. Offline demoable (mock seeds pin `v2` vs snapshot `v3`) |
 
 ## 6. Risks & open questions
 

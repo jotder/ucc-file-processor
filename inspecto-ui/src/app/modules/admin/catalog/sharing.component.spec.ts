@@ -144,6 +144,30 @@ describe('SharingComponent', () => {
         expect(api.expiry).toHaveBeenCalledWith('analytics-hub~default~dataset~billing_summary', 1_800_000_000_000);
     });
 
+    it('with-me: an active grant pinned behind the current snapshot is flagged as drifted', async () => {
+        // OFFERS[0] fx_rates_daily publishes v3; pin the consuming grant at v2.
+        const pinned: ExchangeGrant = { ...GRANTS[0], pin: 'v2' };
+        const { fixture } = await create('with-me', { grants: () => of([pinned]) });
+        expect(fixture.componentInstance.myGrantRows()[0].behind).toBe('v3');
+    });
+
+    it('with-me: a grant pinned at the current version is not drifted', async () => {
+        const pinned: ExchangeGrant = { ...GRANTS[0], pin: 'v3' };
+        const { fixture } = await create('with-me', { grants: () => of([pinned]) });
+        expect(fixture.componentInstance.myGrantRows()[0].behind).toBeNull();
+    });
+
+    it('with-me: an unpinned grant (tracking current) is never drifted', async () => {
+        const { fixture } = await create('with-me'); // GRANTS[0].pin is null
+        expect(fixture.componentInstance.myGrantRows()[0].behind).toBeNull();
+    });
+
+    it('a pinned but non-active grant is not drifted (drift is a live-access concern)', async () => {
+        const pinned: ExchangeGrant = { ...GRANTS[0], pin: 'v2', status: 'revoked' };
+        const { fixture } = await create('with-me', { grants: () => of([pinned]) });
+        expect(fixture.componentInstance.myGrantRows()[0].behind).toBeNull();
+    });
+
     it('renders with no a11y violations', async () => {
         const { fixture } = await create('with-me');
         await expectNoA11yViolations(fixture.nativeElement);
