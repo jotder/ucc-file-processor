@@ -32,7 +32,7 @@ class SecretScrubberTest {
         attrs.put("user", "alice");
         attrs.put("api_key", "AKIA-RAW-NO-HINT-WORD");   // key names a secret → value redacted whole
         attrs.put("rows", "42");
-        Event e = new Event(null, 1L, EventLevel.INFO, "X", "src", null, null, "ok", attrs);
+        Event e = new Event(null, 1L, EventLevel.INFO, "X", "src", null, null, "ok", attrs, Map.of());
 
         Event scrubbed = SecretScrubber.scrub(e);
         assertEquals("alice", scrubbed.attributes().get("user"));

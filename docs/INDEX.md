@@ -79,7 +79,14 @@ former root reference docs** (each index lists them):
 - [`superpower/modularization-optimization-plan.md`](superpower/modularization-optimization-plan.md) —
   PROPOSED, analysis unexecuted; headline Musts indexed in `BACKLOG.md`.
 - [`superpower/a2ui-agent-rendered-ui-spike.md`](superpower/a2ui-agent-rendered-ui-spike.md) — A2UI
-  design spike (agent-emitted declarative UI over the component-model host) — proposed, not started.
+  design spike (agent-emitted declarative UI over the component-model host) — **absorbed** into the
+  signal-backbone combined plan (S4/S6/S7); kept as the render-host design reference.
+- [`superpower/event-signal-backbone-plan.md`](superpower/event-signal-backbone-plan.md) — **COMBINED
+  PLAN (v2, 2026-07-19)**: one canonical AG-UI-shaped Signal envelope + type catalog + one addressing
+  grammar, projected to five consumers — notification-channel templating, `$`-parameter chaining,
+  agent diagnostic context, AG-UI `/signals/stream`, A2UI inline artifacts — then the gated agentic
+  write path. Slices S0–S7; absorbs the A2UI spike; aligns embedded-intelligence P1/L2. Awaiting
+  operator approval to start S0.
 - [`superpower/living-operational-system.md`](superpower/living-operational-system.md) — standing
   **architecture north-star** (seven networks over one Component metamodel); R1–R6 all shipped.
 - [`superpower/geo-map-case-studies.md`](superpower/geo-map-case-studies.md) — Geo Map CS1–CS5

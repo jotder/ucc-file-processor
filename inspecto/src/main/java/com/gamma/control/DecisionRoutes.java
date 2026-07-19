@@ -6,6 +6,7 @@ import com.gamma.ops.ObjectType;
 import com.gamma.pipeline.ComponentRegistry;
 import com.gamma.pipeline.ComponentStore;
 import com.gamma.query.ConditionTree;
+import com.gamma.signal.Ref;
 import com.gamma.signal.Severity;
 import com.gamma.signal.Signal;
 
@@ -17,7 +18,6 @@ import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
 
 /**
  * Decision Rule routes ({@code /decision-rules*}) — the business-logic/routing third of the Rules
@@ -229,8 +229,8 @@ final class DecisionRoutes implements RouteModule {
     private static void emitSignal(String type, String source, Map<String, Object> payload) {
         EventLog el = EventLog.current();
         if (el == null) return;
-        el.emit(new Signal(UUID.randomUUID().toString(), type, Instant.now(), source, null, Severity.INFO,
-                payload).toEvent());
+        el.emit(new Signal(null, type, Instant.now(), Severity.INFO, Ref.parseCompact(source), null,
+                null, null, null, null, type, payload, 1).toEvent());
     }
 
     // ── helpers ───────────────────────────────────────────────────────────────────

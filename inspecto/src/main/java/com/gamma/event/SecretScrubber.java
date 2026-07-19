@@ -58,7 +58,7 @@ public final class SecretScrubber {
             Map<String, String> attrs = scrubAttributes(e.attributes());
             if (msg == e.message() && attrs == e.attributes()) return e;   // clean — no allocation
             return new Event(e.eventId(), e.ts(), e.level(), e.type(), e.source(),
-                    e.pipeline(), e.correlationId(), msg, attrs);
+                    e.pipeline(), e.correlationId(), msg, attrs, e.payload());
         } catch (RuntimeException ignore) {
             return e;   // a scrubber must never break the sink it guards
         }

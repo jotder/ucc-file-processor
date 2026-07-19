@@ -3,6 +3,7 @@ package com.gamma.etl;
 import com.gamma.event.EventLog;
 import com.gamma.pipeline.DecisionRules;
 import com.gamma.query.ConditionSql;
+import com.gamma.signal.Ref;
 import com.gamma.signal.Severity;
 import com.gamma.signal.Signal;
 import org.slf4j.Logger;
@@ -19,7 +20,6 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
 
 /**
  * Applies a subject's enabled Decision Rules to its materialized output table before that table is
@@ -286,8 +286,9 @@ public final class DecisionRuleApplier {
         if (subject.runId() != null) payload.put(subject.runKey(), subject.runId());
         payload.put("matched", matched);
         payload.put("applied", String.join(",", applied));
-        el.emit(new Signal(UUID.randomUUID().toString(), "decision-rule.applied", Instant.now(),
-                "decision-rule:" + ruleName, null, Severity.INFO, payload).toEvent());
+        el.emit(new Signal(null, "decision-rule.applied", Instant.now(), Severity.INFO,
+                Ref.of("decision-rule", ruleName), null, null, null, null, null,
+                "decision-rule.applied", payload, 1).toEvent());
     }
 
     /** A destination/rule name reduced to a safe path segment (never escapes its directory). */

@@ -59,7 +59,7 @@ class ReconRunJobTest {
         assertTrue(result.message().contains("3 break(s)"), result.message());
 
         assertEquals("recon.run.completed", ctx.type.get());
-        assertEquals(Severity.WARNING, ctx.severity.get(), "breaks present ⇒ WARNING");
+        assertEquals(Severity.WARN, ctx.severity.get(), "breaks present ⇒ WARN");
         Map<String, Object> p = ctx.payload.get();
         assertEquals("orders_recon", p.get("reconciliation"));
         assertEquals(1L, ((Number) p.get("missingLeft")).longValue(), "APAC only in b");

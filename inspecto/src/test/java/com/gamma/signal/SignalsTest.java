@@ -18,7 +18,8 @@ import static org.junit.jupiter.api.Assertions.*;
 class SignalsTest {
 
     private static Signal sig(String type, long ms, String corr, Severity sev) {
-        return new Signal("id-" + ms, type, Instant.ofEpochMilli(ms), "job:x", corr, sev, Map.of());
+        return new Signal("id-" + ms, type, Instant.ofEpochMilli(ms), sev, Ref.of("job", "x"), null,
+                corr, null, null, null, type, Map.of(), 1);
     }
 
     /** Three signals at t=1000/2000/3000 with distinct severities and two correlation chains. */
@@ -26,7 +27,7 @@ class SignalsTest {
         InMemoryEventStore store = new InMemoryEventStore();
         store.append(sig("job.run.started",       1000, "corr1", Severity.INFO).toEvent());
         store.append(sig("job.run.failed",        2000, "corr1", Severity.CRITICAL).toEvent());
-        store.append(sig("decision-rule.applied", 3000, "corr2", Severity.WARNING).toEvent());
+        store.append(sig("decision-rule.applied", 3000, "corr2", Severity.WARN).toEvent());
         return store;
     }
 
@@ -62,8 +63,8 @@ class SignalsTest {
                 types(Signals.query(seeded(), null, null, null, Severity.CRITICAL, null, 100)),
                 "CRITICAL floor keeps only the ERROR-level signal");
         assertEquals(List.of("decision-rule.applied", "job.run.failed"),
-                types(Signals.query(seeded(), null, null, null, Severity.WARNING, null, 100)),
-                "WARNING floor keeps WARNING + CRITICAL");
+                types(Signals.query(seeded(), null, null, null, Severity.WARN, null, 100)),
+                "WARN floor keeps WARN + CRITICAL");
         assertEquals(3, Signals.query(seeded(), null, null, null, Severity.INFO, null, 100).size(),
                 "INFO floor keeps everything");
     }
@@ -73,5 +74,36 @@ class SignalsTest {
         assertEquals(List.of("job.run.failed", "job.run.started"),
                 types(Signals.query(seeded(), null, null, null, null, "corr1", 100)));
         assertEquals(1, Signals.query(seeded(), null, null, null, null, null, 1).size(), "limit caps the page");
+    }
+
+    /** S0 DoD: a nested payload round-trips through {@code toEvent()}/{@code fromEvent()} with zero
+     *  JSON-in-attribute (the {@link Signal#payload()} stays a real, nested {@code Map<String,Object>}
+     *  end to end), and the API view's {@code source} is a nested {@link Ref} object, not a flat string. */
+    @Test
+    void nestedPayloadRoundTripsAndSourceIsATypedRef() {
+        Map<String, Object> nested = Map.of(
+                "dataset", "orders",
+                "stats", Map.of("rowsIn", 15200, "rowsOut", 15184));
+        Signal original = new Signal(null, "job.dataset.produced", Instant.now(), Severity.INFO,
+                new Ref("job", "nightly_recon", "emits", null), Ref.of("dataset", "orders"),
+                "corr-1", "cause-1", "acme", Ref.of("agent", "recon-bot"),
+                "dataset produced", nested, 1);
+
+        Signal roundTripped = Signal.fromEvent(original.toEvent());
+
+        assertEquals(nested, roundTripped.payload(), "payload survives the round trip as a real nested map");
+        assertInstanceOf(Map.class, roundTripped.payload().get("stats"), "nested payload stays structured, never re-stringified");
+        assertEquals(original.source(), roundTripped.source());
+        assertEquals(original.subject(), roundTripped.subject());
+        assertEquals(original.actor(), roundTripped.actor());
+        assertEquals("cause-1", roundTripped.causationId());
+        assertEquals("acme", roundTripped.space());
+
+        Map<String, Object> api = roundTripped.toMap();
+        assertInstanceOf(Map.class, api.get("source"), "/signals returns a Ref source, not a bare string");
+        assertEquals("job", ((Map<?, ?>) api.get("source")).get("kind"));
+        assertEquals("nightly_recon", ((Map<?, ?>) api.get("source")).get("id"));
+        assertEquals("info", api.get("severity"), "severity is wire-lowercase per openapi-v1.json");
+        assertEquals(nested, api.get("payload"), "the API payload is a real nested object, never a JSON string");
     }
 }

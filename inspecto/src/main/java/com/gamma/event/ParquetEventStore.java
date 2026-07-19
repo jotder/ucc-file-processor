@@ -101,6 +101,7 @@ public final class ParquetEventStore implements EventStore {
                 st.execute("CREATE TABLE " + BUF_TABLE + " ("
                         + "event_id VARCHAR, ts_ms BIGINT, type VARCHAR, source VARCHAR, "
                         + "pipeline VARCHAR, correlation_id VARCHAR, message VARCHAR, attributes VARCHAR, "
+                        + "payload VARCHAR, "
                         + "level VARCHAR, year VARCHAR, month VARCHAR, day VARCHAR)");
             }
         } catch (Exception e) {
@@ -131,7 +132,7 @@ public final class ParquetEventStore implements EventStore {
         if (buffer.isEmpty()) return;
         try {
             try (PreparedStatement ps = conn.prepareStatement(
-                    "INSERT INTO " + BUF_TABLE + " VALUES (?,?,?,?,?,?,?,?,?,?,?,?)")) {
+                    "INSERT INTO " + BUF_TABLE + " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)")) {
                 for (Event e : buffer) {
                     LocalDate d = Instant.ofEpochMilli(e.ts()).atZone(ZoneOffset.UTC).toLocalDate();
                     int i = 1;
@@ -143,6 +144,7 @@ public final class ParquetEventStore implements EventStore {
                     ps.setString(i++, e.correlationId());
                     ps.setString(i++, e.message());
                     ps.setString(i++, JSON.writeValueAsString(e.attributes()));
+                    ps.setString(i++, JSON.writeValueAsString(e.payload()));
                     ps.setString(i++, e.level().name());
                     ps.setString(i++, String.format("%04d", d.getYear()));
                     ps.setString(i++, String.format("%02d", d.getMonthValue()));
@@ -203,7 +205,7 @@ public final class ParquetEventStore implements EventStore {
         }
         String reader = SqlViews.reader("PARQUET", root + "/**/*.parquet", true);
         String where = conds.isEmpty() ? "" : " WHERE " + String.join(" AND ", conds);
-        String sql = "SELECT event_id, ts_ms, level, type, source, pipeline, correlation_id, message, attributes"
+        String sql = "SELECT event_id, ts_ms, level, type, source, pipeline, correlation_id, message, attributes, payload"
                 + " FROM " + reader + where + " ORDER BY ts_ms DESC LIMIT ?";
         List<Event> out = new ArrayList<>();
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
@@ -219,7 +221,8 @@ public final class ParquetEventStore implements EventStore {
                             EventLevel.parse(rs.getString("level")), rs.getString("type"),
                             rs.getString("source"), rs.getString("pipeline"),
                             rs.getString("correlation_id"), rs.getString("message"),
-                            JsonAttributes.fromJson(rs.getString("attributes"))));
+                            JsonAttributes.fromJson(rs.getString("attributes")),
+                            JsonAttributes.fromPayloadJson(rs.getString("payload"))));
                 }
             }
         } catch (SQLException e) {

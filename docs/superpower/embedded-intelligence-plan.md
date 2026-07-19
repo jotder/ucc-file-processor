@@ -225,14 +225,14 @@ Actuation is safe-by-construction (§6); the residual risks are **data egress** 
 **P0 — Platform + grounding (the spine). SHIPPED 2026-07-07 (product-owner sign-off given);
 HARDENED 2026-07-08 (3 of the original 5 scope cuts closed).** Delivered: new
 `inspecto-intelligence` module (`file-processor-intelligence`); core seam `com.gamma.intelligence.spi.
-IntelligenceAgent` (mirrors `AssistAgent`'s SourceService/ServiceLoader lifecycle) +
+IntelligenceAgent` (mirrors `AssistAgent`'s CollectorService/ServiceLoader lifecycle) +
 `AgentSessionRequest/Result`, `AgentAskRequest/Result` wire records; `POST /agent/sessions` +
 `POST /agent/sessions/{id}/ask` **+ `POST /agent/sessions/{id}/ask/stream` (SSE)** control-plane
 routes (`AgentRoutes`, 503 when the module is absent); `InspectoPack` (the 8 `ApplicationPack`
 seams) assembled via `PlatformBuilder` behind `InspectoIntelligenceAgent`; `InspectoModelProfile`
 bridges `AssistModelSettings`/`ProviderSettings` so one settings screen configures both agent
 modules; read tool belt v1 = `glossary_lookup` + `docs_search` (both over `docs/`) + `status_get`
-(live `SourceService.pipelines()`); **a one-document RAG corpus** (`docs/GLOSSARY.md`, in-JVM ONNX
+(live `CollectorService.pipelines()`); **a one-document RAG corpus** (`docs/GLOSSARY.md`, in-JVM ONNX
 embeddings — `InspectoKnowledgeSources`) proven to ingest and retrieve for real in CI; navigation
 catalog **derived automatically** from `inspecto-ui/src/app/app.routes.ts` (`RoutesCatalogLoader`,
 `NavigationTool` auto-registers). Tests: `InspectoPackTest`, `InspectoIntelligenceAgentTest`
@@ -266,13 +266,15 @@ catalog **derived automatically** from `inspecto-ui/src/app/app.routes.ts` (`Rou
   every page gets an empty param list — a known limitation until page components declare their own.
 
 *Exit (revised for what actually shipped): page-aware Q&A + navigation answers with real corpus
-citations, live off a running SourceService, deterministic under `StubLlmGateway`, real under a
+citations, live off a running CollectorService, deterministic under `StubLlmGateway`, real under a
 configured local Ollama, streamable over SSE; reflex layer untouched; CPU-only CI green.
 `incident_explain` and hosted-provider support move to P1/Standard+ alongside the items below.*
 
 **P1 — Investigation.** `timeline_build`/`diff_batches`/`config_versions_diff`/`anomaly_scan`
 tools; `root_cause_analysis` + `impact_analysis` playbooks; Case Store + `/agent/cases`; event
 ingress (generalized FailureReactor → triage queue feeding the deliberative layer).
+*Substrate note (2026-07-19): the signal tools + event ingress + agent-telemetry ledger are now
+planned as slices S1/S5 of `event-signal-backbone-plan.md` (combined plan) — P1 builds on them.*
 *Exit: a seeded Incident (broken batch + config change) yields a correct ranked RCA with evidence
 and a fix draft, deterministically under the fake provider.*
 

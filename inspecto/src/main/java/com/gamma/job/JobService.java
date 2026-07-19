@@ -14,6 +14,7 @@ import com.gamma.report.ReportService;
 import com.gamma.service.BatchEventBus;
 import com.gamma.service.CronExpression;
 import com.gamma.service.Scheduler;
+import com.gamma.signal.Ref;
 import com.gamma.signal.Severity;
 import com.gamma.signal.Signal;
 import com.gamma.signal.Signals;
@@ -27,7 +28,6 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.UUID;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -191,7 +191,7 @@ public final class JobService implements AutoCloseable {
         // Job Packs (P2c): load hot-deployable types BEFORE building Jobs, so a Job authored against a
         // pack type resolves at construction. Startup-scan signals no-op until the event log is wired.
         this.packs = new JobPackManager(System.getProperty("jobs.packs.dir"), registry,
-                (type, sev, payload) -> emitSignal(type, sev, null, "job.packs", payload));
+                (type, sev, payload) -> emitSignal(type, sev, null, Ref.of("job-pack", "job.packs"), payload));
         this.packs.scanAtStartup();
         for (JobConfig c : this.configs) {
             if (c.enabled()) jobs.put(c.name(), build(c));
@@ -437,24 +437,25 @@ public final class JobService implements AutoCloseable {
         payload.put("rows", be.outputRows());
         payload.put("ms", be.durationMs());
         payload.put("parts", be.partitions());
-        emitSignal("pipeline.commit", "SUCCESS".equals(be.status()) ? Severity.INFO : Severity.WARNING,
-                be.batchId(), "pipeline:" + be.pipeline(), payload);
+        emitSignal("pipeline.commit", "SUCCESS".equals(be.status()) ? Severity.INFO : Severity.WARN,
+                be.batchId(), Ref.of("pipeline", be.pipeline()), payload);
     }
 
     /** Emit a framework signal outside a Run (mirror / chain-cut) directly to this space's ledger. */
-    private void emitSignal(String type, Severity sev, String correlationId, String source, Map<String, Object> payload) {
+    private void emitSignal(String type, Severity sev, String correlationId, Ref source, Map<String, Object> payload) {
         EventLog el = eventLog;
         if (el == null) return;
         Map<String, Object> p = new LinkedHashMap<>(payload);
         p.putIfAbsent("chainDepth", 0);
-        el.emit(new Signal(UUID.randomUUID().toString(), type, Instant.now(), source, correlationId, sev, p).toEvent());
+        el.emit(new Signal(null, type, Instant.now(), sev, source, null, correlationId, null, null, null,
+                type, p, 1).toEvent());
     }
 
-    /** A→B→A loop protection: the chain is too deep — don't fire; emit a {@code job.chain.cut} WARNING (§8.4). */
+    /** A→B→A loop protection: the chain is too deep — don't fire; emit a {@code job.chain.cut} WARN (§8.4). */
     private void cutChain(String name, Signal sig, int depth) {
         log.warn("[JOB] signal chain cut at depth {} (max {}) — not firing '{}' on '{}'",
                 depth, maxChainDepth, name, sig.type());
-        emitSignal("job.chain.cut", Severity.WARNING, sig.correlationId(), "job:" + name,
+        emitSignal("job.chain.cut", Severity.WARN, sig.correlationId(), Ref.of("job", name),
                 Map.of("job", name, "signalType", sig.type(), "chainDepth", depth, "maxChainDepth", maxChainDepth));
     }
 
@@ -465,11 +466,9 @@ public final class JobService implements AutoCloseable {
         record(new JobRun(newRunId(name), name, job.type(), trigger, now, now, "SKIPPED", 0L, message));
     }
 
-    /** The Job name from a signal source of the form {@code job:<name>/run:<id>}, else {@code null}. */
-    private static String emittingJob(String source) {
-        if (source == null || !source.startsWith("job:")) return null;
-        int slash = source.indexOf('/', 4);
-        return slash < 0 ? source.substring(4) : source.substring(4, slash);
+    /** The Job name from a signal source {@link Ref} of {@code kind = "job"}, else {@code null}. */
+    private static String emittingJob(Ref source) {
+        return source != null && "job".equals(source.kind()) ? source.id() : null;
     }
 
     private static int intOf(Object o) {
@@ -645,7 +644,7 @@ public final class JobService implements AutoCloseable {
             if (!pr.missingRequired().isEmpty()) {
                 String miss = String.join(", ", pr.missingRequired());
                 ctx.log().error("run rejected: missing required parameter(s): " + miss, null);
-                ctx.signals().emit("job.run.rejected", Severity.WARNING,
+                ctx.signals().emit("job.run.rejected", Severity.WARN,
                         Map.of("job", name, "run", runId, "missing", pr.missingRequired()));
                 if (flowId != null) runningFlows.remove(flowId);
                 record(new JobRun(runId, name, job.type(), trigger, start,
@@ -678,7 +677,7 @@ public final class JobService implements AutoCloseable {
                 ctx.signals().emit("job.run.failed", Severity.CRITICAL,
                         Map.of("job", name, "run", runId, "outcome", res.status(), "message", String.valueOf(res.message())));
             else
-                ctx.signals().emit("job.run.completed", res.success() ? Severity.INFO : Severity.WARNING,
+                ctx.signals().emit("job.run.completed", res.success() ? Severity.INFO : Severity.WARN,
                         Map.of("job", name, "run", runId, "outcome", res.status(), "durationMs", res.durationMs()));
             JobRun run = new JobRun(runId, name, job.type(), trigger, start,
                     LocalDateTime.now().format(TS), res.status(), res.durationMs(), res.message());

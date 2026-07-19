@@ -184,7 +184,7 @@ final class JobPackManager implements AutoCloseable {
             if (loader != null) try { loader.close(); } catch (IOException ignore) { /* best effort */ }
             if (staged != null) try { Files.deleteIfExists(staged); } catch (IOException ignore) { /* best effort */ }
             log.warn("[PACKS] rejected {}: {}", name, ex.toString());
-            signals.emit("job.pack.rejected", Severity.WARNING,
+            signals.emit("job.pack.rejected", Severity.WARN,
                     Map.of("file", name, "hash", hash, "cause", String.valueOf(ex.getMessage())));
             return false;
         }

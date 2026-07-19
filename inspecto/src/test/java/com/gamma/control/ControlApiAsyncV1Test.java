@@ -280,7 +280,7 @@ class ControlApiAsyncV1Test {
 
             assertNotNull(completed, "a completed signal was emitted");
             assertEquals(runId, completed.get("correlationId").asText(), "correlated to the run");
-            assertEquals("INFO", completed.get("severity").asText());
+            assertEquals("info", completed.get("severity").asText());
             assertFalse(completed.get("signalId").asText().isBlank(), "framework-stamped id");
             assertEquals("SUCCESS", completed.get("payload").get("outcome").asText(), completed.toString());
         }

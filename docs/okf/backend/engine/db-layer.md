@@ -213,7 +213,7 @@ record shape:
 
 ```
 event_id, ts_ms (BIGINT), type, source, pipeline, correlation_id,
-message, attributes (JSON), level        -- + partition cols year, month, day (VARCHAR)
+message, attributes (JSON), payload (JSON), level  -- + partition cols year, month, day (VARCHAR)
 ```
 
 `level` ∈ [`EventLevel`](../../../../inspecto/src/main/java/com/gamma/event/EventLevel.java). There is **no

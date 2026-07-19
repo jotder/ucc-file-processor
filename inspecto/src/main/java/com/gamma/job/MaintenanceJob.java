@@ -275,7 +275,7 @@ final class MaintenanceJob implements Job {
             for (Map.Entry<Path, Long> f : files.subList(0, Math.min(top, files.size())))
                 ctx.log().info("largest consumer", "path", f.getKey().toString(), "bytes", f.getValue());
             if (breached)
-                ctx.signals().emit("maintenance.storage.threshold", Severity.WARNING,
+                ctx.signals().emit("maintenance.storage.threshold", Severity.WARN,
                         Map.of("dir", dir.toString(), "totalBytes", totalBytes, "warnBytes", warnBytes));
         }
         StringBuilder perAxis = new StringBuilder();
@@ -344,7 +344,7 @@ final class MaintenanceJob implements Job {
         if (ctx != null) {
             for (String f : findings) ctx.log().warn(f);
             if (!findings.isEmpty())
-                ctx.signals().emit("maintenance.scheduler.findings", Severity.WARNING,
+                ctx.signals().emit("maintenance.scheduler.findings", Severity.WARN,
                         Map.of("count", findings.size(), "findings", findings));
         }
         return JobResult.ok("scheduler_audit: " + findings.size() + " finding(s) across " + all.size()
@@ -404,7 +404,7 @@ final class MaintenanceJob implements Job {
         if (ctx != null) {
             for (String f : findings) ctx.log().warn(f);
             if (!findings.isEmpty())
-                ctx.signals().emit("maintenance.filerepo.findings", Severity.WARNING,
+                ctx.signals().emit("maintenance.filerepo.findings", Severity.WARN,
                         Map.of("count", findings.size(), "findings", findings));
         }
         return JobResult.ok("file_repository_audit: " + findings.size() + " finding(s) under " + dataRoot

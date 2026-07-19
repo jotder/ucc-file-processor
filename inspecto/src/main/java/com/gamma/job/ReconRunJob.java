@@ -96,7 +96,7 @@ final class ReconRunJob implements Job {
         payload.put("valueBreak", valueBreak);
         payload.put("breaks", breaks);
         payload.put("matchedKeys", r.summary().get("matchedKeys"));
-        ctx.signals().emit("recon.run.completed", breaks > 0 ? Severity.WARNING : Severity.INFO, payload);
+        ctx.signals().emit("recon.run.completed", breaks > 0 ? Severity.WARN : Severity.INFO, payload);
         ctx.log().info("reconciliation complete", "reconciliation", reconId, "breaks", breaks);
         if (breaks > 0) openIncident(ctx, reconId, missingLeft, missingRight, valueBreak, breaks);
 

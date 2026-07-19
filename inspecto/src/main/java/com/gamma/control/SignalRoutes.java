@@ -51,7 +51,7 @@ final class SignalRoutes implements RouteModule {
         try {
             return Severity.valueOf(s.trim().toUpperCase(Locale.ROOT));
         } catch (IllegalArgumentException ex) {
-            throw new ApiException(400, "invalid 'severity' (expected INFO|WARNING|CRITICAL): " + s);
+            throw new ApiException(400, "invalid 'severity' (expected TRACE|DEBUG|INFO|WARN|ERROR|CRITICAL): " + s);
         }
     }
 }

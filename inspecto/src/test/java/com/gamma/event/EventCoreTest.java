@@ -14,7 +14,7 @@ import static org.junit.jupiter.api.Assertions.*;
 class EventCoreTest {
 
     private static Event evt(long ts, EventLevel level, String type, String pipeline, String corr, String msg) {
-        return new Event(null, ts, level, type, "src", pipeline, corr, msg, Map.of());
+        return new Event(null, ts, level, type, "src", pipeline, corr, msg, Map.of(), Map.of());
     }
 
     @Test
@@ -43,7 +43,7 @@ class EventCoreTest {
 
         Map<String, Object> m = e.toMap();
         assertEquals(List.of("eventId", "ts", "timestamp", "level", "type", "source", "pipeline",
-                "correlationId", "message", "attributes"), List.copyOf(m.keySet()));
+                "correlationId", "message", "attributes", "payload"), List.copyOf(m.keySet()));
         assertEquals("JOB_STARTED", m.get("type"));
         assertTrue(((String) m.get("timestamp")).endsWith("Z"), "ISO-8601 UTC timestamp");
     }

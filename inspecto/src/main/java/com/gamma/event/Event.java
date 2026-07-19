@@ -34,12 +34,12 @@ import java.util.UUID;
 @com.gamma.api.PublicApi(since = "4.2.0")
 public record Event(String eventId, long ts, EventLevel level, String type, String source,
                     String pipeline, String correlationId, String message,
-                    Map<String, String> attributes) {
+                    Map<String, String> attributes, Map<String, Object> payload) {
 
     private static final DateTimeFormatter ISO =
             DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'").withZone(ZoneOffset.UTC);
 
-    /** Canonical constructor — fills sensible defaults and makes {@code attributes} immutable. */
+    /** Canonical constructor — fills sensible defaults and makes {@code attributes}/{@code payload} immutable. */
     public Event {
         if (eventId == null || eventId.isBlank()) eventId = UUID.randomUUID().toString();
         if (level == null) level = EventLevel.INFO;
@@ -49,6 +49,7 @@ public record Event(String eventId, long ts, EventLevel level, String type, Stri
         attributes = attributes == null || attributes.isEmpty()
                 ? Map.of()
                 : Map.copyOf(attributes);
+        payload = payload == null || payload.isEmpty() ? Map.of() : Map.copyOf(payload);
     }
 
     /** The event time as an ISO-8601 UTC string (e.g. {@code 2026-06-13T08:52:52.123Z}). */
@@ -72,6 +73,7 @@ public record Event(String eventId, long ts, EventLevel level, String type, Stri
         m.put("correlationId", correlationId);
         m.put("message", message);
         m.put("attributes", attributes);
+        m.put("payload", payload);
         return m;
     }
 
@@ -81,7 +83,7 @@ public record Event(String eventId, long ts, EventLevel level, String type, Stri
     public static Event log(long ts, EventLevel level, String source, String message,
                             String pipeline, String correlationId, Map<String, String> attributes) {
         return new Event(null, ts, level, EventType.LOG, source, pipeline, correlationId, message,
-                attributes);
+                attributes, Map.of());
     }
 
     /** Start a builder for a domain event of the given {@code type}; {@code ts} defaults to now. */
@@ -99,6 +101,7 @@ public record Event(String eventId, long ts, EventLevel level, String type, Stri
         private String correlationId;
         private String message = "";
         private final Map<String, String> attributes = new LinkedHashMap<>();
+        private Map<String, Object> payload = Map.of();
 
         private Builder(String type) { this.type = type; }
 
@@ -108,6 +111,10 @@ public record Event(String eventId, long ts, EventLevel level, String type, Stri
         public Builder pipeline(String pipeline) { this.pipeline = pipeline; return this; }
         public Builder correlationId(String id) { this.correlationId = id; return this; }
         public Builder message(String message) { this.message = message; return this; }
+
+        /** The structured payload bag (native, never JSON-in-a-string) — used by {@link
+         *  com.gamma.signal.Signal#toEvent()} so a Signal's payload round-trips losslessly. */
+        public Builder payload(Map<String, Object> payload) { this.payload = payload; return this; }
 
         /** Add one structured attribute; {@code null} value is ignored. */
         public Builder attr(String key, Object value) {
@@ -134,7 +141,7 @@ public record Event(String eventId, long ts, EventLevel level, String type, Stri
         public Builder userAgent(String ua) { return attr(AuditAttrs.USER_AGENT, ua); }
 
         public Event build() {
-            return new Event(null, ts, level, type, source, pipeline, correlationId, message, attributes);
+            return new Event(null, ts, level, type, source, pipeline, correlationId, message, attributes, payload);
         }
     }
 }

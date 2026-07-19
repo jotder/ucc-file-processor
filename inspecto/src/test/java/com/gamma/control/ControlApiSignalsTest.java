@@ -66,7 +66,7 @@ class ControlApiSignalsTest {
             assertTrue(critical.isArray() && !critical.isEmpty(), "a CRITICAL signal was emitted");
             boolean sawFailed = false;
             for (JsonNode s : critical) {
-                assertEquals("CRITICAL", s.get("severity").asText(), "severity floor admits only CRITICAL");
+                assertEquals("critical", s.get("severity").asText(), "severity floor admits only CRITICAL (wire lowercase)");
                 if ("job.run.failed".equals(s.get("type").asText())) sawFailed = true;
             }
             assertTrue(sawFailed, "the failed run's CRITICAL signal is present");

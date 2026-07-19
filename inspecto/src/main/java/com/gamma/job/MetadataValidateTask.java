@@ -54,7 +54,7 @@ final class MetadataValidateTask {
         if (ctx != null) {
             for (String f : findings) ctx.log().warn(f);
             if (!findings.isEmpty()) {
-                ctx.signals().emit("maintenance.metadata.findings", Severity.WARNING,
+                ctx.signals().emit("maintenance.metadata.findings", Severity.WARN,
                         Map.of("count", findings.size(), "findings", findings));
             }
         }

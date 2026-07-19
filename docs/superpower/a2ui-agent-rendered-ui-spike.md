@@ -1,7 +1,9 @@
 # A2UI — Agent-Rendered UI (Design Spike)
 
-- **Status:** SPIKE / proposed — not started. Design-only; no code shipped.
-- **Date:** 2026-07-09
+- **Status:** ABSORBED (2026-07-19) into `event-signal-backbone-plan.md` (combined plan) — execution
+  is tracked there: P0+P1 → its **S4**, P2 → **S6**, P3+P4 → **S7**. This doc remains the detailed
+  design reference for the render host, wire format, kind allowlist, and security model (§4–§6).
+- **Date:** 2026-07-09 (absorbed 2026-07-19)
 - **Scope:** Let the embedded intelligence agent emit **declarative UI descriptors** that the
   Angular UI renders inline (charts, tables, KPIs, forms, action buttons) instead of returning
   only prose + a navigation hint, with user interactions flowing back to the agent as new turns.
