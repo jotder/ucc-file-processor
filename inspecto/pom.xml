@@ -146,7 +146,7 @@
             <!--
                 Fat JAR — bundles all runtime dependencies into a single deployable JAR.
                 Build with:  mvn clean package
-                Run ETL:     java -cp file-processor-<version>.jar com.gamma.inspector.SourceProcessor  <pipeline.toon>
+                Run ETL:     java -cp file-processor-<version>.jar com.gamma.inspector.CollectorProcessor  <pipeline.toon>
                 Gen schema:  java -cp file-processor-<version>.jar com.gamma.inspector.SchemaExtractor <args>
             -->
             <plugin>
@@ -162,7 +162,7 @@
                             <transformers>
                                 <!-- Default main class for convenience; override with -cp and full class name -->
                                 <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
-                                    <mainClass>com.gamma.inspector.SourceProcessor</mainClass>
+                                    <mainClass>com.gamma.inspector.CollectorProcessor</mainClass>
                                 </transformer>
                                 <!-- Merge JDBC driver service registrations from all dependencies -->
                                 <transformer implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer"/>
