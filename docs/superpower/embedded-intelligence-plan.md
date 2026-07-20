@@ -281,11 +281,27 @@ the `TriageQueue` autonomous ingress (opt-in, `-Dintelligence.triage.enabled`) w
 a seeded Incident (broken batch + config change) yields a ranked RCA with evidence and a fix draft,
 deterministically under `StubLlmGateway`.
 
-**P2 — Author everything (L1).** `component_draft` across kinds + validator repair loop;
-`pipeline_author` (parser test + simulate), `query_author`, `kpi_report_builder`,
-Expectation/Alert-Rule suggestion from profiling.
+**P2 — Author everything (L1). PARTIALLY SHIPPED 2026-07-20 (3 of 5 tools).** Delivered as three
+read-only belt tools (belt now 12), all `mutating=false`, persist nothing, as-built in
+`okf/backend/agent/embedded-intelligence.md`:
+- `component_draft` across kinds + validator repair loop — validates a draft against the same
+  structural spec (`ConfigSpecs`) + hard-fail safety gate (`ConfigSafetyValidator`, always applied)
+  the control plane enforces on write; anchored `Finding`s drive the model's repair→re-validate loop.
+  Kinds = the spec-backed set `pipeline|enrichment|job|schema|expectation|alert-rule`.
+- `pipeline_author` (parser test + simulate) — `PipelineCodec.fromMap` parse + the editor's own
+  `PipelineDryRun.run` over sample rows (per-node/per-sink counts on a throwaway DuckDB).
+- Expectation suggestion from profiling → `suggest_expectations` — deterministic column profiling over
+  a `BrowsableStore` (null/distinct/numeric bounds) deriving `non_null`/`range` expectation drafts that
+  feed straight back into `component_draft` (the loop closes).
+
+*Deferred:* `query_author` (needs trusted dataset→relationSql resolution off the tool-belt seam — the
+model must never supply `relationSql`, a SqlGuard boundary) and `kpi_report_builder` (no confirmed
+target component kind — composes `MeasureCompiler` measures into a `dashboard`, awaits owner sign-off).
+Alert-Rule-from-profiling rides the same `suggest_expectations` pattern when demanded.
+
 *Exit: NL → valid DRAFT Pipeline/Query/Dashboard that a human applies unchanged in ≥ the golden-set
-pass rate; every draft carries validation evidence.*
+pass rate; every draft carries validation evidence.* (Met for pipeline/expectation/config kinds; query
++ dashboard authoring await the deferred tools.)
 
 **P3 — Gated action (L2).** ApprovalGate wiring + approvals inbox (UI + routes) + checkpoint/
 resume; act tools (`component_apply`, `job_run`, `schedule_apply`, `alert_ack`, `pipeline_rerun`,

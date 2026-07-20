@@ -58,8 +58,9 @@ class InspectoPackTest {
     @Test
     void toolBeltIsAllReadOnlyWithRoleAndCapabilityAndNoMcp() {
         List<Tool> tools = pack.toolProvider().tools();
-        assertEquals(9, tools.size()); // glossary_lookup, docs_search, status_get, S5 signals_query, signal_timeline
-                                       // + P1 timeline_build, diff_batches, config_versions_diff, anomaly_scan
+        assertEquals(12, tools.size()); // glossary_lookup, docs_search, status_get, S5 signals_query, signal_timeline
+                                        // + P1 timeline_build, diff_batches, config_versions_diff, anomaly_scan
+                                        // + P2 component_draft, pipeline_author, suggest_expectations
         for (Tool t : tools) {
             assertFalse(t.spec().mutating(), "tool " + t.spec().name() + " must be read-only");
             assertNotNull(t.spec().requiredRole());

@@ -6,12 +6,20 @@ import com.eoiagent.core.ToolCall;
 import com.eoiagent.core.ToolResult;
 import com.eoiagent.core.ToolSpec;
 import com.eoiagent.tool.Tool;
+import com.gamma.config.io.ConfigLoader;
+import com.gamma.config.safety.ConfigSafetyValidator;
+import com.gamma.config.safety.SafetyPolicy;
+import com.gamma.config.spec.ConfigSpec;
+import com.gamma.config.spec.ConfigSpecs;
 import com.gamma.config.spec.Finding;
 import com.gamma.etl.PipelineConfig;
 import com.gamma.job.JobRun;
 import com.gamma.job.JobService;
 import com.gamma.pipeline.ComponentRegistry;
 import com.gamma.pipeline.ComponentStore;
+import com.gamma.pipeline.PipelineCodec;
+import com.gamma.pipeline.PipelineGraph;
+import com.gamma.pipeline.exec.PipelineDryRun;
 import com.gamma.service.CollectorService;
 import com.gamma.signal.Severity;
 import com.gamma.signal.Signal;
@@ -75,7 +83,8 @@ final class InspectoTools {
         return List.of(glossaryLookup(), docsSearch(), statusGet(service),
                 signalsQuery(service), signalTimeline(service),
                 timelineBuild(service, components), diffBatches(service),
-                configVersionsDiff(components), anomalyScan(browseStores));
+                configVersionsDiff(components), anomalyScan(browseStores),
+                componentDraft(), pipelineAuthor(), suggestExpectations(browseStores));
     }
 
     /** The component registry the control routes read — {@code -Dassist.write.root/registry} — or
@@ -617,6 +626,245 @@ final class InspectoTools {
         });
     }
 
+    private static final int PROFILE_STAT_COLS = 1;
+
+    /**
+     * AGT-5 P2 {@code suggest_expectations} (plan §8 "Expectation/Alert-Rule suggestion from
+     * profiling"): profile one column of a DB-backed store (row/null/distinct counts + numeric
+     * min/max, pure deterministic SQL like {@code anomaly_scan}) and derive candidate data-quality
+     * {@code expectation} drafts — a {@code non_null} check when the column was never null, a
+     * {@code range} check from the observed bounds when it is fully numeric. The model judges which to
+     * keep; a chosen draft goes through {@code component_draft} to validate, then a human applies it.
+     * Persists nothing; unknown table/column is an {@code ok=false} result, never a throw.
+     */
+    private static Tool suggestExpectations(Supplier<List<BrowsableStore>> browseStores) {
+        ToolSpec spec = new ToolSpec("suggest_expectations",
+                "Profile a column of a DB-backed operational store (row count, null count/fraction, distinct "
+                        + "count, numeric min/max) and derive candidate Expectation drafts (non_null when never "
+                        + "null; range from observed bounds when numeric). Deterministic SQL, no model. Feed a "
+                        + "chosen draft to component_draft, then a human applies it.",
+                "{\"type\":\"object\",\"properties\":{"
+                        + "\"table\":{\"type\":\"string\"},"
+                        + "\"column\":{\"type\":\"string\"},"
+                        + "\"target\":{\"type\":\"string\"}},"
+                        + "\"required\":[\"table\",\"column\"]}",
+                false, Role.USER, Capability.READ_METADATA);
+        return new FunctionTool(spec, call -> {
+            String table = arg(call, "table");
+            String column = arg(call, "column");
+            if (table == null || table.isBlank()) return error("table is required");
+            if (column == null || column.isBlank()) return error("column is required");
+            String target = arg(call, "target");
+            if (target == null || target.isBlank()) target = table;
+            BrowsableStore store = browseStores.get().stream()
+                    .filter(s -> s.browseTables().contains(table)).findFirst().orElse(null);
+            if (store == null) return error("unknown table: '" + table + "' (no DB-backed store exposes it)");
+            String t = sqlIdent(table);
+            String c = sqlIdent(column);
+            try {
+                String profileSql = "SELECT count(*) AS __n, count(" + c + ") AS __nonnull, "
+                        + "count(DISTINCT " + c + ") AS __distinct, "
+                        + "count(TRY_CAST(" + c + " AS DOUBLE)) AS __numeric, "
+                        + "min(TRY_CAST(" + c + " AS DOUBLE)) AS __min, "
+                        + "max(TRY_CAST(" + c + " AS DOUBLE)) AS __max FROM " + t;
+                List<Finding> findings = SqlGuard.check(profileSql);
+                if (!findings.isEmpty()) return error(findings.get(0).message());
+                BrowsableStore.Page page = store.browseQuery(profileSql, PROFILE_STAT_COLS, 0);
+                Map<String, Object> r0 = page.rows().isEmpty() ? Map.of() : page.rows().get(0);
+                long n = asLong(r0.get("__n"));
+                long nonNull = asLong(r0.get("__nonnull"));
+                long distinct = asLong(r0.get("__distinct"));
+                long numeric = asLong(r0.get("__numeric"));
+                long nulls = n - nonNull;
+                boolean isNumeric = nonNull > 0 && numeric == nonNull;
+
+                Map<String, Object> profile = new LinkedHashMap<>();
+                profile.put("rows", n);
+                profile.put("nulls", nulls);
+                profile.put("nullFraction", n > 0 ? (double) nulls / n : 0d);
+                profile.put("distinct", distinct);
+                profile.put("numeric", isNumeric);
+                if (isNumeric) {
+                    profile.put("min", r0.get("__min"));
+                    profile.put("max", r0.get("__max"));
+                }
+
+                List<Map<String, Object>> suggestions = new ArrayList<>();
+                if (n > 0 && nulls == 0) {
+                    suggestions.add(expectationDraft(column, target, "non_null",
+                            table + "_" + column + "_not_null",
+                            column + " was never null across " + n + " rows", null, null));
+                }
+                if (isNumeric && r0.get("__min") != null && r0.get("__max") != null) {
+                    suggestions.add(expectationDraft(column, target, "range",
+                            table + "_" + column + "_range",
+                            "observed numeric bounds over " + nonNull + " values",
+                            String.valueOf(r0.get("__min")), String.valueOf(r0.get("__max"))));
+                }
+
+                Map<String, Object> result = new LinkedHashMap<>();
+                result.put("table", table);
+                result.put("column", column);
+                result.put("profile", profile);
+                result.put("suggestions", suggestions);
+                if (suggestions.isEmpty()) {
+                    result.put("note", "no confident suggestion — the column has nulls and is not fully numeric");
+                }
+                return ok(result);
+            } catch (SQLException | RuntimeException e) {
+                return error("profile failed: " + e.getMessage());
+            }
+        });
+    }
+
+    /** Build an {@code expectation} config draft (the shape {@code component_draft(kind=expectation)} validates). */
+    private static Map<String, Object> expectationDraft(String column, String target, String kind,
+                                                        String name, String description,
+                                                        String min, String max) {
+        Map<String, Object> e = new LinkedHashMap<>();
+        e.put("name", name);
+        e.put("description", "Auto-suggested from profiling: " + description);
+        e.put("targetType", "pipeline");
+        e.put("target", target);
+        e.put("column", column);
+        e.put("kind", kind);
+        if (min != null) e.put("min", min);
+        if (max != null) e.put("max", max);
+        e.put("severity", "MAJOR");
+        e.put("enabled", true);
+        return e;
+    }
+
+    private static long asLong(Object v) {
+        return v instanceof Number n ? n.longValue() : 0L;
+    }
+
+    /**
+     * The AGT-5 P2 authoring spine (plan §8 "Author everything (L1)"): validate a proposed component
+     * draft against the <em>same</em> structural spec ({@link ConfigSpecs}) plus the hard-fail safety
+     * gate ({@link ConfigSafetyValidator}) the control plane enforces on write, and hand every
+     * violation back as an anchored {@link Finding} the model can read and repair. This is the
+     * "validator repair loop": the agent proposes a config, sees the findings, revises, re-validates —
+     * until {@code clean=true}, a draft a human can apply unchanged. It never persists (apply is the
+     * L2/P3 gated-action step) and never throws (an unvalidatable kind or malformed body is an
+     * {@code ok=false} result, exactly like the read belt).
+     */
+    private static Tool componentDraft() {
+        ToolSpec spec = new ToolSpec("component_draft",
+                "Validate a proposed component draft (kind: pipeline|enrichment|job|schema|expectation|"
+                        + "alert-rule) against the control plane's structural spec + hard-fail safety gate; "
+                        + "returns anchored findings to repair. Does not persist — a clean draft is one a "
+                        + "human can apply unchanged.",
+                "{\"type\":\"object\",\"properties\":{"
+                        + "\"kind\":{\"type\":\"string\"},"
+                        + "\"config\":{\"type\":\"object\"}},"
+                        + "\"required\":[\"kind\",\"config\"]}",
+                false, Role.USER, Capability.AUTHOR_PIPELINE);
+        return new FunctionTool(spec, call -> {
+            String kind = arg(call, "kind");
+            if (kind == null || kind.isBlank()) return error("kind is required");
+            Map<String, Object> draft = mapArg(call, "config");
+            if (draft == null) return error("config is required and must be an object");
+            String type = configType(kind);
+            ConfigSpec cfgSpec = ConfigSpecs.forType(type);
+            if (cfgSpec == null) {
+                return error("no structural spec for kind '" + kind
+                        + "' (validatable kinds: pipeline, enrichment, job, schema, expectation, alert-rule)");
+            }
+            List<Finding> findings = new ArrayList<>(ConfigLoader.filesystem().validate(cfgSpec, draft));
+            // Agent drafts must clear the security boundary before a human ever sees them (plan §6.4):
+            // the safety gate is always applied here, not opt-in as on the /validate route.
+            findings.addAll(ConfigSafetyValidator.check(type, draft, SafetyPolicy.defaultPolicy()));
+            Map<String, Object> result = new LinkedHashMap<>();
+            result.put("kind", kind);
+            result.put("type", type);
+            result.put("clean", findings.isEmpty());
+            result.put("findings", findings.stream().map(InspectoTools::findingMap).toList());
+            result.put("draft", draft);
+            return ok(result);
+        });
+    }
+
+    /** Map a component kind to its {@link ConfigSpecs} config type ({@code alert-rule}→{@code alert}). */
+    private static String configType(String kind) {
+        String k = kind.trim().toLowerCase(Locale.ROOT);
+        return k.equals("alert-rule") ? "alert" : k;
+    }
+
+    private static Map<String, Object> findingMap(Finding f) {
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("severity", f.severity().name());
+        m.put("fieldPath", f.fieldPath());
+        m.put("message", f.message());
+        return m;
+    }
+
+    /**
+     * AGT-5 P2 {@code pipeline_author} (plan §8): parse a proposed authored-flow graph (nodes + edges)
+     * and — when the caller supplies sample rows — simulate its {@code transform → sink} subgraph on a
+     * throwaway DuckDB, reporting the per-node produced-relation counts and each sink's row count. This
+     * is the flow-world "parser test + simulate": the model tests a pipeline draft (the same
+     * {@link PipelineDryRun} the editor's dry-run uses) before a human applies it. Persists nothing;
+     * a malformed graph or a failing simulate is an {@code ok=false} result, never a throw.
+     */
+    private static Tool pipelineAuthor() {
+        ToolSpec spec = new ToolSpec("pipeline_author",
+                "Parse a proposed authored-flow graph {name,nodes,edges} and, given sampleRows (post-parse "
+                        + "records), simulate its transform→sink subgraph on a throwaway DuckDB — per-node and "
+                        + "per-sink row counts. Tests a pipeline draft before it is applied. Persists nothing.",
+                "{\"type\":\"object\",\"properties\":{"
+                        + "\"flow\":{\"type\":\"object\"},"
+                        + "\"sampleRows\":{\"type\":\"array\",\"items\":{\"type\":\"object\"}}},"
+                        + "\"required\":[\"flow\"]}",
+                false, Role.USER, Capability.AUTHOR_PIPELINE);
+        return new FunctionTool(spec, call -> {
+            Map<String, Object> flow = mapArg(call, "flow");
+            if (flow == null) return error("flow is required and must be an object");
+            PipelineGraph g;
+            try {
+                g = PipelineCodec.fromMap(flow);
+            } catch (IllegalArgumentException e) {
+                return error("invalid flow: " + e.getMessage());
+            }
+            Map<String, Object> result = new LinkedHashMap<>();
+            result.put("flow", g.name());
+            result.put("nodes", g.nodes().stream()
+                    .map(n -> Map.of("id", n.id(), "type", n.type())).toList());
+
+            List<Map<String, Object>> sampleRows = listOfMapsArg(call, "sampleRows");
+            if (sampleRows == null || sampleRows.isEmpty()) {
+                result.put("simulated", false);
+                result.put("note", "graph parsed; provide sampleRows (post-parse records) to simulate the flow");
+                return ok(result);
+            }
+            try {
+                PipelineDryRun.Result dr = PipelineDryRun.run(g, sampleRows);
+                result.put("simulated", true);
+                result.put("seedNode", dr.seedNode());
+                result.put("nodeOutputs", dr.nodes().stream().map(n -> {
+                    Map<String, Object> m = new LinkedHashMap<>();
+                    m.put("node", n.node());
+                    m.put("type", n.type());
+                    m.put("relations", n.relations().stream()
+                            .map(r -> Map.of("rel", r.rel(), "rowCount", r.rowCount())).toList());
+                    return m;
+                }).toList());
+                result.put("sinks", dr.sinks().stream().map(s -> {
+                    Map<String, Object> m = new LinkedHashMap<>();
+                    m.put("node", s.node());
+                    m.put("store", s.store());
+                    m.put("rowCount", s.rowCount());
+                    return m;
+                }).toList());
+                return ok(result);
+            } catch (IllegalArgumentException e) {
+                return error(e.getMessage());
+            } catch (Exception e) {
+                return error("simulate failed: " + e.getMessage());
+            }
+        });
+    }
+
     private static Map<String, Object> scanResult(String table, String column, String method,
                                                   double mean, double stddev, long scanned,
                                                   List<Map<String, Object>> rows, boolean truncated) {
@@ -709,6 +957,28 @@ final class InspectoTools {
         Map<String, Object> args = call.arguments() == null ? Map.of() : call.arguments();
         Object v = args.get(key);
         return v == null ? null : String.valueOf(v);
+    }
+
+    /** A nested object argument as a {@code Map<String,Object>}; {@code null} when absent or not an object. */
+    @SuppressWarnings("unchecked")
+    private static Map<String, Object> mapArg(ToolCall call, String key) {
+        Map<String, Object> args = call.arguments() == null ? Map.of() : call.arguments();
+        Object v = args.get(key);
+        return v instanceof Map<?, ?> ? (Map<String, Object>) v : null;
+    }
+
+    /** An array-of-objects argument as a {@code List<Map<String,Object>>}; {@code null} when absent or
+     *  not a list. Non-map elements are skipped (a best-effort read, not a strict parse). */
+    @SuppressWarnings("unchecked")
+    private static List<Map<String, Object>> listOfMapsArg(ToolCall call, String key) {
+        Map<String, Object> args = call.arguments() == null ? Map.of() : call.arguments();
+        Object v = args.get(key);
+        if (!(v instanceof List<?> list)) return null;
+        List<Map<String, Object>> out = new ArrayList<>();
+        for (Object o : list) {
+            if (o instanceof Map<?, ?> m) out.add((Map<String, Object>) m);
+        }
+        return out;
     }
 
     private static ToolResult ok(Object value) {

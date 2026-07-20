@@ -317,6 +317,198 @@ class InspectoToolsTest {
         assertTrue(r.error().contains("unknown table"));
     }
 
+    // ── AGT-5 P2 slice 1: component_draft (the validator repair loop) ────────────
+
+    private static Tool draftTool() {
+        return tool(InspectoTools.tools(seeded()), "component_draft");
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void componentDraftValidExpectationIsClean() {
+        Map<String, Object> out = invoke(draftTool(), Map.of("kind", "expectation",
+                "config", Map.of("name", "orders_id_notnull", "target", "orders",
+                        "column", "ORDER_ID", "kind", "non_null")));
+        assertEquals("expectation", out.get("type"));
+        assertEquals(true, out.get("clean"), () -> "expected no findings, got " + out.get("findings"));
+        assertTrue(((List<Map<String, Object>>) out.get("findings")).isEmpty());
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void componentDraftReportsMissingRequiredFieldsAsAnchoredFindings() {
+        Map<String, Object> out = invoke(draftTool(), Map.of("kind", "expectation",
+                "config", Map.of("name", "half_baked")));   // target + column missing
+        assertEquals(false, out.get("clean"));
+        List<Map<String, Object>> findings = (List<Map<String, Object>>) out.get("findings");
+        assertFalse(findings.isEmpty());
+        List<Object> fields = findings.stream().map(f -> f.get("fieldPath")).toList();
+        assertTrue(fields.contains("target"), () -> "target finding missing: " + findings);
+        assertTrue(fields.contains("column"), () -> "column finding missing: " + findings);
+        // the draft is echoed back verbatim so the model can repair it in place
+        assertEquals(Map.of("name", "half_baked"), out.get("draft"));
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void componentDraftAppliesTheSafetyGate() {
+        // processing.threads far over the safety cap must surface as a safety finding, not just
+        // structural spec findings — proving ConfigSafetyValidator is wired into the loop.
+        Map<String, Object> out = invoke(draftTool(), Map.of("kind", "pipeline",
+                "config", Map.of("processing", Map.of("threads", 100_000))));
+        assertEquals(false, out.get("clean"));
+        List<Map<String, Object>> findings = (List<Map<String, Object>>) out.get("findings");
+        assertTrue(findings.stream().anyMatch(f -> String.valueOf(f.get("message")).contains("threads must be in")),
+                () -> "expected a threads bound safety finding, got " + findings);
+    }
+
+    @Test
+    void componentDraftMapsAlertRuleKindToTheAlertSpec() {
+        Map<String, Object> out = invoke(draftTool(),
+                Map.of("kind", "alert-rule", "config", Map.of("name", "x")));
+        assertEquals("alert", out.get("type"), "alert-rule kind resolves to the 'alert' config spec");
+    }
+
+    @Test
+    void componentDraftRejectsAnUnvalidatableKind() {
+        ToolResult r = draftTool().invoke(new ToolCall("component_draft",
+                Map.of("kind", "widget", "config", Map.of()), new RunId("t")));
+        assertFalse(r.ok());
+        assertTrue(r.error().contains("no structural spec"));
+    }
+
+    @Test
+    void componentDraftRejectsANonObjectConfig() {
+        ToolResult r = draftTool().invoke(new ToolCall("component_draft",
+                Map.of("kind", "expectation", "config", "not-a-map"), new RunId("t")));
+        assertFalse(r.ok());
+        assertTrue(r.error().contains("config is required"));
+    }
+
+    // ── AGT-5 P2 slice 2: pipeline_author (parse + simulate) ─────────────────────
+
+    private static Tool authorTool() {
+        return tool(InspectoTools.tools(seeded()), "pipeline_author");
+    }
+
+    /** A filter flow mirroring PipelineDryRunTest: acq → transform.filter(amt>=100) → sink. */
+    private static Map<String, Object> filterFlowMap() {
+        return Map.of(
+                "name", "orders_flow",
+                "active", true,
+                "nodes", List.of(
+                        Map.of("id", "acq", "type", "acquisition"),
+                        Map.of("id", "flt", "type", "transform.filter",
+                                "config", Map.of("where", "CAST(amt AS INT) >= 100")),
+                        Map.of("id", "sink", "type", "sink.persistent", "config", Map.of("store", "big"))),
+                "edges", List.of(
+                        Map.of("from", "acq", "to", "flt"),
+                        Map.of("from", "flt", "to", "sink")));
+    }
+
+    private static Map<String, Object> sampleRow(String id, String amt) {
+        Map<String, Object> m = new java.util.LinkedHashMap<>();
+        m.put("id", id);
+        m.put("amt", amt);
+        return m;
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void pipelineAuthorParsesWithoutSampleRows() {
+        Map<String, Object> out = invoke(authorTool(), Map.of("flow", filterFlowMap()));
+        assertEquals("orders_flow", out.get("flow"));
+        assertEquals(false, out.get("simulated"));
+        assertEquals(3, ((List<Object>) out.get("nodes")).size());
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void pipelineAuthorSimulatesTheFilterFlowWithSinkCounts() {
+        Map<String, Object> out = invoke(authorTool(), Map.of(
+                "flow", filterFlowMap(),
+                "sampleRows", List.of(sampleRow("1", "150"), sampleRow("2", "50"), sampleRow("3", "200"))));
+        assertEquals(true, out.get("simulated"));
+        assertEquals("acq", out.get("seedNode"));
+        List<Map<String, Object>> sinks = (List<Map<String, Object>>) out.get("sinks");
+        assertEquals(1, sinks.size());
+        assertEquals("big", sinks.get(0).get("store"));
+        assertEquals(2, sinks.get(0).get("rowCount"), "amt 150 + 200 pass the filter, 50 dropped");
+    }
+
+    @Test
+    void pipelineAuthorReportsAMalformedFlowAsAnError() {
+        ToolResult r = authorTool().invoke(new ToolCall("pipeline_author",
+                Map.of("flow", Map.of("active", true)), new RunId("t")));   // no name
+        assertFalse(r.ok());
+        assertTrue(r.error().contains("invalid flow"));
+    }
+
+    @Test
+    void pipelineAuthorRequiresAFlowObject() {
+        ToolResult r = authorTool().invoke(new ToolCall("pipeline_author", Map.of(), new RunId("t")));
+        assertFalse(r.ok());
+        assertTrue(r.error().contains("flow is required"));
+    }
+
+    // ── AGT-5 P2 slice 4: suggest_expectations (profiling → expectation drafts) ───
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void suggestExpectationsProfilesAndDerivesDraftsThatComponentDraftAccepts() throws Exception {
+        try (Connection conn = DriverManager.getConnection("jdbc:duckdb:")) {
+            try (Statement st = conn.createStatement()) {
+                st.execute("CREATE TABLE people(id INTEGER, age INTEGER, nickname VARCHAR)");
+                st.execute("INSERT INTO people VALUES (1,30,'a'),(2,40,'b'),(3,50,NULL),(4,20,'d')");
+            }
+            BrowsableStore store = new BrowsableStore() {
+                @Override public String browseId() { return "test"; }
+                @Override public String browseLabel() { return "Test"; }
+                @Override public List<String> browseTables() { return List.of("people"); }
+                @Override public Connection browseConnection() { return conn; }
+            };
+            List<Tool> belt = InspectoTools.tools(seeded(), null, () -> List.of(store));
+            Tool suggest = tool(belt, "suggest_expectations");
+
+            // age: never null + fully numeric → both a non_null and a range suggestion
+            Map<String, Object> age = invoke(suggest, Map.of("table", "people", "column", "age"));
+            Map<String, Object> profile = (Map<String, Object>) age.get("profile");
+            assertEquals(4L, profile.get("rows"));
+            assertEquals(0L, profile.get("nulls"));
+            assertEquals(true, profile.get("numeric"));
+            List<Map<String, Object>> suggestions = (List<Map<String, Object>>) age.get("suggestions");
+            List<Object> kinds = suggestions.stream().map(s -> s.get("kind")).toList();
+            assertTrue(kinds.contains("non_null"), () -> "expected non_null, got " + kinds);
+            assertTrue(kinds.contains("range"), () -> "expected range, got " + kinds);
+            Map<String, Object> range = suggestions.stream()
+                    .filter(s -> "range".equals(s.get("kind"))).findFirst().orElseThrow();
+            assertEquals("20.0", range.get("min"));
+            assertEquals("50.0", range.get("max"));
+
+            // the loop closes: a suggested draft validates clean through component_draft
+            Map<String, Object> nonNull = suggestions.stream()
+                    .filter(s -> "non_null".equals(s.get("kind"))).findFirst().orElseThrow();
+            Map<String, Object> validated = invoke(tool(belt, "component_draft"),
+                    Map.of("kind", "expectation", "config", nonNull));
+            assertEquals(true, validated.get("clean"),
+                    () -> "suggested expectation should validate clean: " + validated.get("findings"));
+
+            // nickname: has a null and is non-numeric → no confident suggestion
+            Map<String, Object> nick = invoke(suggest, Map.of("table", "people", "column", "nickname"));
+            assertTrue(((List<Object>) nick.get("suggestions")).isEmpty());
+            assertNotNull(nick.get("note"));
+        }
+    }
+
+    @Test
+    void suggestExpectationsUnknownTableIsAnErrorResult() {
+        Tool suggest = tool(InspectoTools.tools(seeded(), null, List::of), "suggest_expectations");
+        ToolResult r = suggest.invoke(new ToolCall("suggest_expectations",
+                Map.of("table", "nope", "column", "x"), new RunId("t")));
+        assertFalse(r.ok());
+        assertTrue(r.error().contains("unknown table"));
+    }
+
     /** Minimal valid pipeline + schema toon — mirrors inspecto's test-scope
      *  {@code PipelineConfigBatchTest.writePipeline}, which isn't on this module's classpath. */
     private static Path writeMiniPipeline(Path dir) throws Exception {

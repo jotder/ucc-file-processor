@@ -51,6 +51,39 @@ ranked root-cause **Case** with a fix draft.
   **400** (validated in the intelligence module, which owns the enum) → `openSession` puts the
   validated value in the session attributes.
 
+## P2 authoring tier (partially shipped — 3 of 5 tools)
+
+The L1 "author everything" layer: the agent proposes a config, the tools validate/simulate/profile it
+deterministically, and a clean draft is one a human applies unchanged (apply itself is P3). All three
+are `FunctionTool`s on the belt (now **12**), `mutating=false` — they persist nothing.
+
+- **`component_draft`** (the validator repair loop) — validates a proposed draft against the *same*
+  gates the control plane enforces on write: structural spec (`ConfigLoader.filesystem().validate(
+  ConfigSpecs.forType(type), draft)`) + the hard-fail safety gate (`ConfigSafetyValidator.check`,
+  applied **always** here, not opt-in as on `/validate`). Returns anchored `Finding`s (as maps
+  `{severity,fieldPath,message}`) so the model repairs and re-validates until `clean=true`. Kinds =
+  the spec-backed set: `pipeline|enrichment|job|schema|expectation|alert-rule` (`alert-rule`→`alert`
+  spec); an unvalidatable kind (e.g. `dashboard`, `query` — no `ConfigSpec`) is an honest `ok=false`.
+  `Capability.AUTHOR_PIPELINE`.
+- **`pipeline_author`** (parse + simulate) — parses a proposed authored-flow graph via
+  `PipelineCodec.fromMap` (malformed shape → `ok=false`), then, given `sampleRows` (post-parse
+  records), simulates the `transform→sink` subgraph on a throwaway DuckDB via the editor's own
+  `PipelineDryRun.run`, returning per-node relation counts + per-sink row counts. No sampleRows →
+  parse-only. `Capability.AUTHOR_PIPELINE`.
+- **`suggest_expectations`** (profiling → drafts) — profiles a column of a DB-backed `BrowsableStore`
+  (row/null/distinct counts + numeric min/max, deterministic SQL like `anomaly_scan`) and derives
+  candidate `expectation` drafts: `non_null` when the column was never null, `range` from observed
+  bounds when it is fully numeric. Each suggestion is the exact expectation config shape
+  `component_draft` validates (the loop closes: profile → suggest → validate → apply).
+  `Capability.READ_METADATA`.
+
+**Deferred (this shift):** `query_author` and `kpi_report_builder`. `query_author` needs trusted
+dataset→relationSql resolution (`DatasetRelation.relationSql` wants a `dataRoot` + `ViewStore`, not on
+the current tool-belt seam) — the model must **not** supply `relationSql` (it bypasses the SqlGuard
+file-read boundary), so this is its own slice. `kpi_report_builder` has no confirmed target component
+kind (no KPI/report kind in `ComponentRegistry`; it would compose `MeasureCompiler` measures into a
+`dashboard`) — needs the dashboard-tile owner's sign-off before scoping.
+
 ## Gotchas / seams
 
 - **`ingestLock` deadlock rule** governs every `EventLog`/Signal-bus subscriber: subscribers run
@@ -72,6 +105,6 @@ ranked root-cause **Case** with a fix draft.
 
 ## Still open (parent plan `embedded-intelligence-plan.md`, §8)
 
-P2 (`component_draft` authoring breadth) · P3 (approvals inbox + act tools, L2+) · P4/P5 · Case
-persistence + similarity recall · hosted providers (Standard+) · the optional S8 signal-backbone slice.
-See `docs/BACKLOG.md`.
+P2 remainder (`query_author`, `kpi_report_builder` — see the P2 tier above for why deferred) · P3
+(approvals inbox + act tools, L2+) · P4/P5 · Case persistence + similarity recall · hosted providers
+(Standard+) · the optional S8 signal-backbone slice. See `docs/BACKLOG.md`.
