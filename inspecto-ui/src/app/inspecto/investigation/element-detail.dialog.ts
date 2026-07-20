@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
 import { MAT_DIALOG_DATA, MatDialogModule, MatDialogRef } from '@angular/material/dialog';
 import { MatIconModule } from '@angular/material/icon';
+import { PivotService, PivotView } from './pivot.service';
 
 /** One label/value line of the detail sheet. */
 export interface ElementDetailRow {
@@ -34,10 +35,18 @@ export interface ElementDetailData {
      * already-loaded descendants); this one re-queries for new data.
      */
     expandable?: boolean;
+    /** Alternate views this element's selection can be pivoted into (ui-design-review R8 — investigation
+     *  pivots), excluding the host's own current view. Absent/empty = hidden; only offered when
+     *  `objectRef` is set, since the pivot travels the record reference. */
+    pivotViews?: PivotView[];
 }
 
-/** What the caller should do next; closing without a choice does nothing. */
+/** What the caller should do next; closing without a choice does nothing. Pivoting to another view
+ *  (ui-design-review R8) is handled inside this dialog via `PivotService` and does not surface here. */
 export type ElementDetailResult = 'focus' | 'collapse' | 'expand' | 'open-record' | 'expand-neighbors' | undefined;
+
+const PIVOT_LABEL: Record<PivotView, string> = { graph: 'View in graph', map: 'View on map' };
+const PIVOT_ICON: Record<PivotView, string> = { graph: 'heroicons_outline:share', map: 'heroicons_outline:map' };
 
 /**
  * **Element detail popup** (investigation studios — Link Analysis, Geo Map Analysis): full details
@@ -89,6 +98,12 @@ export type ElementDetailResult = 'focus' | 'collapse' | 'expand' | 'open-record
                     <mat-icon svgIcon="heroicons_outline:arrow-top-right-on-square"></mat-icon>
                     Open {{ ref.type === 'CASE' ? 'case' : 'record' }}
                 </button>
+                @for (view of data.pivotViews ?? []; track view) {
+                    <button mat-button (click)="pivot(view)">
+                        <mat-icon [svgIcon]="pivotIcon(view)"></mat-icon>
+                        {{ pivotLabel(view) }}
+                    </button>
+                }
             }
             <button mat-flat-button color="primary" (click)="close(undefined)">Close</button>
         </mat-dialog-actions>
@@ -97,8 +112,25 @@ export type ElementDetailResult = 'focus' | 'collapse' | 'expand' | 'open-record
 export class ElementDetailDialog {
     readonly data: ElementDetailData = inject(MAT_DIALOG_DATA);
     private ref = inject(MatDialogRef<ElementDetailDialog>);
+    private pivotService = inject(PivotService);
 
     close(result: ElementDetailResult): void {
         this.ref.close(result);
+    }
+
+    pivotLabel(view: PivotView): string {
+        return PIVOT_LABEL[view];
+    }
+
+    pivotIcon(view: PivotView): string {
+        return PIVOT_ICON[view];
+    }
+
+    /** Hand off to the target view and close — the pivot itself is a navigation, not a dialog result. */
+    pivot(view: PivotView): void {
+        const ref = this.data.objectRef;
+        if (!ref) return;
+        this.pivotService.pivotTo(view, ref);
+        this.ref.close(undefined);
     }
 }

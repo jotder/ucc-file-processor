@@ -275,6 +275,21 @@ public final class ComponentPreview {
             proj.append("rec[").append(ScratchTables.sqlStr(g)).append("] AS ").append(quoteIdent(g));
         }
         names.append(']');
+
+        if (!"\n".equals(tr.recordSplit())) {
+            // Block mode: match the (?s)-prefixed pattern against whole (trimmed) records split on
+            // the literal delimiter, mirroring DuckDbCsvIngester.buildTextRegexBlockReadSpec.
+            String blockPattern = ScratchTables.sqlStr("(?s)" + tr.pattern());
+            int skip = cfg.csv().skipHeaderLines() + (cfg.csv().hasHeader() ? 1 : 0);
+            return "SELECT " + proj + " FROM (SELECT regexp_extract(trim(blk), "
+                    + blockPattern + ", " + names + ") AS rec"
+                    + " FROM (SELECT unnest(list_slice(str_split(content, "
+                    + ScratchTables.sqlStr(tr.recordSplit()) + "), " + (skip + 1) + ", 2147483647)) AS blk"
+                    + " FROM read_text(" + ScratchTables.sqlStr(path) + "))"
+                    + " WHERE trim(blk) != '' AND regexp_matches(trim(blk), " + blockPattern
+                    + ")) AS tr";
+        }
+
         return "SELECT " + proj + " FROM (SELECT regexp_extract(\"line\", "
                 + ScratchTables.sqlStr(tr.pattern()) + ", " + names + ") AS rec FROM "
                 + lineReader(cfg, path)

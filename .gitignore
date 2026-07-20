@@ -29,6 +29,7 @@
 
 # Local build / deploy artifacts and ad-hoc run output
 /file-processor-deploy.zip
+/file-processor-deploy-linux.zip
 /file-processor-deploy/
 /file-processor-deploy-old/
 /.graalvm-cache/

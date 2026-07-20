@@ -12,7 +12,7 @@ import { MatMenuModule, MatMenuTrigger } from '@angular/material/menu';
 import { MatSelectModule } from '@angular/material/select';
 import { MatSliderModule } from '@angular/material/slider';
 import { MatTooltipModule } from '@angular/material/tooltip';
-import { Router } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
 import { ToastrService } from 'ngx-toastr';
 
@@ -57,6 +57,7 @@ import {
     ElementDetailResult,
     ElementDetailRow,
     ElementObjectRef,
+    PivotService,
     uniqueNameValidator,
 } from 'app/inspecto/investigation';
 import { GeoSettingsService, apiErrorMessage } from 'app/inspecto/api';
@@ -122,6 +123,8 @@ export class GeoMapComponent implements OnInit, OnDestroy {
     private toastr = inject(ToastrService);
     private dialog = inject(MatDialog);
     private router = inject(Router);
+    private route = inject(ActivatedRoute);
+    private pivotService = inject(PivotService);
     private geoSources = inject(GeoSourcesService);
     private datasetsService = inject(DatasetsService);
     private viewsService = inject(GeoMapService);
@@ -360,11 +363,34 @@ export class GeoMapComponent implements OnInit, OnDestroy {
         description: [''],
     });
 
+    /** An incoming investigation pivot (ui-design-review R8) awaiting a map load to resolve against —
+     *  cleared after the first query run, found or not. */
+    private pendingPivot?: ElementObjectRef;
+
     ngOnInit(): void {
         this.datasetsService.list().subscribe({ next: (d) => this.datasets.set(d), error: () => undefined });
         this.viewsService.list().subscribe({ next: (v) => this.views.set(v), error: () => undefined });
         this.geoSettings.get().subscribe({ next: (s) => this.tileServerUrl.set(s.tileServerUrl), error: () => undefined });
         this.queryForm.controls.datasetId.valueChanges.subscribe((id) => this.onDatasetPicked(id));
+        this.pendingPivot = this.pivotService.readIncoming(this.route);
+    }
+
+    /** Try to find the pivoted-in record among the just-loaded points; fly to it if present, else toast
+     *  that this view doesn't have it. Runs once, after the first query load. */
+    private resolvePendingPivot(g: ProjectedGeo): void {
+        const pivot = this.pendingPivot;
+        if (!pivot) return;
+        this.pendingPivot = undefined;
+        const point = g.points.find((p) => {
+            const ref = objectRefFromAttrs(p.attrs);
+            return ref?.id === pivot.id && ref.type === pivot.type;
+        });
+        if (point) {
+            this.selectedId.set(point.id);
+            this.mapView?.setCamera({ center: [point.lon, point.lat], zoom: 12 });
+        } else {
+            this.toastr.info('That record is not in this map.', 'Not found');
+        }
     }
 
     /** Re-fetch the saved views (after an import brought some in). */
@@ -435,6 +461,7 @@ export class GeoMapComponent implements OnInit, OnDestroy {
             const source = this.sources.find((s) => s.id === this.sourceId()) ?? this.sources[0];
             const out = await source.query(query);
             this.geo.set(out as ProjectedGeo);
+            this.resolvePendingPivot(out as ProjectedGeo);
             this.lastRun.set(query);
             this.queryOpen.set(false);
         } catch (err) {
@@ -695,7 +722,7 @@ export class GeoMapComponent implements OnInit, OnDestroy {
         const objectRef = objectRefFromAttrs(p.attrs);
         this.dialog
             .open(ElementDetailDialog, {
-                data: { title: p.label ?? p.id, subtitle: p.kind, rows, objectRef },
+                data: { title: p.label ?? p.id, subtitle: p.kind, rows, objectRef, pivotViews: objectRef ? ['graph'] : undefined },
                 width: '26rem',
             })
             .afterClosed()

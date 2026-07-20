@@ -59,10 +59,10 @@ import static java.nio.file.StandardWatchEventKinds.ENTRY_MODIFY;
  * types register right away), but defers actually {@linkplain URLClassLoader#close() closing} the old
  * loader and deleting its staged jar copy until that count drops to zero, so a Run already executing pack
  * code never has its classloader's resources yanked out from under a lazy class-load/reflection/resource
- * read mid-run. Flipping an already-built authored {@code Job} instance to {@code unavailable} after its
- * owning pack is unloaded (so a *later* Run on the same config fails fast instead of running stale code)
- * remains deferred — {@code LockingRunner} per-Job serialization plus admin-gated reload keep that
- * narrower gap safe in practice.
+ * read mid-run. {@code unload} also notifies an optional {@link UnloadListener} with the pack's owner key
+ * right after deregistering its types, so {@code JobService} can flip any already-built authored {@code Job}
+ * sourced from that pack to unavailable — a *later* Run on the same config then fails fast (REJECTED)
+ * instead of running the stale cached {@code Job} instance.
  */
 final class JobPackManager implements AutoCloseable {
 
@@ -71,6 +71,13 @@ final class JobPackManager implements AutoCloseable {
     /** Signals a pack transition to the space ledger; a no-op sink before the event log is wired. */
     @FunctionalInterface
     interface SignalSink { void emit(String type, Severity sev, Map<String, Object> payload); }
+
+    /** Notified with a pack's owner key (jar filename) the moment its types are deregistered by
+     *  {@link #unload}, so the caller ({@code JobService}) can flip any already-built {@link Job} instance
+     *  sourced from that pack to unavailable — a later Run on the same config then fails fast instead of
+     *  running whatever {@code Job} was cached at registration time. */
+    @FunctionalInterface
+    interface UnloadListener { void onUnload(String owner); }
 
     /**
      * One loaded pack: manifest identity, content hash, contributed type ids, owning loader and the
@@ -85,6 +92,7 @@ final class JobPackManager implements AutoCloseable {
     private final Path dir;                         // null ⇒ feature off
     private final JobTypeRegistry registry;
     private final SignalSink signals;
+    private final UnloadListener unloadListener;      // nullable — no-op when not wired
     private final boolean requireSignature;
     private final long settleMillis;
     private final Map<String, LoadedPack> loaded = new ConcurrentHashMap<>();   // jar filename -> pack
@@ -101,9 +109,14 @@ final class JobPackManager implements AutoCloseable {
     private Path stagingDir;                         // lazily created; holds the locked copies we load from
 
     JobPackManager(String packsDir, JobTypeRegistry registry, SignalSink signals) {
+        this(packsDir, registry, signals, null);
+    }
+
+    JobPackManager(String packsDir, JobTypeRegistry registry, SignalSink signals, UnloadListener unloadListener) {
         this.dir = (packsDir == null || packsDir.isBlank()) ? null : Path.of(packsDir).toAbsolutePath().normalize();
         this.registry = registry;
         this.signals = signals;
+        this.unloadListener = unloadListener;
         this.requireSignature = Boolean.getBoolean("jobs.packs.requireSignature");
         this.settleMillis = Long.getLong("jobs.packs.settleMillis", 500L);
     }
@@ -213,6 +226,7 @@ final class JobPackManager implements AutoCloseable {
         List<String> removed = registry.deregister(name);
         log.info("[PACKS] unloaded {} ({}): {}", pack.id(), name, removed);
         signals.emit("job.pack.unloaded", Severity.INFO, packPayload(pack));
+        if (unloadListener != null) unloadListener.onUnload(name);
         closeOrDefer(name, pack);
     }
 

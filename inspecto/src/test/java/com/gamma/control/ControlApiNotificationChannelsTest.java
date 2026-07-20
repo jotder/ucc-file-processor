@@ -75,6 +75,10 @@ class ControlApiNotificationChannelsTest {
             assertEquals(409, send(c.port, "POST", base,
                     "{\"id\":\"ops_mail\",\"kind\":\"EMAIL\",\"target\":\"dup@example.com\"}").statusCode());
 
+            // 422 an EMAIL channel's target must be a valid address — fail closed at creation, not dispatch
+            assertEquals(422, send(c.port, "POST", base,
+                    "{\"id\":\"bad_mail\",\"kind\":\"EMAIL\",\"target\":\"not-an-address\"}").statusCode());
+
             assertEquals(1, json(send(c.port, "GET", base, null)).size());
 
             // update — target changed, disabled, createdAt preserved; id bound from the path

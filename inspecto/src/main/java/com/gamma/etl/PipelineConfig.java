@@ -206,18 +206,26 @@ public final class PipelineConfig {
     }
 
     /**
-     * Text/regex parsing frontend (additive, 4.8). Non-null only when the resolved parsing settings
-     * set {@code frontend: text_regex}; {@code null} otherwise.
+     * Text/regex parsing frontend (additive, 4.8; block records additive, 4.9). Non-null only when
+     * the resolved parsing settings set {@code frontend: text_regex}; {@code null} otherwise.
      *
-     * <p>Each physical line is read intact as a single VARCHAR column (the fixed-width
-     * {@code read_csv} single-column trick), lines matching {@code pattern} are kept, and each
-     * named capture group becomes a VARCHAR column. A schema field's {@code raw.fields[].selector}
-     * names the capture group that feeds it, so the typing/mapping/partition/lineage backend runs
-     * unchanged. Non-matching lines are dropped (like fixed-width short lines).
+     * <p>Default ({@code recordSplit == "\n"}): each physical line is read intact as a single
+     * VARCHAR column (the fixed-width {@code read_csv} single-column trick), lines matching
+     * {@code pattern} are kept, and each named capture group becomes a VARCHAR column.
      *
-     * @param recordSplit record separator; only {@code "\n"} (one record per line, the default) is
-     *                    supported — blank-line block records ({@code "\n\n"}, e.g. LDIF entries)
-     *                    are not yet implemented and are rejected at load
+     * <p>Block mode ({@code recordSplit} any other delimiter, e.g. {@code "\n\n"} for
+     * {@code blank_line}): the whole file is read as text and split into records on the literal
+     * delimiter, so a record may span multiple physical lines; {@code pattern} is then matched
+     * against each record's full (trimmed) text with {@code .} matching newlines, letting a single
+     * capture group span what were previously separate lines.
+     *
+     * <p>Either way, a schema field's {@code raw.fields[].selector} names the capture group that
+     * feeds it, so the typing/mapping/partition/lineage backend runs unchanged. Non-matching
+     * lines/records are dropped (like fixed-width short lines).
+     *
+     * @param recordSplit record separator; {@code "\n"} (one record per line) is the default;
+     *                    {@code "blank_line"} is normalised to {@code "\n\n"}; any other literal
+     *                    string is used as-is as the block delimiter
      * @param pattern     the RE2 regex with at least one named capture group, normalised to the
      *                    {@code (?P<name>...)} spelling DuckDB accepts
      * @param groupNames  the named capture groups in declaration order (⇒ DuckDB name_list order)

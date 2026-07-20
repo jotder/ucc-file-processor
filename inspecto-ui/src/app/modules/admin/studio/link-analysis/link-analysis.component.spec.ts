@@ -1,12 +1,14 @@
 import { TestBed } from '@angular/core/testing';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
-import { provideRouter } from '@angular/router';
+import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
+import { MatDialog } from '@angular/material/dialog';
 import { of } from 'rxjs';
 import { describe, expect, it, vi } from 'vitest';
 import { GammaConfigService } from '@gamma/services/config';
 import { ToastrService } from 'ngx-toastr';
 import { PipelinesService } from 'app/inspecto/api';
 import { expectNoA11yViolations } from 'app/inspecto/testing/a11y';
+import { ElementDetailData } from 'app/inspecto/investigation';
 import { G6GraphData, GraphSource } from 'app/inspecto/graph';
 import { Dataset } from '../datasets/dataset-types';
 import { DatasetsService } from '../datasets/datasets.service';
@@ -28,14 +30,14 @@ const GRAPH: G6GraphData = {
     ],
 };
 
-function create(opts: { fail?: boolean; views?: LinkAnalysisView[]; expand?: GraphSource['expand'] } = {}) {
+function create(opts: { fail?: boolean; views?: LinkAnalysisView[]; expand?: GraphSource['expand']; graph?: G6GraphData; queryParams?: Record<string, string> } = {}) {
     const queried: unknown[] = [];
     const fakeSource: GraphSource = {
         id: 'entity-projection',
         label: 'Entity/Link (from a Dataset)',
         query: (q) => {
             queried.push(q);
-            return opts.fail ? Promise.reject(new Error('bad mapping')) : Promise.resolve(GRAPH);
+            return opts.fail ? Promise.reject(new Error('bad mapping')) : Promise.resolve(opts.graph ?? GRAPH);
         },
         expand: opts.expand,
     };
@@ -50,7 +52,11 @@ function create(opts: { fail?: boolean; views?: LinkAnalysisView[]; expand?: Gra
             { provide: PipelinesService, useValue: { list: () => of([]) } },
             { provide: LinkAnalysisService, useValue: { list: () => of(opts.views ?? []), save } },
             { provide: GammaConfigService, useValue: { config$: of({ scheme: 'dark' }) } },
-            { provide: ToastrService, useValue: { success: () => undefined, error: () => undefined } },
+            { provide: ToastrService, useValue: { success: () => undefined, error: () => undefined, info: () => undefined } },
+            {
+                provide: ActivatedRoute,
+                useValue: { snapshot: { queryParamMap: convertToParamMap(opts.queryParams ?? {}) } },
+            },
         ],
     });
     return { fixture: TestBed.createComponent(LinkAnalysisComponent), queried, save };
@@ -90,6 +96,48 @@ describe('LinkAnalysisComponent', () => {
         expect(c.displayed()?.nodes.map((n) => n.id)).toEqual(['a', 'b', 'c']);
         c.clearFilters();
         expect(c.displayed()?.nodes).toHaveLength(5);
+    });
+
+    it('offers a pivot to the map for a node carrying an objectRef (ui-design-review R8)', async () => {
+        const graphWithRef: G6GraphData = {
+            nodes: [...GRAPH.nodes, { id: 'f', data: { label: 'F', kind: 'entity', objectRef: { id: 'case-1', type: 'CASE' } } }],
+            edges: GRAPH.edges,
+        };
+        const { fixture } = create({ graph: graphWithRef });
+        fixture.detectChanges();
+        await runQuery(fixture);
+        const c = fixture.componentInstance;
+        const dialog = fixture.debugElement.injector.get(MatDialog);
+        const openSpy = vi.spyOn(dialog, 'open').mockReturnValue({ afterClosed: () => of(undefined) } as never);
+        const dataOf = (call: number): ElementDetailData => (openSpy.mock.calls[call][1] as { data: ElementDetailData }).data;
+
+        c.onNodeClick('a'); // plain node — no objectRef, no pivot offered
+        expect(dataOf(0).pivotViews).toBeUndefined();
+
+        c.onNodeClick('f');
+        expect(dataOf(1).objectRef).toEqual({ id: 'case-1', type: 'CASE' });
+        expect(dataOf(1).pivotViews).toEqual(['map']);
+    });
+
+    it('resolves an incoming investigation pivot against the loaded graph, or toasts if absent', async () => {
+        const graphWithRef: G6GraphData = {
+            nodes: [...GRAPH.nodes, { id: 'f', data: { label: 'F', kind: 'entity', objectRef: { id: 'case-1', type: 'CASE' } } }],
+            edges: GRAPH.edges,
+        };
+        const { fixture } = create({ graph: graphWithRef, queryParams: { pivotId: 'case-1', pivotType: 'CASE' } });
+        fixture.detectChanges();
+        const c = fixture.componentInstance;
+        await runQuery(fixture);
+        expect(c.emphasis()?.nodeIds).toEqual(['f']);
+    });
+
+    it('toasts when the pivoted-in record is not in the loaded graph', async () => {
+        const { fixture } = create({ queryParams: { pivotId: 'case-missing', pivotType: 'CASE' } });
+        fixture.detectChanges();
+        const toastr = TestBed.inject(ToastrService);
+        const infoSpy = vi.spyOn(toastr, 'info');
+        await runQuery(fixture);
+        expect(infoSpy).toHaveBeenCalled();
     });
 
     it('analysis: path, explain, centrality and communities all work over the loaded graph', async () => {

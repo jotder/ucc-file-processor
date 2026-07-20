@@ -4,6 +4,7 @@ import { MAT_DIALOG_DATA, MatDialogRef } from '@angular/material/dialog';
 import { describe, expect, it, vi } from 'vitest';
 import { expectNoA11yViolations } from 'app/inspecto/testing/a11y';
 import { ElementDetailData, ElementDetailDialog } from './element-detail.dialog';
+import { PivotService } from './pivot.service';
 
 const DATA: ElementDetailData = {
     title: 'CELL-101',
@@ -14,17 +15,19 @@ const DATA: ElementDetailData = {
 
 function create(data = DATA) {
     const ref = { close: vi.fn() };
+    const pivotService = { pivotTo: vi.fn() };
     TestBed.configureTestingModule({
         imports: [ElementDetailDialog],
         providers: [
             provideNoopAnimations(),
             { provide: MAT_DIALOG_DATA, useValue: data },
             { provide: MatDialogRef, useValue: ref },
+            { provide: PivotService, useValue: pivotService },
         ],
     });
     const fixture = TestBed.createComponent(ElementDetailDialog);
     fixture.detectChanges();
-    return { fixture, ref };
+    return { fixture, ref, pivotService };
 }
 
 describe('ElementDetailDialog', () => {
@@ -56,5 +59,25 @@ describe('ElementDetailDialog', () => {
         expect(btn).toBeTruthy();
         btn?.click();
         expect(ref.close).toHaveBeenCalledWith('open-record');
+    });
+
+    it('offers no pivot action when pivotViews is absent, even with an objectRef', () => {
+        const { fixture } = create({ ...DATA, objectRef: { id: 'case-1', type: 'CASE' } });
+        const el = fixture.nativeElement as HTMLElement;
+        expect(Array.from(el.querySelectorAll('button')).some((b) => b.textContent?.includes('View'))).toBe(false);
+    });
+
+    it('offers "View on map" when pivotViews includes map, and hands off to PivotService then closes', () => {
+        const { fixture, ref, pivotService } = create({
+            ...DATA,
+            objectRef: { id: 'case-1', type: 'CASE' },
+            pivotViews: ['map'],
+        });
+        const el = fixture.nativeElement as HTMLElement;
+        const btn = Array.from(el.querySelectorAll('button')).find((b) => b.textContent?.includes('View on map'));
+        expect(btn).toBeTruthy();
+        btn?.click();
+        expect(pivotService.pivotTo).toHaveBeenCalledWith('map', { id: 'case-1', type: 'CASE' });
+        expect(ref.close).toHaveBeenCalledWith(undefined);
     });
 });

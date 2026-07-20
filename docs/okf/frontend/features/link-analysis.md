@@ -32,6 +32,9 @@ distinct ([`GLOSSARY.md`](../../../GLOSSARY.md) §11): this studio works on **P3
   → a Dataset named `<base>`, linked to its `id` column or a same-named column), so the Studio can
   pre-fill multi-mapping projections instead of requiring every column pair hand-picked. Self-references
   (e.g. `manager_id`) are included; unusable Datasets are skipped, not fatal. Only V2+ items remain open.
+* **Investigation pivot** (ui-design-review R8, 2026-07-20) — a node resolving an `objectRef` offers
+  "View on map" (pivots to Geo Map Analysis with the same record); see
+  [Investigation Pivot](investigation-pivot.md) for the shared contract.
 
 Design (archived):
 [`link-analysis-and-graphsource.md`](../../../archived-documents/plans-archive/link-analysis-and-graphsource.md)

@@ -75,9 +75,14 @@ Design of record (all phases + resolved decisions + TOON config gallery):
   `Job.run(ctx)` (`JobService.runJob`); `unload()` still deregisters the pack's types immediately (so a
   reload's new types are usable at once), but defers closing the old `URLClassLoader` + deleting its staged
   jar copy until the count drops to zero — a Run already executing pack code no longer risks the loader's
-  resources being yanked mid-run. Still deferred: flipping an already-built authored Job to `unavailable`
-  when its pack is unloaded (a later Run on the same config still runs whatever `Job` instance was cached at
-  registration time).
+  resources being yanked mid-run. **2026-07-20 SHIPPED the remaining half — stale-Job rejection:** `unload()`
+  now also calls a new `JobPackManager.UnloadListener` with the pack's owner key right after deregistering its
+  types; `JobService` records each Job's owning pack at build time (`jobPackOwner`, keyed by job name) and,
+  on that callback, adds the owning pack's job names to an `unavailableJobs` set. The shared `runJob` lifecycle
+  checks this set right after building the `RunContext` and, if flagged, records the Run `REJECTED` (same
+  fail-closed shape as a missing-required-parameter reject, emitting `job.run.rejected`) instead of calling
+  `job.run(ctx)` on the stale instance. A rebuild (`upsertJob`) or `removeJob` clears the flag/owner mapping,
+  so a reloaded pack's fresh Job runs normally again.
 * **`sql.template`** — the built-in templated-SQL Job Type and first real artifact producer; its
   parameters are scanned from the SQL itself.
 

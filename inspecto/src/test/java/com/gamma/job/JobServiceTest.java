@@ -11,7 +11,12 @@ import com.gamma.util.DuckDbUtil;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
+import javax.tools.JavaCompiler;
+import javax.tools.StandardJavaFileManager;
+import javax.tools.ToolProvider;
 import java.io.File;
+import java.io.OutputStream;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.sql.Connection;
@@ -24,8 +29,14 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
+import java.util.jar.Attributes;
+import java.util.jar.JarEntry;
+import java.util.jar.JarOutputStream;
+import java.util.jar.Manifest;
+import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 /**
  * Tests for the {@link JobService} registry/scheduler: manual / cron / event triggers,
@@ -141,6 +152,111 @@ class JobServiceTest {
             assertNotEquals("REJECTED", run.status(),
                     "an explicit trigger arg satisfies the required parameter, so the run is not rejected");
         }
+    }
+
+    @Test
+    void unloadedPackFlipsItsJobUnavailableAndRejectsALaterRun(@TempDir Path dir) throws Exception {
+        // Job Pack unload-quiesce follow-up: a Job instance already built from a pack's classloader must
+        // be flipped unavailable when that pack unloads, so a *later* Run on the same config is rejected
+        // (fail-closed) instead of silently running the stale cached Job.
+        assumeTrue(ToolProvider.getSystemJavaCompiler() != null, "needs a JDK (javac) to build the pack jar");
+        Path packsDir = Files.createDirectories(dir.resolve("packs"));
+        Path jar = buildPackJar(dir, packsDir.resolve("greet-1.jar"), "acme.greet", "GreetType", "acme-greet");
+        System.setProperty("jobs.packs.dir", packsDir.toString());
+        try (Scheduler s = new Scheduler();
+             JobService js = new JobService(List.of(), new BatchEventBus(), s, null,
+                     dir.resolve("audit").toString())) {
+            js.start();
+            js.upsertJob(new JobConfig("g1", "acme.greet", null, null, true, false, Map.of(), null, null));
+
+            var runId1 = js.triggerRun("g1", null);
+            assertTrue(runId1.isPresent(), "job authored against the pack type triggers");
+            JobRun first = await(() -> {
+                JobRun r = js.runById(runId1.get()).orElse(null);
+                return r != null && !"RUNNING".equals(r.status()) ? r : null;
+            });
+            assertEquals("SUCCESS", first.status(), "runs normally while the pack is loaded");
+
+            // Remove the jar and reconcile → the pack unloads and deregisters its type.
+            Files.delete(jar);
+            Map<String, Object> summary = js.rescanPacks();
+            assertEquals(List.of("greet-1.jar"), summary.get("unloaded"));
+
+            var runId2 = js.triggerRun("g1", null);
+            assertTrue(runId2.isPresent(), "the job is still registered — trigger accepts, but the Run rejects");
+            JobRun second = await(() -> {
+                JobRun r = js.runById(runId2.get()).orElse(null);
+                return r != null && !"RUNNING".equals(r.status()) ? r : null;
+            });
+            assertEquals("REJECTED", second.status(),
+                    "the stale cached Job instance must not run once its pack is unloaded");
+            assertTrue(second.message() != null && second.message().contains("unavailable"),
+                    "names why: " + second.message());
+        } finally {
+            System.clearProperty("jobs.packs.dir");
+        }
+    }
+
+    /** Compile+jar a minimal {@link JobTypeProvider}/{@link Job} pair off the test classpath, mirroring the
+     *  fixture in {@code JobPackManagerTest} (kept local here so this test doesn't reach across test classes). */
+    private static Path buildPackJar(Path work, Path jar, String id, String cls, String packId) throws Exception {
+        String fqcn = "com.acme.pack." + cls;
+        String src = """
+                package com.acme.pack;
+                import com.gamma.job.*;
+                import java.util.List;
+                @JobTypeMeta(id = "%s", title = "Test")
+                public class %s implements JobTypeProvider {
+                    public JobTypeDescriptor descriptor() {
+                        return new JobTypeDescriptor("%s", "Test", "test pack type",
+                                List.of(), List.of(), List.of());
+                    }
+                    public Job create(JobConfig config) {
+                        return new Job() {
+                            public String name() { return config.name(); }
+                            public String type() { return "%s"; }
+                            public JobResult run() { return JobResult.ok("hi", 0L); }
+                        };
+                    }
+                }
+                """.formatted(id, cls, id, id);
+
+        Path stage = Files.createTempDirectory(work, "stage-");
+        Path srcFile = stage.resolve("com/acme/pack/" + cls + ".java");
+        Files.createDirectories(srcFile.getParent());
+        Files.writeString(srcFile, src);
+        Path classes = Files.createDirectories(stage.resolve("classes"));
+
+        String apiCp = Path.of(JobTypeProvider.class.getProtectionDomain().getCodeSource().getLocation().toURI())
+                .toString();
+        JavaCompiler jc = ToolProvider.getSystemJavaCompiler();
+        try (StandardJavaFileManager fm = jc.getStandardFileManager(null, null, StandardCharsets.UTF_8)) {
+            List<String> opts = List.of("-classpath", apiCp, "-d", classes.toString());
+            boolean ok = jc.getTask(null, fm, null, opts, null,
+                    fm.getJavaFileObjects(srcFile.toFile())).call();
+            assertTrue(ok, "pack source compiled");
+        }
+
+        Manifest mf = new Manifest();
+        mf.getMainAttributes().put(Attributes.Name.MANIFEST_VERSION, "1.0");
+        mf.getMainAttributes().putValue("Pack-Id", packId);
+        mf.getMainAttributes().putValue("Pack-Version", "1.0.0");
+        try (JarOutputStream jos = new JarOutputStream(Files.newOutputStream(jar), mf);
+             Stream<Path> files = Files.walk(classes)) {
+            for (Path p : (Iterable<Path>) files.filter(Files::isRegularFile)::iterator) {
+                jos.putNextEntry(new JarEntry(classes.relativize(p).toString().replace('\\', '/')));
+                Files.copy(p, jos);
+                jos.closeEntry();
+            }
+            jos.putNextEntry(new JarEntry("META-INF/services/com.gamma.job.JobTypeProvider"));
+            writeUtf8(jos, fqcn + "\n");
+            jos.closeEntry();
+        }
+        return jar;
+    }
+
+    private static void writeUtf8(OutputStream os, String s) throws Exception {
+        os.write(s.getBytes(StandardCharsets.UTF_8));
     }
 
     @Test

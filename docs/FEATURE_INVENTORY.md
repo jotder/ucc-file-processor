@@ -58,7 +58,7 @@
 | Multi-schema dispatch (column-count + filename glob) | `processing:` / `  schemas[N]{column_count,file_pattern,schema_file,table}:` | `[LIVE]` `configuration.md` · voucher pipeline |
 | `FILENAME_DATE` transform (date in filename) | `rules[1]{…}: EVENT_DATE,FILENAME\|prefix_,FILENAME_DATE` | `[LIVE]` `TransformCompiler` |
 | JSON / NDJSON frontend | `parsing:` / `  frontend: json` / `  json: { format: newline }` | `[LIVE]` `DuckDbCsvIngester` (`read_ndjson`/`read_json`; selectors = JSON keys) |
-| `text_regex` frontend (flat XML, `attr: value` logs) | `parsing:` / `  frontend: text_regex` / `  text_regex: { pattern: "…(?P<name>…)…" }` | `[LIVE]` `DuckDbCsvIngester` (named groups = selectors; `record_split: "\n\n"` blocks NOT yet supported) |
+| `text_regex` frontend (flat XML, `attr: value` logs) | `parsing:` / `  frontend: text_regex` / `  text_regex: { pattern: "…(?P<name>…)…" }` | `[LIVE]` `DuckDbCsvIngester` (named groups = selectors; `record_split: blank_line` or a literal delimiter string now supported for multi-line block records — see §6) |
 | Unified `parsing:` block (`delimited`/`plugin` aliases) | `parsing:` / `  frontend: delimited\|fixedwidth\|json\|text_regex\|plugin` | `[LIVE]` `PipelineConfigParser` (aliases `csv_settings` + `processing.ingester`; legacy configs unchanged) |
 
 ### C — Schema & validation
@@ -286,9 +286,18 @@ the rest are planned in subsequent phases. Features that can't run offline (remo
   (`ControlApiFlowCrudTest`, `PipelineJobRunnerTest`) or are consumed by APIs without a file fixture.
 - ~~`json` / `text_regex` frontends are `[LIVE]` — runnable examples can now be added to the suite.~~
   **SHIPPED 2026-07-20**: `examples/02-parsing/json-frontend` and `examples/02-parsing/text-regex-frontend`
-  added (NDJSON + named-capture-group regex, each with `samples/` and a README catalog row). `record_split`
-  for `text_regex` (§ line 61-ish above) stays intentionally unsupported — it needs a DuckDB block-reading
-  strategy change in `DuckDbCsvIngester`, out of scope for the example-gap fix.
+  added (NDJSON + named-capture-group regex, each with `samples/` and a README catalog row).
+- ~~`record_split` for `text_regex` (§ line 61-ish above) stays intentionally unsupported — it needs a
+  DuckDB block-reading strategy change in `DuckDbCsvIngester`.~~ **SHIPPED 2026-07-20**: `text_regex.
+  record_split` now accepts `blank_line` (normalised to the `"\n\n"` delimiter) or any other literal
+  delimiter string, in addition to the default one-record-per-line. `PipelineConfigParser` stores the
+  resolved delimiter on `PipelineConfig.TextRegex.recordSplit()`; `DuckDbCsvIngester` dispatches to a
+  new `buildTextRegexBlockReadSpec` that reads the file with `read_text`, splits on the literal
+  delimiter via `str_split`, and matches `pattern` (auto-prefixed `(?s)`) against each trimmed
+  record's full text, so a capture group may span what were previously separate physical lines.
+  `ComponentPreview.textRegexSelect` mirrors the same block-mode SQL for UI previews. Default
+  (line-per-record) behavior is unchanged. See `inspecto/src/test/java/com/gamma/etl/TextRegexTest.java`
+  (`blankLineRecordSplitSpansMultipleLines`, `literalDelimiterRecordSplitIsAccepted`).
 - No subscriber `.dat` / plugin-binary sample data in the repo — synthesize for those examples.
 - ~~`package.ps1` pre-creates inbox/database dirs only for `adjustment` + `voucher`~~ **stale, corrected
   2026-07-20**: `package.ps1` does not pre-create any adapter inbox/database dirs — the bundle's own

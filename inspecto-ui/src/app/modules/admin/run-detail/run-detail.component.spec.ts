@@ -6,14 +6,17 @@ import { of } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ToastrService } from 'ngx-toastr';
 import { AuditRow, LensService, RunsService } from 'app/inspecto/api';
+import { InspectoConfirmService } from 'app/inspecto/confirm.service';
 import { InspectoGridThemeService } from 'app/inspecto/grid';
 import { expectNoA11yViolations } from 'app/inspecto/testing/a11y';
 import { RunDetailComponent } from './run-detail.component';
 
 const BATCH: AuditRow = { batch_id: 'b1', status: 'SUCCESS' };
+const QUARANTINED: AuditRow = { batch_id: 'q1', file_name: 'bad.csv', reason: 'parse_error' };
 
-/** `inputs` exercises the embedded side-panel mode (R5); without it the route snapshot drives the name. */
-function create(inputs?: { name: string; embedded: boolean }) {
+/** `inputs` exercises the embedded side-panel mode (R5); without it the route snapshot drives the name.
+ *  `confirmResult` controls what the (stubbed) confirm dialog resolves to for reprocess tests. */
+function create(inputs?: { name: string; embedded: boolean }, confirmResult = true) {
     TestBed.configureTestingModule({
         imports: [RunDetailComponent],
         providers: [
@@ -29,12 +32,13 @@ function create(inputs?: { name: string; embedded: boolean }) {
                     files: () => of([]),
                     pending: () => of(null),
                     lineage: () => of([]),
-                    quarantine: () => of([]),
+                    quarantine: () => of([QUARANTINED]),
                     commits: () => of([]),
                     reprocess: () => of({}),
                 },
             },
             { provide: MatDialog, useValue: {} },
+            { provide: InspectoConfirmService, useValue: { confirm: () => Promise.resolve(confirmResult) } },
             { provide: InspectoGridThemeService, useValue: { theme: () => ({}) } },
             { provide: ToastrService, useValue: { warning: () => undefined, success: () => undefined, error: () => undefined } },
         ],
@@ -73,6 +77,28 @@ describe('RunDetailComponent', () => {
         TestBed.inject(LensService).selectLens('business');
         const spy = vi.spyOn(TestBed.inject(RunsService), 'reprocess');
         c.reprocessRow(BATCH);
+        expect(spy).not.toHaveBeenCalled();
+    });
+
+    it('shows quarantined rows and offers Reprocess on the Quarantine tab', () => {
+        const c = create().componentInstance;
+        c.selectedIndex = c.tabs.findIndex((t) => t.id === 'quarantine');
+        c.onTabChange();
+        expect(c.rows).toEqual([QUARANTINED]);
+        expect(c.auditRowActions.map((a) => a.hint)).toEqual(['Lineage & details', 'Reprocess this batch']);
+    });
+
+    it('reprocessing a quarantined row asks for confirmation before calling the API', async () => {
+        const c = create().componentInstance;
+        const spy = vi.spyOn(TestBed.inject(RunsService), 'reprocess');
+        await c.reprocessRow(QUARANTINED);
+        expect(spy).toHaveBeenCalledWith('cdr_ingest', 'q1');
+    });
+
+    it('cancelling the confirm dialog skips the reprocess call', async () => {
+        const c = create(undefined, false).componentInstance;
+        const spy = vi.spyOn(TestBed.inject(RunsService), 'reprocess');
+        await c.reprocessRow(QUARANTINED);
         expect(spy).not.toHaveBeenCalled();
     });
 

@@ -34,6 +34,8 @@ documented as concepts.
 * [Geo Map Analysis](geo-map.md) - offline map investigation studio (GeoSource/GeoQuery, saved Geo Views).
 * [Link Analysis](link-analysis.md) - graph investigation studio (Entity Projection, saved Link-Analysis Views).
 * [KPI & Reports](kpi-reports.md) - the operational KPI & Reports gallery.
+* [Investigation Pivot](investigation-pivot.md) - cross-cutting: switch view (table/graph/map) on a
+  selection without losing it, shared by Link Analysis and Geo Map Analysis.
 
 # Platform — Catalog
 

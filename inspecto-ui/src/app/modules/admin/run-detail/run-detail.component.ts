@@ -14,6 +14,7 @@ import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { ToastrService } from 'ngx-toastr';
 import { forkJoin, Observable } from 'rxjs';
 import { apiErrorMessage, AuditRow, BatchAuditReport, InboxStatus, LensService, RunsService } from 'app/inspecto/api';
+import { InspectoConfirmService } from 'app/inspecto/confirm.service';
 import { DataTableComponent } from 'app/inspecto/data-table';
 import { FmtPercentPipe } from 'app/inspecto/format';
 import { InspectoRowAction } from 'app/inspecto/grid';
@@ -59,6 +60,7 @@ export class RunDetailComponent implements OnInit {
     private router = inject(Router);
     private dialog = inject(MatDialog);
     private toastr = inject(ToastrService);
+    private confirm = inject(InspectoConfirmService);
     /** Business lens = read-only observe on Runs (plan §1) — hides the reprocess row action. */
     protected lens = inject(LensService);
 
@@ -189,10 +191,10 @@ export class RunDetailComponent implements OnInit {
     }
 
     // ── row actions (audit rows are loose maps; columns are auto-derived by the data table) ──
-    /** Batch actions only on the Batches tab; lineage/quarantine/commits are read-only. Reprocess is
+    /** Batch/quarantine rows can be reprocessed by batch id; lineage/commits are read-only. Reprocess is
      *  hidden in the Business lens (read-only observe, plan §1) — Lineage & details stays available. */
     get auditRowActions(): InspectoRowAction<AuditRow>[] {
-        if (this.activeTab !== 'batches') return [];
+        if (this.activeTab !== 'batches' && this.activeTab !== 'quarantine') return [];
         const details: InspectoRowAction<AuditRow> = {
             icon: 'heroicons_outline:rectangle-group',
             hint: 'Lineage & details',
@@ -261,15 +263,19 @@ export class RunDetailComponent implements OnInit {
         });
     }
 
-    reprocessRow(r: AuditRow): void {
+    async reprocessRow(r: AuditRow): Promise<void> {
         if (!this.lens.canOperateRuns()) return; // Business lens: read-only observe
         const id = r['batch_id'];
         if (!id) {
             this.toastr.warning('No batch id on this row');
             return;
         }
+        if (!(await this.confirm.confirm(`Reprocess batch "${id}" of "${this.name}"?`, 'Reprocess batch'))) return;
         this.api.reprocess(this.name, id).subscribe({
-            next: () => this.toastr.success(`Reprocess requested for ${id}`),
+            next: () => {
+                this.toastr.success(`Reprocess requested for ${id}`);
+                if (this.activeTab === 'quarantine') this.loadTab();
+            },
             error: (e) => this.toastr.error(apiErrorMessage(e, `Reprocess failed for ${id}`)),
         });
     }

@@ -55,6 +55,20 @@ class SmtpEmailChannelTest {
     }
 
     @Test
+    void deliversToExplicitTargetInsteadOfTheFixedRecipient() throws Exception {
+        SmtpEmailChannel ch = new SmtpEmailChannel("mail.example.com", 25,
+                "inspecto@example.com", "fixed@example.com", null, null, false);
+
+        MimeMessage toTarget = ch.message(sample(), "ops@example.com");
+        assertEquals("ops@example.com", toTarget.getRecipients(Message.RecipientType.TO)[0].toString(),
+                "an explicit target address is used in place of the fixed notify.smtp.to");
+
+        MimeMessage blankTarget = ch.message(sample(), "");
+        assertEquals("fixed@example.com", blankTarget.getRecipients(Message.RecipientType.TO)[0].toString(),
+                "a blank target falls back to the fixed notify.smtp.to");
+    }
+
+    @Test
     void authEnabledOnlyWhenCredentialsPresent() throws Exception {
         SmtpEmailChannel auth = new SmtpEmailChannel("h", 25, "f@x.com", "t@x.com", "user", "pw", false);
         assertEquals("true", auth.message(sample()).getSession().getProperty("mail.smtp.auth"));

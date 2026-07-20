@@ -2,6 +2,7 @@ package com.gamma.notify;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.regex.Pattern;
 
 /**
  * A persisted notification-channel <em>destination</em> the operator manages through the
@@ -23,6 +24,8 @@ public record ChannelConfig(String id, String kind, String target, String descri
      * required (blank → {@link IllegalArgumentException} → 422); {@code enabled} defaults true; {@code
      * createdAt} is taken from the map when present (a round-tripped/updated record) else {@code
      * defaultCreatedAt} (a fresh create); {@code template} is optional (blank/absent ⇒ {@code null}).
+     * {@code kind=EMAIL} additionally requires {@code target} to be one or more comma-separated email
+     * addresses — rejected here (422) rather than left to fail silently at SMTP dispatch time.
      */
     public static ChannelConfig fromMap(Map<String, Object> m, long defaultCreatedAt) {
         String id = require(m, "id");
@@ -32,7 +35,19 @@ public record ChannelConfig(String id, String kind, String target, String descri
         boolean enabled = !(m.get("enabled") instanceof Boolean b) || b;
         long createdAt = m.get("createdAt") instanceof Number n ? n.longValue() : defaultCreatedAt;
         String template = str(m, "template");
+        if ("email".equalsIgnoreCase(kind)) validateEmailTarget(target);
         return new ChannelConfig(id, kind, target, description, enabled, createdAt, template);
+    }
+
+    /** {@code kind=EMAIL} target must be one or more comma-separated addresses — fail closed at creation
+     *  (422) rather than at dispatch time, when the SMTP transport would otherwise silently drop it. */
+    private static final Pattern EMAIL = Pattern.compile("[^\\s@]+@[^\\s@]+\\.[^\\s@]+");
+
+    private static void validateEmailTarget(String target) {
+        for (String addr : target.split(",")) {
+            if (!EMAIL.matcher(addr.trim()).matches())
+                throw new IllegalArgumentException("channel target '" + target + "' is not a valid email address");
+        }
     }
 
     /** The wire shape the UI's {@code NotificationChannel} consumes. */

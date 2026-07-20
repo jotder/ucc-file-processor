@@ -29,6 +29,9 @@ Geocoder — never "marker/pin" in model names).
   `uniqueNameValidator`).
 * **Status** — UI shipped, metadata-first (mock-backed data); the DuckDB-spatial backend + geo Widget
   via the `VizPlugin` seam are Phase 4.
+* **Investigation pivot** (ui-design-review R8, 2026-07-20) — a point resolving an `objectRef` offers
+  "View in graph" (pivots to Link Analysis with the same record); see
+  [Investigation Pivot](investigation-pivot.md) for the shared contract.
 
 Plan + gotchas (rAF hidden-page stall, absolute style URLs, seed-once localStorage) — archived:
 [`geo-map-analysis-plan.md`](../../../archived-documents/plans-archive/geo-map-analysis-plan.md) ·

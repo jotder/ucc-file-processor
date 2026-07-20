@@ -670,8 +670,10 @@ final class PipelineConfigParser {
     /**
      * Parse the optional text/regex frontend. Returns {@code null} unless {@code frontend: text_regex};
      * otherwise builds a {@link PipelineConfig.TextRegex} from the {@code text_regex:} block.
-     * Hard-fails on a missing block/pattern, a pattern that does not compile, a pattern without a
-     * named capture group, or an unsupported {@code record_split}.
+     * Hard-fails on a missing block/pattern, a pattern that does not compile, or a pattern without a
+     * named capture group. {@code record_split} defaults to one-record-per-line; {@code "blank_line"}
+     * (or a literal blank-line string) and any other literal delimiter string switch to block mode,
+     * where a record may span multiple physical lines.
      */
     @SuppressWarnings("unchecked")
     private static PipelineConfig.TextRegex parseTextRegex(Map<String, Object> csv) {
@@ -684,15 +686,16 @@ final class PipelineConfigParser {
 
         // Read raw (not via opt): a real "\n\n" is whitespace-only and must not fall back silently.
         Object rsRaw = tr.get("record_split");
-        String recordSplit = (rsRaw == null || String.valueOf(rsRaw).isEmpty())
+        String recordSplitCfg = (rsRaw == null || String.valueOf(rsRaw).isEmpty())
                 ? "\n" : String.valueOf(rsRaw);
         // accept the real newline, the literal two-char "\n" spelling, or the word "line"
-        boolean lineSplit = recordSplit.equals("\n") || recordSplit.equals("\\n")
-                || recordSplit.equalsIgnoreCase("line");
-        if (!lineSplit)
-            throw new IllegalArgumentException("text_regex.record_split: only \"\\n\" (one record per "
-                    + "line) is supported — blank-line block records (e.g. LDIF entries) are not yet "
-                    + "implemented; use a plugin ingester");
+        boolean lineSplit = recordSplitCfg.equals("\n") || recordSplitCfg.equals("\\n")
+                || recordSplitCfg.equalsIgnoreCase("line");
+        // "blank_line" is a named alias for the blank-line block delimiter; anything else not
+        // recognised as line mode is taken literally as the block delimiter string (e.g. "---").
+        String recordSplit = lineSplit ? "\n"
+                : recordSplitCfg.equalsIgnoreCase("blank_line") ? "\n\n"
+                : recordSplitCfg;
 
         String pattern = blankToNull(tr.get("pattern"));
         if (pattern == null)
@@ -717,7 +720,7 @@ final class PipelineConfigParser {
                     + "capture group, e.g. (?P<key>[A-Z_]+) — group names feed raw.fields[].selector");
         // Normalise to the RE2 spelling for the generated SQL (DuckDB's regex engine).
         String sqlPattern = pattern.replaceAll("\\(\\?<(?![=!])", "(?P<");
-        return new PipelineConfig.TextRegex("\n", sqlPattern, groups);
+        return new PipelineConfig.TextRegex(recordSplit, sqlPattern, groups);
     }
 
     /**

@@ -110,6 +110,13 @@ public final class JobService implements AutoCloseable {
 
     /** Hot-deployable Job Packs (P2c, §12) — off unless {@code -Djobs.packs.dir} is set. */
     private final JobPackManager packs;
+    /** Job name -> owning Job Pack key, recorded whenever a {@link Job} is (re)built (P2c unload-quiesce
+     *  follow-up). Only entries whose type resolved to a pack-owned provider at build time appear here. */
+    private final Map<String, String> jobPackOwner = new ConcurrentHashMap<>();
+    /** Job names flipped unavailable because their owning Job Pack was unloaded after they were built —
+     *  {@link #runJob(Job, JobConfig, String, String, String, String, String, int, Firing)} rejects (fail-closed)
+     *  rather than run the stale cached {@link Job} instance. Cleared when the job is rebuilt/removed. */
+    private final Set<String> unavailableJobs = ConcurrentHashMap.newKeySet();
     /** Per-run structured Run Log persistence (R5): JSONL under {@code <auditDir>/runlog/}. */
     private final RunLogStore runLogStore;
     /** Per-run Run Artifact persistence (R7, §10): JSONL under {@code <auditDir>/artifacts/}. */
@@ -192,7 +199,8 @@ public final class JobService implements AutoCloseable {
         // Job Packs (P2c): load hot-deployable types BEFORE building Jobs, so a Job authored against a
         // pack type resolves at construction. Startup-scan signals no-op until the event log is wired.
         this.packs = new JobPackManager(System.getProperty("jobs.packs.dir"), registry,
-                (type, sev, payload) -> emitSignal(type, sev, null, Ref.of("job-pack", "job.packs"), payload));
+                (type, sev, payload) -> emitSignal(type, sev, null, Ref.of("job-pack", "job.packs"), payload),
+                this::onPackUnloaded);
         this.packs.scanAtStartup();
         for (JobConfig c : this.configs) {
             if (c.enabled()) jobs.put(c.name(), build(c));
@@ -339,6 +347,8 @@ public final class JobService implements AutoCloseable {
         jobs.remove(name);
         crons.remove(name);
         signalCoalescers.remove(name);
+        jobPackOwner.remove(name);
+        unavailableJobs.remove(name);
         Scheduler.CronHandle handle = cronHandles.remove(name);
         if (handle != null) handle.cancel();
     }
@@ -381,7 +391,22 @@ public final class JobService implements AutoCloseable {
     }
 
     private Job build(JobConfig c) {
-        return registry.create(c.type(), c);   // registry keys are lowercased ids; create() folds case
+        Job job = registry.create(c.type(), c);   // registry keys are lowercased ids; create() folds case
+        // Record the owning Job Pack (if any) at build time — ownerOf(type) still resolves here, before any
+        // later unload deregisters it — so onPackUnloaded can flip this job unavailable when that happens.
+        registry.ownerOf(c.type()).ifPresentOrElse(
+                owner -> jobPackOwner.put(c.name(), owner),
+                () -> jobPackOwner.remove(c.name()));
+        unavailableJobs.remove(c.name());   // a (re)build always starts from a fresh, available Job instance
+        return job;
+    }
+
+    /** {@link JobPackManager.UnloadListener} callback: a pack was unloaded — flip every already-built Job
+     *  sourced from it unavailable, so a later Run on the same config is rejected instead of running the
+     *  stale cached {@link Job} instance (job-framework §12.2 follow-up). */
+    private void onPackUnloaded(String owner) {
+        for (var e : jobPackOwner.entrySet())
+            if (owner.equals(e.getValue())) unavailableJobs.add(e.getKey());
     }
 
     /** A {@link JobType#PIPELINE} job (T32) — requires an authored-flow store (set {@code -Dassist.write.root}). */
@@ -635,6 +660,16 @@ public final class JobService implements AutoCloseable {
             Map<String, String> params = cfg != null ? cfg.params() : Map.of();
             RunContext ctx = new RunContext(runId, spaceId, name, trigger, correlationId, chainDepth,
                     params, runLogStore, runLogMax, runArtifactStore);
+            if (unavailableJobs.contains(name)) {
+                String reason = "job type '" + job.type() + "' unavailable: owning Job Pack was unloaded";
+                ctx.log().error("run rejected: " + reason, null);
+                ctx.signals().emit("job.run.rejected", Severity.WARN,
+                        Map.of("job", name, "run", runId, "reason", reason));
+                if (flowId != null) runningFlows.remove(flowId);
+                record(new JobRun(runId, name, job.type(), trigger, start,
+                        LocalDateTime.now().format(TS), "REJECTED", 0L, reason));
+                return;
+            }
             // P3a/P3a-2: resolve the Job Type's declared parameters across the §7.2 ladder — trigger args
             // (this fire's explicit args over any static config args:) → signal bind: → config params: →
             // deduce → default. A missing required parameter fails the Run REJECTED before any user code.

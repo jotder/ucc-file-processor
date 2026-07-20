@@ -375,42 +375,29 @@ public final class DuckDbCsvIngester {
     }
 
     /**
-     * Build the text/regex read spec: read each physical line intact as a single VARCHAR column
-     * (the fixed-width single-column {@code read_csv} form — streaming, gz-aware, reject-capturing),
-     * keep the lines matching the pattern, and extract every named capture group with
-     * {@code regexp_extract(..., name_list)}. A schema field's {@code raw.fields[].selector} names
-     * the capture group feeding it, so the projection produces the same named columns the delimited
-     * path does and the backend runs unchanged. Non-matching lines (banners, continuations, blanks)
-     * are dropped by the {@code regexp_matches} filter, exactly as fixed-width drops short lines.
+     * Build the text/regex read spec for the default (one-record-per-line) mode: read each
+     * physical line intact as a single VARCHAR column (the fixed-width single-column
+     * {@code read_csv} form — streaming, gz-aware, reject-capturing), keep the lines matching the
+     * pattern, and extract every named capture group with {@code regexp_extract(..., name_list)}.
+     * A schema field's {@code raw.fields[].selector} names the capture group feeding it, so the
+     * projection produces the same named columns the delimited path does and the backend runs
+     * unchanged. Non-matching lines (banners, continuations, blanks) are dropped by the
+     * {@code regexp_matches} filter, exactly as fixed-width drops short lines. Delegates to
+     * {@link #buildTextRegexBlockReadSpec} when {@code record_split} configures block records.
      */
     private static ReadSpec buildTextRegexReadSpec(File file, Map<String, Object> schemaConfig,
                                                    PipelineConfig cfg) {
+        if (!"\n".equals(cfg.textRegex().recordSplit()))
+            return buildTextRegexBlockReadSpec(file, schemaConfig, cfg);
+
         PipelineConfig.TextRegex tr = cfg.textRegex();
         List<Map<String, Object>> fields = rawFields(schemaConfig);
 
         int    skipLines = cfg.csv().skipHeaderLines() + (cfg.csv().hasHeader() ? 1 : 0);
         String filePath  = file.getAbsolutePath().replace("\\", "/");
         String pat       = escapeSql(tr.pattern());
-
-        // name_list labels capture groups 1..n in declaration order → struct keys = group names.
-        StringBuilder names = new StringBuilder("[");
-        for (int i = 0; i < tr.groupNames().size(); i++) {
-            if (i > 0) names.append(", ");
-            names.append('\'').append(escapeSql(tr.groupNames().get(i))).append('\'');
-        }
-        names.append(']');
-
-        StringBuilder proj = new StringBuilder();
-        for (int i = 0; i < fields.size(); i++) {
-            String sel = String.valueOf(fields.get(i).get("selector"));
-            if (!tr.groupNames().contains(sel))
-                throw new IllegalArgumentException("text_regex: field '" + fields.get(i).get("name")
-                        + "' selector '" + sel + "' has no matching capture group (declared: "
-                        + tr.groupNames() + ")");
-            if (i > 0) proj.append(", ");
-            proj.append("rec['").append(escapeSql(sel)).append("'] AS \"")
-                .append(fields.get(i).get("name")).append('"');
-        }
+        String names     = nameList(tr.groupNames());
+        String proj      = textRegexProjection(fields, tr.groupNames());
 
         String readCsv = "(SELECT regexp_extract(\"line\", '" + pat + "', " + names + ") AS rec"
                 + " FROM read_csv('" + escapeSql(filePath) + "'"
@@ -425,7 +412,64 @@ public final class DuckDbCsvIngester {
                 + ", store_rejects=true)"
                 + " WHERE regexp_matches(\"line\", '" + pat + "')) AS tr";
 
-        return new ReadSpec(proj.toString(), readCsv);
+        return new ReadSpec(proj, readCsv);
+    }
+
+    /**
+     * Build the text/regex read spec for block mode ({@code record_split} other than one-record-
+     * per-line): read the whole file as text, split it into records on the literal
+     * {@code recordSplit} delimiter (e.g. {@code "\n\n"} for blank-line-separated blocks), drop
+     * empty records and any leading records skipped by {@code skip_header_lines}, then match
+     * {@code pattern} against each (trimmed) record's full text with {@code (?s)} so {@code .}
+     * matches the newlines inside a multi-line record. Named capture groups are extracted exactly
+     * as in the line-mode path, so the typing/mapping/partition/lineage backend runs unchanged.
+     */
+    private static ReadSpec buildTextRegexBlockReadSpec(File file, Map<String, Object> schemaConfig,
+                                                        PipelineConfig cfg) {
+        PipelineConfig.TextRegex tr = cfg.textRegex();
+        List<Map<String, Object>> fields = rawFields(schemaConfig);
+
+        int    skipRecords = cfg.csv().skipHeaderLines() + (cfg.csv().hasHeader() ? 1 : 0);
+        String filePath     = file.getAbsolutePath().replace("\\", "/");
+        String pat          = escapeSql("(?s)" + tr.pattern());
+        String delim        = escapeSql(tr.recordSplit());
+        String names        = nameList(tr.groupNames());
+        String proj         = textRegexProjection(fields, tr.groupNames());
+
+        String readText = "(SELECT regexp_extract(trim(blk), '" + pat + "', " + names + ") AS rec"
+                + " FROM (SELECT unnest(list_slice(str_split(content, '" + delim + "'), "
+                + (skipRecords + 1) + ", 2147483647)) AS blk"
+                + " FROM read_text('" + escapeSql(filePath) + "'))"
+                + " WHERE trim(blk) != ''"
+                + " AND regexp_matches(trim(blk), '" + pat + "')) AS tr";
+
+        return new ReadSpec(proj, readText);
+    }
+
+    /** name_list labels capture groups 1..n in declaration order → struct keys = group names. */
+    private static String nameList(List<String> groupNames) {
+        StringBuilder names = new StringBuilder("[");
+        for (int i = 0; i < groupNames.size(); i++) {
+            if (i > 0) names.append(", ");
+            names.append('\'').append(escapeSql(groupNames.get(i))).append('\'');
+        }
+        return names.append(']').toString();
+    }
+
+    /** {@code rec['<group>'] AS "<field>"} projection shared by the line- and block-mode read specs. */
+    private static String textRegexProjection(List<Map<String, Object>> fields, List<String> groupNames) {
+        StringBuilder proj = new StringBuilder();
+        for (int i = 0; i < fields.size(); i++) {
+            String sel = String.valueOf(fields.get(i).get("selector"));
+            if (!groupNames.contains(sel))
+                throw new IllegalArgumentException("text_regex: field '" + fields.get(i).get("name")
+                        + "' selector '" + sel + "' has no matching capture group (declared: "
+                        + groupNames + ")");
+            if (i > 0) proj.append(", ");
+            proj.append("rec['").append(escapeSql(sel)).append("'] AS \"")
+                .append(fields.get(i).get("name")).append('"');
+        }
+        return proj.toString();
     }
 
     /** The schema's {@code raw.fields} maps in declared order, selectors kept as raw strings. */

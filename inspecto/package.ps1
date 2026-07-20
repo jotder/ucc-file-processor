@@ -11,10 +11,14 @@
 # 2026-07-07): jdeps on file-processor-security.jar + Nimbus JOSE+JWT 10.9.1 needs nothing beyond
 # java.base/java.sql/java.net.http/jdk.httpserver, and RS256/ES256 resolve via SunRsaSign/SunEC
 # (jdk.crypto.ec) on a jlink image built from exactly this list — Standard bundles may embed the
-# runtime; -NoRuntime remains available for Linux targets (jlink output is OS-specific).
+# runtime. jlink can target either platform from this Windows host by pointing --module-path at
+# the target JDK's jmods (the invoked jlink.exe is always the Windows one; -NoRuntime skips both).
 #
 # Output:
-#   file-processor-deploy.zip  (in the sandbox root, alongside inbox/ and database/)
+#   file-processor-deploy.zip        (Windows target, embedded Windows JVM)
+#   file-processor-deploy-linux.zip  (Linux target, embedded Linux JVM — only when a Linux
+#                                      GraalVM jmods cache is present under .graalvm-cache)
+#   (both in the sandbox root, alongside inbox/ and database/)
 #
 # The zip is a self-contained deployment unit.  On the target server:
 #   1. Unzip file-processor-deploy.zip  →  file-processor-deploy/
@@ -43,6 +47,7 @@ $adjParserDir = if ((Split-Path -Leaf $scriptDir) -eq 'inspecto') { $scriptDir }
 $sandboxRoot  = Split-Path -Parent $adjParserDir
 $targetDir    = Join-Path $adjParserDir 'target'
 $outZip       = Join-Path $sandboxRoot  'file-processor-deploy.zip'
+$outZipLinux  = Join-Path $sandboxRoot  'file-processor-deploy-linux.zip'
 $bundleDir    = Join-Path $sandboxRoot  'file-processor-deploy'
 
 # ── step 1: build ─────────────────────────────────────────────────────────────
@@ -368,8 +373,30 @@ echo [serve.bat] ControlApi on :%PORT%  (spaces: .\%SPACES_ROOT%, edition: %EDIT
 
 # ── step 6c: embed a trimmed Java runtime (jlink) so the bundle is self-contained ──
 # Produces bundle/runtime/ — the run/serve/ura scripts auto-prefer it over system java.
-# NOTE: jlink output is OS-specific. Built from the Windows GraalVM JDK, this image runs on
-# Windows only; the bundled *.sh launchers fall back to system java on Linux.
+# jlink is itself a JVM tool: the platform of the jlink *executable* need not match the platform
+# being targeted, because --module-path selects which jmods (which carry the platform-native code)
+# get assembled into the output image. We always invoke the Windows jlink.exe (host-executable) and
+# vary --module-path to target either platform: omitted → that JDK's own (Windows) jmods; pointed at
+# a Linux GraalVM cache's jmods/ → a Linux-native image, even though it's built on this Windows host.
+function New-JlinkRuntime {
+    param(
+        [Parameter(Mandatory)] [string]$JlinkExe,
+        [Parameter(Mandatory)] [string]$Modules,
+        [Parameter(Mandatory)] [string]$OutputDir,
+        [string]$ModulePath,      # target JDK's jmods dir; omit for a same-platform (Windows) build
+        [Parameter(Mandatory)] [string]$PlatformLabel
+    )
+    Write-Host "Embedding trimmed Java runtime ($PlatformLabel) via $JlinkExe ..." -ForegroundColor Cyan
+    if (Test-Path $OutputDir) { Remove-Item $OutputDir -Recurse -Force }
+    $jlinkArgs = @('--add-modules', $Modules, '--strip-debug', '--no-header-files', '--no-man-pages', '--compress=zip-9', '--output', $OutputDir)
+    if ($ModulePath) { $jlinkArgs = @('--module-path', $ModulePath) + $jlinkArgs }
+    & $JlinkExe @jlinkArgs
+    if ($LASTEXITCODE -ne 0) { throw "jlink failed ($PlatformLabel)" }
+    $rtSize = [math]::Round(((Get-ChildItem $OutputDir -Recurse -File | Measure-Object Length -Sum).Sum / 1MB), 1)
+    Write-Host "Embedded runtime ready: $OutputDir (${rtSize} MB, $PlatformLabel)" -ForegroundColor Green
+}
+
+$builtLinuxRuntime = $false
 if (-not $NoRuntime) {
     # Module set = jdeps core for file-processor.jar (java.base, java.compiler, java.desktop,
     # java.naming, java.scripting, java.sql, jdk.httpserver) + runtime-only safety modules that
@@ -377,20 +404,33 @@ if (-not $NoRuntime) {
     # (sun.misc.Unsafe), java.net.http (HttpClient), jdk.zipfs (.zip via NIO), java.management (JMX).
     $runtimeModules = 'java.base,java.compiler,java.desktop,java.naming,java.scripting,java.sql,jdk.httpserver,jdk.crypto.ec,jdk.unsupported,java.net.http,jdk.zipfs,java.management'
 
-    # Locate a jlink: prefer the repo's GraalVM cache, then JAVA_HOME, then PATH.
+    # Locate a jlink: prefer the repo's GraalVM cache, then JAVA_HOME, then PATH. This must be the
+    # Windows jlink.exe (the host-executable tool) regardless of which target(s) we build.
     $jlink = Get-ChildItem -Path (Join-Path $sandboxRoot '.graalvm-cache') -Filter 'jlink.exe' -Recurse -ErrorAction SilentlyContinue |
              Select-Object -First 1 -ExpandProperty FullName
     if (-not $jlink -and $env:JAVA_HOME -and (Test-Path "$env:JAVA_HOME\bin\jlink.exe")) { $jlink = "$env:JAVA_HOME\bin\jlink.exe" }
     if (-not $jlink) { $jlink = (Get-Command jlink.exe -ErrorAction SilentlyContinue).Source }
     if (-not $jlink) { throw "jlink.exe not found (looked in .graalvm-cache, JAVA_HOME, PATH). Re-run with -NoRuntime to skip embedding a JVM." }
 
-    Write-Host "Embedding trimmed Java runtime via $jlink ..." -ForegroundColor Cyan
     $runtimeOut = Join-Path $bundleDir 'runtime'
-    if (Test-Path $runtimeOut) { Remove-Item $runtimeOut -Recurse -Force }
-    & $jlink --add-modules $runtimeModules --strip-debug --no-header-files --no-man-pages --compress=zip-9 --output $runtimeOut
-    if ($LASTEXITCODE -ne 0) { throw "jlink failed" }
-    $rtSize = [math]::Round(((Get-ChildItem $runtimeOut -Recurse -File | Measure-Object Length -Sum).Sum / 1MB), 1)
-    Write-Host "Embedded runtime ready: $runtimeOut (${rtSize} MB, Windows-only)" -ForegroundColor Green
+    New-JlinkRuntime -JlinkExe $jlink -Modules $runtimeModules -OutputDir $runtimeOut -PlatformLabel 'Windows'
+
+    # Linux jmods dir: glob for it (don't pin the version string) so a cache refresh doesn't break this.
+    $linuxJmods = Get-ChildItem -Path (Join-Path $sandboxRoot '.graalvm-cache') -Directory -Filter '*linux*' -ErrorAction SilentlyContinue |
+                  ForEach-Object { Join-Path $_.FullName 'jmods' } |
+                  Where-Object { Test-Path $_ } |
+                  Select-Object -First 1
+    if ($linuxJmods) {
+        $linuxRuntimeOut = Join-Path $sandboxRoot 'file-processor-deploy-linux-runtime'
+        try {
+            New-JlinkRuntime -JlinkExe $jlink -Modules $runtimeModules -OutputDir $linuxRuntimeOut -ModulePath $linuxJmods -PlatformLabel 'Linux'
+            $builtLinuxRuntime = $true
+        } catch {
+            Write-Warning "Linux runtime build failed ($($_.Exception.Message)) — skipping $outZipLinux."
+        }
+    } else {
+        Write-Host "  (no Linux jmods cache found under .graalvm-cache — skipping $outZipLinux)" -ForegroundColor Yellow
+    }
 } else {
     Write-Host "  (-NoRuntime: skipping embedded JVM; target server must provide Java 24+)" -ForegroundColor Yellow
 }
@@ -422,13 +462,32 @@ if (Test-Path $docsSrc) {
     }
 }
 
-# ── step 8: zip ───────────────────────────────────────────────────────────────
+# ── step 8: zip (Windows bundle, then swap runtime/ and zip again for Linux) ───
 if (Test-Path $outZip) { Remove-Item $outZip -Force }
 Compress-Archive -Path $bundleDir -DestinationPath $outZip
+
+if ($builtLinuxRuntime) {
+    # Common bundle content (jar, config, docs, UI, scripts) was already assembled once above;
+    # only the runtime/ folder differs per target, so swap it in place and re-zip rather than
+    # rebuilding the whole bundle a second time.
+    $windowsRuntimeOut = Join-Path $bundleDir 'runtime'
+    $windowsRuntimeTmp = Join-Path $sandboxRoot 'file-processor-deploy-windows-runtime'
+    if (Test-Path $windowsRuntimeTmp) { Remove-Item $windowsRuntimeTmp -Recurse -Force }
+    Move-Item $windowsRuntimeOut $windowsRuntimeTmp
+    Move-Item (Join-Path $sandboxRoot 'file-processor-deploy-linux-runtime') $windowsRuntimeOut
+
+    if (Test-Path $outZipLinux) { Remove-Item $outZipLinux -Force }
+    Compress-Archive -Path $bundleDir -DestinationPath $outZipLinux
+
+    # Restore the Windows runtime so $bundleDir on disk matches $outZip (in case anything inspects it).
+    Remove-Item $windowsRuntimeOut -Recurse -Force
+    Move-Item $windowsRuntimeTmp $windowsRuntimeOut
+}
 
 Write-Host ""
 Write-Host "Deployment bundle ready:" -ForegroundColor Green
 Write-Host "  $outZip"
+if ($builtLinuxRuntime) { Write-Host "  $outZipLinux" }
 Write-Host ""
 Write-Host "Deploy to remote server:" -ForegroundColor Cyan
 Write-Host "  1. Copy $outZip to the server"
@@ -455,8 +514,16 @@ Write-Host "       pwsh examples/serve-example.ps1 06-serve/sequence-gap --demo"
 Write-Host "       see examples/README.md for the full catalog"
 Write-Host ""
 if (-not $NoRuntime) {
-    Write-Host "Embedded Java runtime included (bundle\runtime\) — no JVM needed on the Windows target." -ForegroundColor Green
-    Write-Host "The run/serve/ura launchers auto-prefer it; on Linux they fall back to system Java 24+."
+    Write-Host "Embedded Java runtime included (bundle\runtime\) — no JVM needed on the target."
+    if ($builtLinuxRuntime) {
+        Write-Host "  $outZip        → Windows-native embedded JVM" -ForegroundColor Green
+        Write-Host "  $outZipLinux  → Linux-native embedded JVM" -ForegroundColor Green
+    } else {
+        Write-Host "  $outZip → Windows-native embedded JVM" -ForegroundColor Green
+        Write-Host "  (no Linux GraalVM jmods cache found — file-processor-deploy-linux.zip not built;" -ForegroundColor Yellow
+        Write-Host "   the bundled *.sh launchers fall back to system java on Linux instead.)" -ForegroundColor Yellow
+    }
+    Write-Host "The run/serve/ura launchers auto-prefer the embedded runtime when present."
 } else {
     Write-Host "Java 24+ required on the target server.  No other dependencies needed."
 }

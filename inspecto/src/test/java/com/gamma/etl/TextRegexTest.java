@@ -121,11 +121,67 @@ class TextRegexTest {
         assertTrue(e.getMessage().contains("does not compile"), e.getMessage());
     }
 
+    // ── block records (record_split) ────────────────────────────────────────────
+
     @Test
-    void blockRecordSplitIsRejectedWithClearMessage(@TempDir Path dir) {
-        String parsing = PARSING + "    record_split: \"\\n\\n\"\n";
-        Exception e = assertThrows(IllegalArgumentException.class, () -> load(dir, "blk", parsing));
-        assertTrue(e.getMessage().contains("record_split"), e.getMessage());
+    void blankLineRecordSplitSpansMultipleLines(@TempDir Path dir) throws Exception {
+        String parsing = """
+                parsing:
+                  frontend: text_regex
+                  text_regex:
+                    record_split: blank_line
+                    pattern: "ACCOUNT: (?P<account>[A-Z0-9]+).*DATE: (?P<event_date>[0-9-]+).*AMOUNT: (?P<amount>[0-9.]+)"
+                """;
+        PipelineConfig cfg = load(dir, "blk", parsing);
+        assertEquals("\n\n", cfg.textRegex().recordSplit(), "blank_line normalises to the literal delimiter");
+        assertTrue(DuckDbCsvIngester.usesDuckDb(cfg), "text_regex is always native");
+
+        String data = """
+                ACCOUNT: A00001
+                DATE: 2020-04-03
+                AMOUNT: 1234.5
+
+                ACCOUNT: B00002
+                DATE: 2020-04-04
+                AMOUNT: 9999.0
+                """;
+        File log = write(dir, "feed.log", data);
+        try (Connection conn = open()) {
+            IngestResult r = DuckDbCsvIngester.ingest(log, conn, cfg.schemas().single(), cfg, "raw_f0");
+            assertEquals(2, r.parsedRows(), "two blank-line-separated blocks, each spanning 3 lines");
+            assertEquals(List.of("A00001", "B00002"), col(conn, "raw_f0", "ACCOUNT_NUMBER"));
+            assertEquals(List.of("2020-04-03", "2020-04-04"), col(conn, "raw_f0", "EVENT_DATE"));
+            assertEquals(List.of("1234.5", "9999.0"), col(conn, "raw_f0", "AMOUNT"));
+        }
+    }
+
+    @Test
+    void literalDelimiterRecordSplitIsAccepted(@TempDir Path dir) throws Exception {
+        String parsing = """
+                parsing:
+                  frontend: text_regex
+                  text_regex:
+                    record_split: "---\\n"
+                    pattern: "ACCOUNT: (?P<account>[A-Z0-9]+).*DATE: (?P<event_date>[0-9-]+).*AMOUNT: (?P<amount>[0-9.]+)"
+                """;
+        PipelineConfig cfg = load(dir, "dlm", parsing);
+        assertEquals("---\n", cfg.textRegex().recordSplit(), "a literal non-alias string is used as-is");
+
+        String data = """
+                ACCOUNT: A00001
+                DATE: 2020-04-03
+                AMOUNT: 1234.5
+                ---
+                ACCOUNT: B00002
+                DATE: 2020-04-04
+                AMOUNT: 9999.0
+                """;
+        File log = write(dir, "feed.log", data);
+        try (Connection conn = open()) {
+            IngestResult r = DuckDbCsvIngester.ingest(log, conn, cfg.schemas().single(), cfg, "raw_f0");
+            assertEquals(2, r.parsedRows());
+            assertEquals(List.of("A00001", "B00002"), col(conn, "raw_f0", "ACCOUNT_NUMBER"));
+        }
     }
 
     @Test

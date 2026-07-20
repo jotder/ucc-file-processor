@@ -11,7 +11,7 @@ import { MatInputModule } from '@angular/material/input';
 import { MatMenuModule, MatMenuTrigger } from '@angular/material/menu';
 import { MatSelectModule } from '@angular/material/select';
 import { MatTooltipModule } from '@angular/material/tooltip';
-import { Router } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { ToastrService } from 'ngx-toastr';
 import { firstValueFrom } from 'rxjs';
 import { PipelineSummary, PipelinesService, apiErrorMessage } from 'app/inspecto/api';
@@ -64,7 +64,7 @@ import {
     GraphViewComponent,
     baseEdgeKind,
 } from 'app/modules/admin/catalog/graph-view.component';
-import { ElementDetailDialog, ElementDetailResult } from 'app/inspecto/investigation';
+import { ElementDetailDialog, ElementDetailResult, ElementObjectRef, PivotService } from 'app/inspecto/investigation';
 import { Dataset } from 'app/modules/admin/studio/datasets/dataset-types';
 import { DatasetsService } from 'app/modules/admin/studio/datasets/datasets.service';
 import { SAMPLE_SOURCES } from 'app/modules/admin/studio/datasets/dataset-sources';
@@ -131,6 +131,8 @@ export class LinkAnalysisComponent implements OnInit {
     private toastr = inject(ToastrService);
     private dialog = inject(MatDialog);
     private router = inject(Router);
+    private route = inject(ActivatedRoute);
+    private pivotService = inject(PivotService);
     private graphSources = inject(GraphSourcesService);
     private datasetsService = inject(DatasetsService);
     private pipelinesService = inject(PipelinesService);
@@ -414,12 +416,28 @@ export class LinkAnalysisComponent implements OnInit {
     });
     readonly saving = signal(false);
 
+    /** An incoming investigation pivot (ui-design-review R8) awaiting a graph to resolve against —
+     *  cleared after the first query run, found or not. */
+    private pendingPivot?: ElementObjectRef;
+
     ngOnInit(): void {
         // Each list degrades independently — a failing lookup must not blank the pane.
         this.datasetsService.list().subscribe({ next: (d) => this.datasets.set(d), error: () => undefined });
         this.pipelinesService.list().subscribe({ next: (p) => this.pipelines.set(p), error: () => undefined });
         this.viewsService.list().subscribe({ next: (v) => this.views.set(v), error: () => undefined });
         this.queryForm.controls.datasetId.valueChanges.subscribe((id) => this.onDatasetPicked(id));
+        this.pendingPivot = this.pivotService.readIncoming(this.route);
+    }
+
+    /** Try to find the pivoted-in record among the just-loaded graph's nodes; focus it if present,
+     *  else toast that this view doesn't have it. Runs once, after the first graph load. */
+    private resolvePendingPivot(g: G6GraphData): void {
+        const pivot = this.pendingPivot;
+        if (!pivot) return;
+        this.pendingPivot = undefined;
+        const node = g.nodes.find((n) => n.data.objectRef?.id === pivot.id && n.data.objectRef?.type === pivot.type);
+        if (node) this.focusNode(node.id);
+        else this.toastr.info('That record is not in this graph.', 'Not found');
     }
 
     /** Re-fetch the saved views (after an import brought some in). */
@@ -505,6 +523,7 @@ export class LinkAnalysisComponent implements OnInit {
         try {
             const g = await source.query(q);
             this.graph.set(g);
+            this.resolvePendingPivot(g);
             this.truncated.set(!!(g as ProjectedGraph).truncated);
             this.kindFilter.set([]);
             this.lastRun.set({ sourceId, query: q });
@@ -763,6 +782,7 @@ export class LinkAnalysisComponent implements OnInit {
                     ],
                     branch: collapsed ? 'expand' : descendants(g, id).size ? 'collapse' : undefined,
                     objectRef,
+                    pivotViews: objectRef ? ['map'] : undefined,
                     expandable: !!source?.expand,
                 },
             })

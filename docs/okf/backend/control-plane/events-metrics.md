@@ -55,8 +55,22 @@ timestamp: 2026-07-16T00:00:00Z
 * **`AuditTrail`** — a central interceptor in `ControlApi.dispatch` records every successful
   state-changing request plus non-GET forbidden-route attempts (actor/action/target, secret
   scrubbing, immutable store). One seam covers all routes; 405 immutability is inherent to dispatch.
-* Deferred to editions/follow-ons: email channel impl + delivery webhooks, digest batching,
-  time-based retention sweep, GeoIP, auth-gated security-event triggers / per-user prefs.
+* **Email/SMTP channel wired to `deliver(n, target)`** (2026-07-20) — `SmtpEmailChannel`
+  (`inspecto-connectors/src/main/java/com/gamma/connect/notify/SmtpEmailChannel.java`, id `email`,
+  already discovered via `ServiceLoader` and configured from `notify.smtp.*` system properties, the
+  same idiom as `WebhookChannel`) now overrides `deliver(Notification n, String target)` to address
+  the mail to the persisted `ChannelConfig`'s own `target` (comma-separated addresses supported),
+  falling back to the fixed `notify.smtp.to` only when `target` is blank — so an operator-managed
+  `email` destination actually reaches its own recipient instead of the single configured inbox.
+  `ChannelConfig.fromMap` additionally fails closed (422) at channel-creation time when `kind=EMAIL`
+  and `target` isn't a valid email address (or comma-separated list) — SMTP config/target problems
+  surface at CRUD time, not silently at dispatch. Template rendering (`NotificationTemplate` via the
+  shared `DottedPath` grammar) was already generic in `NotificationService.dispatch` and needed no
+  channel-specific change. Tests: `SmtpEmailChannelTest` (message addressing, no live server),
+  `ControlApiNotificationChannelsTest` (422 on an invalid EMAIL target). Still deferred:
+  delivery-status webhooks, digest batching.
+* Deferred to editions/follow-ons: delivery-status webhooks, digest batching, time-based retention
+  sweep, GeoIP, auth-gated security-event triggers / per-user prefs.
 
 ## Alert-rule authoring (shipped 2026-07-09)
 

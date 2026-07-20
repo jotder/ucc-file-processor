@@ -1,6 +1,6 @@
 import { TestBed } from '@angular/core/testing';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
-import { provideRouter, Router } from '@angular/router';
+import { ActivatedRoute, convertToParamMap, provideRouter, Router } from '@angular/router';
 import { MatDialog } from '@angular/material/dialog';
 import { of } from 'rxjs';
 import { describe, expect, it, vi } from 'vitest';
@@ -39,14 +39,14 @@ const ROUTES_GEO: ProjectedGeo = {
     skipped: 0,
 };
 
-function create(opts: { fail?: boolean; views?: GeoMapView[] } = {}) {
+function create(opts: { fail?: boolean; views?: GeoMapView[]; geo?: ProjectedGeo; queryParams?: Record<string, string> } = {}) {
     const queried: unknown[] = [];
     const fakeSource: GeoSource = {
         id: 'dataset',
         label: 'Locations (from a Dataset)',
         query: (q) => {
             queried.push(q);
-            return opts.fail ? Promise.reject(new Error('bad mapping')) : Promise.resolve(GEO);
+            return opts.fail ? Promise.reject(new Error('bad mapping')) : Promise.resolve(opts.geo ?? GEO);
         },
     };
     const fakeRouteSource: GeoSource = {
@@ -68,7 +68,11 @@ function create(opts: { fail?: boolean; views?: GeoMapView[] } = {}) {
             { provide: GeoMapService, useValue: { list: () => of(opts.views ?? []), save } },
             { provide: GeoSettingsService, useValue: { get: () => of({ tileServerUrl: null }) } },
             { provide: GammaConfigService, useValue: { config$: of({ scheme: 'dark' }) } },
-            { provide: ToastrService, useValue: { success: () => undefined, error: () => undefined } },
+            { provide: ToastrService, useValue: { success: () => undefined, error: () => undefined, info: () => undefined } },
+            {
+                provide: ActivatedRoute,
+                useValue: { snapshot: { queryParamMap: convertToParamMap(opts.queryParams ?? {}) } },
+            },
         ],
     });
     return { fixture: TestBed.createComponent(GeoMapComponent), queried, save };
@@ -124,6 +128,30 @@ describe('GeoMapComponent', () => {
         expect(c.placeResults().map((r) => r.name)).toContain('Dhaka');
         c.onFindPlace('');
         expect(c.placeResults()).toEqual([]);
+    });
+
+    it('resolves an incoming investigation pivot against the loaded points (ui-design-review R8)', async () => {
+        const geoWithRef: ProjectedGeo = {
+            points: [...GEO.points, { id: 'pt:case', lat: 10, lon: 20, kind: 'tower', label: 'T3', attrs: { caseId: 'case-1' } }],
+            routes: [],
+            truncated: false,
+            skipped: 0,
+        };
+        const { fixture } = create({ geo: geoWithRef, queryParams: { pivotId: 'case-1', pivotType: 'CASE' } });
+        fixture.detectChanges();
+        const c = fixture.componentInstance;
+        await runQuery(fixture);
+        expect(c.selectedId()).toBe('pt:case');
+    });
+
+    it('toasts when the pivoted-in record is not in the loaded points', async () => {
+        const { fixture } = create({ queryParams: { pivotId: 'case-missing', pivotType: 'CASE' } });
+        fixture.detectChanges();
+        const toastr = TestBed.inject(ToastrService);
+        const infoSpy = vi.spyOn(toastr, 'info');
+        await runQuery(fixture);
+        expect(infoSpy).toHaveBeenCalled();
+        expect(fixture.componentInstance.selectedId()).toBeNull();
     });
 
     it('reports a failed query inline', async () => {
@@ -300,11 +328,13 @@ describe('GeoMapComponent', () => {
         const dataOf = (call: number): ElementDetailData => (openSpy.mock.calls[call][1] as { data: ElementDetailData }).data;
         c.onPointClick('pt:0'); // attrs: { site: 'T1' } — no case/incident reference
         expect(dataOf(0).objectRef).toBeUndefined();
+        expect(dataOf(0).pivotViews).toBeUndefined();
 
         c.geo()!.points[0].attrs = { ...c.geo()!.points[0].attrs, caseId: 'case-9' };
         openSpy.mockReturnValue({ afterClosed: () => of('open-record') } as never);
         c.onPointClick('pt:0');
         expect(dataOf(1).objectRef).toEqual({ id: 'case-9', type: 'CASE' });
+        expect(dataOf(1).pivotViews).toEqual(['graph']);
         expect(navigate).toHaveBeenCalledWith(['/cases', 'case-9']);
     });
 

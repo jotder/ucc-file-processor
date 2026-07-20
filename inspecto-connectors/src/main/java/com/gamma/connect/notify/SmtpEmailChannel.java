@@ -27,6 +27,10 @@ import java.util.Properties;
  *   <li>{@code notify.smtp.starttls} — {@code true} to negotiate STARTTLS (default {@code false}).</li>
  * </ul>
  *
+ * <p>{@link #deliver(Notification, String)} sends to an explicit {@code target} address (a persisted
+ * {@link com.gamma.notify.ChannelConfig} destination), falling back to {@code notify.smtp.to} when
+ * blank; {@link #deliver(Notification)} always uses the fixed {@code notify.smtp.to}.
+ *
  * <p>Failures throw and are logged + isolated per notification by
  * {@link com.gamma.notify.NotificationService}; there is no retry — notifications are best-effort and
  * the in-app feed remains the durable record.
@@ -78,8 +82,27 @@ public final class SmtpEmailChannel implements NotificationChannel {
         Transport.send(message(n));
     }
 
+    /**
+     * Deliver to an explicit {@code target} address (or comma-separated list) — the seam a persisted
+     * {@link com.gamma.notify.ChannelConfig} destination is delivered through, so one SMTP transport
+     * serves several operator-managed recipients instead of the single fixed {@code notify.smtp.to}.
+     */
+    @Override
+    public void deliver(Notification n, String target) throws Exception {
+        Transport.send(message(n, target));
+    }
+
     /** Builds the outgoing mail — separated so tests can assert the message without a live SMTP server. */
     MimeMessage message(Notification n) throws Exception {
+        return message(n, to);
+    }
+
+    /** As {@link #message(Notification)}, but addressed to an explicit {@code target} (blank ⇒ fixed {@code to}). */
+    MimeMessage message(Notification n, String target) throws Exception {
+        return buildMessage(n, target != null && !target.isBlank() ? target : to);
+    }
+
+    private MimeMessage buildMessage(Notification n, String recipients) throws Exception {
         Properties props = new Properties();
         props.put("mail.smtp.host", host);
         props.put("mail.smtp.port", String.valueOf(port));
@@ -97,7 +120,7 @@ public final class SmtpEmailChannel implements NotificationChannel {
         }
         MimeMessage msg = new MimeMessage(session);
         msg.setFrom(new InternetAddress(from));
-        msg.setRecipients(Message.RecipientType.TO, InternetAddress.parse(to));
+        msg.setRecipients(Message.RecipientType.TO, InternetAddress.parse(recipients));
         msg.setSubject("[Inspecto] " + n.title());
         msg.setText(n.body() + "\n\ncategory: " + n.category()
                 + "\nsource: " + n.sourceType() + (n.sourceId() == null ? "" : " (" + n.sourceId() + ")")

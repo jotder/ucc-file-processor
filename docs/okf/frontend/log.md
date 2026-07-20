@@ -1,5 +1,23 @@
 # Log
 
+## 2026-07-20
+* **R8 pivot-bar SHIPPED** (ui-design-review, BACKLOG §4 — was design-only "wait for two hosts"): the
+  shared investigation-pivot contract, scoped exactly to the doc's one-line direction — switching the
+  *view* (table/graph/map/timeline) over the same selection, no more. New `PivotService`
+  (`inspecto/investigation/pivot.service.ts`): `pivotTo(view, ref)` navigates to the target host with the
+  selection's `ElementObjectRef` as query params (`pivotId`/`pivotType`); `readIncoming(route)` reads it
+  back. `ElementDetailDialog` gained `pivotViews?: PivotView[]` and renders a button per offered view,
+  calling the service directly and closing — hosts don't handle a new result kind. Wired into the two
+  hosts that exist (`table` was already covered by the pre-existing "Open record" action): link-analysis
+  offers `pivotViews:['map']` when a node has an `objectRef`; geo-map offers `['graph']` when a point
+  does. Each host's `ngOnInit` reads an incoming pivot and, once its *next* query loads, looks the record
+  up in its own freshly-loaded data (no new backend call) — found → focus/select (link-analysis:
+  `emphasis` signal; geo-map: `selectedId` + `mapView.setCamera`, not `flyTo`, so it isn't reading the
+  map's not-yet-updated `@Input`); not found → `toastr.info` and stays put. See
+  [investigation-pivot](./features/investigation-pivot.md) for the as-built. DoD green: lint:tokens PASS ·
+  build PASS · test:ci 1518/0/5 (exit 0, +9 new specs across `pivot.service.spec`,
+  `element-detail.dialog.spec`, `link-analysis.component.spec`, `geo-map.component.spec`).
+
 ## 2026-07-19
 * **Responsive dashboard chart tiles** (BACKLOG §3 Queries/BI — "responsive dashboard tiles, ResizeObserver
   re-render — the one unshipped studio-bi item"): `InspectoChartComponent` (`inspecto/components/chart.component`)
