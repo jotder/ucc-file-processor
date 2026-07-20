@@ -8,6 +8,7 @@ import com.eoiagent.core.ToolSpec;
 import com.eoiagent.tool.Tool;
 import com.gamma.intelligence.action.ComponentActions;
 import com.gamma.intelligence.action.ControlPlaneClient;
+import com.gamma.intelligence.action.OperationalActions;
 import com.gamma.config.io.ConfigLoader;
 import com.gamma.config.safety.ConfigSafetyValidator;
 import com.gamma.config.safety.SafetyPolicy;
@@ -91,7 +92,9 @@ final class InspectoTools {
                 timelineBuild(service, components), diffBatches(service),
                 configVersionsDiff(components), anomalyScan(browseStores),
                 componentDraft(), pipelineAuthor(), suggestExpectations(browseStores),
-                componentApply(controlPlane), componentRollback(controlPlane));
+                componentApply(controlPlane), componentRollback(controlPlane),
+                jobRun(controlPlane), pipelineRerun(controlPlane),
+                alertAck(controlPlane), scheduleApply(controlPlane));
     }
 
     /** The component registry the control routes read — {@code -Dassist.write.root/registry} — or
@@ -835,6 +838,70 @@ final class InspectoTools {
                         + "\"required\":[\"type\",\"id\",\"version\"]}",
                 true, Role.USER, Capability.EDIT_CONFIG);
         return new FunctionTool(spec, call -> ComponentActions.rollback(controlPlane, call, agentSession(call)));
+    }
+
+    /**
+     * AGT-5 P3 {@code job_run} (act, L2): trigger a job on demand via the governed control plane
+     * ({@code POST /jobs/{name}/trigger}). Mutating — the eoiagent gate dry-runs it (the operator sees
+     * the target + whether it exists), blocks for approval, and audits the trigger as {@code actor=agent}.
+     */
+    private static Tool jobRun(ControlPlaneClient controlPlane) {
+        ToolSpec spec = new ToolSpec(OperationalActions.TOOL_JOB_RUN,
+                "Trigger a job to run now via the governed control plane. Gated: dry-run → human approval "
+                        + "→ audited trigger. Args: job (name), params (optional object of string args).",
+                "{\"type\":\"object\",\"properties\":{"
+                        + "\"job\":{\"type\":\"string\"},"
+                        + "\"params\":{\"type\":\"object\"}},"
+                        + "\"required\":[\"job\"]}",
+                true, Role.USER, Capability.TRIGGER_JOB);
+        return new FunctionTool(spec, call -> OperationalActions.jobRun(controlPlane, call, agentSession(call)));
+    }
+
+    /**
+     * AGT-5 P3 {@code pipeline_rerun} (act, L2): replay a committed batch of a pipeline — the RCA
+     * remediation verb — via {@code POST /runs/{pipeline}/reprocess}. Mutating: same gate + audit path.
+     */
+    private static Tool pipelineRerun(ControlPlaneClient controlPlane) {
+        ToolSpec spec = new ToolSpec(OperationalActions.TOOL_PIPELINE_RERUN,
+                "Reprocess (replay) a committed batch of a pipeline via the governed control plane. "
+                        + "Gated: dry-run → human approval → audited reprocess. Args: pipeline, batchId.",
+                "{\"type\":\"object\",\"properties\":{"
+                        + "\"pipeline\":{\"type\":\"string\"},"
+                        + "\"batchId\":{\"type\":\"string\"}},"
+                        + "\"required\":[\"pipeline\",\"batchId\"]}",
+                true, Role.USER, Capability.RUN_PIPELINE);
+        return new FunctionTool(spec, call -> OperationalActions.pipelineRerun(controlPlane, call, agentSession(call)));
+    }
+
+    /**
+     * AGT-5 P3 {@code alert_ack} (act, L2): acknowledge an operational alert (an Alert-Center object,
+     * {@code OPEN→ACKNOWLEDGED}) via {@code POST /objects/{id}/ack}. Mutating: same gate + audit path.
+     */
+    private static Tool alertAck(ControlPlaneClient controlPlane) {
+        ToolSpec spec = new ToolSpec(OperationalActions.TOOL_ALERT_ACK,
+                "Acknowledge an operational alert (Alert-Center object: OPEN→ACKNOWLEDGED) via the "
+                        + "governed control plane. Gated: dry-run → human approval → audited ack. Args: id.",
+                "{\"type\":\"object\",\"properties\":{"
+                        + "\"id\":{\"type\":\"string\"}},"
+                        + "\"required\":[\"id\"]}",
+                true, Role.USER, Capability.WRITE_DATASTORE);
+        return new FunctionTool(spec, call -> OperationalActions.alertAck(controlPlane, call, agentSession(call)));
+    }
+
+    /**
+     * AGT-5 P3 {@code schedule_apply} (act, L2): change a job's cron schedule via
+     * {@code POST /jobs/{name}/reschedule} (write-root gated server-side). Mutating: same gate + audit path.
+     */
+    private static Tool scheduleApply(ControlPlaneClient controlPlane) {
+        ToolSpec spec = new ToolSpec(OperationalActions.TOOL_SCHEDULE_APPLY,
+                "Change a job's cron schedule via the governed control plane. Gated: dry-run → human "
+                        + "approval → audited reschedule. Args: job (name), cron (expression).",
+                "{\"type\":\"object\",\"properties\":{"
+                        + "\"job\":{\"type\":\"string\"},"
+                        + "\"cron\":{\"type\":\"string\"}},"
+                        + "\"required\":[\"job\",\"cron\"]}",
+                true, Role.USER, Capability.EDIT_CONFIG);
+        return new FunctionTool(spec, call -> OperationalActions.scheduleApply(controlPlane, call, agentSession(call)));
     }
 
     /** The agent-session token carried as {@code X-Agent-Session} → audited {@code actor=agent:<run>}. */

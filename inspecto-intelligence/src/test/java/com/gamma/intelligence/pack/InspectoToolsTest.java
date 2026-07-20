@@ -73,6 +73,17 @@ class InspectoToolsTest {
             assertEquals(com.eoiagent.core.Capability.EDIT_CONFIG, t.spec().capability(),
                     name + " must require the EDIT_CONFIG capability");
         }
+        // The P3 operational act tools are mutating too, each gated on its least-privilege capability.
+        Map<String, com.eoiagent.core.Capability> operational = Map.of(
+                "job_run", com.eoiagent.core.Capability.TRIGGER_JOB,
+                "pipeline_rerun", com.eoiagent.core.Capability.RUN_PIPELINE,
+                "alert_ack", com.eoiagent.core.Capability.WRITE_DATASTORE,
+                "schedule_apply", com.eoiagent.core.Capability.EDIT_CONFIG);
+        operational.forEach((name, cap) -> {
+            Tool t = tool(svc, name);
+            assertTrue(t.spec().mutating(), name + " must be mutating (P3 act tool)");
+            assertEquals(cap, t.spec().capability(), name + " must require " + cap);
+        });
         // The P2 authoring tools stay non-mutating (draft/validate only) alongside them.
         assertFalse(tool(svc, "component_draft").spec().mutating());
     }

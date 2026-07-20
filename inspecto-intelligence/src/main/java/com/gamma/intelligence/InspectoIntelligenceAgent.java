@@ -9,6 +9,7 @@ import com.eoiagent.core.InlineArtifact;
 import com.eoiagent.core.NavigationIntent;
 import com.eoiagent.core.PageContext;
 import com.eoiagent.core.Role;
+import com.eoiagent.core.ToolCall;
 import com.eoiagent.core.UserId;
 import com.eoiagent.core.UserMessage;
 import com.eoiagent.host.AgentSession;
@@ -22,6 +23,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.gamma.intelligence.action.AgentApprovals;
 import com.gamma.intelligence.action.ApprovalStore;
 import com.gamma.intelligence.action.ComponentActions;
+import com.gamma.intelligence.action.OperationalActions;
 import com.gamma.intelligence.context.ContextBroker;
 import com.gamma.intelligence.investigation.Case;
 import com.gamma.intelligence.investigation.CaseStore;
@@ -104,8 +106,9 @@ public final class InspectoIntelligenceAgent implements IntelligenceAgent {
         // mutating belt actually usable rather than uniformly fail-closed. The handler is backed by a
         // read-only previewer that shows the operator a diff (+ safety findings) before they approve.
         if (AgentApprovals.enabled()) {
-            ComponentStore preview = componentStore();
-            approvals = new AgentApprovals(new ApprovalStore(), call -> ComponentActions.preview(preview, call));
+            ComponentStore previewStore = componentStore();
+            approvals = new AgentApprovals(new ApprovalStore(),
+                    call -> previewAction(previewStore, service, call));
             builder.approvalHandler(approvals);
         }
         platform = builder.start();
@@ -231,6 +234,22 @@ public final class InspectoIntelligenceAgent implements IntelligenceAgent {
         String wr = System.getProperty("assist.write.root");
         return wr == null || wr.isBlank()
                 ? null : new ComponentStore(java.nio.file.Path.of(wr).resolve("registry"));
+    }
+
+    /**
+     * The read-only dry-run preview the P3 approval gate shows the operator, dispatched by tool family:
+     * operational act tools ({@code job_run}/{@code pipeline_rerun}/{@code alert_ack}/
+     * {@code schedule_apply}) read live {@link CollectorService} state; the component act tools diff the
+     * {@link ComponentStore}. Any other (non-mutating) tool never reaches the gate, so it returns empty.
+     */
+    private static Map<String, Object> previewAction(ComponentStore components, CollectorService service,
+                                                     ToolCall call) {
+        return switch (call.toolName()) {
+            case OperationalActions.TOOL_JOB_RUN, OperationalActions.TOOL_PIPELINE_RERUN,
+                 OperationalActions.TOOL_ALERT_ACK, OperationalActions.TOOL_SCHEDULE_APPLY ->
+                    OperationalActions.preview(service, call);
+            default -> ComponentActions.preview(components, call);
+        };
     }
 
     /** Test seam: seed/inspect the store directly (e.g. before slice E's triage trigger is wired). */

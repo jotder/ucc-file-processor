@@ -303,8 +303,8 @@ Alert-Rule-from-profiling rides the same `suggest_expectations` pattern when dem
 pass rate; every draft carries validation evidence.* (Met for pipeline/expectation/config kinds; query
 + dashboard authoring await the deferred tools.)
 
-**P3 — Gated action (L2). PARTIALLY SHIPPED 2026-07-20 (approval spine + the two component act tools).**
-Delivered this pass (opt-in `-Dintelligence.act.enabled`, off by default — L0/L1 unchanged):
+**P3 — Gated action (L2). PARTIALLY SHIPPED 2026-07-20 (approval spine + component act tools + operational act tools).**
+Delivered (opt-in `-Dintelligence.act.enabled`, off by default — L0/L1 unchanged):
 - **Approval spine** — the eoiagent gate is now non-headless. `AgentApprovals` (an eoiagent
   `ApprovalHandler`) bridges the framework's *synchronous* `DefaultToolRegistry.dispatchMutating`
   (dry-run → block for approval → audited `APPROVAL`/`MUTATION`) to an *asynchronous* approvals inbox:
@@ -321,18 +321,28 @@ Delivered this pass (opt-in `-Dintelligence.act.enabled`, off by default — L0/
   loopback base URL for this). `component_apply` hard-refuses anything the safety gate rejects. The
   operator's approval carries a read-only preview (top-level diff + safety findings) via
   `ComponentActions.preview`.
+- **Operational act tools** — `job_run`, `pipeline_rerun`, `alert_ack`, `schedule_apply` in
+  `OperationalActions` (sibling of `ComponentActions`), all `mutating=true`, same gate + loopback
+  `X-Agent-Session` contract. Each rides the **real** governed route — `POST /jobs/{name}/trigger`
+  (`TRIGGER_JOB`), `POST /runs/{pipeline}/reprocess` `{batchId}` (`RUN_PIPELINE`; replay a committed
+  batch — the RCA remediation verb), `POST /objects/{id}/ack` (`WRITE_DATASTORE`; alerts are acked as
+  operational objects), `POST /jobs/{name}/reschedule` `{cron}` (`EDIT_CONFIG`; write-root-gated). The
+  belt is now 18 and the approval previewer dispatches by tool family (operational tools get an
+  action-summary + live-state preview via `OperationalActions.preview`). *Naming reality:* there is no
+  `/alerts/{id}/ack`, no `/schedules` resource, and no `/pipelines/.../rerun` — the tools keep the
+  plan-aligned names but use the routes that actually exist.
 
 *Substrate precedent (2026-07-19, S6): the "agent proposes → dry-run → explicit human confirm →
 audited `actor=agent:*` apply → declining mutates nothing" pattern was first proven for A2UI `invoke`
 against an existing Decision Rule; this pass generalizes it to authored-then-applied component drafts
 and adds the queue (was per-artifact inline confirm only).*
 
-*Still open for P3:* the operational act tools (`job_run`, `pipeline_rerun`, `alert_ack`,
-`schedule_apply`), `runbook_operator` with 2–3 seeded runbooks, the approvals-inbox **UI** (backend
+*Still open for P3:* `runbook_operator` with 2–3 seeded runbooks, the approvals-inbox **UI** (backend
 routes exist; the Angular `agent-approvals/` page is not built yet), and true checkpoint/resume across
 process restarts (today the gate parks an in-JVM thread, bounded by the framework's approval timeout).
 *Exit: end-to-end "agent proposes → dry-run diff shown → human approves → agent applies + verifies →
-undo works", fully audited.* (Met for the component-authoring surface; operational tools + UI remain.)
+undo works", fully audited.* (Met for the component-authoring and operational-action surfaces; the
+compound `runbook_operator` + the inbox UI remain.)
 
 **P4 — Bounded autonomy (L3).** Decision-Rule policy engine + budgets + kill switch; `ops_monitor`
 loop; pilot action classes (batch re-run, alert triage); autonomy Dashboard (what the agent did,

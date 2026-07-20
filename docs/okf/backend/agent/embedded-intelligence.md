@@ -84,6 +84,62 @@ file-read boundary), so this is its own slice. `kpi_report_builder` has no confi
 kind (no KPI/report kind in `ComponentRegistry`; it would compose `MeasureCompiler` measures into a
 `dashboard`) — needs the dashboard-tile owner's sign-off before scoping.
 
+## P3 gated-action tier (partially shipped — slices 1–3 of the plan)
+
+The L2 "act" layer: mutating tools gated behind an approval, so the agent can apply what P2 only
+drafted and drive the running system's operational verbs. Three slices shipped (`a30049a`, `b5069c1`,
++ operational act tools); `runbook_operator` and the approvals-inbox UI remain.
+
+- **Approval spine (slice 1)** — `action.Approval`/`ApprovalStore` (bounded ring, sibling of
+  `CaseStore`; once-only guarded `PENDING→APPROVED/DENIED/TIMED_OUT`), `AgentApprovals` (an eoiagent
+  `com.eoiagent.safety.ApprovalHandler` bridging the framework's **synchronous**
+  `DefaultToolRegistry.dispatchMutating` blocking gate to an **async** inbox by parking the gate thread
+  on a `CompletableFuture` until the operator decides). SPI adds `recentApprovals`/`approvalById`/
+  `decideApproval` (default-degrading like `recentCases`); routes `GET /agent/approvals`,
+  `GET /agent/approvals/{id}`, `POST /agent/approvals/{id}/decision`. Opt-in
+  `-Dintelligence.act.enabled` (`AgentApprovals.ENABLED_FLAG`) gates both `InspectoPackConfig`
+  `MUTATING_ACTIONS` and whether `start()` supplies the handler — lockstep, so without the flag the
+  mutating belt stays hidden/fail-closed (default L0/L1 unchanged).
+- **Component act tools (slice 2)** — `component_apply`/`component_rollback`
+  (`action.ControlPlaneClient`, loopback HTTP with `X-Agent-Session`; apply = validate→GET→`If-Match
+  PUT` (existing) / `POST` create; rollback = `POST /versions/{v}/restore`; plus a read-only `preview`
+  diff). Registered in `InspectoTools` (`mutating=true`, `Capability.EDIT_CONFIG`), always on the belt
+  but hidden/fail-closed unless the feature flag is on. `component_apply` hard-refuses anything
+  `ConfigSafetyValidator` rejects. `ControlApi` publishes its loopback base URL
+  (`LOCAL_BASE_URL_PROP`, cleared on close) so the in-JVM act tools reach the same audited
+  control-plane contract a UI caller does — no backdoor. The previewer is wired into `AgentApprovals`
+  in `InspectoIntelligenceAgent.start()` (read-only `ComponentActions.preview` over
+  `assist.write.root/registry`).
+- **Operational act tools (slice 3)** — four mutating tools in `action.OperationalActions`, each riding
+  the **same** governed control-plane route a UI caller hits (no backdoor), attributed via
+  `X-Agent-Session`: `job_run` (`POST /jobs/{name}/trigger`, `Capability.TRIGGER_JOB`),
+  `pipeline_rerun` (replay a committed batch — the RCA remediation verb — `POST /runs/{pipeline}/reprocess`
+  with `{batchId}`, `RUN_PIPELINE`), `alert_ack` (acknowledge an Alert-Center object,
+  `POST /objects/{id}/ack`, `WRITE_DATASTORE`), `schedule_apply` (change a job's cron,
+  `POST /jobs/{name}/reschedule` with `{cron}`, write-root-gated server-side, `EDIT_CONFIG`). Belt is
+  now **18** (14 read/draft + 4 component/operational act tools were 2, now the two families total 6
+  mutating). The approval previewer in `start()` now dispatches by tool family — operational tools get a
+  read-only `OperationalActions.preview` (action summary + cheap live `CollectorService` state: does the
+  job exist, is the pipeline paused) alongside the component diff. All fail closed unless
+  `-Dintelligence.act.enabled` is set.
+- **Route naming reality (verified)** — the plan's tool names don't map 1:1 to route names: there is no
+  `/alerts/{id}/ack` (alerts are acked as operational **objects**, `POST /objects/{id}/ack`); no
+  `/schedules` resource (a schedule is a job's `cron`, changed via `/jobs/{name}/reschedule`); no
+  `/pipelines/.../rerun` (the replay verb is `POST /runs/{name}/reprocess`, batch-scoped). The tools use
+  the real routes; the tool names stay plan-aligned.
+- **Still open** — `runbook_operator`, the approvals-inbox **UI** (routes exist, Angular page not built),
+  and true checkpoint/resume across restarts (today the gate parks an in-JVM thread, bounded by the
+  framework's approval timeout, default ~5 min, not configurable via `PlatformBuilder`).
+- **Gotchas**: the eoiagent gate has no per-tool `DryRunProvider` seam through `PlatformBuilder` (it
+  only wires the `ApprovalHandler`), so the operator-facing diff is computed by `AgentApprovals`' own
+  previewer, not the framework's `approvalGate.dryRun` — `ApprovalRequest.preview` is empty by design,
+  ours rides the inbox `Approval.preview`. Two `ApprovalHandler` types exist — use
+  `com.eoiagent.safety.ApprovalHandler` (what `PlatformBuilder.approvalHandler(...)` and
+  `CallbackApprovalGate` take), not `com.eoiagent.host.*`. `X-Agent-Session` = the eoiagent `RunId`
+  (per-investigation), so the audit actor is `agent:<run>`; `requireCapability` passes in the
+  auth-free core (no `Subject`), same as the S6 agent-invoke path — a secured edition gates it at the
+  `ApiContext`/`WriteGates` seam.
+
 ## Gotchas / seams
 
 - **`ingestLock` deadlock rule** governs every `EventLog`/Signal-bus subscriber: subscribers run
@@ -106,5 +162,6 @@ kind (no KPI/report kind in `ComponentRegistry`; it would compose `MeasureCompil
 ## Still open (parent plan `embedded-intelligence-plan.md`, §8)
 
 P2 remainder (`query_author`, `kpi_report_builder` — see the P2 tier above for why deferred) · P3
-(approvals inbox + act tools, L2+) · P4/P5 · Case persistence + similarity recall · hosted providers
-(Standard+) · the optional S8 signal-backbone slice. See `docs/BACKLOG.md`.
+remainder (`runbook_operator`, approvals-inbox UI, checkpoint/resume — see the P3 tier above) · P4/P5 ·
+Case persistence + similarity recall · hosted providers (Standard+) · the optional S8 signal-backbone
+slice. See `docs/BACKLOG.md`.
