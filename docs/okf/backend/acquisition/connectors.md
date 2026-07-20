@@ -40,9 +40,18 @@ timestamp: 2026-06-28T00:00:00Z
 * Connection profiles are `<name>_connection.toon` (`ConnectionProfile`): `id`, `connector`, `host`, `port`,
   `base_path`, `username`, `password`, an `options` map, an optional `tunnel` sub-block, and an optional
   `proxy` sub-block (`type` HTTP|SOCKS5, `host`, `port`, `username`, `password` — added 2026-07-18; the UI
-  authored it first). The proxy hop is probed by `POST /connections/test?target=proxy`; connectors do not
-  dial through it yet, and it deliberately does not change `testEndpoint()` (the saved-profile test still
-  prioritises the tunnel hop, else the target).
+  authored it first). The proxy hop is probed by `POST /connections/test?target=proxy`, and it deliberately
+  does not change `testEndpoint()` (the saved-profile test still prioritises the tunnel hop, else the
+  target). **2026-07-20 SHIPPED first dial-through: `SftpConnector` only.** A `SOCKS5` proxy routes the
+  real SFTP connect via `SocksProxySocketFactory` (a `javax.net.SocketFactory` wrapping a `java.net.Proxy` —
+  sshj's `SocketClient.connect(host, port)` already calls `socketFactory.createSocket()` then
+  `socket.connect(target, timeout)` on the result, so a plain JDK socket built on a SOCKS `Proxy` tunnels
+  transparently with no protocol handshake of our own); ignored when an SSH bastion `tunnel` is also
+  configured (the tunnel already rewrites the dial target to a local loopback forward). `HTTP` proxy type
+  is rejected fail-closed for SFTP — a JDK socket can't transparently CONNECT-tunnel an arbitrary protocol
+  the way it can for SOCKS, so this needs its own handshake, not yet built. **Still not dialing through
+  any proxy:** FTP/FTPS (`commons-net` `FTPClient` needs its own socket-factory-equivalent wiring) and the
+  JDBC-based connectors (proxying is driver-URL-param territory, not a uniform hook).
 * **Secrets are never literals** — `SecretResolver` (`com/gamma/acquire/SecretResolver.java`) resolves
   `${ENV:VAR}` / `${SYS:prop}` / `${FILE:/path}` / `${KEYSTORE:alias}` / `${NAME}` at connect time, never at
   load; `isResolvable()` powers the test endpoint without exposing values. `${FILE:…}` reads a mounted secret

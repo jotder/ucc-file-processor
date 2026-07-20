@@ -284,7 +284,11 @@ the rest are planned in subsequent phases. Features that can't run offline (remo
 
 - No `*_flow.toon` or `*_rca.toon` example exists in the repo — the shapes live only in tests
   (`ControlApiFlowCrudTest`, `PipelineJobRunnerTest`) or are consumed by APIs without a file fixture.
-- `json` / `text_regex` frontends are `[LIVE]` — runnable examples can now be added to the suite.
+- ~~`json` / `text_regex` frontends are `[LIVE]` — runnable examples can now be added to the suite.~~
+  **SHIPPED 2026-07-20**: `examples/02-parsing/json-frontend` and `examples/02-parsing/text-regex-frontend`
+  added (NDJSON + named-capture-group regex, each with `samples/` and a README catalog row). `record_split`
+  for `text_regex` (§ line 61-ish above) stays intentionally unsupported — it needs a DuckDB block-reading
+  strategy change in `DuckDbCsvIngester`, out of scope for the example-gap fix.
 - No subscriber `.dat` / plugin-binary sample data in the repo — synthesize for those examples.
 - ~~`package.ps1` pre-creates inbox/database dirs only for `adjustment` + `voucher`~~ **stale, corrected
   2026-07-20**: `package.ps1` does not pre-create any adapter inbox/database dirs — the bundle's own

@@ -501,6 +501,7 @@ fraud-screen-pack-1.2.0.jar
 > across reload/unload (reload closes the old loader immediately — `LockingRunner` per-Job serialization plus
 > admin-gated reload keep this safe in practice), and flipping an already-built authored Job to `unavailable`
 > with `REJECTED` firings when its pack is unloaded. Both land with the run-lifecycle work that P3 needs anyway.
+> (As-built update, see `okf/backend/control-plane/jobs.md` — the classloader half of quiesce shipped 2026-07-20.)
 
 ### 12.3 Fail-closed & security posture
 

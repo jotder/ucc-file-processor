@@ -23,11 +23,19 @@ distinct ([`GLOSSARY.md`](../../../GLOSSARY.md) §11): this studio works on **P3
 * **Saved investigations** — a **Link-Analysis View** (Component kind `link-analysis-view`) via the
   shared `inspecto/investigation` lib; when its source is `entity-projection` it is renderable as a
   **Widget** (a Graph Visualization Type bound to a Dataset).
-* **Status** — UI shipped mock-first; the backend Entity Projection over real Datasets is open
-  (REQUIREMENTS INV-1).
+* **Status** — UI shipped mock-first; the backend Entity Projection over real Datasets shipped
+  (REQUIREMENTS INV-1, `POST /inv/projection`), including the full V1 slice (multi-mapping, multi-root,
+  incremental expand, SVG/GraphML export, undo/redo, `attrCols` — the last is fully implemented both
+  backend (`InvRoutes`) and UI (`entity-projection.ts`), not open despite an earlier stale note here).
+  **2026-07-20 shipped the schema-relationship model**, §7's other deferred half: `GET
+  /inv/schema/relationships` infers naming-convention FK suggestions across Datasets (`<base>_id` column
+  → a Dataset named `<base>`, linked to its `id` column or a same-named column), so the Studio can
+  pre-fill multi-mapping projections instead of requiring every column pair hand-picked. Self-references
+  (e.g. `manager_id`) are included; unusable Datasets are skipped, not fatal. Only V2+ items remain open.
 
 Design (archived):
-[`link-analysis-and-graphsource.md`](../../../archived-documents/plans-archive/link-analysis-and-graphsource.md) ·
+[`link-analysis-and-graphsource.md`](../../../archived-documents/plans-archive/link-analysis-and-graphsource.md)
+§7 (schema-relationship model, now shipped) ·
 plans: [`link-analysis-studio-plan.md`](../../../archived-documents/plans-archive/link-analysis-studio-plan.md)
-(§6–7 carry the open V1/V2 backlog),
+(§6–7, V1 now fully shipped; V2+ remains open backlog),
 [`link-analysis-toolboxes-plan.md`](../../../archived-documents/plans-archive/link-analysis-toolboxes-plan.md).

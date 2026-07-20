@@ -144,6 +144,10 @@ list on a cron schedule. Each Report runs as a **Job** behind the scenes, so it 
 under Runs, and the per-Report actions let you **run now** or **download the latest** output.
 Keep the two straight: the Dashboard is the *thing*, the Report is the *delivery*. If the page
 is empty, author a Dashboard in Studio first — Studio builds; this page presents and delivers.
+**Authoring a KPI tile**: a KPI is a single-number **Measure** with a target/threshold, rendered as
+a headline tile — build one in Studio's **Viz Library** by picking a Dataset's Measure (see
+**Datasets** in §4.3) as a KPI-type Widget, then drop it onto a Dashboard in the **Dashboard
+Builder**. It shows up here once its Dashboard is added to KPI & Reports.
 
 **Requirements** — The intake queue that turns "can we get a churn dashboard?" into a tracked
 deliverable. Submit a **Requirement** — a request for a **KPI**, **Report**, **Reconciliation**,
@@ -261,10 +265,13 @@ Opening a Pipeline gives you its detail view (files, audit, batches) and its **e
 NiFi-style visual canvas where you lay out processor nodes (parser, transform, enrichment, sink,
 job, sub-pipeline) and connect them. In the editor, click to select, double-click to configure,
 drag to move, and **Shift-drag** to draw a connection between nodes; each node has a **Test** button
-for validating just that step. Parser nodes open a dedicated configuration dialog covering nine
-formats (ASN.1, delimited/DSV, HTML, JSON, Parquet, plain text, XLSX, XML, and a generic "other"),
-with a typed property sheet and a grid preview of the parsed output. Reusable parsers are saved as
-**Grammar** Components.
+for validating just that step. Parser nodes open a dedicated configuration dialog with a typed
+property sheet and a grid preview of the parsed output; the dialog offers nine format types, but
+today only the ones matching the engine's `parsing.frontend` set actually run against real data —
+**delimited/DSV**, **fixed-width or line-pattern plain text** (regex-matched named groups), **JSON**
+(newline-delimited), and a generic **"other"** (custom Java plugin) for anything else. **ASN.1,
+HTML, Parquet, XLSX, and XML** appear in the dialog as staged scaffolding — selecting one won't yet
+run against real backend support. Reusable parsers are saved as **Grammar** Components.
 
 **Runs** — The execution history. Every time a Pipeline or Job runs — manually, on a schedule, or
 by trigger — it produces one **Run**. Each Run contains one or more **Batches**, and each Batch
@@ -294,7 +301,7 @@ also expressible as route nodes inside the Pipeline editor.
 assembled from. Browse them, preview definitions, see how many places reference each one, and
 safe-delete those that are unused. Grammars authored in the Pipeline parser dialog land here.
 
-**Enrichment** — Stage-2 lookups that widen your data: take an input Dataset, join it against a
+**Enrichment** — Lookups that widen your data: take an input Dataset, join it against a
 reference, and emit a Derived Table. Select an enrichment job to open a detail panel with tabs for
 its **Runs** (execution history), **Lineage** (what source/step data flowed through, filterable by
 run), and a **Report** (a date-range rollup with percentile statistics).
@@ -375,7 +382,10 @@ committed batch. Go-live flips the pipeline active; an activity glance shows the
 of Parquet files described by a Schema), **Derived Table** (materialized by a Transform or cube),
 and **View** (a virtual, logical query). Browse and search Datasets, create and edit their schema
 bindings, and link them to Widgets. Datasets are what Queries run against and what most of Studio
-consumes.
+consumes. A Dataset also holds its own **Measures** — named aggregate expressions (e.g. `sum(...)`,
+`count`) defined once against that Dataset — so **yes, a Measure is reusable**: every Widget or KPI
+tile bound to the same Dataset picks from the same Measure list instead of re-typing the aggregate.
+Reuse is per-Dataset, not global across Datasets.
 
 ---
 
@@ -450,9 +460,9 @@ color alone), so it's readable regardless of color vision.
 It comes in escalating tiers, so a table shows exactly as much power as its screen needs:
 - a plain **read-only** grid (rows, sorting, row actions);
 - **standard** — adds a compact toolbar to choose columns, search, and export to CSV;
-- **pro** — adds an always-on **SQL editor** and a visual **filter builder** so you can query the
-  rows right there (it runs the SQL in your browser and re-renders the grid);
-- **pro max** — adds **"save as rule"**, turning your query into a reusable, parameterized template.
+- adds an always-on **SQL editor** and a visual **filter builder** so you can query the rows right
+  there (it runs the SQL in your browser and re-renders the grid);
+- adds **"save as rule"**, turning your query into a reusable, parameterized template.
 
   Sort by clicking a column header (a glyph shows the direction); filter and export from the toolbar
   icons. Recent and favorite SQL queries are remembered per source.
@@ -507,6 +517,17 @@ End-to-end paths that tie the screens together. Each references the screens abov
 1. **Expectations** — author validations against the Schema and test them.
 2. **Decision Rules** — route or quarantine records based on conditions.
 3. **Alerts** (via Alert Rules) — get notified when a **Metric** crosses a threshold at run time.
+
+**Remediate a quarantined batch.**
+1. **Runs** — open the Run and check its quarantine listing (`GET /runs/{name}/quarantine`): which
+   inputs were quarantined and why (structural failure, an Expectation violation, or a Decision
+   Rule's `quarantine` consequence).
+2. Fix the root cause — correct the source file, adjust the Schema/Expectation, or amend the
+   Decision Rule condition.
+3. Reprocess the batch (`POST /runs/{name}/reprocess`) once the fix is in place — it re-ingests the
+   same batch through the corrected configuration. **This is API-only today: there is no UI action
+   for it yet**, and it works at whole-batch granularity — there is no separate "replay just the
+   quarantined rows" mechanism. Both gaps are open UI/product work, not documented elsewhere.
 
 **Investigate a failure.**
 1. **Operations → Overview / Processing Status** — spot the anomaly.

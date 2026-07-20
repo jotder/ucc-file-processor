@@ -57,11 +57,21 @@ indexed, catalog-visible, never executed; D3 of the design). Shipped P0–P3, 20
   enrichments have NO mtime hot-reload and had no register route (a new `*_enrich.toon` used to
   require a restart; the `POST /jobs type=enrich` workaround does full recomputes and breaks
   by-name refs). Event triggers apply from the next committed batch; schedule timers resolve their
-  config **by name at fire time** (armed once per name — `Scheduler` has no cancel, so an interval
-  *change* on an existing name applies at restart, and a deleted-on-disk job runs until restart).
-  `EnrichmentService` is **always constructed** (empty-list tolerant) so a fresh space can register
-  its first job; `GET /enrichment` with no jobs is 200-`[]` (was 404). Gates mirror `POST /runs`:
-  503 → 400 → 403 → 404 → 422; replace is the documented upsert (no 409).
+  config **by name at fire time**. `EnrichmentService` is **always constructed** (empty-list tolerant)
+  so a fresh space can register its first job; `GET /enrichment` with no jobs is 200-`[]` (was 404).
+  Gates mirror `POST /runs`: 503 → 400 → 403 → 404 → 422; replace is the documented upsert (no 409).
+
+**2026-07-20 SHIPPED — the unregister counterpart, for both pipelines and enrichments:**
+`CollectorService.unregisterPipeline` removes a config path from the active registry and rebuilds the
+read surface synchronously; wired from `DELETE /config/pipeline/{name}` (the onboarding draft-discard
+path), so a discarded draft drops out of the catalog/`pipelines()` at once instead of ghosting there
+until the next poll cycle. `EnrichmentService.unregister` (via `CollectorService.unregisterEnrichment`,
+wired from `DELETE /config/enrichment/{name}`) removes a hosted job and cancels its schedule timer
+immediately — previously a deleted-on-disk enrichment job's completeness timer kept firing (as a no-op)
+until restart. `EnrichmentService.register`'s re-arm also now cancels the prior timer before starting a
+new one, so a **changed** `schedule_seconds` on an existing name applies immediately rather than only
+at restart (`Scheduler.everySeconds` now returns a cancellable `ScheduledFuture`, mirroring `cron()`'s
+`CronHandle`).
 
 ## Reference production (`produces: reference`, P0)
 

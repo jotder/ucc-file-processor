@@ -20,6 +20,10 @@ distinct from the analytical **Dashboards** authored in the [Studio](studio.md);
   `params: {reportKind, dashboardId, format, recipients}`; no separate entity. Dispatch keys on
   `params.dashboardId` presence, *not* on `type === 'report'` (that type predates C6 and covers other
   report jobs). CSV export is real (serializes the dashboard's tiles); PNG is real since BI-4 (backend
-  `TablePngRenderer`, JDK-native Graphics2D — a 50-row table snapshot; CSV stays the full export);
-  PDF remains deferred (offline-blocked: no usable PDF library in the air-gapped .m2).
+  `TablePngRenderer`, JDK-native Graphics2D — a 50-row table snapshot; CSV stays the full export).
+  **PDF shipped 2026-07-20** as the backlog's PNG-wrapped-in-PDF fallback (no PDF library on the
+  classpath, offline-blocked — see `PdfRenderer`, `inspecto/src/main/java/com/gamma/job/`): reuses
+  `TablePngRenderer.renderImage` for layout, then hand-writes a minimal single-page PDF (one Image
+  XObject, FlateDecode + DeviceRGB, no text layer/fonts) — a snapshot like PNG, not a general-purpose
+  PDF export. `ReportJob` dispatches `format: pdf` alongside `csv`/`png`/`json`.
 * This pane is the **Business lens's home route** (`LENS_HOME.business = 'kpi-reports'`).

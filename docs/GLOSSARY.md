@@ -259,9 +259,11 @@ node id `ref:<pipeline>`), and an Enrichment then binds it **by name** (`referen
 a file path — v1 load semantics are full-replace; the cached/SCD nature above remains the Phase-2 engine
 backlog.
 
-**Matrix** — The **user-facing name** for a summary / cube / roll-up data asset. It **is a Derived Table**
-(so it lives inside the **Dataset** umbrella) — "Matrix" is the label the Catalog and Studio show, not a new
-model type. ⛔ "Cube" stays a *verb* (the Transform action that produces it), never the asset's noun.
+**Matrix** — The **intended user-facing name** for a summary / cube / roll-up data asset. It **is a Derived
+Table** (so it lives inside the **Dataset** umbrella) — "Matrix" is the label the Catalog and Studio are meant
+to show for it, not a new model type. **Not yet surfaced in the UI as of 2026-07-20** (no `Matrix` label found
+in the Angular source) — this is the intended vocabulary for when it lands, not a description of a shipped
+screen. ⛔ "Cube" stays a *verb* (the Transform action that produces it), never the asset's noun.
 
 **View** — A virtual (logical) query over a Table, Derived Table, or View. No storage of its own.
 

@@ -12,7 +12,10 @@ timestamp: 2026-07-07T00:00:00Z
 `JobService` (`inspecto/src/main/java/com/gamma/job/JobService.java`) hosts a registry of jobs and a
 virtual-thread `workers` executor. Three trigger modes:
 
-* **Cron** — jobs with a `cron` field are armed on the shared `Scheduler`.
+* **Cron** — jobs with a `cron` field are armed on the shared `Scheduler`. **2026-07-20**: `Scheduler.cron()`
+  now returns a `CronHandle`; `JobService.removeJob` cancels it, so a deleted/replaced job's self-re-arming
+  chain actually stops instead of ticking as an inert no-op forever (the fire-time `jobs.containsKey` guard
+  stays as a second line of defence against the cancel/fire race).
 * **Event** — jobs with `on_pipeline` subscribe to the `BatchEventBus`; `onBatchEvent` matches a `SUCCESS`
   status + pipeline name, then `submit()`s. This is the **deadlock-safe** path — `submit` hands work to
   `workers` and returns immediately, so the synchronous [event bus](events-metrics.md) never holds
@@ -43,8 +46,12 @@ Design of record (all phases + resolved decisions + TOON config gallery):
 * **Parameters** — the `ParameterResolver` resolves each declared parameter first-hit-wins:
   trigger `args` → signal `bind` (`$signal.<field>`) → job config `params:` → deduced `$`-context →
   default; an unresolved `required` parameter fails the Run fast in state **REJECTED** (fail-closed, before
-  user code). `$`-context includes `$today`/`$day(-n)`, `$run.*`, `$job.last_success_time` (the natural
-  incremental watermark), `$signal.*`, and `$upstream(<job>).artifact(<name>).<attr>`. Three placeholder
+  user code). **2026-07-20 SHIPPED type-inference:** a resolved value is now also checked against its
+  declared `ParamType` (`INTEGER`/`DECIMAL`/`BOOLEAN`/`DATE`/`INSTANT`; `STRING`/`DATASET_REF` accept any
+  non-blank string) — a mismatch (e.g. a `bind: $signal.count` extracting `"n/a"` for a required INTEGER)
+  goes into `Resolution.invalidType()` and REJECTS the Run the same way a missing required parameter does,
+  instead of the raw string reaching a Job's own `Integer.parseInt`/etc. and throwing uncaught mid-run.
+  `$`-context includes `$today`/`$day(-n)`, `$run.*`, `$job.last_success_time` (the natural
   namespaces never conflate: `$name` (run time) · `${param}` in `*_job_template.toon` (authoring time) ·
   `${ENV:KEY}` (config-load-time secret, never logged).
 * **Signals** — one ledger (`Signal` envelope: ULID, dotted type, source Ref, correlationId, severity,
@@ -63,7 +70,14 @@ Design of record (all phases + resolved decisions + TOON config gallery):
   Jobs record their delivered `out_dir` file as a `report` artifact, so a scheduled report is downloadable.
 * **Job Packs** — hot-deployable jars in `-Djobs.packs.dir` (absent ⇒ feature off, fail-closed); watched
   with a settle delay, each pack in its own parent-first `URLClassLoader` with shaded deps.
-  `GET /jobs/packs`, `POST /jobs/packs/rescan`. Deferred: in-flight-Run quiesce on pack swap.
+  `GET /jobs/packs`, `POST /jobs/packs/rescan`. **2026-07-20 SHIPPED the classloader half of quiesce:**
+  `JobPackManager.acquireRun`/`releaseRun` pin a pack's active-run count for the duration of a Run's
+  `Job.run(ctx)` (`JobService.runJob`); `unload()` still deregisters the pack's types immediately (so a
+  reload's new types are usable at once), but defers closing the old `URLClassLoader` + deleting its staged
+  jar copy until the count drops to zero — a Run already executing pack code no longer risks the loader's
+  resources being yanked mid-run. Still deferred: flipping an already-built authored Job to `unavailable`
+  when its pack is unloaded (a later Run on the same config still runs whatever `Job` instance was cached at
+  registration time).
 * **`sql.template`** — the built-in templated-SQL Job Type and first real artifact producer; its
   parameters are scanned from the SQL itself.
 
