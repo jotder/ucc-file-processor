@@ -59,6 +59,37 @@ final class AgentRoutes implements RouteModule {
         api.get("/agent/cases/(.+)", (e, m) ->
                 agentOr503(api).caseById(ApiContext.name(m))
                         .orElseThrow(() -> new ApiException(404, "unknown case: '" + ApiContext.name(m) + "'")));
+
+        // AGT-5 P3 (autonomy L2): the approvals inbox. A mutating agent tool call parks in the
+        // intelligence module's ApprovalStore until an operator decides here; the decision POST resumes
+        // (approve) or denies the gated tool. Reads degrade to empty when the module is absent (no 503),
+        // mirroring /agent/cases. The decision is itself audited by ControlApi.dispatch; a secured
+        // edition prepends the approver-capability gate at the ApiContext/WriteGates seam (plan §6, L2).
+        api.get("/agent/approvals", (e, m) ->
+                Map.of("approvals", agentOr503(api).recentApprovals(ApiContext.parseIntOr(ApiContext.query(e, "limit"), 50))));
+        api.get("/agent/approvals/(.+)", (e, m) ->
+                agentOr503(api).approvalById(ApiContext.name(m))
+                        .orElseThrow(() -> new ApiException(404, "unknown approval: '" + ApiContext.name(m) + "'")));
+        api.post("/agent/approvals/(.+)/decision", (e, m) -> {
+            Map<String, Object> body = api.body(e);
+            Boolean approve = parseDecision(ApiContext.str(body, "decision"));
+            if (approve == null) throw new ApiException(400, "decision is required and must be 'approve' or 'decline'");
+            String decidedBy = ApiContext.str(body, "decidedBy");
+            return agentOr503(api).decideApproval(ApiContext.name(m), approve,
+                            decidedBy == null || decidedBy.isBlank() ? "operator" : decidedBy.trim())
+                    .orElseThrow(() -> new ApiException(404,
+                            "unknown or already-decided approval: '" + ApiContext.name(m) + "'"));
+        });
+    }
+
+    /** Parse the decision field → approve (true) / decline (false), or {@code null} when unrecognized (→ 400). */
+    private static Boolean parseDecision(String decision) {
+        if (decision == null) return null;
+        return switch (decision.trim().toLowerCase(java.util.Locale.ROOT)) {
+            case "approve", "approved", "yes", "true" -> Boolean.TRUE;
+            case "decline", "declined", "deny", "denied", "reject", "rejected", "no", "false" -> Boolean.FALSE;
+            default -> null;
+        };
     }
 
     /**

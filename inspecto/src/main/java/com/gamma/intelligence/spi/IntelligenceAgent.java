@@ -86,6 +86,32 @@ public interface IntelligenceAgent extends AutoCloseable {
         return Optional.empty();
     }
 
+    /**
+     * Recent agent-action approvals (AGT-5 P3, autonomy L2), newest first, as plain JSON-friendly
+     * maps — the core stays free of the {@code Approval} type, which lives in the optional
+     * {@code file-processor-intelligence} module. Includes both pending and already-decided entries so
+     * {@code GET /agent/approvals} can show recent history. Default empty: an implementation without an
+     * act tier (or the module absent) yields no approvals rather than a 503, mirroring {@link #recentCases}.
+     */
+    default List<Map<String, Object>> recentApprovals(int limit) {
+        return List.of();
+    }
+
+    /** One approval by id, or empty when unknown (the control route maps that to 404). */
+    default Optional<Map<String, Object>> approvalById(String id) {
+        return Optional.empty();
+    }
+
+    /**
+     * Record an operator's decision on a pending approval (AGT-5 P3): {@code approve} resumes the
+     * gated mutating tool, otherwise it is denied. Returns the updated approval view, or empty when
+     * the id is unknown or already decided (the control route maps that to 404, so a lapsed or
+     * double decision can never re-open an approval). Default empty for implementations without an act tier.
+     */
+    default Optional<Map<String, Object>> decideApproval(String id, boolean approve, String decidedBy) {
+        return Optional.empty();
+    }
+
     /** Released on service shutdown. Default no-op. */
     @Override default void close() {}
 }

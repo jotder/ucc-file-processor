@@ -212,6 +212,80 @@ class AgentRoutesTest {
         }
     }
 
+    // --- AGT-5 P3: approvals inbox routes ---------------------------------------------------------
+
+    @Test
+    void approvalRoutesAre503WhenNoIntelligenceModuleIsPresent(@TempDir Path dir) throws Exception {
+        try (Ctx ctx = open(dir, null)) {
+            assertEquals(503, send(ctx.port(), "GET", "/agent/approvals", null).statusCode());
+            assertEquals(503, send(ctx.port(), "GET", "/agent/approvals/appr-1", null).statusCode());
+            assertEquals(503, send(ctx.port(), "POST", "/agent/approvals/appr-1/decision",
+                    "{\"decision\":\"approve\"}").statusCode());
+        }
+    }
+
+    @Test
+    void recentApprovalsReturnsSeededEntries(@TempDir Path dir) throws Exception {
+        FakeIntelligenceAgent agent = new FakeIntelligenceAgent();
+        agent.seedApproval("appr-1", "component_apply", "PENDING");
+        try (Ctx ctx = open(dir, agent)) {
+            HttpResponse<String> r = send(ctx.port(), "GET", "/agent/approvals", null);
+            assertEquals(200, r.statusCode());
+            JsonNode approvals = JSON.readTree(r.body()).get("approvals");
+            assertEquals(1, approvals.size());
+            assertEquals("component_apply", approvals.get(0).get("tool").asText());
+        }
+    }
+
+    @Test
+    void approvalByIdReturnsTheMatchOr404(@TempDir Path dir) throws Exception {
+        FakeIntelligenceAgent agent = new FakeIntelligenceAgent();
+        agent.seedApproval("appr-1", "component_apply", "PENDING");
+        try (Ctx ctx = open(dir, agent)) {
+            HttpResponse<String> ok = send(ctx.port(), "GET", "/agent/approvals/appr-1", null);
+            assertEquals(200, ok.statusCode());
+            assertEquals("PENDING", JSON.readTree(ok.body()).get("status").asText());
+            assertEquals(404, send(ctx.port(), "GET", "/agent/approvals/nope", null).statusCode());
+        }
+    }
+
+    @Test
+    void decisionApprovesAPendingApproval(@TempDir Path dir) throws Exception {
+        FakeIntelligenceAgent agent = new FakeIntelligenceAgent();
+        agent.seedApproval("appr-1", "component_apply", "PENDING");
+        try (Ctx ctx = open(dir, agent)) {
+            HttpResponse<String> r = send(ctx.port(), "POST", "/agent/approvals/appr-1/decision",
+                    "{\"decision\":\"approve\",\"decidedBy\":\"alice\"}");
+            assertEquals(200, r.statusCode());
+            JsonNode body = JSON.readTree(r.body());
+            assertEquals("APPROVED", body.get("status").asText());
+            assertEquals("alice", body.get("decidedBy").asText());
+        }
+    }
+
+    @Test
+    void decisionOnAnUnknownOrDecidedApprovalIs404(@TempDir Path dir) throws Exception {
+        FakeIntelligenceAgent agent = new FakeIntelligenceAgent();
+        agent.seedApproval("appr-1", "component_apply", "APPROVED"); // already decided
+        try (Ctx ctx = open(dir, agent)) {
+            assertEquals(404, send(ctx.port(), "POST", "/agent/approvals/appr-1/decision",
+                    "{\"decision\":\"approve\"}").statusCode());
+            assertEquals(404, send(ctx.port(), "POST", "/agent/approvals/nope/decision",
+                    "{\"decision\":\"approve\"}").statusCode());
+        }
+    }
+
+    @Test
+    void decisionWithAMissingOrUnrecognizedVerbIs400(@TempDir Path dir) throws Exception {
+        FakeIntelligenceAgent agent = new FakeIntelligenceAgent();
+        agent.seedApproval("appr-1", "component_apply", "PENDING");
+        try (Ctx ctx = open(dir, agent)) {
+            assertEquals(400, send(ctx.port(), "POST", "/agent/approvals/appr-1/decision",
+                    "{\"decision\":\"maybe\"}").statusCode());
+            assertEquals(400, send(ctx.port(), "POST", "/agent/approvals/appr-1/decision", "{}").statusCode());
+        }
+    }
+
     /** A deterministic in-memory agent — no eoiagent/model dependency needed in the core test tree. */
     private static final class FakeIntelligenceAgent implements IntelligenceAgent {
         // Stand-in for the eoiagent GoalKind enum (not on the core test classpath).
@@ -220,13 +294,45 @@ class AgentRoutesTest {
 
         private final Map<String, String> sessions = new ConcurrentHashMap<>();
         private final Map<String, Object> cases;
+        // Insertion-ordered so recentApprovals is deterministic; entries mutate on decision.
+        private final Map<String, Map<String, Object>> approvals = new java.util.LinkedHashMap<>();
         volatile String lastGoalKind;
 
         FakeIntelligenceAgent() { this(Map.of()); }
         FakeIntelligenceAgent(Map<String, Object> cases) { this.cases = cases; }
 
+        /** Seed one approval view (mirrors the {@code Approval.toView()} shape the real agent emits). */
+        void seedApproval(String id, String tool, String status) {
+            Map<String, Object> view = new java.util.LinkedHashMap<>();
+            view.put("id", id);
+            view.put("tool", tool);
+            view.put("status", status);
+            approvals.put(id, view);
+        }
+
         @Override public String name() { return "fake-intelligence"; }
         @Override public void init(CollectorService service) {}
+
+        @Override
+        public List<Map<String, Object>> recentApprovals(int limit) {
+            return List.copyOf(approvals.values());
+        }
+
+        @Override
+        public java.util.Optional<Map<String, Object>> approvalById(String id) {
+            return java.util.Optional.ofNullable(approvals.get(id));
+        }
+
+        @Override
+        public java.util.Optional<Map<String, Object>> decideApproval(String id, boolean approve, String decidedBy) {
+            Map<String, Object> a = approvals.get(id);
+            if (a == null || !"PENDING".equals(a.get("status"))) return java.util.Optional.empty();
+            Map<String, Object> updated = new java.util.LinkedHashMap<>(a);
+            updated.put("status", approve ? "APPROVED" : "DENIED");
+            updated.put("decidedBy", decidedBy);
+            approvals.put(id, updated);
+            return java.util.Optional.of(updated);
+        }
 
         @Override
         @SuppressWarnings("unchecked")

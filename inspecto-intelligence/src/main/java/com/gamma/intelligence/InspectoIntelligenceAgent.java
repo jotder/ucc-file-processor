@@ -19,6 +19,7 @@ import com.eoiagent.platform.AgentPlatform;
 import com.eoiagent.platform.PlatformBuilder;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.gamma.intelligence.action.AgentApprovals;
 import com.gamma.intelligence.context.ContextBroker;
 import com.gamma.intelligence.investigation.Case;
 import com.gamma.intelligence.investigation.CaseStore;
@@ -56,6 +57,11 @@ public final class InspectoIntelligenceAgent implements IntelligenceAgent {
 
     private final Map<String, AgentSession> sessions = new ConcurrentHashMap<>();
     private final CaseStore caseStore = new CaseStore();
+    // P3 (L2): the approvals inbox + the bridge that makes eoiagent's gate non-headless. Present
+    // regardless of the act tier — the inbox reads degrade to empty when the tier is off (no request
+    // is ever raised then). When the tier is on, start() replaces this with a previewer-backed instance
+    // and wires it as the platform's ApprovalHandler; SPI reads/decisions always go through this field.
+    private AgentApprovals approvals = new AgentApprovals();
     private final LlmGateway gatewayOverride;
     private CollectorService service;
     private InspectoPack pack;
@@ -89,11 +95,17 @@ public final class InspectoIntelligenceAgent implements IntelligenceAgent {
         pack = new InspectoPack(service);
         contextBroker = new ContextBroker(service);
         gateway = gatewayOverride != null ? gatewayOverride : GatewayFactory.build();
-        platform = new PlatformBuilder()
-                .pack(pack)
-                .llmGateway(gateway)
-                .start();
-        log.info("Intelligence platform assembled: {} v{}", platform.pack().name(), platform.pack().version());
+        PlatformBuilder builder = new PlatformBuilder().pack(pack).llmGateway(gateway);
+        // P3 (L2): supply the human-in-the-loop approval handler only when the act tier is opted in.
+        // The pack config enables MUTATING_ACTIONS off the same flag, so tools + gate move in lockstep;
+        // without a handler the gate is headless (every request DENIED), so this is what makes the
+        // mutating belt actually usable rather than uniformly fail-closed.
+        if (AgentApprovals.enabled()) {
+            builder.approvalHandler(approvals);
+        }
+        platform = builder.start();
+        log.info("Intelligence platform assembled: {} v{}{}", platform.pack().name(), platform.pack().version(),
+                AgentApprovals.enabled() ? " (act tier ENABLED — mutating tools gated via approvals inbox)" : "");
 
         // Slice E: autonomous triage is opt-in. When enabled, subscribe to the canonical Signal bus
         // and run an RCA investigation (L1 — Case + draft only) on each error/critical breach.
@@ -175,6 +187,21 @@ public final class InspectoIntelligenceAgent implements IntelligenceAgent {
     @Override
     public Optional<Map<String, Object>> caseById(String id) {
         return caseStore.byId(id).map(Case::toView);
+    }
+
+    @Override
+    public List<Map<String, Object>> recentApprovals(int limit) {
+        return approvals.recent(limit);
+    }
+
+    @Override
+    public Optional<Map<String, Object>> approvalById(String id) {
+        return approvals.byId(id);
+    }
+
+    @Override
+    public Optional<Map<String, Object>> decideApproval(String id, boolean approve, String decidedBy) {
+        return approvals.resolve(id, approve, decidedBy);
     }
 
     /**
