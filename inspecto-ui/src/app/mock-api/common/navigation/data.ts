@@ -34,6 +34,7 @@ export const defaultNavigation: GammaNavigationItem[] = [
             { id: 'diagnoses',   title: 'Diagnoses',  type: 'basic', icon: 'heroicons_outline:wrench-screwdriver',    link: '/diagnoses' },
             { id: 'alerts',      title: 'Alerts',     type: 'basic', icon: 'heroicons_outline:bell-alert',            link: '/alerts' },
             { id: 'incidents',   title: 'Incidents',  type: 'basic', icon: 'heroicons_outline:exclamation-triangle',  link: '/incidents' },
+            { id: 'approvals',   title: 'Approvals Inbox', type: 'basic', icon: 'heroicons_outline:inbox-arrow-down', link: '/approvals' },
             { id: 'cases',       title: 'Case Manager', type: 'basic', icon: 'heroicons_outline:briefcase',           link: '/cases' }
         ]
     },

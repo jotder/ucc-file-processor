@@ -84,11 +84,13 @@ file-read boundary), so this is its own slice. `kpi_report_builder` has no confi
 kind (no KPI/report kind in `ComponentRegistry`; it would compose `MeasureCompiler` measures into a
 `dashboard`) — needs the dashboard-tile owner's sign-off before scoping.
 
-## P3 gated-action tier (partially shipped — slices 1–4 of the plan)
+## P3 gated-action tier (partially shipped — slices 1–5 of the plan)
 
 The L2 "act" layer: mutating tools gated behind an approval, so the agent can apply what P2 only
-drafted, drive the running system's operational verbs, and run seeded multi-step remediations. Four
-slices shipped (`a30049a`, `b5069c1`, `89bb1a5`, + `runbook_operator`); the approvals-inbox UI remains.
+drafted, drive the running system's operational verbs, run seeded multi-step remediations, and be
+governed from an operator inbox UI. Five slices shipped (`a30049a`, `b5069c1`, `89bb1a5`,
+`runbook_operator`, + the approvals-inbox UI); only cross-restart checkpoint/resume remains (needs an
+eoiagent change).
 
 - **Approval spine (slice 1)** — `action.Approval`/`ApprovalStore` (bounded ring, sibling of
   `CaseStore`; once-only guarded `PENDING→APPROVED/DENIED/TIMED_OUT`), `AgentApprovals` (an eoiagent
@@ -139,10 +141,19 @@ slices shipped (`a30049a`, `b5069c1`, `89bb1a5`, + `runbook_operator`); the appr
   `reschedule_and_trigger` (schedule_apply → job_run). *One approval for the whole plan* (not per step) is
   the deliberate first cut — runbooks are code-defined so the operator sees exactly what will run, and it
   sidesteps the framework's per-call parked-thread gate (nesting gated calls would deadlock).
-- **Still open** — the approvals-inbox **UI** (routes exist, Angular page not built), and true
-  checkpoint/resume across restarts (today the gate parks an in-JVM thread, bounded by the framework's
-  approval timeout, default ~5 min, not configurable via `PlatformBuilder`; a halted runbook is
-  re-triggered from the start, not resumed).
+- **Approvals-inbox UI (slice 5)** — the operator surface in `inspecto-ui`
+  (`modules/admin/approvals/`, route `/approvals`, Operations nav). An `ApprovalsService`
+  (`inspecto/api/approvals.service.ts`) wraps `GET /agent/approvals[/{id}]` and
+  `POST /agent/approvals/{id}/decision`; the standalone `ApprovalsComponent` lists requests in the
+  shared `<inspecto-data-table>` (tool, actor, status badge, summary), and — Ops-gated on
+  `LensService.canOperateRuns` — offers Approve/Decline row actions on PENDING rows. Deciding opens the
+  shared confirm dialog carrying the request's dry-run `preview` + arguments (pretty-printed), then
+  reflects the terminal status in place. Reads degrade to an empty inbox + toast (module absent / act
+  tier off). Vitest specs cover the service wire contract and the component (gating, PENDING-only
+  actions, approve/decline, failure degrade, a11y).
+- **Still open** — only true checkpoint/resume across restarts (today the gate parks an in-JVM thread,
+  bounded by the framework's approval timeout, default ~5 min, not configurable via `PlatformBuilder`;
+  a halted runbook is re-triggered from the start, not resumed) — needs a cross-repo eoiagent change.
 - **Gotchas**: the eoiagent gate has no per-tool `DryRunProvider` seam through `PlatformBuilder` (it
   only wires the `ApprovalHandler`), so the operator-facing diff is computed by `AgentApprovals`' own
   previewer, not the framework's `approvalGate.dryRun` — `ApprovalRequest.preview` is empty by design,

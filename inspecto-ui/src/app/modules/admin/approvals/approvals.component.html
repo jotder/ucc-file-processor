@@ -1,0 +1,35 @@
+<div class="flex min-w-0 flex-auto flex-col p-6 md:p-8">
+    <!-- Header -->
+    <div class="flex items-center justify-between">
+        <div>
+            <h1 class="text-3xl font-extrabold leading-tight tracking-tight">Approvals Inbox</h1>
+            <div class="text-secondary mt-1">
+                Mutating agent actions wait here for a human decision. Review each request's dry-run
+                preview, then approve to resume it or decline to deny — every outcome is audited.
+            </div>
+        </div>
+        <div class="flex items-center gap-3">
+            @if (loading) {
+                <mat-spinner diameter="24"></mat-spinner>
+            }
+            <button mat-icon-button (click)="load()" [disabled]="loading" aria-label="Refresh">
+                <mat-icon [svgIcon]="'heroicons_outline:arrow-path'"></mat-icon>
+            </button>
+        </div>
+    </div>
+
+    <!-- Approvals grid -->
+    <div class="mt-4 flex-auto">
+        <inspecto-data-table
+            tier="pro"
+            sourceName="agent-approvals"
+            exportName="agent-approvals"
+            [rows]="approvals"
+            [columns]="columnDefs"
+            [rowActions]="rowActions"
+            [loading]="loading"
+            noRowsTitle="No approvals waiting"
+            noRowsHint="When the agent's act tier is enabled and it proposes a mutating action, the request appears here for review."
+        />
+    </div>
+</div>

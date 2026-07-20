@@ -24,6 +24,7 @@ export * from './lineage.service';
 export * from './config.service';
 export * from './assist.service';
 export * from './agent.service';
+export * from './approvals.service';
 export * from './alerts.service';
 export * from './objects.service';
 export * from './connections.service';

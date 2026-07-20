@@ -303,7 +303,7 @@ Alert-Rule-from-profiling rides the same `suggest_expectations` pattern when dem
 pass rate; every draft carries validation evidence.* (Met for pipeline/expectation/config kinds; query
 + dashboard authoring await the deferred tools.)
 
-**P3 — Gated action (L2). PARTIALLY SHIPPED 2026-07-20 (approval spine + component + operational act tools + runbook_operator).**
+**P3 — Gated action (L2). PARTIALLY SHIPPED 2026-07-20 (approval spine + component + operational act tools + runbook_operator + approvals-inbox UI).**
 Delivered (opt-in `-Dintelligence.act.enabled`, off by default — L0/L1 unchanged):
 - **Approval spine** — the eoiagent gate is now non-headless. `AgentApprovals` (an eoiagent
   `ApprovalHandler`) bridges the framework's *synchronous* `DefaultToolRegistry.dispatchMutating`
@@ -339,19 +339,25 @@ Delivered (opt-in `-Dintelligence.act.enabled`, off by default — L0/L1 unchang
   `rollback_and_rerun`, `reschedule_and_trigger`. One-approval-per-plan (per §3 "named, pre-approved
   plan of gated tools") is deliberate — it sidesteps the framework's per-call parked-thread gate
   (nesting gated calls would deadlock) and is safe because runbooks are code-defined, not model-authored.
+- **Approvals-inbox UI** — the operator surface in `inspecto-ui` (`modules/admin/approvals/`, route
+  `/approvals`, Operations nav). `ApprovalsService` wraps the `/agent/approvals*` routes; the standalone
+  `ApprovalsComponent` lists requests in the shared data-table and offers Approve/Decline (Ops-gated on
+  `canOperateRuns`, PENDING-only), each opening the shared confirm dialog with the request's dry-run
+  preview + arguments. Vitest specs cover the service + component. This is the front half of the P3
+  exit ("dry-run diff shown → human approves") for the whole act belt.
 
 *Substrate precedent (2026-07-19, S6): the "agent proposes → dry-run → explicit human confirm →
 audited `actor=agent:*` apply → declining mutates nothing" pattern was first proven for A2UI `invoke`
 against an existing Decision Rule; this pass generalizes it to authored-then-applied component drafts
 and adds the queue (was per-artifact inline confirm only).*
 
-*Still open for P3:* the approvals-inbox **UI** (backend routes exist; the Angular `agent-approvals/`
-page is not built yet), and true checkpoint/resume across process restarts (today the gate parks an
+*Still open for P3:* only true checkpoint/resume across process restarts (today the gate parks an
 in-JVM thread bounded by the framework's approval timeout, and a halted runbook is re-triggered from the
-start, not resumed).
+start, not resumed) — that needs a cross-repo eoiagent change.
 *Exit: end-to-end "agent proposes → dry-run diff shown → human approves → agent applies + verifies →
-undo works", fully audited.* (Met for the component-authoring, operational-action, and seeded-runbook
-surfaces; the inbox UI + cross-restart resume remain.)
+undo works", fully audited.* (Met across the component-authoring, operational-action, and
+seeded-runbook surfaces, now with an operator inbox UI to review + decide; only cross-restart resume
+remains.)
 
 **P4 — Bounded autonomy (L3).** Decision-Rule policy engine + budgets + kill switch; `ops_monitor`
 loop; pilot action classes (batch re-run, alert triage); autonomy Dashboard (what the agent did,
