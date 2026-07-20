@@ -52,16 +52,16 @@ years. Do not reach for a framework; this design is intentional (see [docs/EDITI
 
 - **`etl/`** — `PipelineConfig` (the one config record), `BatchProcessor`/`BatchPlanner`,
   `CsvIngester`, `Compression`, `QuarantineManager`, `MarkerManager`.
-- **`inspector/`** — `SourceProcessor` (poll-cycle: discover → stabilize → dedup → materialize → batch).
-- **`acquire/`** — Data Acquisition SPI: `SourceConnector` + `LocalFileSystemConnector`, `RemoteFile`,
+- **`inspector/`** — `CollectorProcessor` (poll-cycle: discover → stabilize → dedup → materialize → batch).
+- **`acquire/`** — Data Acquisition SPI: `CollectorConnector` + `LocalFileSystemConnector`, `RemoteFile`,
   `StabilityGate`, `AcquisitionLedger`, `DuplicatePolicy`, `ConnectionRegistry`/`ConnectionProfile`/
   `SecretResolver`, `CircuitBreaker`, `RateLimiter`, `retry/RetryPolicy`.
-- **`service/`** — `SourceService` (always-on host), `ControlApi` (~50 JDK-HttpServer routes),
+- **`service/`** — `CollectorService` (always-on host), `ControlApi` (~50 JDK-HttpServer routes),
   `JobService`.
 - **`ops/`** `event/` `alert/` `metrics/` (Prometheus on `/metrics`) `catalog/` `config/` `sql/`
   (sandboxed SQL).
 
-Entry points: `com.gamma.inspector.SourceProcessor` (one-shot ETL) · `com.gamma.service.SourceService`
+Entry points: `com.gamma.inspector.CollectorProcessor` (one-shot ETL) · `com.gamma.service.CollectorService`
 (long-running host, Control API + UI on `:8080`).
 
 ## Patterns to follow
