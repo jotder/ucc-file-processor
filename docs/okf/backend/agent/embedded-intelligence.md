@@ -84,11 +84,11 @@ file-read boundary), so this is its own slice. `kpi_report_builder` has no confi
 kind (no KPI/report kind in `ComponentRegistry`; it would compose `MeasureCompiler` measures into a
 `dashboard`) — needs the dashboard-tile owner's sign-off before scoping.
 
-## P3 gated-action tier (partially shipped — slices 1–3 of the plan)
+## P3 gated-action tier (partially shipped — slices 1–4 of the plan)
 
 The L2 "act" layer: mutating tools gated behind an approval, so the agent can apply what P2 only
-drafted and drive the running system's operational verbs. Three slices shipped (`a30049a`, `b5069c1`,
-+ operational act tools); `runbook_operator` and the approvals-inbox UI remain.
+drafted, drive the running system's operational verbs, and run seeded multi-step remediations. Four
+slices shipped (`a30049a`, `b5069c1`, `89bb1a5`, + `runbook_operator`); the approvals-inbox UI remains.
 
 - **Approval spine (slice 1)** — `action.Approval`/`ApprovalStore` (bounded ring, sibling of
   `CaseStore`; once-only guarded `PENDING→APPROVED/DENIED/TIMED_OUT`), `AgentApprovals` (an eoiagent
@@ -127,9 +127,22 @@ drafted and drive the running system's operational verbs. Three slices shipped (
   `/schedules` resource (a schedule is a job's `cron`, changed via `/jobs/{name}/reschedule`); no
   `/pipelines/.../rerun` (the replay verb is `POST /runs/{name}/reprocess`, batch-scoped). The tools use
   the real routes; the tool names stay plan-aligned.
-- **Still open** — `runbook_operator`, the approvals-inbox **UI** (routes exist, Angular page not built),
-  and true checkpoint/resume across restarts (today the gate parks an in-JVM thread, bounded by the
-  framework's approval timeout, default ~5 min, not configurable via `PlatformBuilder`).
+- **Compound runbook operator (slice 4)** — `runbook_operator` (`action.RunbookActions`) executes a
+  **named, seeded** runbook — a fixed, code-defined ordered sequence of the existing act tools — as
+  **one** approval-gated unit. The model picks a runbook name + params (it cannot author the steps); the
+  operator approves the full resolved plan (the preview lists every step + args), and each step then runs
+  post-approval by dispatching to the same `ComponentActions`/`OperationalActions` executors over the
+  audited control plane (`X-Agent-Session` per step). Execution is stepwise with a per-step log and
+  **halt-on-first-failure** (`success`/`completed`/`haltedAtStep`); a pre-flight error (unknown runbook,
+  missing params) mutates nothing. `mutating=true`, `EDIT_CONFIG`; belt now **19**. Seeded runbooks:
+  `triage_and_replay` (alert_ack → pipeline_rerun), `rollback_and_rerun` (component_rollback → job_run),
+  `reschedule_and_trigger` (schedule_apply → job_run). *One approval for the whole plan* (not per step) is
+  the deliberate first cut — runbooks are code-defined so the operator sees exactly what will run, and it
+  sidesteps the framework's per-call parked-thread gate (nesting gated calls would deadlock).
+- **Still open** — the approvals-inbox **UI** (routes exist, Angular page not built), and true
+  checkpoint/resume across restarts (today the gate parks an in-JVM thread, bounded by the framework's
+  approval timeout, default ~5 min, not configurable via `PlatformBuilder`; a halted runbook is
+  re-triggered from the start, not resumed).
 - **Gotchas**: the eoiagent gate has no per-tool `DryRunProvider` seam through `PlatformBuilder` (it
   only wires the `ApprovalHandler`), so the operator-facing diff is computed by `AgentApprovals`' own
   previewer, not the framework's `approvalGate.dryRun` — `ApprovalRequest.preview` is empty by design,

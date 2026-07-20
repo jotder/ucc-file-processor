@@ -84,6 +84,10 @@ class InspectoToolsTest {
             assertTrue(t.spec().mutating(), name + " must be mutating (P3 act tool)");
             assertEquals(cap, t.spec().capability(), name + " must require " + cap);
         });
+        // The compound runbook_operator is mutating too (one approval for the whole seeded plan).
+        Tool runbook = tool(svc, "runbook_operator");
+        assertTrue(runbook.spec().mutating(), "runbook_operator must be mutating (P3 compound act tool)");
+        assertEquals(com.eoiagent.core.Capability.EDIT_CONFIG, runbook.spec().capability());
         // The P2 authoring tools stay non-mutating (draft/validate only) alongside them.
         assertFalse(tool(svc, "component_draft").spec().mutating());
     }

@@ -24,6 +24,7 @@ import com.gamma.intelligence.action.AgentApprovals;
 import com.gamma.intelligence.action.ApprovalStore;
 import com.gamma.intelligence.action.ComponentActions;
 import com.gamma.intelligence.action.OperationalActions;
+import com.gamma.intelligence.action.RunbookActions;
 import com.gamma.intelligence.context.ContextBroker;
 import com.gamma.intelligence.investigation.Case;
 import com.gamma.intelligence.investigation.CaseStore;
@@ -239,8 +240,9 @@ public final class InspectoIntelligenceAgent implements IntelligenceAgent {
     /**
      * The read-only dry-run preview the P3 approval gate shows the operator, dispatched by tool family:
      * operational act tools ({@code job_run}/{@code pipeline_rerun}/{@code alert_ack}/
-     * {@code schedule_apply}) read live {@link CollectorService} state; the component act tools diff the
-     * {@link ComponentStore}. Any other (non-mutating) tool never reaches the gate, so it returns empty.
+     * {@code schedule_apply}) read live {@link CollectorService} state; {@code runbook_operator} shows
+     * the full resolved plan; the component act tools diff the {@link ComponentStore}. Any other
+     * (non-mutating) tool never reaches the gate, so it returns empty.
      */
     private static Map<String, Object> previewAction(ComponentStore components, CollectorService service,
                                                      ToolCall call) {
@@ -248,6 +250,7 @@ public final class InspectoIntelligenceAgent implements IntelligenceAgent {
             case OperationalActions.TOOL_JOB_RUN, OperationalActions.TOOL_PIPELINE_RERUN,
                  OperationalActions.TOOL_ALERT_ACK, OperationalActions.TOOL_SCHEDULE_APPLY ->
                     OperationalActions.preview(service, call);
+            case RunbookActions.TOOL_RUNBOOK_OPERATOR -> RunbookActions.preview(call);
             default -> ComponentActions.preview(components, call);
         };
     }

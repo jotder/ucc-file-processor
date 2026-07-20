@@ -303,7 +303,7 @@ Alert-Rule-from-profiling rides the same `suggest_expectations` pattern when dem
 pass rate; every draft carries validation evidence.* (Met for pipeline/expectation/config kinds; query
 + dashboard authoring await the deferred tools.)
 
-**P3 — Gated action (L2). PARTIALLY SHIPPED 2026-07-20 (approval spine + component act tools + operational act tools).**
+**P3 — Gated action (L2). PARTIALLY SHIPPED 2026-07-20 (approval spine + component + operational act tools + runbook_operator).**
 Delivered (opt-in `-Dintelligence.act.enabled`, off by default — L0/L1 unchanged):
 - **Approval spine** — the eoiagent gate is now non-headless. `AgentApprovals` (an eoiagent
   `ApprovalHandler`) bridges the framework's *synchronous* `DefaultToolRegistry.dispatchMutating`
@@ -331,18 +331,27 @@ Delivered (opt-in `-Dintelligence.act.enabled`, off by default — L0/L1 unchang
   action-summary + live-state preview via `OperationalActions.preview`). *Naming reality:* there is no
   `/alerts/{id}/ack`, no `/schedules` resource, and no `/pipelines/.../rerun` — the tools keep the
   plan-aligned names but use the routes that actually exist.
+- **`runbook_operator`** — a compound act tool that runs a **named, seeded** runbook (a fixed,
+  code-defined sequence of the above act tools) as **one** approval-gated unit (`RunbookActions`). The
+  model picks a runbook name + params (it cannot author steps); the operator approves the full resolved
+  plan (preview lists every step); steps then run post-approval, each through its own audited route,
+  with a per-step log + halt-on-first-failure. Three seeded runbooks: `triage_and_replay`,
+  `rollback_and_rerun`, `reschedule_and_trigger`. One-approval-per-plan (per §3 "named, pre-approved
+  plan of gated tools") is deliberate — it sidesteps the framework's per-call parked-thread gate
+  (nesting gated calls would deadlock) and is safe because runbooks are code-defined, not model-authored.
 
 *Substrate precedent (2026-07-19, S6): the "agent proposes → dry-run → explicit human confirm →
 audited `actor=agent:*` apply → declining mutates nothing" pattern was first proven for A2UI `invoke`
 against an existing Decision Rule; this pass generalizes it to authored-then-applied component drafts
 and adds the queue (was per-artifact inline confirm only).*
 
-*Still open for P3:* `runbook_operator` with 2–3 seeded runbooks, the approvals-inbox **UI** (backend
-routes exist; the Angular `agent-approvals/` page is not built yet), and true checkpoint/resume across
-process restarts (today the gate parks an in-JVM thread, bounded by the framework's approval timeout).
+*Still open for P3:* the approvals-inbox **UI** (backend routes exist; the Angular `agent-approvals/`
+page is not built yet), and true checkpoint/resume across process restarts (today the gate parks an
+in-JVM thread bounded by the framework's approval timeout, and a halted runbook is re-triggered from the
+start, not resumed).
 *Exit: end-to-end "agent proposes → dry-run diff shown → human approves → agent applies + verifies →
-undo works", fully audited.* (Met for the component-authoring and operational-action surfaces; the
-compound `runbook_operator` + the inbox UI remain.)
+undo works", fully audited.* (Met for the component-authoring, operational-action, and seeded-runbook
+surfaces; the inbox UI + cross-restart resume remain.)
 
 **P4 — Bounded autonomy (L3).** Decision-Rule policy engine + budgets + kill switch; `ops_monitor`
 loop; pilot action classes (batch re-run, alert triage); autonomy Dashboard (what the agent did,

@@ -9,6 +9,7 @@ import com.eoiagent.tool.Tool;
 import com.gamma.intelligence.action.ComponentActions;
 import com.gamma.intelligence.action.ControlPlaneClient;
 import com.gamma.intelligence.action.OperationalActions;
+import com.gamma.intelligence.action.RunbookActions;
 import com.gamma.config.io.ConfigLoader;
 import com.gamma.config.safety.ConfigSafetyValidator;
 import com.gamma.config.safety.SafetyPolicy;
@@ -94,7 +95,8 @@ final class InspectoTools {
                 componentDraft(), pipelineAuthor(), suggestExpectations(browseStores),
                 componentApply(controlPlane), componentRollback(controlPlane),
                 jobRun(controlPlane), pipelineRerun(controlPlane),
-                alertAck(controlPlane), scheduleApply(controlPlane));
+                alertAck(controlPlane), scheduleApply(controlPlane),
+                runbookOperator(controlPlane));
     }
 
     /** The component registry the control routes read — {@code -Dassist.write.root/registry} — or
@@ -902,6 +904,26 @@ final class InspectoTools {
                         + "\"required\":[\"job\",\"cron\"]}",
                 true, Role.USER, Capability.EDIT_CONFIG);
         return new FunctionTool(spec, call -> OperationalActions.scheduleApply(controlPlane, call, agentSession(call)));
+    }
+
+    /**
+     * AGT-5 P3 {@code runbook_operator} (act, L2): execute a named, seeded runbook — a fixed sequence of
+     * the existing act tools — as one approval-gated unit. The model picks a runbook name + params; the
+     * operator approves the full plan (the preview lists every resolved step); each step then runs
+     * post-approval through the same audited control plane. See {@link RunbookActions}.
+     */
+    private static Tool runbookOperator(ControlPlaneClient controlPlane) {
+        ToolSpec spec = new ToolSpec(RunbookActions.TOOL_RUNBOOK_OPERATOR,
+                "Execute a named, seeded remediation runbook (a fixed sequence of act tools) as one "
+                        + "approval-gated unit via the governed control plane. Gated: dry-run of the full plan "
+                        + "→ human approval → audited stepwise execution (halts on first failure). Args: "
+                        + "runbook (name), params (object). Available runbooks: " + RunbookActions.catalogSummary(),
+                "{\"type\":\"object\",\"properties\":{"
+                        + "\"runbook\":{\"type\":\"string\"},"
+                        + "\"params\":{\"type\":\"object\"}},"
+                        + "\"required\":[\"runbook\"]}",
+                true, Role.USER, Capability.EDIT_CONFIG);
+        return new FunctionTool(spec, call -> RunbookActions.execute(controlPlane, call, agentSession(call)));
     }
 
     /** The agent-session token carried as {@code X-Agent-Session} → audited {@code actor=agent:<run>}. */

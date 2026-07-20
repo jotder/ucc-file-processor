@@ -58,13 +58,13 @@ class InspectoPackTest {
     @Test
     void toolBeltHasRoleAndCapabilityAndOnlyP3ActToolsMutateAndNoMcp() {
         List<Tool> tools = pack.toolProvider().tools();
-        assertEquals(18, tools.size()); // glossary_lookup, docs_search, status_get, S5 signals_query, signal_timeline
+        assertEquals(19, tools.size()); // glossary_lookup, docs_search, status_get, S5 signals_query, signal_timeline
                                         // + P1 timeline_build, diff_batches, config_versions_diff, anomaly_scan
                                         // + P2 component_draft, pipeline_author, suggest_expectations
                                         // + P3 act (mutating, gated): component_apply, component_rollback,
-                                        //   job_run, pipeline_rerun, alert_ack, schedule_apply
+                                        //   job_run, pipeline_rerun, alert_ack, schedule_apply, runbook_operator
         Set<String> actTools = Set.of("component_apply", "component_rollback",
-                "job_run", "pipeline_rerun", "alert_ack", "schedule_apply");
+                "job_run", "pipeline_rerun", "alert_ack", "schedule_apply", "runbook_operator");
         for (Tool t : tools) {
             // Only the P3 act tools are mutating; registration alone never grants mutation — the eoiagent
             // registry keeps them hidden and fail-closed unless MUTATING_ACTIONS is opted in.
