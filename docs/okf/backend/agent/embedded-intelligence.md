@@ -89,8 +89,8 @@ kind (no KPI/report kind in `ComponentRegistry`; it would compose `MeasureCompil
 The L2 "act" layer: mutating tools gated behind an approval, so the agent can apply what P2 only
 drafted, drive the running system's operational verbs, run seeded multi-step remediations, and be
 governed from an operator inbox UI. Five slices shipped (`a30049a`, `b5069c1`, `89bb1a5`,
-`runbook_operator`, + the approvals-inbox UI); only cross-restart checkpoint/resume remains (needs an
-eoiagent change).
+`runbook_operator`, + the approvals-inbox UI), plus durable checkpoint/resume across restarts
+(slice 6, `eoiagent-safety` `DecisionStore` + durable `ApprovalStore`). **P3 complete.**
 
 - **Approval spine (slice 1)** — `action.Approval`/`ApprovalStore` (bounded ring, sibling of
   `CaseStore`; once-only guarded `PENDING→APPROVED/DENIED/TIMED_OUT`), `AgentApprovals` (an eoiagent
@@ -151,9 +151,19 @@ eoiagent change).
   reflects the terminal status in place. Reads degrade to an empty inbox + toast (module absent / act
   tier off). Vitest specs cover the service wire contract and the component (gating, PENDING-only
   actions, approve/decline, failure degrade, a11y).
-- **Still open** — only true checkpoint/resume across restarts (today the gate parks an in-JVM thread,
-  bounded by the framework's approval timeout, default ~5 min, not configurable via `PlatformBuilder`;
-  a halted runbook is re-triggered from the start, not resumed) — needs a cross-repo eoiagent change.
+- **Checkpoint/resume across restarts (slice 6)** — a cross-repo eoiagent change added a host-supplied
+  `com.eoiagent.safety.DecisionStore` seam: `CallbackApprovalGate` consults it *before* prompting the
+  `ApprovalHandler` and records the outcome; `PlatformBuilder.approvalDecisionStore(...)` wires it and
+  the gate's timeout is now config-driven (`eoiagent.approval.timeout`/`.onTimeout`,
+  `eoiagent-safety` 0.2.0-SNAPSHOT, commit `d6fabb3`). Inspecto side: `ApprovalStore` is durable
+  (JSON-lines at `<assist.write.root>/agent/approvals.jsonl`) so pending approvals + undelivered
+  operator decisions survive a restart; `AgentApprovals` *implements* `DecisionStore` — a decision made
+  while no run is parked is held as a **one-shot resume token** keyed by tool + arguments (TTL 1h,
+  consumed atomically under the store lock), admitting the re-issued identical call without
+  re-prompting. A live-delivered decision is `markConsumed` so it can never double as a token; the
+  approval window is widened to `PT30M` via `InspectoPackConfig`. Without a write root the store is
+  in-memory (dev/tests), behaving as before. (Mid-plan runbook resume — re-entering a halted plan at
+  the failed step rather than the start — is deferred to P4.)
 - **Gotchas**: the eoiagent gate has no per-tool `DryRunProvider` seam through `PlatformBuilder` (it
   only wires the `ApprovalHandler`), so the operator-facing diff is computed by `AgentApprovals`' own
   previewer, not the framework's `approvalGate.dryRun` — `ApprovalRequest.preview` is empty by design,
@@ -185,7 +195,7 @@ eoiagent change).
 
 ## Still open (parent plan `embedded-intelligence-plan.md`, §8)
 
-P2 remainder (`query_author`, `kpi_report_builder` — see the P2 tier above for why deferred) · P3
-remainder (`runbook_operator`, approvals-inbox UI, checkpoint/resume — see the P3 tier above) · P4/P5 ·
+P2 remainder (`query_author`, `kpi_report_builder` — see the P2 tier above for why deferred) · P3 is
+complete (mid-plan runbook resume deferred to P4) · P4/P5 ·
 Case persistence + similarity recall · hosted providers (Standard+) · the optional S8 signal-backbone
 slice. See `docs/BACKLOG.md`.

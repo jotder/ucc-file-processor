@@ -32,6 +32,8 @@ public final class Approval {
     private volatile Status status = Status.PENDING;
     private volatile Instant decidedAt;
     private volatile String decidedBy;
+    /** Whether the decision has been delivered to a run (live unblock, or consumed as a resume token). */
+    private volatile boolean consumed;
 
     public Approval(String id, String toolName, String agentActor, String summary,
                     Map<String, Object> arguments, Map<String, Object> preview, Instant requestedAt) {
@@ -53,12 +55,38 @@ public final class Approval {
     public String toolName() { return toolName; }
     public String agentActor() { return agentActor; }
     public Status status() { return status; }
+    public Map<String, Object> arguments() { return arguments; }
+    public Instant decidedAt() { return decidedAt; }
+    boolean consumed() { return consumed; }
+
+    /** Package-private: only {@link ApprovalStore} marks consumption (and persists it). */
+    void consume() { this.consumed = true; }
 
     /** Record the terminal decision. Package-private: only {@link ApprovalStore} transitions state. */
     void decide(Status terminal, String by, Instant at) {
         this.status = terminal;
         this.decidedBy = by;
         this.decidedAt = at;
+    }
+
+    /** The persisted shape — {@link #toView()} plus the {@code consumed} marker. */
+    Map<String, Object> toRecord() {
+        Map<String, Object> m = toView();
+        m.put("consumed", consumed);
+        return m;
+    }
+
+    /** Rehydrate from a persisted {@link #toRecord()} map (restart survival). */
+    @SuppressWarnings("unchecked")
+    static Approval fromRecord(Map<String, Object> m) {
+        Approval a = new Approval((String) m.get("id"), (String) m.get("tool"), (String) m.get("agentActor"),
+                (String) m.get("summary"), (Map<String, Object>) m.get("arguments"),
+                (Map<String, Object>) m.get("preview"), Instant.parse((String) m.get("requestedAt")));
+        a.status = Status.valueOf((String) m.get("status"));
+        a.decidedAt = m.get("decidedAt") == null ? null : Instant.parse((String) m.get("decidedAt"));
+        a.decidedBy = (String) m.get("decidedBy");
+        a.consumed = Boolean.TRUE.equals(m.get("consumed"));
+        return a;
     }
 
     /** The {@code GET /agent/approvals*} view — a plain, JSON-friendly map (the core stays free of this type). */

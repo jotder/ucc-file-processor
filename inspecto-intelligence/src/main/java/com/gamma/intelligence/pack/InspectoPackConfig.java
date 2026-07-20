@@ -32,6 +32,11 @@ final class InspectoPackConfig implements PackConfig {
 
     @Override
     public Map<String, String> configDefaults() {
-        return Map.of("eoiagent.profile", "OFFLINE");
+        // AGT-5 P3: widen the gate's human-decision window past the framework's 5-minute default so an
+        // operator has time to act on an inbox request; a lapse still fails closed (onTimeout default),
+        // and any decision persisted meanwhile resumes the next re-issued call (see AgentApprovals).
+        return Map.of(
+                "eoiagent.profile", "OFFLINE",
+                "eoiagent.approval.timeout", "PT30M");
     }
 }

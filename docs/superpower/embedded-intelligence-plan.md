@@ -351,13 +351,22 @@ audited `actor=agent:*` apply → declining mutates nothing" pattern was first p
 against an existing Decision Rule; this pass generalizes it to authored-then-applied component drafts
 and adds the queue (was per-artifact inline confirm only).*
 
-*Still open for P3:* only true checkpoint/resume across process restarts (today the gate parks an
-in-JVM thread bounded by the framework's approval timeout, and a halted runbook is re-triggered from the
-start, not resumed) — that needs a cross-repo eoiagent change.
+*P3 checkpoint/resume across process restarts — SHIPPED 2026-07-21 (cross-repo).* The eoiagent gate
+now carries a host-supplied `DecisionStore` seam (`jotder/inspect-agent` commit `d6fabb3`,
+`eoiagent-safety` 0.2.0-SNAPSHOT): `CallbackApprovalGate` consults it before prompting the
+`ApprovalHandler` and records the outcome; `PlatformBuilder.approvalDecisionStore(...)` +
+config-driven `eoiagent.approval.timeout`/`.onTimeout` wire it. Inspecto side: `ApprovalStore` is now
+durable (JSON-lines at `<assist.write.root>/agent/approvals.jsonl`), so pending approvals and
+undelivered operator decisions survive a restart; `AgentApprovals` *is* the `DecisionStore` — an
+operator decision made while no run is waiting is held as a one-shot resume token (keyed by tool +
+arguments, TTL 1h, consumed atomically) that admits the re-issued identical call without re-prompting.
+A live-delivered decision is marked consumed so it can never double as a token; the window is widened
+to 30 min via the pack config. (A halted multi-step runbook is still re-triggered from the start, not
+mid-plan resumed — that finer granularity is deferred to P4 alongside the autonomy loop.)
 *Exit: end-to-end "agent proposes → dry-run diff shown → human approves → agent applies + verifies →
 undo works", fully audited.* (Met across the component-authoring, operational-action, and
-seeded-runbook surfaces, now with an operator inbox UI to review + decide; only cross-restart resume
-remains.)
+seeded-runbook surfaces, with an operator inbox UI to review + decide and durable resume across
+restarts. **P3 complete.**)
 
 **P4 — Bounded autonomy (L3).** Decision-Rule policy engine + budgets + kill switch; `ops_monitor`
 loop; pilot action classes (batch re-run, alert triage); autonomy Dashboard (what the agent did,

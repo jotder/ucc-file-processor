@@ -108,9 +108,13 @@ public final class InspectoIntelligenceAgent implements IntelligenceAgent {
         // read-only previewer that shows the operator a diff (+ safety findings) before they approve.
         if (AgentApprovals.enabled()) {
             ComponentStore previewStore = componentStore();
-            approvals = new AgentApprovals(new ApprovalStore(),
+            approvals = new AgentApprovals(approvalStore(),
                     call -> previewAction(previewStore, service, call));
-            builder.approvalHandler(approvals);
+            // P3 resume: the same instance is the platform's DecisionStore, so a re-issued run consults
+            // an operator decision persisted across a restart before re-prompting. The gate's approval
+            // window is set in InspectoPackConfig; a lapse still fails closed, and the persisted
+            // decision, if any, resumes the next re-issue.
+            builder.approvalHandler(approvals).approvalDecisionStore(approvals);
         }
         platform = builder.start();
         log.info("Intelligence platform assembled: {} v{}{}", platform.pack().name(), platform.pack().version(),
@@ -235,6 +239,19 @@ public final class InspectoIntelligenceAgent implements IntelligenceAgent {
         String wr = System.getProperty("assist.write.root");
         return wr == null || wr.isBlank()
                 ? null : new ComponentStore(java.nio.file.Path.of(wr).resolve("registry"));
+    }
+
+    /**
+     * The approvals store. When a write root is configured ({@code -Dassist.write.root}) it is durable
+     * ({@code <root>/agent/approvals.jsonl}) so pending approvals and undelivered operator decisions
+     * survive a restart — the substrate for P3 resume-after-restart. Without a write root it is
+     * in-memory only (dev/tests), which behaves exactly as before this slice.
+     */
+    private static ApprovalStore approvalStore() {
+        String wr = System.getProperty("assist.write.root");
+        return wr == null || wr.isBlank()
+                ? new ApprovalStore()
+                : new ApprovalStore(java.nio.file.Path.of(wr).resolve("agent").resolve("approvals.jsonl"));
     }
 
     /**

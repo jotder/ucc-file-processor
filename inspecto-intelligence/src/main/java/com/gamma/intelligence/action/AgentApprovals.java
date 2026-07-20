@@ -4,6 +4,7 @@ import com.eoiagent.core.ApprovalDecision;
 import com.eoiagent.core.ApprovalRequest;
 import com.eoiagent.core.ToolCall;
 import com.eoiagent.safety.ApprovalHandler;
+import com.eoiagent.safety.DecisionStore;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -30,13 +31,25 @@ import java.util.function.Function;
  * <p>Wiring is opt-in: {@link #enabled()} gates both the {@code MUTATING_ACTIONS} feature
  * ({@code InspectoPackConfig}) and whether this handler is supplied to the platform. With the tier
  * off, the mutating belt is hidden, no {@code decide} is ever called, and the inbox stays empty.
+ *
+ * <p>Resume after restart (P3): with a durable {@link ApprovalStore}, a pending approval survives the
+ * JVM even though its parked gate thread does not. The operator's later decision then has no future to
+ * complete — instead it stays in the store as an unconsumed one-shot resume token. This class is also
+ * the platform's {@link DecisionStore}: when a re-issued run reaches the <em>same</em> mutating call
+ * (tool + arguments), the gate consults {@link #find} before prompting, the token is consumed, and the
+ * run proceeds under the operator's original decision without re-prompting. Tokens expire after
+ * {@link #RESUME_TOKEN_TTL} and a live-delivered decision is marked consumed, so a decision can never
+ * silently authorize anything beyond the one re-issued call the operator already judged.
  */
-public final class AgentApprovals implements ApprovalHandler {
+public final class AgentApprovals implements ApprovalHandler, DecisionStore {
 
     private static final Logger log = LoggerFactory.getLogger(AgentApprovals.class);
 
     /** Opt-in kill-switch: the agent's mutating (act) tier is off unless this system property is {@code true}. */
     public static final String ENABLED_FLAG = "intelligence.act.enabled";
+
+    /** How long an undelivered operator decision remains consumable by a re-issued identical call. */
+    static final java.time.Duration RESUME_TOKEN_TTL = java.time.Duration.ofHours(1);
 
     private final ApprovalStore store;
     private final Function<ToolCall, Map<String, Object>> previewer;
@@ -119,7 +132,38 @@ public final class AgentApprovals implements ApprovalHandler {
         CompletableFuture<ApprovalDecision> future = pending.get(id);
         if (future != null) {
             future.complete(approve ? ApprovalDecision.APPROVED : ApprovalDecision.DENIED);
+            store.markConsumed(id); // delivered live — never doubles as a resume token
+        } else {
+            // No parked gate thread (typically a restart, or a lapsed gate timeout): the decision
+            // stays in the durable store as a one-shot resume token; see find(...).
+            log.info("Approval [{}] decided with no waiting run — held as a resume token ({})",
+                    id, terminal);
         }
         return updated.map(Approval::toView);
+    }
+
+    // --- DecisionStore side: resume a re-issued run under an already-collected decision ------------
+
+    /**
+     * Consulted by the eoiagent gate <em>before</em> prompting: consume the newest undelivered
+     * operator decision for this exact tool + arguments (within {@link #RESUME_TOKEN_TTL}). A miss
+     * falls through to the normal park-and-prompt path.
+     */
+    @Override
+    public Optional<ApprovalDecision> find(ApprovalRequest req) {
+        ToolCall call = req.call();
+        return store.consumeDecided(call.toolName(), call.arguments(),
+                        Instant.now().minus(RESUME_TOKEN_TTL))
+                .map(a -> {
+                    ApprovalDecision d = a.status() == Approval.Status.APPROVED
+                            ? ApprovalDecision.APPROVED : ApprovalDecision.DENIED;
+                    log.info("Resume token [{}] consumed for '{}' → {}", a.id(), call.toolName(), d);
+                    return d;
+                });
+    }
+
+    /** No-op: {@link #decide} already records every request and outcome in the inbox store. */
+    @Override
+    public void record(ApprovalRequest req, ApprovalDecision decision) {
     }
 }
