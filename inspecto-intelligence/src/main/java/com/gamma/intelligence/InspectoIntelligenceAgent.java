@@ -20,6 +20,8 @@ import com.eoiagent.platform.PlatformBuilder;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.gamma.intelligence.action.AgentApprovals;
+import com.gamma.intelligence.action.ApprovalStore;
+import com.gamma.intelligence.action.ComponentActions;
 import com.gamma.intelligence.context.ContextBroker;
 import com.gamma.intelligence.investigation.Case;
 import com.gamma.intelligence.investigation.CaseStore;
@@ -99,8 +101,11 @@ public final class InspectoIntelligenceAgent implements IntelligenceAgent {
         // P3 (L2): supply the human-in-the-loop approval handler only when the act tier is opted in.
         // The pack config enables MUTATING_ACTIONS off the same flag, so tools + gate move in lockstep;
         // without a handler the gate is headless (every request DENIED), so this is what makes the
-        // mutating belt actually usable rather than uniformly fail-closed.
+        // mutating belt actually usable rather than uniformly fail-closed. The handler is backed by a
+        // read-only previewer that shows the operator a diff (+ safety findings) before they approve.
         if (AgentApprovals.enabled()) {
+            ComponentStore preview = componentStore();
+            approvals = new AgentApprovals(new ApprovalStore(), call -> ComponentActions.preview(preview, call));
             builder.approvalHandler(approvals);
         }
         platform = builder.start();
@@ -216,10 +221,16 @@ public final class InspectoIntelligenceAgent implements IntelligenceAgent {
     }
 
     private Investigator investigator() {
+        return new Investigator(service, componentStore(), service::browsableStores, gateway);
+    }
+
+    /** The registry the control routes read/write ({@code -Dassist.write.root/registry}), or {@code null}
+     *  when no write root is configured. Used read-only by the P3 approval previewer and by the RCA
+     *  fix-draft step; the act tools' actual writes go through the audited control plane, not this handle. */
+    private static ComponentStore componentStore() {
         String wr = System.getProperty("assist.write.root");
-        ComponentStore components = wr == null || wr.isBlank()
+        return wr == null || wr.isBlank()
                 ? null : new ComponentStore(java.nio.file.Path.of(wr).resolve("registry"));
-        return new Investigator(service, components, service::browsableStores, gateway);
     }
 
     /** Test seam: seed/inspect the store directly (e.g. before slice E's triage trigger is wired). */

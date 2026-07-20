@@ -56,13 +56,18 @@ class InspectoPackTest {
     }
 
     @Test
-    void toolBeltIsAllReadOnlyWithRoleAndCapabilityAndNoMcp() {
+    void toolBeltHasRoleAndCapabilityAndOnlyP3ActToolsMutateAndNoMcp() {
         List<Tool> tools = pack.toolProvider().tools();
-        assertEquals(12, tools.size()); // glossary_lookup, docs_search, status_get, S5 signals_query, signal_timeline
+        assertEquals(14, tools.size()); // glossary_lookup, docs_search, status_get, S5 signals_query, signal_timeline
                                         // + P1 timeline_build, diff_batches, config_versions_diff, anomaly_scan
                                         // + P2 component_draft, pipeline_author, suggest_expectations
+                                        // + P3 act (mutating, gated) component_apply, component_rollback
+        Set<String> actTools = Set.of("component_apply", "component_rollback");
         for (Tool t : tools) {
-            assertFalse(t.spec().mutating(), "tool " + t.spec().name() + " must be read-only");
+            // Only the P3 act tools are mutating; registration alone never grants mutation — the eoiagent
+            // registry keeps them hidden and fail-closed unless MUTATING_ACTIONS is opted in.
+            assertEquals(actTools.contains(t.spec().name()), t.spec().mutating(),
+                    "unexpected mutating flag for " + t.spec().name());
             assertNotNull(t.spec().requiredRole());
             assertNotNull(t.spec().capability());
         }

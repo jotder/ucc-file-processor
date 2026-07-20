@@ -148,6 +148,35 @@ class ControlApiAgentInvokeTest {
         }
     }
 
+    // ── P3: an agent-attributed component write goes through the same audited contract ───────────
+
+    @Test
+    void agentComponentWriteAuditsWithAgentActor(@TempDir Path cfg, @TempDir Path wr) throws Exception {
+        // The P3 component_apply act tool creates/updates registry components over this exact route
+        // (loopback, X-Agent-Session). Proves the "no private backdoor" guarantee for the component
+        // path directly: the write is audited actor=agent:<session>, no special agent code path.
+        try (Ctx c = open(cfg, wr)) {
+            HttpResponse<String> r = sendWithHeader(c.port, "POST", "/components/expectation",
+                    "{\"id\":\"amt_nonneg\",\"kind\":\"non_null\",\"column\":\"amt\"}", "X-Agent-Session", "sess-99");
+            assertTrue(r.statusCode() == 200 || r.statusCode() == 201,
+                    "agent component create via loopback should succeed: " + r.statusCode() + " " + r.body());
+
+            JsonNode audit = findAuditByPath(c.port, "/components/expectation");
+            assertNotNull(audit, "the component write must be audited");
+            assertEquals("agent:sess-99", audit.get("attributes").get("actor").asText());
+            assertEquals("agent", audit.get("attributes").get("actor_type").asText());
+        }
+    }
+
+    private JsonNode findAuditByPath(int port, String pathFragment) throws Exception {
+        JsonNode events = json(send(port, "GET", "/events?limit=200", null));
+        for (JsonNode e : events) {
+            if ("AUDIT".equals(e.get("type").asText())
+                    && e.get("attributes").get("http_path").asText().contains(pathFragment)) return e;
+        }
+        return null;
+    }
+
     // ── helpers ─────────────────────────────────────────────────────────────────
 
     private HttpResponse<String> send(int port, String method, String path, String body) throws Exception {

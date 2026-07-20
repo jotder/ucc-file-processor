@@ -286,8 +286,19 @@ public final class ControlApi implements AutoCloseable, ApiContext {
 
     public int port() { return http.getAddress().getPort(); }
 
+    /**
+     * System property carrying this JVM's loopback control-plane base URL (root, no {@code /api/v1}
+     * prefix — routes register at root, e.g. {@code /components/...}). Published on {@link #start()}
+     * and cleared on {@link #close()}. AGT-5 P3: the in-process embedded-intelligence agent's <em>act</em>
+     * tools read it to call the same fail-closed, audited control-plane contracts as any UI/API caller
+     * (carrying {@code X-Agent-Session} so the write is attributed {@code actor=agent:<session>}) —
+     * no private backdoor. Absent when no control plane is running (the act tools then degrade honestly).
+     */
+    public static final String LOCAL_BASE_URL_PROP = "inspecto.control.localBaseUrl";
+
     public void start() {
         http.start();
+        System.setProperty(LOCAL_BASE_URL_PROP, "http://127.0.0.1:" + port());
         if (Authenticators.active().isPresent())
             log.info("ControlApi started on port {} (Standard edition — authentication enforced via {})",
                     port(), Authenticators.active().get().getClass().getName());
@@ -301,6 +312,12 @@ public final class ControlApi implements AutoCloseable, ApiContext {
     @Override
     public void close() {
         http.stop(0);
+        // Only clear the loopback URL if it still points at us (a later ControlApi in the same JVM may
+        // have re-published its own — don't strip a live one out from under it).
+        String mine = "http://127.0.0.1:" + port();
+        if (mine.equals(System.getProperty(LOCAL_BASE_URL_PROP))) {
+            System.clearProperty(LOCAL_BASE_URL_PROP);
+        }
         log.info("ControlApi stopped");
     }
 

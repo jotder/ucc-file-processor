@@ -303,19 +303,36 @@ Alert-Rule-from-profiling rides the same `suggest_expectations` pattern when dem
 pass rate; every draft carries validation evidence.* (Met for pipeline/expectation/config kinds; query
 + dashboard authoring await the deferred tools.)
 
-**P3 — Gated action (L2).** ApprovalGate wiring + approvals inbox (UI + routes) + checkpoint/
-resume; act tools (`component_apply`, `job_run`, `schedule_apply`, `alert_ack`, `pipeline_rerun`,
-`component_rollback`); `runbook_operator` with 2–3 seeded runbooks.
-*Substrate SHIPPED for one narrow case (2026-07-19, S6 of the signal-backbone plan): the exact
-"agent proposes → dry-run diff shown → human approves (a separate, explicit confirm) → applies,
-fully audited (`actor=agent:*`) → declining mutates nothing" pattern now exists end-to-end for
-A2UI `invoke` actions against an existing, human-authored Decision Rule — reusing the plan's
-`simulate`/`apply` gate split, no new gate machinery, no gate weakened. Still open for P3 proper:
-a real approvals inbox (UI + routes, today it's per-artifact inline confirm only, no queue), the
-full act-tool roster above, `runbook_operator`, and generalizing beyond "invoke an existing rule"
-to `component_apply`-style authored-then-applied drafts (P2).*
+**P3 — Gated action (L2). PARTIALLY SHIPPED 2026-07-20 (approval spine + the two component act tools).**
+Delivered this pass (opt-in `-Dintelligence.act.enabled`, off by default — L0/L1 unchanged):
+- **Approval spine** — the eoiagent gate is now non-headless. `AgentApprovals` (an eoiagent
+  `ApprovalHandler`) bridges the framework's *synchronous* `DefaultToolRegistry.dispatchMutating`
+  (dry-run → block for approval → audited `APPROVAL`/`MUTATION`) to an *asynchronous* approvals inbox:
+  it parks the gate thread on a `CompletableFuture` while an `Approval` sits in the bounded
+  `ApprovalStore` (sibling of `CaseStore`), and resumes it when the operator decides. Routes:
+  `GET /agent/approvals`, `GET /agent/approvals/{id}`, `POST /agent/approvals/{id}/decision`
+  (mirrors `/agent/cases`; the decision is itself audited; a lapsed/double decision → 404). The
+  `MUTATING_ACTIONS` feature + the handler are wired in lockstep off the same opt-in flag.
+- **Component act tools** — `component_apply` (validate → DRAFT→ACTIVE) and `component_rollback`
+  (version restore), both `mutating=true`, `EDIT_CONFIG`-gated. They execute through the **real,
+  audited control plane over loopback** (`ControlPlaneClient` → `PUT`/`POST /components/*` /
+  `/versions/{v}/restore`, carrying `X-Agent-Session` so the write is attributed `actor=agent:<run>`
+  — the same fail-closed contract a UI caller hits, no private backdoor; `ControlApi` publishes its
+  loopback base URL for this). `component_apply` hard-refuses anything the safety gate rejects. The
+  operator's approval carries a read-only preview (top-level diff + safety findings) via
+  `ComponentActions.preview`.
+
+*Substrate precedent (2026-07-19, S6): the "agent proposes → dry-run → explicit human confirm →
+audited `actor=agent:*` apply → declining mutates nothing" pattern was first proven for A2UI `invoke`
+against an existing Decision Rule; this pass generalizes it to authored-then-applied component drafts
+and adds the queue (was per-artifact inline confirm only).*
+
+*Still open for P3:* the operational act tools (`job_run`, `pipeline_rerun`, `alert_ack`,
+`schedule_apply`), `runbook_operator` with 2–3 seeded runbooks, the approvals-inbox **UI** (backend
+routes exist; the Angular `agent-approvals/` page is not built yet), and true checkpoint/resume across
+process restarts (today the gate parks an in-JVM thread, bounded by the framework's approval timeout).
 *Exit: end-to-end "agent proposes → dry-run diff shown → human approves → agent applies + verifies →
-undo works", fully audited.*
+undo works", fully audited.* (Met for the component-authoring surface; operational tools + UI remain.)
 
 **P4 — Bounded autonomy (L3).** Decision-Rule policy engine + budgets + kill switch; `ops_monitor`
 loop; pilot action classes (batch re-run, alert triage); autonomy Dashboard (what the agent did,

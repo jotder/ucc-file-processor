@@ -65,6 +65,19 @@ class InspectoToolsTest {
     }
 
     @Test
+    void actToolsAreRegisteredMutatingAndCapabilityGated() {
+        CollectorService svc = new CollectorService(List.of(), 3600, 1);
+        for (String name : List.of("component_apply", "component_rollback")) {
+            Tool t = tool(svc, name);
+            assertTrue(t.spec().mutating(), name + " must be mutating (P3 act tool)");
+            assertEquals(com.eoiagent.core.Capability.EDIT_CONFIG, t.spec().capability(),
+                    name + " must require the EDIT_CONFIG capability");
+        }
+        // The P2 authoring tools stay non-mutating (draft/validate only) alongside them.
+        assertFalse(tool(svc, "component_draft").spec().mutating());
+    }
+
+    @Test
     void signalsQueryFiltersByTypeGlobAndSeverityFloor() {
         String corr = "s5q-filter";
         CollectorService svc = seeded(

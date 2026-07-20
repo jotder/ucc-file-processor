@@ -6,6 +6,8 @@ import com.eoiagent.core.ToolCall;
 import com.eoiagent.core.ToolResult;
 import com.eoiagent.core.ToolSpec;
 import com.eoiagent.tool.Tool;
+import com.gamma.intelligence.action.ComponentActions;
+import com.gamma.intelligence.action.ControlPlaneClient;
 import com.gamma.config.io.ConfigLoader;
 import com.gamma.config.safety.ConfigSafetyValidator;
 import com.gamma.config.safety.SafetyPolicy;
@@ -80,11 +82,16 @@ final class InspectoTools {
      */
     static List<Tool> tools(CollectorService service, ComponentStore components,
                             Supplier<List<BrowsableStore>> browseStores) {
+        // P3 (L2) act tools are mutating=true. They are always registered but stay hidden and fail
+        // closed unless the MUTATING_ACTIONS feature is on (opt-in AgentApprovals.enabled()); the eoiagent
+        // ToolRegistry routes each through the approval gate (dry-run → human approve → audited mutation).
+        ControlPlaneClient controlPlane = new ControlPlaneClient();
         return List.of(glossaryLookup(), docsSearch(), statusGet(service),
                 signalsQuery(service), signalTimeline(service),
                 timelineBuild(service, components), diffBatches(service),
                 configVersionsDiff(components), anomalyScan(browseStores),
-                componentDraft(), pipelineAuthor(), suggestExpectations(browseStores));
+                componentDraft(), pipelineAuthor(), suggestExpectations(browseStores),
+                componentApply(controlPlane), componentRollback(controlPlane));
     }
 
     /** The component registry the control routes read — {@code -Dassist.write.root/registry} — or
@@ -789,6 +796,50 @@ final class InspectoTools {
     private static String configType(String kind) {
         String k = kind.trim().toLowerCase(Locale.ROOT);
         return k.equals("alert-rule") ? "alert" : k;
+    }
+
+    /**
+     * AGT-5 P3 {@code component_apply} (act, L2): promote a validated draft into the live registry
+     * (DRAFT→ACTIVE). Mutating — the eoiagent gate dry-runs it, blocks for a human approval in the
+     * inbox, and audits the outcome; on approval the tool writes through the same governed control
+     * plane a UI caller uses ({@code PUT}/{@code POST /components/*}, {@code If-Match} + WriteGates +
+     * {@code actor=agent} audit). Refuses anything the safety gate rejects. See {@link ComponentActions}.
+     */
+    private static Tool componentApply(ControlPlaneClient controlPlane) {
+        ToolSpec spec = new ToolSpec(ComponentActions.TOOL_COMPONENT_APPLY,
+                "Apply a validated component draft as the live component (DRAFT→ACTIVE) via the governed "
+                        + "control plane. Gated: dry-run diff → human approval → audited write. Refuses drafts "
+                        + "that fail the safety gate. Args: type, id, config.",
+                "{\"type\":\"object\",\"properties\":{"
+                        + "\"type\":{\"type\":\"string\"},"
+                        + "\"id\":{\"type\":\"string\"},"
+                        + "\"config\":{\"type\":\"object\"}},"
+                        + "\"required\":[\"type\",\"id\",\"config\"]}",
+                true, Role.USER, Capability.EDIT_CONFIG);
+        return new FunctionTool(spec, call -> ComponentActions.apply(controlPlane, call, agentSession(call)));
+    }
+
+    /**
+     * AGT-5 P3 {@code component_rollback} (act, L2): restore an archived component version via the
+     * existing {@code POST /components/{type}/{id}/versions/{v}/restore} route (itself a versioned,
+     * undoable write). Mutating — same gate + audit path as {@link #componentApply}.
+     */
+    private static Tool componentRollback(ControlPlaneClient controlPlane) {
+        ToolSpec spec = new ToolSpec(ComponentActions.TOOL_COMPONENT_ROLLBACK,
+                "Roll a registry component back to an archived version via the governed control plane. "
+                        + "Gated: dry-run diff → human approval → audited write. Args: type, id, version.",
+                "{\"type\":\"object\",\"properties\":{"
+                        + "\"type\":{\"type\":\"string\"},"
+                        + "\"id\":{\"type\":\"string\"},"
+                        + "\"version\":{\"type\":\"integer\"}},"
+                        + "\"required\":[\"type\",\"id\",\"version\"]}",
+                true, Role.USER, Capability.EDIT_CONFIG);
+        return new FunctionTool(spec, call -> ComponentActions.rollback(controlPlane, call, agentSession(call)));
+    }
+
+    /** The agent-session token carried as {@code X-Agent-Session} → audited {@code actor=agent:<run>}. */
+    private static String agentSession(ToolCall call) {
+        return call.run() == null ? "unknown" : call.run().value();
     }
 
     private static Map<String, Object> findingMap(Finding f) {
