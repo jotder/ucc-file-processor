@@ -25,6 +25,7 @@ import java.util.Map;
 import java.util.ServiceConfigurationError;
 import java.util.ServiceLoader;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.jar.Attributes;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
@@ -51,9 +52,17 @@ import static java.nio.file.StandardWatchEventKinds.ENTRY_MODIFY;
  * <p><b>Fail-closed & scope (§12.3):</b> absent flag ⇒ feature entirely off (no dynamic code loading).
  * {@code -Djobs.packs.requireSignature} (default off) rejects jars with any unsigned class entry; matching
  * the signer against {@code -Djobs.packs.trustStore} is the SEC-7 sign-off gate and is not yet enforced.
- * Deep quiesce of an in-flight Run onto its old classloader across reload/unload, and flipping already-built
- * authored Jobs to {@code unavailable}, are deferred (§12.2) — {@code LockingRunner} per-Job serialization
- * plus admin-gated reload keep the gap safe in practice.
+ *
+ * <p><b>In-flight-Run quiesce (§12.2, 2026-07-20 SHIPPED the classloader half):</b> {@link #acquireRun}/
+ * {@link #releaseRun} let {@code JobService} pin a pack's active-run count for the duration of
+ * {@code Job.run(ctx)}; {@link #unload} still deregisters the pack's types immediately (a reload's new
+ * types register right away), but defers actually {@linkplain URLClassLoader#close() closing} the old
+ * loader and deleting its staged jar copy until that count drops to zero, so a Run already executing pack
+ * code never has its classloader's resources yanked out from under a lazy class-load/reflection/resource
+ * read mid-run. Flipping an already-built authored {@code Job} instance to {@code unavailable} after its
+ * owning pack is unloaded (so a *later* Run on the same config fails fast instead of running stale code)
+ * remains deferred — {@code LockingRunner} per-Job serialization plus admin-gated reload keep that
+ * narrower gap safe in practice.
  */
 final class JobPackManager implements AutoCloseable {
 
@@ -79,6 +88,12 @@ final class JobPackManager implements AutoCloseable {
     private final boolean requireSignature;
     private final long settleMillis;
     private final Map<String, LoadedPack> loaded = new ConcurrentHashMap<>();   // jar filename -> pack
+    /** In-flight Run count per pack (jar filename/owner key), incremented for the duration of one
+     *  {@code Job.run(ctx)} built from that pack's classes. Only packs with pack-owned Jobs appear here. */
+    private final Map<String, AtomicInteger> activeRuns = new ConcurrentHashMap<>();
+    /** Packs whose {@link #unload} was requested while {@link #activeRuns} was still positive — their
+     *  loader/staged file close is deferred to {@link #releaseRun} once the count drops to zero. */
+    private final Map<String, LoadedPack> draining = new ConcurrentHashMap<>();
 
     private volatile boolean running;
     private WatchService watcher;
@@ -190,15 +205,52 @@ final class JobPackManager implements AutoCloseable {
         }
     }
 
-    /** Deregister a pack's types and close its loader (releases the jar file handle). */
+    /** Deregister a pack's types immediately, but only close its loader (release the jar file handle)
+     *  once no Run is still executing its code — see {@link #acquireRun}/{@link #releaseRun}. */
     private void unload(String name) {
         LoadedPack pack = loaded.remove(name);
         if (pack == null) return;
         List<String> removed = registry.deregister(name);
-        try { pack.loader().close(); } catch (IOException ignore) { /* best effort */ }
-        try { Files.deleteIfExists(pack.staged()); } catch (IOException ignore) { /* best effort */ }
         log.info("[PACKS] unloaded {} ({}): {}", pack.id(), name, removed);
         signals.emit("job.pack.unloaded", Severity.INFO, packPayload(pack));
+        closeOrDefer(name, pack);
+    }
+
+    /** Close a pack's loader/staged copy now, or — if a Run is still in flight on it — mark it draining
+     *  so {@link #releaseRun} finishes the close once that Run completes. */
+    private void closeOrDefer(String name, LoadedPack pack) {
+        AtomicInteger count = activeRuns.get(name);
+        if (count != null && count.get() > 0) {
+            draining.put(name, pack);
+            log.info("[PACKS] deferring classloader close for {} ({} in-flight run(s))", name, count.get());
+            return;
+        }
+        try { pack.loader().close(); } catch (IOException ignore) { /* best effort */ }
+        try { Files.deleteIfExists(pack.staged()); } catch (IOException ignore) { /* best effort */ }
+    }
+
+    /** Pin {@code owner}'s (a pack's jar filename) active-run count for the duration of one Run's
+     *  {@code Job.run(ctx)} — call {@link #releaseRun} in a {@code finally}. No-op for {@code null}
+     *  (built-in/permanent job types have no owning pack). */
+    void acquireRun(String owner) {
+        if (owner == null) return;
+        activeRuns.computeIfAbsent(owner, k -> new AtomicInteger()).incrementAndGet();
+    }
+
+    /** The counterpart to {@link #acquireRun}: when the count drops to zero, finish closing a pack whose
+     *  unload was deferred while this Run (or a sibling) was still executing. No-op for {@code null}. */
+    void releaseRun(String owner) {
+        if (owner == null) return;
+        AtomicInteger count = activeRuns.get(owner);
+        if (count == null) return;
+        if (count.decrementAndGet() <= 0) {
+            LoadedPack pending = draining.remove(owner);
+            if (pending != null) {
+                try { pending.loader().close(); } catch (IOException ignore) { /* best effort */ }
+                try { Files.deleteIfExists(pending.staged()); } catch (IOException ignore) { /* best effort */ }
+                log.info("[PACKS] closed deferred classloader for {} (last in-flight run finished)", owner);
+            }
+        }
     }
 
     /** Start watching the dir; each settled batch of changes triggers a {@link #rescan()}. No-op when off. */
@@ -243,6 +295,10 @@ final class JobPackManager implements AutoCloseable {
         }
     }
 
+    /** Whether {@code name}'s pack is unloaded-but-not-yet-closed, pinned open by an in-flight Run
+     *  (test/introspection only — not on any HTTP surface). */
+    boolean isDraining(String name) { return draining.containsKey(name); }
+
     /** Pack inventory for {@code GET /jobs/packs} (id, version, file, hash, types, state). */
     List<Map<String, Object>> inventory() {
         List<Map<String, Object>> out = new ArrayList<>();
@@ -260,6 +316,14 @@ final class JobPackManager implements AutoCloseable {
             try { Files.deleteIfExists(p.staged()); } catch (IOException ignore) { /* best effort */ }
         }
         loaded.clear();
+        // Process is going down regardless of any Run still in flight — close deferred packs too rather
+        // than leaking their staged jar copies.
+        for (LoadedPack p : draining.values()) {
+            try { p.loader().close(); } catch (IOException ignore) { /* best effort */ }
+            try { Files.deleteIfExists(p.staged()); } catch (IOException ignore) { /* best effort */ }
+        }
+        draining.clear();
+        activeRuns.clear();
         if (stagingDir != null) try { Files.deleteIfExists(stagingDir); } catch (IOException ignore) { /* best effort */ }
     }
 

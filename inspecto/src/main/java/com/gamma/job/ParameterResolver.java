@@ -29,7 +29,12 @@ import com.gamma.util.DottedPath;
  *   <li>{@code defaultValue} — the literal fallback.</li>
  * </ol>
  * A {@code required} parameter still unresolved goes into {@link Resolution#missingRequired()} so the
- * framework can fail the Run <b>REJECTED</b> before any user code runs (§7.2, fail-closed).
+ * framework can fail the Run <b>REJECTED</b> before any user code runs (§7.2, fail-closed). Likewise
+ * (2026-07-20), a resolved value that doesn't parse as its declared {@link ParamType} goes into
+ * {@link Resolution#invalidType()} instead of {@code resolved()} — a required INTEGER parameter bound
+ * from {@code $signal.foo} to a non-numeric string is REJECTED here rather than throwing an uncaught
+ * {@code NumberFormatException} deep inside a Job's {@code run(ctx)} once it tries to parse the string
+ * itself ({@link ParamType} was previously form-gen/descriptor metadata only, never enforced).
  *
  * <p>The {@code $upstream(<job>).artifact(<name>).<attr>} token (§10) resolves against recorded Run
  * Artifacts. This is a fresh, minimal evaluator; consolidating it with {@code com.gamma.query.Parameters}
@@ -48,8 +53,9 @@ final class ParameterResolver {
                    BiFunction<String, String, Optional<RunArtifact>> upstream,
                    Map<String, Object> signalPayload) {}
 
-    /** Outcome: the resolved values, and any {@code required} names that stayed unresolved (⇒ REJECTED). */
-    record Resolution(Map<String, String> resolved, List<String> missingRequired) {}
+    /** Outcome: the resolved values, any {@code required} names that stayed unresolved, and any name whose
+     *  resolved value didn't parse as its declared {@link ParamType} (both ⇒ REJECTED). */
+    record Resolution(Map<String, String> resolved, List<String> missingRequired, List<String> invalidType) {}
 
     private static final Pattern DATE_FN = Pattern.compile("\\$(day|month)\\(\\s*(-?\\d+)\\s*\\)");
     private static final Pattern UPSTREAM =
@@ -59,15 +65,40 @@ final class ParameterResolver {
                               Map<String, String> bind, Map<String, String> config, Context ctx) {
         Map<String, String> out = new LinkedHashMap<>();
         List<String> missing = new ArrayList<>();
+        List<String> invalidType = new ArrayList<>();
         for (ParameterDecl d : decls) {
             String v = value(d, args, bind, config, ctx);
             if (v == null) {
                 if (d.required()) missing.add(d.name());
                 continue;
             }
+            if (!matchesType(d.type(), v)) {
+                invalidType.add(d.name() + " (expected " + d.type() + ", got '" + v + "')");
+                continue;
+            }
             out.put(d.name(), v);
         }
-        return new Resolution(Map.copyOf(out), List.copyOf(missing));
+        return new Resolution(Map.copyOf(out), List.copyOf(missing), List.copyOf(invalidType));
+    }
+
+    /** Whether {@code v} parses as {@code type} (§7.1). {@code STRING}/{@code DATASET_REF} accept any
+     *  non-blank string — a dataset reference's *existence* is a different, later concern, not a parse
+     *  format. {@code null}/blank never reaches here (see {@link #value}, which already excludes it). */
+    private static boolean matchesType(ParamType type, String v) {
+        try {
+            switch (type) {
+                case INTEGER: Long.parseLong(v); return true;
+                case DECIMAL: Double.parseDouble(v); return true;
+                case BOOLEAN: return "true".equalsIgnoreCase(v) || "false".equalsIgnoreCase(v);
+                case DATE: LocalDate.parse(v); return true;
+                case INSTANT: Instant.parse(v); return true;
+                case STRING:
+                case DATASET_REF:
+                default: return true;
+            }
+        } catch (RuntimeException malformed) {
+            return false;
+        }
     }
 
     /** First hit of: trigger args → signal bind → authored config → deduce → default. {@code null} ⇒ unresolved. */

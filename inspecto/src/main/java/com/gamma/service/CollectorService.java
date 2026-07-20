@@ -918,6 +918,41 @@ public final class CollectorService implements AutoCloseable {
     }
 
     /**
+     * Remove a pipeline config path from the active registry immediately (v5.2.0) — the counterpart to
+     * {@link #registerPipeline(Path)}. Without this, a deleted config file only drops out of the read
+     * surface ({@link #pipelines()}, the catalog) on the <em>next</em> poll cycle (up to {@code pollSeconds}
+     * later — the "ghost row" the onboarding draft-discard flow used to leave behind): {@code rebuild}
+     * fails to parse the vanished file and skips it, but the stale {@link Path} lingers in {@link #registry}
+     * forever otherwise. Calling this after deleting the on-disk file drops it from {@code registry} and
+     * re-runs {@link #configRegistry}'s rebuild synchronously, so the catalog reflects the removal at once.
+     *
+     * <p>No-op (returns {@code false}) if no registered path matches — deleting a config that was never
+     * registered (or already unregistered) is not an error.
+     *
+     * @param path the config file that was removed on disk
+     * @return {@code true} if a registered path was removed, {@code false} if none matched
+     */
+    public boolean unregisterPipeline(Path path) {
+        Path norm = path.toAbsolutePath().normalize();
+        ingestLock.lock();   // serialise the registry mutation against a running poll cycle
+        try {
+            Optional<String> id = configRegistry.idForPath(norm);
+            boolean removed = registry.remove(norm);
+            if (!removed) return false;
+            configRegistry.rebuild(registry);   // refresh the read surface now; fires catalog invalidation
+            log.info("Unregistered pipeline{} from {} ({} pipeline(s) now active)",
+                    id.map(i -> " '" + i + "'").orElse(""), norm, registry.size());
+            this.eventLog.emit(Event.builder(EventType.PIPELINE_UNREGISTERED)
+                    .source(CollectorService.class.getName()).pipeline(id.orElse(null))
+                    .message("Pipeline unregistered" + id.map(i -> ": " + i).orElse(""))
+                    .attr("configPath", norm.toString()).attr("activePipelines", registry.size()));
+            return true;
+        } finally {
+            ingestLock.unlock();
+        }
+    }
+
+    /**
      * If the status store is DB-backed, project the latest on-disk audit into it. No-op
      * for the file backend. Failures are logged, never fatal — the on-disk audit (and the
      * file store) remain the durable source of truth, so a transient DB hiccup only makes
@@ -1021,6 +1056,20 @@ public final class CollectorService implements AutoCloseable {
     public void registerEnrichment(EnrichmentConfig cfg) {
         enrichment.register(cfg);
         invalidateCatalog();
+    }
+
+    /**
+     * Unregister a Stage-2 enrichment job by name — the counterpart to {@link #registerEnrichment},
+     * pairing with {@code DELETE /config/enrichment/{name}} the way {@link #unregisterPipeline} pairs
+     * with a pipeline delete (2026-07-20). Stops the job's schedule timer (if any) immediately instead
+     * of it running until restart, and drops it from the live job list so event triggers stop too.
+     *
+     * @return {@code true} if a job by that name was hosted (and is now removed)
+     */
+    public boolean unregisterEnrichment(String name) {
+        boolean removed = enrichment.unregister(name);
+        if (removed) invalidateCatalog();
+        return removed;
     }
 
     /** The metadata graph / data catalog (M2, v3.2.0): always present (core, zero-AI by default). */

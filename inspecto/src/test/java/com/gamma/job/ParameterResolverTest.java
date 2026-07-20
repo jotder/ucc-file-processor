@@ -162,4 +162,56 @@ class ParameterResolverTest {
         assertFalse(r.resolved().containsKey("must_have"));
         assertEquals("d", r.resolved().get("ok"));
     }
+
+    // ── declared-type validation (2026-07-20): a resolved value that doesn't parse as its ParamType
+    // ── is REJECTED-worthy, not silently passed through as a raw string for the Job to blow up on ──
+
+    @Test
+    void wellFormedValuesOfEveryTypeResolveCleanly() {
+        List<ParameterDecl> decls = List.of(
+                new ParameterDecl("n", ParamType.INTEGER, true, null, null, "n"),
+                new ParameterDecl("f", ParamType.DECIMAL, true, null, null, "f"),
+                new ParameterDecl("b", ParamType.BOOLEAN, true, null, null, "b"),
+                new ParameterDecl("d", ParamType.DATE, true, null, null, "d"),
+                new ParameterDecl("t", ParamType.INSTANT, true, null, null, "t"),
+                new ParameterDecl("r", ParamType.DATASET_REF, true, null, null, "r"));
+        var r = resolve(decls, Map.of("n", "42", "f", "3.14", "b", "TRUE",
+                "d", "2026-07-08", "t", "2026-07-08T06:00:00Z", "r", "orders"), ctx(Optional.empty()));
+
+        assertTrue(r.missingRequired().isEmpty());
+        assertTrue(r.invalidType().isEmpty());
+        assertEquals("42", r.resolved().get("n"));
+        assertEquals("orders", r.resolved().get("r"));
+    }
+
+    @Test
+    void malformedValueOfEachTypeIsRejectedAsInvalidTypeNotSilentlyPassedThrough() {
+        List<ParameterDecl> decls = List.of(
+                new ParameterDecl("n", ParamType.INTEGER, true, null, null, "n"),
+                new ParameterDecl("f", ParamType.DECIMAL, true, null, null, "f"),
+                new ParameterDecl("b", ParamType.BOOLEAN, true, null, null, "b"),
+                new ParameterDecl("d", ParamType.DATE, true, null, null, "d"),
+                new ParameterDecl("t", ParamType.INSTANT, true, null, null, "t"));
+        var r = resolve(decls, Map.of("n", "abc", "f", "abc", "b", "yes",
+                "d", "not-a-date", "t", "not-an-instant"), ctx(Optional.empty()));
+
+        assertTrue(r.missingRequired().isEmpty(), "these resolved to a value — the problem is the type, not absence");
+        assertEquals(5, r.invalidType().size());
+        assertTrue(r.invalidType().stream().anyMatch(s -> s.startsWith("n ")));
+        assertTrue(r.resolved().isEmpty(), "no malformed value reaches the map a Job would read from");
+    }
+
+    @Test
+    void aBindExtractedNonNumericValueForARequiredIntegerIsRejected() {
+        // The concrete motivating case: $signal.<field> can carry any JSON value; a required INTEGER
+        // parameter must not silently receive "n/a" and blow up deep inside the Job's own parsing.
+        List<ParameterDecl> decls = List.of(new ParameterDecl("count", ParamType.INTEGER, true, null, null, "count"));
+        var c = ctx(Optional.empty(), (j, n) -> Optional.empty(), Map.of("count", "n/a"));
+        var r = ParameterResolver.resolve(decls, Map.of(), Map.of("count", "$signal.count"), Map.of(), c);
+
+        assertTrue(r.missingRequired().isEmpty(), "bind DID resolve a value — 'n/a'");
+        assertEquals(1, r.invalidType().size());
+        assertTrue(r.invalidType().get(0).contains("count"));
+        assertFalse(r.resolved().containsKey("count"));
+    }
 }

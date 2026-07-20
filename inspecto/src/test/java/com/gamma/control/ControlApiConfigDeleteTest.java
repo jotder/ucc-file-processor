@@ -145,6 +145,36 @@ class ControlApiConfigDeleteTest {
     }
 
     @Test
+    void deletingARegisteredPipelineUnregistersItImmediatelyNoGhostRow(@TempDir Path cfg, @TempDir Path root)
+            throws Exception {
+        String inactiveToon = """
+                name: registered_draft
+                active: false
+                dirs:
+                  poll: in
+                  database: out
+                processing:
+                  threads: 1
+                """;
+        Path file = root.resolve("registered_draft_pipeline.toon");
+        Files.writeString(file, inactiveToon);
+        // pollSeconds is huge in Ctx.open (3600) — if the config-path were left in the registry after
+        // delete, it would linger there until that next poll tick; registerPipeline + this assertion
+        // only pass if unregisterPipeline drops it synchronously instead of waiting for a rebuild.
+        try (Ctx c = open(cfg, root)) {
+            c.svc.registerPipeline(file);
+            assertTrue(c.svc.pipelines().stream().anyMatch(p -> p.name().equals("registered_draft")),
+                    "pipeline is registered before delete");
+
+            HttpResponse<String> r = delete(c.port, "/config/pipeline/registered_draft");
+            assertEquals(200, r.statusCode(), r.body());
+
+            assertFalse(c.svc.pipelines().stream().anyMatch(p -> p.name().equals("registered_draft")),
+                    "no ghost row: the pipeline must be gone from the read surface immediately, not after the next poll cycle");
+        }
+    }
+
+    @Test
     void nonPipelineTypesHaveNoActiveGate(@TempDir Path cfg, @TempDir Path root) throws Exception {
         Files.writeString(root.resolve("notes.toon"), "name: notes\n");
         try (Ctx c = open(cfg, root)) {

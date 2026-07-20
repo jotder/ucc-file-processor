@@ -74,6 +74,39 @@ class JobPackManagerTest {
     }
 
     @Test
+    void unloadDefersClassloaderCloseWhileARunIsInFlight(@TempDir Path work) throws Exception {
+        assumeTrue(ToolProvider.getSystemJavaCompiler() != null, "needs a JDK (javac) to build the pack jar");
+        Path packsDir = Files.createDirectories(work.resolve("packs"));
+        Path jar = buildPackJar(work, packsDir.resolve("greet-1.jar"), "acme.greet", "acme.greet",
+                "GreetType", "acme-greet", "1.0.0");
+
+        JobTypeRegistry registry = new JobTypeRegistry();
+        Sink sink = new Sink();
+        try (JobPackManager mgr = new JobPackManager(packsDir.toString(), registry, sink)) {
+            mgr.scanAtStartup();
+            Job job = registry.create("acme.greet", jobConfig("g1", "acme.greet"));
+
+            // Simulate JobService pinning the pack for the duration of a Run.
+            mgr.acquireRun("greet-1.jar");
+            assertFalse(mgr.isDraining("greet-1.jar"), "not draining until an unload is actually requested");
+
+            Files.delete(jar);
+            Map<String, Object> summary = mgr.rescan();
+            assertEquals(List.of("greet-1.jar"), summary.get("unloaded"));
+            assertFalse(registry.has("acme.greet"), "type deregisters immediately regardless of in-flight Runs");
+            assertTrue(mgr.isDraining("greet-1.jar"), "classloader close is deferred while the Run is in flight");
+
+            // The classloader is still open, so the Job instance built before the unload keeps working —
+            // this is the actual bug being fixed: without quiescing, closing the loader here could break a
+            // Run still executing pack code (a lazy class load / reflection / resource read failing).
+            assertEquals("SUCCESS", job.run().status(), "in-flight Run's classes remain usable during quiesce");
+
+            mgr.releaseRun("greet-1.jar");
+            assertFalse(mgr.isDraining("greet-1.jar"), "close finishes once the last in-flight Run ends");
+        }
+    }
+
+    @Test
     void collisionWithAnExistingTypeRejectsTheWholePack(@TempDir Path work) throws Exception {
         assumeTrue(ToolProvider.getSystemJavaCompiler() != null);
         Path packsDir = Files.createDirectories(work.resolve("packs"));

@@ -67,6 +67,60 @@ class SchedulerTest {
     }
 
     @Test
+    void cancelHandleStopsOnlyThatCronWhileSiblingKeepsFiring() throws Exception {
+        AtomicInteger cancelledRuns = new AtomicInteger();
+        AtomicInteger siblingRuns = new AtomicInteger();
+        CountDownLatch bothFiredOnce = new CountDownLatch(2);
+        try (Scheduler s = new Scheduler()) {
+            Scheduler.CronHandle handle = s.cron("a", CronExpression.parse("* * * * * *"), ZoneId.systemDefault(), () -> {
+                cancelledRuns.incrementAndGet();
+                bothFiredOnce.countDown();
+            });
+            s.cron("b", CronExpression.parse("* * * * * *"), ZoneId.systemDefault(), () -> {
+                siblingRuns.incrementAndGet();
+                bothFiredOnce.countDown();
+            });
+            assertTrue(bothFiredOnce.await(5, TimeUnit.SECONDS), "both crons should fire at least once");
+
+            handle.cancel();
+            int cancelledAt = cancelledRuns.get();
+            // The sibling must tick at least once more to prove the Scheduler itself kept running —
+            // otherwise a quiet window alone can't distinguish "cancelled" from "scheduler died".
+            int siblingBefore = siblingRuns.get();
+            long deadline = System.currentTimeMillis() + 5000;
+            while (siblingRuns.get() == siblingBefore && System.currentTimeMillis() < deadline) Thread.sleep(50);
+            assertTrue(siblingRuns.get() > siblingBefore, "sibling cron must keep firing after the other is cancelled");
+            assertEquals(cancelledAt, cancelledRuns.get(), "cancelled cron must not fire again");
+        }
+    }
+
+    @Test
+    void everySecondsReturnsAFutureThatCancelsJustThatTask() throws Exception {
+        AtomicInteger cancelledRuns = new AtomicInteger();
+        AtomicInteger siblingRuns = new AtomicInteger();
+        CountDownLatch bothFiredOnce = new CountDownLatch(2);
+        try (Scheduler s = new Scheduler()) {
+            var handle = s.everySeconds("a", 0, 1, () -> {
+                cancelledRuns.incrementAndGet();
+                bothFiredOnce.countDown();
+            });
+            s.everySeconds("b", 0, 1, () -> {
+                siblingRuns.incrementAndGet();
+                bothFiredOnce.countDown();
+            });
+            assertTrue(bothFiredOnce.await(5, TimeUnit.SECONDS), "both tasks should fire at least once");
+
+            handle.cancel(false);
+            int cancelledAt = cancelledRuns.get();
+            int siblingBefore = siblingRuns.get();
+            long deadline = System.currentTimeMillis() + 5000;
+            while (siblingRuns.get() == siblingBefore && System.currentTimeMillis() < deadline) Thread.sleep(50);
+            assertTrue(siblingRuns.get() > siblingBefore, "sibling task must keep firing after the other is cancelled");
+            assertEquals(cancelledAt, cancelledRuns.get(), "cancelled task must not fire again");
+        }
+    }
+
+    @Test
     void closeStopsFurtherRuns() throws Exception {
         AtomicInteger runs = new AtomicInteger();
         CountDownLatch firstRun = new CountDownLatch(1);

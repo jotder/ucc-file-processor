@@ -61,6 +61,13 @@ final class JobTypeRegistry {
 
     boolean has(String id) { return id != null && providers.containsKey(id.toLowerCase(Locale.ROOT)); }
 
+    /** The Job Pack that owns {@code id}'s provider, or empty for a built-in/permanent registration
+     *  (or an unknown id) — lets a Run pin its owning pack's classloader open for its duration
+     *  (Job Pack in-flight-Run quiesce, §12.2). */
+    Optional<String> ownerOf(String id) {
+        return id == null ? Optional.empty() : Optional.ofNullable(owners.get(id.toLowerCase(Locale.ROOT)));
+    }
+
     Set<String> ids() { return Set.copyOf(providers.keySet()); }
 
     /** Every registered type's descriptor, in registration order (R3 / {@code GET /jobs/types}). */

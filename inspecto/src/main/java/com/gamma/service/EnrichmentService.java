@@ -24,6 +24,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 
@@ -76,9 +77,11 @@ public final class EnrichmentService implements AutoCloseable {
     private final LockingRunner runner = new LockingRunner();
     private final Map<String, EnrichmentAuditWriter> auditWriters = new ConcurrentHashMap<>();
     private final AtomicLong seq = new AtomicLong();
-    /** Job names whose completeness schedule is armed — the scheduler has no cancel-by-name,
-     *  so each name is armed at most once and the task resolves its config at fire time. */
-    private final Set<String> armedSchedules = ConcurrentHashMap.newKeySet();
+    /** Each job's armed completeness-schedule timer, by name — lets {@link #armSchedule} cancel and
+     *  re-arm on a {@link #register} replacement (so an interval change applies immediately, not just
+     *  at restart) and lets {@link #unregister} stop a removed job's timer instead of it running until
+     *  restart. The task still resolves its config by name at fire time. */
+    private final Map<String, ScheduledFuture<?>> scheduledFutures = new ConcurrentHashMap<>();
 
     public EnrichmentService(List<EnrichmentConfig> jobs, BatchEventBus bus, Scheduler scheduler) {
         this(jobs, bus, scheduler, List::of);
@@ -110,26 +113,30 @@ public final class EnrichmentService implements AutoCloseable {
     }
 
     /**
-     * Arm a job's completeness schedule once per name. The task resolves the config by name at
-     * fire time, so a later {@link #register} replacement is picked up by the existing timer.
+     * Arm (or re-arm) a job's completeness schedule. The task resolves the config by name at fire
+     * time, so a later {@link #register} replacement is picked up by the existing timer content-wise;
+     * a changed {@code schedule_seconds} instead cancels the old timer and starts a fresh one at the
+     * new interval, so the change applies immediately rather than only at restart.
      */
     private boolean armSchedule(EnrichmentConfig job) {
-        if (!job.triggers().hasSchedule() || !armedSchedules.add(job.name())) return false;
-        long s = job.triggers().scheduleSeconds();
+        if (!job.triggers().hasSchedule()) return false;
         String name = job.name();
+        ScheduledFuture<?> prev = scheduledFutures.remove(name);
+        if (prev != null) prev.cancel(false);
+        long s = job.triggers().scheduleSeconds();
         // initialDelay = interval so the timer (not an immediate run) drives this path
-        scheduler.everySeconds("enrich-" + name, s, s,
+        ScheduledFuture<?> future = scheduler.everySeconds("enrich-" + name, s, s,
                 () -> config(name).ifPresent(j -> recompute(j, null, "schedule")));
+        scheduledFutures.put(name, future);
         return true;
     }
 
     /**
      * Hot-register (or replace, keyed by {@code name}) an enrichment job — the
      * {@code POST /enrichment} authoring seam (v5.1.0). Event triggers apply from the next
-     * committed batch; a NEW name's schedule is armed now. Two documented limits, both from the
-     * scheduler having no cancel-by-name: replacing a job keeps the original schedule
-     * <em>interval</em> (the timer re-reads the config, so everything else applies), and a
-     * removed-on-disk job keeps running until restart.
+     * committed batch; a schedule (new or changed-interval) is (re-)armed now — {@link #armSchedule}
+     * cancels any prior timer for this name before starting the new one. See {@link #unregister} for
+     * the removed-on-disk counterpart.
      */
     public synchronized void register(EnrichmentConfig job) {
         boolean replaced = jobs.removeIf(j -> j.name().equals(job.name()));
@@ -139,6 +146,23 @@ public final class EnrichmentService implements AutoCloseable {
                 replaced ? "replaced" : "registered", job.name(),
                 job.triggers().hasEvent() ? job.triggers().onPipeline() : "-",
                 job.triggers().hasSchedule() ? job.triggers().scheduleSeconds() : 0);
+    }
+
+    /**
+     * Remove a hosted enrichment job by name and cancel its schedule timer, if any — the counterpart
+     * to {@link #register} for a deleted-on-disk job (the onboarding draft-discard path, 2026-07-20).
+     * Without this, a removed job's completeness timer kept firing (`config(name)` would find nothing
+     * and the fire was a no-op) until the next restart. Event triggers stop immediately either way,
+     * since {@link #onBatchEvent} iterates the live {@link #jobs} list.
+     *
+     * @return {@code true} if a job by that name was hosted (and is now removed), {@code false} if none was
+     */
+    public synchronized boolean unregister(String name) {
+        boolean removed = jobs.removeIf(j -> j.name().equals(name));
+        ScheduledFuture<?> future = scheduledFutures.remove(name);
+        if (future != null) future.cancel(false);
+        if (removed) log.info("EnrichmentService unregistered job '{}'", name);
+        return removed;
     }
 
     /** Dispatch a committed-batch event to any job listening on its pipeline. */

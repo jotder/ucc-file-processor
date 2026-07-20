@@ -205,6 +205,64 @@ class EnrichmentServiceTest {
         }
     }
 
+    // ── unregister (2026-07-20): a deleted-on-disk job stops instead of running until restart ──
+
+    @Test
+    void unregisterStopsFurtherScheduledRecomputesAndRemovesTheJob(@TempDir Path dir) throws Exception {
+        Path in = dir.resolve("in"), out = dir.resolve("out");
+        seedInput(in);
+        EnrichmentConfig job = dailyKpi("DAILY_UNREG", in, out, new Triggers(null, 1));
+
+        BatchEventBus bus = new BatchEventBus();
+        List<BatchEvent> seen = Collections.synchronizedList(new ArrayList<>());
+        bus.subscribe(seen::add);
+        Scheduler sched = new Scheduler();
+        EnrichmentService es = new EnrichmentService(List.of(job), bus, sched);
+        try {
+            es.start();
+            assertTrue(await(seen, "DAILY_UNREG", 8_000), "scheduled recompute should run at least once");
+
+            assertTrue(es.unregister("DAILY_UNREG"));
+            assertFalse(es.unregister("DAILY_UNREG"), "second unregister of an already-gone job is a no-op");
+            assertTrue(es.configs().isEmpty(), "job no longer hosted");
+
+            int seenAtUnregister;
+            synchronized (seen) { seenAtUnregister = seen.size(); }
+            Thread.sleep(2500);   // long enough for the 1s schedule to have fired again if it survived
+            synchronized (seen) {
+                assertEquals(seenAtUnregister, seen.size(),
+                        "unregister must cancel the schedule timer, not just remove the job from the read surface");
+            }
+        } finally {
+            sched.close();
+            es.close();
+        }
+    }
+
+    // ── re-arm on replace (2026-07-20): a changed schedule interval applies immediately ──
+
+    @Test
+    void reRegisterWithAFasterIntervalReArmsInsteadOfKeepingTheOriginal(@TempDir Path dir) throws Exception {
+        Path in = dir.resolve("in"), out = dir.resolve("out");
+        seedInput(in);
+        BatchEventBus bus = new BatchEventBus();
+        List<BatchEvent> seen = Collections.synchronizedList(new ArrayList<>());
+        bus.subscribe(seen::add);
+        Scheduler sched = new Scheduler();
+        EnrichmentService es = new EnrichmentService(List.of(), bus, sched);
+        try {
+            // A long original interval that would not fire within this test's patience …
+            es.register(dailyKpi("DAILY_REARM", in, out, new Triggers(null, 3600)));
+            // … replaced with a 1s interval; without re-arming, the 3600s timer would still be the one ticking.
+            es.register(dailyKpi("DAILY_REARM", in, out, new Triggers(null, 1)));
+            assertTrue(await(seen, "DAILY_REARM", 8_000),
+                    "the replacement's faster interval must apply immediately, not only after a restart");
+        } finally {
+            sched.close();
+            es.close();
+        }
+    }
+
     // ── T2.3 chains: a Stage-2 commit triggers a downstream Stage-2 job ──────────────
 
     @Test

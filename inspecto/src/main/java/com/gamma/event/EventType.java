@@ -38,6 +38,9 @@ public final class EventType {
      *  violation is never fatal. The {@code kind} attribute names the rule; {@code path} the offending entry. */
     public static final String LAYOUT_CONTRACT_VIOLATION = "LAYOUT_CONTRACT_VIOLATION";
     public static final String PIPELINE_REGISTERED = "PIPELINE_REGISTERED";
+    /** A registered pipeline's config path was removed from the active registry ahead of the next
+     *  poll cycle (e.g. an onboarding draft discard) — see {@code CollectorService#unregisterPipeline}. */
+    public static final String PIPELINE_UNREGISTERED = "PIPELINE_UNREGISTERED";
     public static final String PIPELINE_PAUSED     = "PIPELINE_PAUSED";
     public static final String PIPELINE_RESUMED    = "PIPELINE_RESUMED";
 

@@ -101,6 +101,7 @@ public final class JobService implements AutoCloseable {
     private final ExecutorService workers = Executors.newVirtualThreadPerTaskExecutor();
     private final Map<String, Job> jobs = new LinkedHashMap<>();
     private final Map<String, CronExpression> crons = new ConcurrentHashMap<>();
+    private final Map<String, Scheduler.CronHandle> cronHandles = new ConcurrentHashMap<>();
     private final LockingRunner runner = new LockingRunner();
     private final AtomicLong seq = new AtomicLong();
     /** Open Job Type registry (job-framework P0) — replaced the compiled-in {@link JobType} switch; the four
@@ -303,15 +304,16 @@ public final class JobService implements AutoCloseable {
         catchUpMissedFires();
     }
 
-    /** Arm one config's cron schedule. The fire itself re-checks {@link #jobs} before submitting, so a
-     *  job removed later (Scheduler has no cancel primitive — self-rescheduling recursive timer) becomes
-     *  an inert no-op tick instead of a dangling reference to a live run. */
+    /** Arm one config's cron schedule; {@link #removeJob} cancels the returned {@link Scheduler.CronHandle}
+     *  so a deleted/replaced job's chain stops re-arming instead of ticking forever. The fire itself still
+     *  re-checks {@link #jobs} before submitting, as a second line of defence against the cancel/fire race. */
     private void armCron(JobConfig c) {
         CronExpression expr = c.cronExpression();
         crons.put(c.name(), expr);
-        scheduler.cron("job-" + c.name(), expr, zone, () -> {
+        Scheduler.CronHandle handle = scheduler.cron("job-" + c.name(), expr, zone, () -> {
             if (jobs.containsKey(c.name())) submit(c.name(), "schedule");
         });
+        cronHandles.put(c.name(), handle);
     }
 
     /**
@@ -330,13 +332,15 @@ public final class JobService implements AutoCloseable {
     }
 
     /** Unregister a Job — {@code jobs}/{@code crons}/coalescer entries are removed so listings, manual
-     *  trigger and dispatch loops stop seeing it; see {@link #armCron} for how an already-scheduled cron
-     *  tick self-disarms. */
+     *  trigger and dispatch loops stop seeing it, and its {@link Scheduler.CronHandle} (if any) is
+     *  cancelled so the cron chain stops re-arming instead of ticking as an inert no-op forever. */
     public synchronized void removeJob(String name) {
         configs.removeIf(c -> c.name().equals(name));
         jobs.remove(name);
         crons.remove(name);
         signalCoalescers.remove(name);
+        Scheduler.CronHandle handle = cronHandles.remove(name);
+        if (handle != null) handle.cancel();
     }
 
     /** Bind this service to its space's event ledger (the on-signal Trigger source). Call before {@link #start()}. */
@@ -641,15 +645,20 @@ public final class JobService implements AutoCloseable {
             ParameterResolver.Resolution pr = ParameterResolver.resolve(decls, args, bind, params,
                     new ParameterResolver.Context(runId, Instant.now(), trigger, zone,
                             () -> ledger.lastSuccessEnd(name), this::upstreamArtifact, firing.signalPayload()));
-            if (!pr.missingRequired().isEmpty()) {
-                String miss = String.join(", ", pr.missingRequired());
-                ctx.log().error("run rejected: missing required parameter(s): " + miss, null);
+            if (!pr.missingRequired().isEmpty() || !pr.invalidType().isEmpty()) {
+                List<String> reasons = new ArrayList<>();
+                if (!pr.missingRequired().isEmpty())
+                    reasons.add("missing required parameter(s): " + String.join(", ", pr.missingRequired()));
+                if (!pr.invalidType().isEmpty())
+                    reasons.add("invalid parameter(s): " + String.join(", ", pr.invalidType()));
+                String reason = String.join("; ", reasons);
+                ctx.log().error("run rejected: " + reason, null);
                 ctx.signals().emit("job.run.rejected", Severity.WARN,
-                        Map.of("job", name, "run", runId, "missing", pr.missingRequired()));
+                        Map.of("job", name, "run", runId, "missing", pr.missingRequired(),
+                                "invalidType", pr.invalidType()));
                 if (flowId != null) runningFlows.remove(flowId);
                 record(new JobRun(runId, name, job.type(), trigger, start,
-                        LocalDateTime.now().format(TS), "REJECTED", 0L,
-                        "missing required parameter(s): " + miss));
+                        LocalDateTime.now().format(TS), "REJECTED", 0L, reason));
                 return;
             }
             ctx.params(pr.resolved());
@@ -660,6 +669,11 @@ public final class JobService implements AutoCloseable {
                     Map.of("job", name, "run", runId, "trigger", trigger));
             JobResult res;
             boolean threw = false;
+            // Job Pack in-flight-Run quiesce (§12.2): pin the owning pack's classloader open for the
+            // duration of job.run — a concurrent rescan/unload defers closing it until this Run finishes.
+            // No-op for built-in job types (registry.ownerOf returns empty).
+            String packOwner = registry.ownerOf(job.type()).orElse(null);
+            packs.acquireRun(packOwner);
             try {
                 res = job.run(ctx);
             } catch (Exception e) {
@@ -669,6 +683,7 @@ public final class JobService implements AutoCloseable {
                 res = JobResult.failed(String.valueOf(e.getMessage()),
                         0L);
             } finally {
+                packs.releaseRun(packOwner);
                 if (flowId != null) runningFlows.remove(flowId);
             }
             ctx.log().info("run completed", "status", res.status(), "durationMs", res.durationMs());

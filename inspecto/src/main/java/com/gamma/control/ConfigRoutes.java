@@ -201,6 +201,11 @@ final class ConfigRoutes implements RouteModule {
         }
 
         Files.delete(target);
+        if ("pipeline".equals(type)) {
+            api.service().unregisterPipeline(target);   // drop the ghost row instead of waiting for the next poll cycle
+        } else if ("enrichment".equals(type)) {
+            api.service().unregisterEnrichment(fileName);   // stop its schedule timer immediately, not at restart
+        }
         log.info("[CONFIG-DELETE] type={} deleted {}", type, rel);
         Map<String, Object> r = new LinkedHashMap<>();
         r.put("type", type);

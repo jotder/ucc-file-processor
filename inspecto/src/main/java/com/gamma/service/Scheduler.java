@@ -9,7 +9,10 @@ import java.time.ZonedDateTime;
 import java.util.concurrent.Executors;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Minimal interval scheduler for the service. Runs tasks with a fixed delay between
@@ -53,9 +56,11 @@ public final class Scheduler implements AutoCloseable {
     /**
      * Run {@code task} every {@code intervalSeconds}, starting after
      * {@code initialDelaySeconds}. Exceptions are caught so the schedule survives.
+     * Returns the underlying {@link ScheduledFuture} — call {@code cancel(false)} to stop just this
+     * task without affecting any other schedule or the {@link Scheduler} itself.
      */
-    public void everySeconds(String name, long initialDelaySeconds, long intervalSeconds, Runnable task) {
-        exec.scheduleWithFixedDelay(() -> {
+    public ScheduledFuture<?> everySeconds(String name, long initialDelaySeconds, long intervalSeconds, Runnable task) {
+        return exec.scheduleWithFixedDelay(() -> {
             try {
                 task.run();
             } catch (Exception e) {
@@ -69,28 +74,49 @@ public final class Scheduler implements AutoCloseable {
      * {@code zone}. The first fire is the next match strictly after "now"; after each run
      * the next fire is recomputed and rescheduled, so drift never accumulates. Exceptions
      * are caught so the schedule survives, and re-arming is skipped once the scheduler is
-     * shutting down.
+     * shutting down. Returns a {@link CronHandle} — call {@link CronHandle#cancel()} to stop
+     * this cron's own re-arming chain without affecting any other scheduled job.
      */
-    public void cron(String name, CronExpression cron, ZoneId zone, Runnable task) {
-        scheduleNextCron(name, cron, zone, task);
+    public CronHandle cron(String name, CronExpression cron, ZoneId zone, Runnable task) {
+        CronHandle handle = new CronHandle();
+        scheduleNextCron(name, cron, zone, task, handle);
+        return handle;
     }
 
-    private void scheduleNextCron(String name, CronExpression cron, ZoneId zone, Runnable task) {
+    private void scheduleNextCron(String name, CronExpression cron, ZoneId zone, Runnable task, CronHandle handle) {
+        if (handle.cancelled.get()) return;
         ZonedDateTime now = ZonedDateTime.now(zone);
         ZonedDateTime next = cron.next(now);
         long delayMs = Math.max(0, Duration.between(now, next).toMillis());
         try {
-            exec.schedule(() -> {
+            ScheduledFuture<?> future = exec.schedule(() -> {
                 try {
-                    task.run();
+                    if (!handle.cancelled.get()) task.run();
                 } catch (Exception e) {
                     log.error("Cron task '{}' failed", name, e);
                 } finally {
-                    if (!exec.isShutdown()) scheduleNextCron(name, cron, zone, task);
+                    if (!exec.isShutdown() && !handle.cancelled.get()) scheduleNextCron(name, cron, zone, task, handle);
                 }
             }, delayMs, TimeUnit.MILLISECONDS);
+            handle.pending.set(future);
+            if (handle.cancelled.get()) future.cancel(false);   // cancel() raced ahead of this schedule() call
         } catch (RejectedExecutionException ignore) {
             // scheduler is shutting down — stop re-arming
+        }
+    }
+
+    /**
+     * Cancels one {@link #cron} chain's own re-arming, leaving the {@link Scheduler} and every other
+     * job's schedule untouched. Idempotent; cancelling after the final tick already fired is a no-op.
+     */
+    public static final class CronHandle {
+        private final AtomicBoolean cancelled = new AtomicBoolean(false);
+        private final AtomicReference<ScheduledFuture<?>> pending = new AtomicReference<>();
+
+        public void cancel() {
+            cancelled.set(true);
+            ScheduledFuture<?> f = pending.get();
+            if (f != null) f.cancel(false);
         }
     }
 
