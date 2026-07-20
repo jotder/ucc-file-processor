@@ -38,6 +38,10 @@ import java.util.regex.Pattern;
  * <p>Fail-closed like {@link BiRoutes}: write root unset → 503; unknown dataset → 404; a non-identifier
  * column or unusable dataset → 422. Column names are validated identifiers — no caller SQL text enters
  * the statement — and NULL endpoints are excluded (a link needs both ends).
+ *
+ * <p>{@code GET /inv/schema/relationships} — the schema-relationship model (INV-1 V1's last open item):
+ * naming-convention FK suggestions across every Dataset, so the Studio can pre-fill multi-mapping
+ * projections instead of requiring every column pair to be hand-picked. See {@link #schemaRelationships}.
  */
 final class InvRoutes implements RouteModule {
 
@@ -49,6 +53,94 @@ final class InvRoutes implements RouteModule {
     public void register(ApiContext api) {
         api.post("/inv/projection", (e, m) -> project(api, e, api.body(e), null));
         api.post("/inv/projection/neighbors", (e, m) -> neighbors(api, e, api.body(e)));
+        api.get("/inv/schema/relationships", (e, m) -> schemaRelationships(api));
+    }
+
+    /**
+     * {@code GET /inv/schema/relationships} — the schema-relationship model (INV-1 V1's last open
+     * item, {@code docs/superpower/link-analysis-and-graphsource.md} §7): suggests entity-projection
+     * mappings across Datasets by naming convention instead of requiring the user to hand-pick every
+     * column pair. For every Dataset column named {@code <base>_id}, looks for a Dataset whose id
+     * matches {@code <base>} (singular or plural) and links to its {@code id} column ({@code high}
+     * confidence) or, failing that, to a same-named column on that Dataset ({@code medium}
+     * confidence). Self-references (e.g. {@code manager_id} on the same Dataset) are included —
+     * hierarchies are a legitimate entity-projection use case. Best-effort: a Dataset whose relation
+     * can't be probed (unbound, bad view) is silently skipped, never fails the whole call.
+     */
+    private Object schemaRelationships(ApiContext api) throws IOException {
+        Path writeRoot = WriteGates.requireWriteRoot(api, "schema relationship inference");
+        ComponentStore store = new ComponentStore(writeRoot.resolve("registry"));
+        ViewStore views = new ViewStore(writeRoot.resolve("views"));
+
+        Map<String, List<String>> columnsByDataset = new LinkedHashMap<>();
+        int skipped = 0;
+        for (ComponentRegistry.Component c : store.list("dataset")) {
+            try {
+                String relationSql = DatasetRelation.relationSql(c.content(), api.dataRoot(), views);
+                QueryExecutor.Result r = QueryExecutor.run(new QueryExecutor.Request(
+                        c.name(), relationSql, "SELECT * FROM " + q(c.name()), 0, 0, List.of(), List.of()));
+                List<String> cols = new ArrayList<>(r.columns().size());
+                for (var col : r.columns()) cols.add(col.name());
+                columnsByDataset.put(c.name(), cols);
+            } catch (Exception unusable) {
+                skipped++;   // unbound dataset, bad view, etc. — degrade, don't fail the call
+            }
+        }
+
+        List<Map<String, Object>> relationships = new ArrayList<>();
+        for (var from : columnsByDataset.entrySet()) {
+            for (String col : from.getValue()) {
+                String base = fkBase(col);
+                if (base == null) continue;
+                for (var to : columnsByDataset.entrySet()) {
+                    if (!matchesDatasetName(base, to.getKey())) continue;
+                    String toCol = containsIgnoreCase(to.getValue(), "id") ? "id"
+                            : containsIgnoreCase(to.getValue(), col) ? col : null;
+                    if (toCol == null) continue;
+                    String confidence = "id".equals(toCol) ? "high" : "medium";
+                    Map<String, Object> rel = new LinkedHashMap<>();
+                    rel.put("fromDataset", from.getKey());
+                    rel.put("fromColumn", col);
+                    rel.put("toDataset", to.getKey());
+                    rel.put("toColumn", toCol);
+                    rel.put("confidence", confidence);
+                    relationships.add(rel);
+                }
+            }
+        }
+        relationships.sort((a, b) -> {
+            int c = ((String) a.get("confidence")).equals("high") == ((String) b.get("confidence")).equals("high")
+                    ? 0 : ((String) a.get("confidence")).equals("high") ? -1 : 1;
+            if (c != 0) return c;
+            c = ((String) a.get("fromDataset")).compareTo((String) b.get("fromDataset"));
+            if (c != 0) return c;
+            return ((String) a.get("fromColumn")).compareTo((String) b.get("fromColumn"));
+        });
+
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("relationships", relationships);
+        out.put("datasetsScanned", columnsByDataset.size());
+        out.put("datasetsSkipped", skipped);
+        return out;
+    }
+
+    /** {@code <base>_id} → {@code base} (case-insensitive); {@code null} if {@code col} isn't that shape or is bare {@code id}. */
+    private static String fkBase(String col) {
+        if (col.length() <= 3 || !col.toLowerCase().endsWith("_id")) return null;
+        String base = col.substring(0, col.length() - 3);
+        return base.isEmpty() ? null : base;
+    }
+
+    /** {@code base} matches {@code datasetId} directly, pluralized, or {@code datasetId} singularized (strip trailing 's'). */
+    private static boolean matchesDatasetName(String base, String datasetId) {
+        String b = base.toLowerCase(), d = datasetId.toLowerCase();
+        if (b.equals(d) || b.equals(d + "s")) return true;
+        return d.endsWith("s") && b.equals(d.substring(0, d.length() - 1));
+    }
+
+    private static boolean containsIgnoreCase(List<String> cols, String target) {
+        for (String c : cols) if (c.equalsIgnoreCase(target)) return true;
+        return false;
     }
 
     /**

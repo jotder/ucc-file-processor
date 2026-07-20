@@ -72,6 +72,11 @@ class ControlApiInvProjectionTest {
                 .method("POST", BodyPublishers.ofString(body)).build(), BodyHandlers.ofString());
     }
 
+    private HttpResponse<String> schemaRelationships(int port) throws Exception {
+        return client.send(HttpRequest.newBuilder(URI.create("http://localhost:" + port + "/api/v1/inv/schema/relationships"))
+                .GET().build(), BodyHandlers.ofString());
+    }
+
     @Test
     void projectsTypedFoldedTriples(@TempDir Path cfg, @TempDir Path root) throws Exception {
         try (Ctx c = open(cfg, root)) {
@@ -209,6 +214,52 @@ class ControlApiInvProjectionTest {
             assertEquals(422, project(c.port, """
                     {"dataset":"calls_ds","sourceCol":"caller","targetCol":"callee","attrCols":["a b"]}""")
                     .statusCode(), "non-identifier attrCols entry");
+        }
+    }
+
+    /** Two datasets whose naming convention should be inferrable: orders.customer_id -> customers.id. */
+    private void seedOrdersAndCustomers(Ctx c) throws Exception {
+        new ViewStore(c.root.resolve("views")).write(new ViewDefinition("customers_view", "flow-x", List.of(),
+                "SELECT * FROM (VALUES (1,'Alice'),(2,'Bob')) AS t(id,name)", "2026-07-08T00:00:00Z"));
+        new ComponentStore(c.root.resolve("registry")).write("dataset", "customers", Map.of("view", "customers_view"));
+        new ViewStore(c.root.resolve("views")).write(new ViewDefinition("orders_view", "flow-x", List.of(),
+                "SELECT * FROM (VALUES (100,1),(101,2)) AS t(order_id,customer_id)", "2026-07-08T00:00:00Z"));
+        new ComponentStore(c.root.resolve("registry")).write("dataset", "orders", Map.of("view", "orders_view"));
+    }
+
+    @Test
+    void schemaRelationshipsInfersFkToIdColumnByNamingConvention(@TempDir Path cfg, @TempDir Path root) throws Exception {
+        try (Ctx c = open(cfg, root)) {
+            seedOrdersAndCustomers(c);
+            HttpResponse<String> r = schemaRelationships(c.port);
+            assertEquals(200, r.statusCode(), r.body());
+            JsonNode data = JSON.readTree(r.body()).get("data");
+            assertEquals(2, data.get("datasetsScanned").asInt());
+            JsonNode rels = data.get("relationships");
+            boolean found = false;
+            for (JsonNode rel : rels) {
+                if (rel.get("fromDataset").asText().equals("orders")
+                        && rel.get("fromColumn").asText().equals("customer_id")) {
+                    assertEquals("customers", rel.get("toDataset").asText());
+                    assertEquals("id", rel.get("toColumn").asText());
+                    assertEquals("high", rel.get("confidence").asText());
+                    found = true;
+                }
+            }
+            assertTrue(found, "expected orders.customer_id -> customers.id: " + rels);
+        }
+    }
+
+    @Test
+    void schemaRelationshipsSkipsUnusableDatasetsWithoutFailing(@TempDir Path cfg, @TempDir Path root) throws Exception {
+        try (Ctx c = open(cfg, root)) {
+            seedOrdersAndCustomers(c);
+            new ComponentStore(c.root.resolve("registry")).write("dataset", "ghost_ds", Map.of());   // unbound
+            HttpResponse<String> r = schemaRelationships(c.port);
+            assertEquals(200, r.statusCode(), r.body());
+            JsonNode data = JSON.readTree(r.body()).get("data");
+            assertEquals(2, data.get("datasetsScanned").asInt());
+            assertEquals(1, data.get("datasetsSkipped").asInt());
         }
     }
 
