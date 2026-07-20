@@ -41,8 +41,13 @@ public record ConnectionProfile(String id, String connector, String host, int po
     /**
      * An optional HTTP/SOCKS proxy in front of the target system ({@code type} = {@code HTTP} | {@code SOCKS5}).
      * Probed by the workbench's {@code target=proxy} test; it does <em>not</em> change {@link #testEndpoint()}
-     * (the saved-profile test still prioritises the tunnel hop, else the target) — connectors don't dial
-     * through it yet.
+     * (the saved-profile test still prioritises the tunnel hop, else the target).
+     *
+     * <p><b>2026-07-20:</b> {@code inspecto-connectors}' {@code SftpConnector} dials through a {@code SOCKS5}
+     * proxy declared here (rejecting {@code HTTP} fail-closed — a JDK socket can't transparently CONNECT-tunnel
+     * an arbitrary protocol the way it can for SOCKS). FTP/FTPS and the JDBC-based connectors still don't
+     * consult this field at all — each needs its own library-specific wiring (commons-net's `FTPClient`, and
+     * JDBC proxying is driver-URL-param territory, not a uniform hook), left as follow-on work.
      */
     public record Proxy(String type, String host, int port, String username, String password) {
         public String endpoint() { return host + ":" + port; }
