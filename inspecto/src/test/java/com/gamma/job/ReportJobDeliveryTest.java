@@ -96,6 +96,31 @@ class ReportJobDeliveryTest {
     }
 
     @Test
+    void datasetScopePdfDeliversTableSnapshot(@TempDir Path writeRoot, @TempDir Path outDir) throws Exception {
+        System.setProperty("java.awt.headless", "true");
+        seedSales(writeRoot);
+        System.setProperty("assist.write.root", writeRoot.toString());
+
+        JobResult r = new ReportJob(job(Map.of(
+                "scope", "dataset", "dataset", "sales_ds", "format", "pdf",
+                "measures", "sum(amount),count", "group_by", "region",
+                "out_dir", outDir.toString())), null).run();
+
+        assertEquals("SUCCESS", r.status(), r.message());
+        assertTrue(r.message().contains("delivered to"), r.message());
+        Path artifact;
+        try (Stream<Path> files = Files.list(outDir)) { artifact = files.findFirst().orElseThrow(); }
+        assertTrue(artifact.getFileName().toString().matches("weekly_sales_\\d{8}_\\d{6}\\.pdf"),
+                artifact.toString());
+        byte[] bytes = Files.readAllBytes(artifact);
+        String head = new String(bytes, 0, Math.min(8, bytes.length), java.nio.charset.StandardCharsets.US_ASCII);
+        assertTrue(head.startsWith("%PDF-"), "must start with a PDF header, got " + head);
+        String tail = new String(bytes, Math.max(0, bytes.length - 16), Math.min(16, bytes.length),
+                java.nio.charset.StandardCharsets.US_ASCII);
+        assertTrue(tail.contains("%%EOF"), "must end with %%EOF, got " + tail);
+    }
+
+    @Test
     void pngRendererCapsRowsAtSnapshotLimit(@TempDir Path outDir) throws Exception {
         System.setProperty("java.awt.headless", "true");
         List<Map<String, Object>> many = new ArrayList<>();

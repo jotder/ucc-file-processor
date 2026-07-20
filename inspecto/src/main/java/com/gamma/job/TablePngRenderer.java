@@ -45,6 +45,12 @@ final class TablePngRenderer {
 
     /** Render {@code rows} (header = union of row keys, first-seen order) as a table image at {@code out}. */
     static void render(String title, List<Map<String, Object>> rows, Path out) throws IOException {
+        BufferedImage img = renderImage(title, rows);
+        ImageIO.write(img, "png", out.toFile());
+    }
+
+    /** Build the table image in memory (shared with {@link PdfRenderer}, BI-4's PNG-wrapped-in-PDF fallback). */
+    static BufferedImage renderImage(String title, List<Map<String, Object>> rows) {
         Set<String> header = new LinkedHashSet<>();
         for (Map<String, Object> r : rows) header.addAll(r.keySet());
         List<String> cols = new ArrayList<>(header);
@@ -132,7 +138,7 @@ final class TablePngRenderer {
         } finally {
             g.dispose();
         }
-        ImageIO.write(img, "png", out.toFile());
+        return img;
     }
 
     private static String cell(Map<String, Object> row, String col) {

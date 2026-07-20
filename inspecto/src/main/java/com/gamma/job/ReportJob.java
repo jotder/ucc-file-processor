@@ -40,12 +40,14 @@ import java.util.Set;
  *   <li>{@code dataset} (BI-4 export) — a headless BI query over a Dataset: params {@code dataset}
  *       (component id, required), {@code measures} (comma-separated {@code agg(field)}/{@code count};
  *       absent = raw rows), {@code group_by} (comma-separated columns), {@code limit} (default 10000).
- *       Renders CSV by default ({@code format: png} renders a table-image snapshot, capped at
- *       {@link TablePngRenderer#MAX_ROWS} rows); reports render JSON.</li>
+ *       Renders CSV by default ({@code format: png}/{@code pdf} render a table-image snapshot, capped
+ *       at {@link TablePngRenderer#MAX_ROWS} rows — {@code pdf} is the same snapshot wrapped in a
+ *       minimal hand-written PDF via {@link PdfRenderer}, no PDF library on the classpath); reports
+ *       render JSON.</li>
  * </ul>
  *
- * <p>Params: {@code scope}, {@code out_dir}, {@code format} ({@code json} | {@code csv} | {@code png}), and the
- * dataset-scope params above.
+ * <p>Params: {@code scope}, {@code out_dir}, {@code format}
+ * ({@code json} | {@code csv} | {@code png} | {@code pdf}), and the dataset-scope params above.
  */
 final class ReportJob implements Job {
 
@@ -122,7 +124,8 @@ final class ReportJob implements Job {
         Path dir = Path.of(outDir);
         Files.createDirectories(dir);
         Path artifact = dir.resolve(cfg.name() + "_" + TS.format(LocalDateTime.now())
-                + ("csv".equals(format) ? ".csv" : "png".equals(format) ? ".png" : ".json"));
+                + ("csv".equals(format) ? ".csv" : "png".equals(format) ? ".png"
+                        : "pdf".equals(format) ? ".pdf" : ".json"));
         if ("csv".equals(format)) {
             if (rows == null) throw new IllegalArgumentException(
                     "format csv requires scope dataset (rollup reports render as json)");
@@ -131,6 +134,10 @@ final class ReportJob implements Job {
             if (rows == null) throw new IllegalArgumentException(
                     "format png requires scope dataset (rollup reports render as json)");
             TablePngRenderer.render(cfg.name(), rows, artifact);
+        } else if ("pdf".equals(format)) {
+            if (rows == null) throw new IllegalArgumentException(
+                    "format pdf requires scope dataset (rollup reports render as json)");
+            PdfRenderer.render(cfg.name(), rows, artifact);
         } else {
             Files.writeString(artifact, JSON.writerWithDefaultPrettyPrinter().writeValueAsString(report));
         }
