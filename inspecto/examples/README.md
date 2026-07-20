@@ -44,6 +44,8 @@ git-ignored.
 | **02-parsing/no-header** | Headerless input (`has_header: false`) — columns bound purely by position. | `… 02-parsing/no-header` |
 | **02-parsing/compressed-gzip** | Transparent `.csv.gz` ingest (also `.bz2`, `.zip`) — no manual decompression. | `… 02-parsing/compressed-gzip` |
 | **02-parsing/fixedwidth** | Fixed-width text via an external `grammar.toon` (`frontend: fixedwidth`, column slices by start/length). | `… 02-parsing/fixedwidth` |
+| **02-parsing/json-frontend** | NDJSON input (`frontend: json`, `json.format: newline`) — one JSON object per line, columns bound by JSON key (`raw.fields[].selector`). | `… 02-parsing/json-frontend` |
+| **02-parsing/text-regex-frontend** | Free-text log lines matched against a named-capture-group regex (`frontend: text_regex`) — lines that don't match (a banner + a footer line) are dropped, not fatal. | `… 02-parsing/text-regex-frontend` |
 | **03-schema-transform/expr-transform** | Per-record `EXPR` transforms: `UPPER(TRIM(...))` and a derived `GROSS = ROUND(net*1.1, 2)` column. | `… 03-schema-transform/expr-transform` |
 | **03-schema-transform/reject-routing** | Structurally-bad rows (wrong column count) are split out to `out/errors/*_errors.csv` while good rows still land in `out/database/`. | `… 03-schema-transform/reject-routing` |
 | **04-output/csv-output** | Switch the sink to `format: CSV` (vs the default Parquet+snappy), same Hive partition layout. | `… 04-output/csv-output` |

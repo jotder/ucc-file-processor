@@ -1,0 +1,34 @@
+name: PARSE_TEXT_REGEX
+active: true
+version: 1
+
+dirs:
+  poll:       out/inbox
+  database:   out/database
+  backup:     out/backup
+  temp:       out/temp
+  errors:     out/errors
+  quarantine: out/quarantine
+  markers:    out/markers
+  status_dir: out/status
+  log_dir:    out/logs
+
+output:
+  format: PARQUET
+  compression: snappy
+
+processing:
+  threads: 2
+  file_pattern: "glob:**/*.log"
+  duplicate_check:
+    enabled: true
+    marker_extension: .processed
+  schema_file: "schema.toon"
+  csv_settings:
+    date_formats[1]: "%Y-%m-%d"
+    timestamp_formats[1]: "%Y-%m-%d %H:%M:%S"
+
+parsing:
+  frontend: text_regex
+  text_regex:
+    pattern: "^(?P<id>[0-9]+) (?P<region>[A-Z]+) (?P<event_date>[0-9-]+) (?P<amount>[0-9.]+)$"

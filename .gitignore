@@ -20,6 +20,8 @@
 *.class
 *.log
 *.dryrun
+# Committed example sample data can legitimately be *.log (e.g. text_regex-frontend) — un-ignore it.
+!/inspecto/examples/**/samples/**
 
 # IDE files (IntelliJ)
 *.iml
