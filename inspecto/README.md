@@ -118,7 +118,7 @@ is the job of **Stage-2 enrichment**, which runs over the committed Parquet outp
 | **CSV or Parquet output** | Switched per pipeline via `output.format`; Snappy/zstd/gzip compression for Parquet |
 | **Controllable parallelism** | Virtual-thread executors with semaphore caps at both the batch and multi-source levels; per-connection DuckDB thread cap |
 | **Large-file handling** | Engine scratch (temp DB + DuckDB spill) lives on the data volume (`dirs.temp`), never the system `/tmp`; single-pass streaming ingest (no 2–3× materialization); optional `processing.chunking` streams oversized files in bounded chunks so peak scratch stays small regardless of file size |
-| **Multi-source orchestration** | `MultiSourceProcessor` runs many sources concurrently in one JVM, failure-isolated |
+| **Multi-source orchestration** | `MultiCollectorProcessor` runs many sources concurrently in one JVM, failure-isolated |
 | **Idempotency** | Marker files (`.processed`) prevent re-ingestion; stale markers pruned by `retention_days` |
 | **Multi-schema dispatch** | `schemas[]` routes files to schemas by filename pattern or column-count probe |
 | **Plugin ingester** | `processing.ingester:` loads a custom `StreamingFileIngester`; one input file can emit multiple event-type segments into separate partitioned tables. Emit records and the framework owns tables/transform/write/lineage and bounds heap/scratch automatically — running the same ingester in *union mode* (many small files) or *generation mode* (one huge file), chosen per batch by file size |
@@ -222,11 +222,11 @@ start. Wrong-schema or unreadable files are moved to `quarantine/<adapter>/` and
 ## 5. Run many sources at once
 
 ```bash
-java -cp target/file-processor-<version>.jar com.gamma.inspector.MultiSourceProcessor \
+java -cp target/file-processor-<version>.jar com.gamma.inspector.MultiCollectorProcessor \
      -Dsources.max=4 config/
 ```
 
-`MultiSourceProcessor` runs every `*_pipeline.toon` it finds (files or directories), bounded by
+`MultiCollectorProcessor` runs every `*_pipeline.toon` it finds (files or directories), bounded by
 `-Dsources.max`, with each source failure-isolated in its own virtual-thread lane. See
 [Operations → Multiple sources in one process](../docs/operations.md#multiple-sources-in-one-process).
 
