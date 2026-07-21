@@ -157,6 +157,41 @@ class OpsMonitorTest {
     }
 
     @Test
+    void stateWatchPollActsOnScannerFindingsWithinPolicyAndDedupes() {
+        AutonomyPolicyEngine engine = new AutonomyPolicyEngine(new AutonomyPolicyStore());
+        engine.setClass(OpsMonitor.ACTION_ALERT_TRIAGE, new ClassPolicy(Mode.AUTO, 100, 100), "op");
+        AutonomyLog log = new AutonomyLog();
+        RecordingRemediator rem = new RecordingRemediator();
+        OpsMonitor m = monitor(engine, log, rem);
+
+        OpsMonitor.StateScanner scanner = () -> List.of(
+                new OpsMonitor.Finding(OpsMonitor.ACTION_ALERT_TRIAGE, "alert-1",
+                        Map.of("alertId", "alert-1", "pipeline", "orders")));
+        m.pollOnce(scanner);
+        m.pollOnce(scanner); // same finding again — deduped, no second action
+        assertEquals(1, rem.calls.get());
+        assertEquals("alert-1", rem.lastSubject.get("alertId"));
+        assertEquals(1, log.size());
+    }
+
+    @Test
+    void stateWatchRespectsModeAndKillSwitch() {
+        // OFF class → the scanner finding is recorded SKIPPED, never remediated.
+        AutonomyPolicyEngine offEngine = new AutonomyPolicyEngine(new AutonomyPolicyStore());
+        RecordingRemediator rem = new RecordingRemediator();
+        OpsMonitor m = monitor(offEngine, new AutonomyLog(), rem);
+        m.pollOnce(() -> List.of(new OpsMonitor.Finding(OpsMonitor.ACTION_ALERT_TRIAGE, "a1",
+                Map.of("alertId", "a1"))));
+        assertEquals(0, rem.calls.get());
+    }
+
+    @Test
+    void aThrowingScannerIsSwallowed() {
+        OpsMonitor m = monitor(engineWith(Mode.AUTO), new AutonomyLog(), new RecordingRemediator());
+        m.pollOnce(() -> { throw new IllegalStateException("scan boom"); }); // must not propagate
+    }
+
+    @Test
     void ledgerReturnsNewestFirst() {
         AutonomyLog log = new AutonomyLog();
         OpsMonitor m = monitor(engineWith(Mode.AUTO), log, new RecordingRemediator());

@@ -11,6 +11,7 @@ import org.slf4j.LoggerFactory;
 
 import java.time.Instant;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
@@ -20,6 +21,9 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
@@ -52,9 +56,11 @@ public final class OpsMonitor implements AutoCloseable {
 
     /** Opt-in kill-switch (process-level): the loop is off unless this system property is {@code true}. */
     public static final String ENABLED_FLAG = "intelligence.opsmonitor.enabled";
-    /** The pilot action class — replay a failed batch. Keyed into the {@link AutonomyPolicy}. */
+    /** The event-driven pilot action class — replay a failed batch. Keyed into the {@link AutonomyPolicy}. */
     public static final String ACTION_BATCH_RERUN = "batch_rerun";
-    /** The Signal type this pilot reacts to. */
+    /** The state-watch pilot action class — acknowledge/triage an open alert. */
+    public static final String ACTION_ALERT_TRIAGE = "alert_triage";
+    /** The Signal type the batch_rerun pilot reacts to (event-driven). */
     public static final String TRIGGER_BATCH_FAILED = "pipeline.batch.failed";
     /** The audited actor of an autonomous action (→ {@code actor=agent:ops-monitor}). */
     public static final String ACTOR_SESSION = "ops-monitor";
@@ -67,6 +73,17 @@ public final class OpsMonitor implements AutoCloseable {
     @FunctionalInterface
     public interface Remediator {
         String remediate(String actionClass, Map<String, Object> subject) throws Exception;
+    }
+
+    /** One remediable state observation from a {@link StateScanner}: an action class + its subject,
+     *  plus a stable dedupe key so a poll never re-acts on the same subject within the window. */
+    public record Finding(String actionClass, String dedupeKey, Map<String, Object> subject) {}
+
+    /** Produces the current remediable findings on demand — the state-watch (poll-driven) counterpart
+     *  to the event-driven Signal path. Read-only; must not itself mutate anything. */
+    @FunctionalInterface
+    public interface StateScanner {
+        List<Finding> scan();
     }
 
     private final AutonomyPolicyEngine policy;
@@ -86,6 +103,8 @@ public final class OpsMonitor implements AutoCloseable {
             });
 
     private volatile EventLog attached;
+    private volatile ScheduledExecutorService stateWatchPool;
+    private volatile ScheduledFuture<?> stateWatchTask;
 
     public static boolean enabled() {
         return Boolean.getBoolean(ENABLED_FLAG);
@@ -117,6 +136,47 @@ public final class OpsMonitor implements AutoCloseable {
     public void attach(EventLog eventLog) {
         this.attached = eventLog;
         eventLog.addSubscriber(subscriber);
+    }
+
+    /**
+     * Start the periodic <b>state-watch</b> (the poll-driven complement to the event-driven Signal
+     * path): every {@code intervalSeconds} the {@code scanner} is asked for the current remediable
+     * findings, each of which is deduped and run through {@link #decideAndAct} exactly like a Signal
+     * would be. A single daemon thread runs the poll; a scan or remediation failure is logged and never
+     * halts the schedule. Idempotent per instance — one state-watch at a time.
+     */
+    public synchronized void attachStateWatch(StateScanner scanner, long intervalSeconds) {
+        if (stateWatchTask != null || intervalSeconds <= 0) return;
+        stateWatchPool = Executors.newSingleThreadScheduledExecutor(r -> {
+            Thread t = new Thread(r, "inspecto-ops-monitor-statewatch");
+            t.setDaemon(true);
+            return t;
+        });
+        stateWatchTask = stateWatchPool.scheduleWithFixedDelay(
+                () -> pollOnce(scanner), intervalSeconds, intervalSeconds, TimeUnit.SECONDS);
+        log.info("ops_monitor state-watch enabled (every {}s)", intervalSeconds);
+    }
+
+    /** One scan pass: fetch findings, dedupe, and decide+act on each. Package-private for direct tests. */
+    void pollOnce(StateScanner scanner) {
+        List<Finding> findings;
+        try {
+            findings = scanner.scan();
+        } catch (RuntimeException e) {
+            log.warn("ops_monitor state-watch scan failed: {}", e.getMessage());
+            return;
+        }
+        for (Finding f : findings) {
+            if (f == null || f.actionClass() == null) continue;
+            synchronized (seen) {
+                if (!seen.add("watch:" + f.dedupeKey())) continue; // one action per subject per window
+            }
+            try {
+                decideAndAct(f.actionClass(), f.subject());
+            } catch (RuntimeException e) {
+                log.warn("ops_monitor state-watch failed on {}: {}", f.dedupeKey(), e.getMessage());
+            }
+        }
     }
 
     /** Emitting-thread work: type-check, offer, hand off. Never runs policy/remediation inline. */
@@ -210,6 +270,8 @@ public final class OpsMonitor implements AutoCloseable {
     public void close() {
         EventLog eventLog = attached;
         if (eventLog != null) eventLog.removeSubscriber(subscriber);
+        if (stateWatchTask != null) stateWatchTask.cancel(false);
+        if (stateWatchPool != null) stateWatchPool.shutdownNow();
         if (ownedPool != null) ownedPool.shutdown();
     }
 }

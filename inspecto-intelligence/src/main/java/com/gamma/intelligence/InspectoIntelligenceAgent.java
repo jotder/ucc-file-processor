@@ -160,7 +160,13 @@ public final class InspectoIntelligenceAgent implements IntelligenceAgent {
         if (OpsMonitor.enabled()) {
             opsMonitor = new OpsMonitor(autonomy, autonomyLog, this::remediate);
             opsMonitor.attach(service.eventLog());
-            log.info("ops_monitor enabled ({}=true): batch_rerun remediation gated by /agent/policy", OpsMonitor.ENABLED_FLAG);
+            // P4 polish: an optional periodic state-watch (poll) complements the event path. When
+            // -Dintelligence.opsmonitor.statewatch.seconds>0, it scans open ALERT objects and — only if
+            // the operator set alert_triage to AUTO within budget — acks them via the audited alert_ack.
+            long watchSeconds = Long.getLong("intelligence.opsmonitor.statewatch.seconds", 0L);
+            if (watchSeconds > 0) opsMonitor.attachStateWatch(this::scanRemediableState, watchSeconds);
+            log.info("ops_monitor enabled ({}=true): batch_rerun (event) + alert_triage (state-watch {}s), gated by /agent/policy",
+                    OpsMonitor.ENABLED_FLAG, watchSeconds > 0 ? watchSeconds : "off");
         }
 
         // Slice E: autonomous triage is opt-in. When enabled, subscribe to the canonical Signal bus
@@ -327,18 +333,52 @@ public final class InspectoIntelligenceAgent implements IntelligenceAgent {
      * control plane so {@link OpsMonitor} records the action as FAILED.
      */
     private String remediate(String actionClass, Map<String, Object> subject) throws Exception {
-        if (!OpsMonitor.ACTION_BATCH_RERUN.equals(actionClass)) {
-            throw new IllegalArgumentException("no remediator for action class '" + actionClass + "'");
+        ControlPlaneClient client = new ControlPlaneClient();
+        return switch (actionClass) {
+            case OpsMonitor.ACTION_BATCH_RERUN -> {
+                String pipeline = String.valueOf(subject.get("pipeline"));
+                String batchId = String.valueOf(subject.get("batchId"));
+                ToolCall call = new ToolCall(OperationalActions.TOOL_PIPELINE_RERUN,
+                        Map.of("pipeline", pipeline, "batchId", batchId), new RunId(OpsMonitor.ACTOR_SESSION));
+                ToolResult r = OperationalActions.pipelineRerun(client, call, OpsMonitor.ACTOR_SESSION);
+                if (!r.ok()) throw new IllegalStateException(r.error() == null ? "pipeline_rerun failed" : r.error());
+                yield "reprocessed batch " + batchId + " of pipeline " + pipeline;
+            }
+            case OpsMonitor.ACTION_ALERT_TRIAGE -> {
+                String alertId = String.valueOf(subject.get("alertId"));
+                ToolCall call = new ToolCall(OperationalActions.TOOL_ALERT_ACK,
+                        Map.of("id", alertId), new RunId(OpsMonitor.ACTOR_SESSION));
+                ToolResult r = OperationalActions.alertAck(client, call, OpsMonitor.ACTOR_SESSION);
+                if (!r.ok()) throw new IllegalStateException(r.error() == null ? "alert_ack failed" : r.error());
+                yield "acknowledged alert " + alertId;
+            }
+            default -> throw new IllegalArgumentException("no remediator for action class '" + actionClass + "'");
+        };
+    }
+
+    /**
+     * The {@code ops_monitor} state-watch scanner (P4 polish): the current remediable state, read
+     * in-process (never mutating). Today it surfaces open {@code ALERT} operational objects as
+     * {@code alert_triage} findings (each object carries its own id + pipeline, so no Signal-id gap);
+     * the policy engine decides whether any actually get acked. Generalizes to more finding kinds later.
+     */
+    private List<OpsMonitor.Finding> scanRemediableState() {
+        if (service == null) return List.of();
+        List<OpsMonitor.Finding> findings = new java.util.ArrayList<>();
+        try {
+            var query = com.gamma.ops.ObjectQuery.builder()
+                    .objectType(com.gamma.ops.ObjectType.ALERT).status("OPEN").build();
+            for (var obj : service.objects().query(query)) {
+                Map<String, Object> subject = new HashMap<>();
+                subject.put("alertId", obj.id());
+                subject.put("pipeline", obj.correlationId());
+                if (obj.attributes() != null) subject.put("rule", obj.attributes().get("rule"));
+                findings.add(new OpsMonitor.Finding(OpsMonitor.ACTION_ALERT_TRIAGE, obj.id(), subject));
+            }
+        } catch (RuntimeException e) {
+            log.warn("ops_monitor state-watch scan failed: {}", e.getMessage());
         }
-        String pipeline = String.valueOf(subject.get("pipeline"));
-        String batchId = String.valueOf(subject.get("batchId"));
-        ToolCall call = new ToolCall(OperationalActions.TOOL_PIPELINE_RERUN,
-                Map.of("pipeline", pipeline, "batchId", batchId), new RunId(OpsMonitor.ACTOR_SESSION));
-        ToolResult result = OperationalActions.pipelineRerun(new ControlPlaneClient(), call, OpsMonitor.ACTOR_SESSION);
-        if (!result.ok()) {
-            throw new IllegalStateException(result.error() == null ? "pipeline_rerun failed" : result.error());
-        }
-        return "reprocessed batch " + batchId + " of pipeline " + pipeline;
+        return findings;
     }
 
     /**

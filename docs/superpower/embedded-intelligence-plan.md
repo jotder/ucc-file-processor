@@ -404,8 +404,15 @@ degrade to a disabled "unavailable" state when the module/tier is absent. `Auton
 barrel; Vitest specs (8) cover load, pilot-class surfacing, kill-switch confirm, Ops gating,
 policy save, and the unavailable degrade. **P4 complete** (exit met: policy-bounded autonomous
 remediation with budget enforcement, a live-proven hard-off switch, and the autonomy dashboard).
-*Deferred beyond P4-core:* a second pilot class (alert triage), a periodic state-watch trigger
-(today event-driven only), and mid-plan runbook resume (carried from P3) — all candidate P5/polish.
+*P4 polish — 2nd pilot class + periodic state-watch — SHIPPED 2026-07-21.* `OpsMonitor` gained a
+poll-driven **state-watch** (`attachStateWatch(scanner, intervalSeconds)`, own daemon scheduler,
+opt-in `-Dintelligence.opsmonitor.statewatch.seconds>0`) complementing the event path: each poll asks
+a `StateScanner` for `Finding`s and runs them through the same `authorize → deny/shadow/execute →
+ledger` path. The scanner surfaces open `ALERT` operational objects (each carries its own id +
+pipeline, so no Signal-id gap) as the second pilot class **`alert_triage`**, remediated by the audited
+`alert_ack` — once acked, an alert leaves the `OPEN` scan (natural dedup). Both pilot classes default
+`OFF`; the dashboard's class editor now surfaces `alert_triage` too. *Deferred beyond P4-core:*
+mid-plan runbook resume (carried from P3).
 
 **P5 — Learning.** Feedback capture → eval growth; case-similarity recall; per-skill tuning
 dashboards; embedding retrieval upgrade if warranted.

@@ -28,7 +28,7 @@ interface ClassRow {
 }
 
 /** Pilot action classes always surfaced so an operator can configure them even before first use. */
-const PILOT_CLASSES = ['batch_rerun'];
+const PILOT_CLASSES = ['batch_rerun', 'alert_triage'];
 
 /**
  * Autonomy Dashboard (AGT-5 P4, autonomy L3) — the operator surface over the bounded-autonomy policy
