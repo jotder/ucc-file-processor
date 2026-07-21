@@ -130,19 +130,20 @@ public final class RunbookActions {
         int startIndex = Math.min(runs.resumeIndex(key), rb.steps().size()); // resume point (0 = fresh)
 
         List<Map<String, Object>> log = new ArrayList<>();
+        for (int i = 0; i < startIndex; i++) { // steps a prior run already completed — skipped, not re-executed
+            Step step = rb.steps().get(i);
+            Map<String, Object> skipped = new LinkedHashMap<>();
+            skipped.put("step", i + 1);
+            skipped.put("tool", step.tool());
+            skipped.put("skipped", true);
+            skipped.put("reason", "already completed in a prior run (resumed)");
+            log.add(skipped);
+        }
+
         int completed = startIndex; // already-succeeded steps from a prior run count as completed
         boolean success = true;
-        for (int i = 0; i < rb.steps().size(); i++) {
+        for (int i = startIndex; i < rb.steps().size(); i++) {
             Step step = rb.steps().get(i);
-            if (i < startIndex) { // skip a step a prior run already completed — do not re-execute
-                Map<String, Object> skipped = new LinkedHashMap<>();
-                skipped.put("step", i + 1);
-                skipped.put("tool", step.tool());
-                skipped.put("skipped", true);
-                skipped.put("reason", "already completed in a prior run (resumed)");
-                log.add(skipped);
-                continue;
-            }
             ToolCall stepCall = new ToolCall(step.tool(), step.args().apply(params), new RunId(session));
             ToolResult r = dispatch(step.tool(), client, stepCall, session);
             Map<String, Object> entry = new LinkedHashMap<>();
@@ -157,7 +158,8 @@ public final class RunbookActions {
                 break;
             }
             completed++;
-            runs.record(key, rb.name(), completed, false); // checkpoint after each success
+            // checkpoint after each success; the last step's checkpoint is the terminal one written below
+            if (i < rb.steps().size() - 1) runs.record(key, rb.name(), completed, false);
         }
         if (success) runs.record(key, rb.name(), completed, true); // terminal — a re-run starts fresh
 

@@ -2,6 +2,7 @@ package com.gamma.intelligence.action;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.ObjectWriter;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -34,6 +35,7 @@ public final class RunbookRunStore {
 
     private static final Logger log = LoggerFactory.getLogger(RunbookRunStore.class);
     private static final ObjectMapper JSON = new ObjectMapper();
+    private static final ObjectWriter CANONICAL = JSON.writer().with(SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS);
     private static final int DEFAULT_CAPACITY = 512;
 
     /** One runbook-run's progress. {@code completedSteps} is the count of steps that succeeded. */
@@ -94,8 +96,7 @@ public final class RunbookRunStore {
     /** Canonical key for a runbook name + params (sorted keys → stable across persistence round-trip). */
     public static String key(String runbook, Map<String, Object> params) {
         try {
-            String canon = JSON.writer().with(SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS)
-                    .writeValueAsString(params == null ? Map.of() : params);
+            String canon = CANONICAL.writeValueAsString(params == null ? Map.of() : params);
             return runbook + "|" + canon;
         } catch (IOException e) {
             return runbook + "|" + params;
@@ -136,6 +137,6 @@ public final class RunbookRunStore {
         String wr = System.getProperty("assist.write.root");
         return wr == null || wr.isBlank()
                 ? new RunbookRunStore()
-                : new RunbookRunStore(java.nio.file.Path.of(wr).resolve("agent").resolve("runbook-runs.jsonl"));
+                : new RunbookRunStore(Path.of(wr).resolve("agent").resolve("runbook-runs.jsonl"));
     }
 }

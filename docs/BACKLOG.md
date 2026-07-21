@@ -93,6 +93,16 @@ Fuse-leftover removal, reactor split, shutdown robustness, `@PublicApi` freezing
 M1 parent `dependencyManagement` · M2 `SourceService` decomposition · M3 `agent.spi` facade ·
 M4 UI Fuse-leftover removal (~25.8k lines) · M5 coverage baseline · M6 repo-clutter sweep.
 
+M7 **agent durable-store consolidation** (observed 2026-07-21, AGT-5 P3 runbook-resume cleanup): the
+intelligence-module persistence plumbing is now a rule-of-four — `ApprovalStore`, `CaseStore`,
+`FeedbackStore`, `RunbookRunStore` each hand-roll the same bounded JSON-lines ring (capacity + `Path` +
+`ArrayDeque`, load-at-construction, rewrite-whole-file-on-record, degrade-to-in-memory), and the
+`assist.write.root` → `<root>/agent/<file>` resolver is copy-pasted ~7× (the five stores wired in
+`InspectoIntelligenceAgent` + `InspectoTools.componentStore` + the new `RunbookRunStore.fromWriteRoot`).
+Extract one `DurableJsonlRing<T>` base (per-payload `toRecord`/`fromRecord` codec) + one shared
+write-root resolver. Deferred from the resume commit — the extraction touches three already-shipped
+stores and their tests, out of scope for a single feature commit.
+
 ## 6. Security-module scope (deferred wholesale — do not partially implement elsewhere)
 
 Identity/login, user model, role-assignment UI, Admin pane, server enforcement, lens-switcher
