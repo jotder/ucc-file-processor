@@ -16,6 +16,12 @@ import java.util.Set;
  * {@link #accepts()}. These feed the lift, the (Phase-3) wiring validator <b>and the UI palette</b>
  * (the built-in processor definitions are not deferred — the visualiser needs them, doc §6). Execution
  * and dry-run hooks are added in later phases, so this interface stays small and stable for now.
+ *
+ * <p><b>Reserved extension point</b> (modularization plan C7, 2026-07-21): as of 4.x no external
+ * provider exists — every shipped node type is a {@link BuiltinNodeType}. The {@code ServiceLoader}
+ * contribution path is nevertheless live in {@link PipelineNodeTypes} and kept deliberately, for
+ * edition/plugin node types; it mirrors the proven {@code CollectorConnectorFactory} seam. Don't
+ * remove it for being "unused" — implement a provider against it instead.
  */
 @PublicApi(since = "4.3.0")
 public interface PipelineNodeType {
