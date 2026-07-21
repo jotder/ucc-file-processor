@@ -19,7 +19,7 @@ import com.gamma.job.Job;
 import com.gamma.job.JobConfig;
 import com.gamma.job.JobResult;
 import com.gamma.job.JobType;
-import com.gamma.service.BatchEventBus;
+import com.gamma.etl.BatchEventBus;
 import com.gamma.sql.SqlViews;
 import com.gamma.util.DuckDbUtil;
 import org.slf4j.Logger;

@@ -21,7 +21,7 @@ import java.util.function.Supplier;
  *
  * <h3>Off-thread by design</h3>
  * {@code EventLog} notifies subscribers synchronously on the emitting thread — for a {@code BATCH_FAILED}
- * event that thread is inside the synchronous {@link com.gamma.service.BatchEventBus} publish while the
+ * event that thread is inside the synchronous {@link com.gamma.etl.BatchEventBus} publish while the
  * ingest path holds {@code ingestLock}. Doing real work inline would stall ingest (and risk the
  * documented bus/lock deadlock), so {@link #onEvent} only matches a rule and <b>hands off</b> to a
  * virtual-thread executor (the {@code JobService}/{@code triggerWorkers} idiom); rendering, dedup and

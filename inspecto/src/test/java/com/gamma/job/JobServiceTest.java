@@ -5,7 +5,7 @@ import com.gamma.pipeline.PipelineEdge;
 import com.gamma.pipeline.PipelineGraph;
 import com.gamma.pipeline.PipelineNode;
 import com.gamma.pipeline.PipelineStore;
-import com.gamma.service.BatchEventBus;
+import com.gamma.etl.BatchEventBus;
 import com.gamma.service.Scheduler;
 import com.gamma.util.DuckDbUtil;
 import org.junit.jupiter.api.Test;

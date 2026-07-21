@@ -5,6 +5,7 @@ import com.gamma.enrich.EnrichmentConfig.Input;
 import com.gamma.enrich.EnrichmentConfig.Output;
 import com.gamma.enrich.EnrichmentConfig.Triggers;
 import com.gamma.etl.BatchEvent;
+import com.gamma.etl.BatchEventBus;
 import com.gamma.etl.PipelineConfigBatchTest;
 import com.gamma.etl.TestConfigs;
 import com.gamma.util.DuckDbUtil;

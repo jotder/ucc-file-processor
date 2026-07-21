@@ -2,7 +2,7 @@ package com.gamma.job;
 
 import com.gamma.pipeline.ComponentStore;
 import com.gamma.pipeline.DecisionRules;
-import com.gamma.service.BatchEventBus;
+import com.gamma.etl.BatchEventBus;
 import com.gamma.service.Scheduler;
 import com.gamma.util.DuckDbUtil;
 import org.junit.jupiter.api.AfterEach;

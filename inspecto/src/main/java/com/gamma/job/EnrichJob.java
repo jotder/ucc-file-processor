@@ -5,7 +5,7 @@ import com.gamma.enrich.EnrichmentConfig;
 import com.gamma.enrich.EnrichmentEngine;
 import com.gamma.etl.BatchEvent;
 import com.gamma.etl.PartitionOutput;
-import com.gamma.service.BatchEventBus;
+import com.gamma.etl.BatchEventBus;
 
 import java.util.List;
 

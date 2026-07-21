@@ -9,6 +9,7 @@ import com.gamma.catalog.MetadataGraphService;
 import com.gamma.catalog.SemanticModel;
 import com.gamma.enrich.EnrichmentConfig;
 import com.gamma.etl.BatchEvent;
+import com.gamma.etl.BatchEventBus;
 import com.gamma.etl.IngestProgress;
 import com.gamma.etl.PipelineConfig;
 import com.gamma.etl.StatusStore;

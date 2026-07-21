@@ -1,6 +1,5 @@
-package com.gamma.service;
+package com.gamma.etl;
 
-import com.gamma.etl.BatchEvent;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;

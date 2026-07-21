@@ -1,6 +1,7 @@
 package com.gamma.service;
 
 import com.gamma.etl.BatchEvent;
+import com.gamma.etl.BatchEventBus;
 import com.gamma.etl.PipelineConfig;
 import com.gamma.inspector.MultiCollectorProcessor;
 import com.gamma.pipeline.PipelineTrigger;

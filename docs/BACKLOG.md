@@ -116,9 +116,10 @@ as a reserved ServiceLoader seam (`1ec510d9`).
 **OPEN — reactor-split tail (WS-D; reactor now 9 modules). Progress 2026-07-21:**
 - ✅ **`fp-util`** (`b6758466`) + **`fp-sql`** (`a71829c0`) leaf modules extracted — the only two
   genuinely leaf-extractable packages (each depends only on already-extracted modules).
-- ✅ **§1.7 cycle-breaking (part):** `CronExpression`→`util`, `StatusStore`→`etl` (`c681231f`) —
-  `StatusStore` was `catalog`'s only `service` edge, so this **broke the `service↔catalog` cycle**.
-- ⏳ **`BatchEventBus`→`etl`** — last useful §1.7 move (fan-in reduction only, ~17 files); deferred.
+- ✅ **§1.7 cycle-breaking (DONE):** `CronExpression`→`util`, `StatusStore`→`etl` (`c681231f`) —
+  `StatusStore` was `catalog`'s only `service` edge, so this **broke the `service↔catalog` cycle**;
+  then `BatchEventBus`→`etl` (beside its `BatchEvent` payload) — fan-in reduction, ~18 files. **No
+  further useful §1.7 relocations remain** before M2.
 - ❌ **`etl` / `event` are NOT leaf-extractable** (inline-aware recon): they point *up* into
   `service`/`inspector`/`pipeline`/`alert`/`signal`. Getting them below core (and then **`fp-acquire`**,
   S5 ③) is gated on the **M2 `SourceService`/`CollectorService` decomposition** (the flagged

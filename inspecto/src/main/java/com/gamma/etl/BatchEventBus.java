@@ -1,6 +1,5 @@
-package com.gamma.service;
+package com.gamma.etl;
 
-import com.gamma.etl.BatchEvent;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
