@@ -175,8 +175,23 @@ The module split is *blocked* until two god objects shrink and two seams exist:
      `connectionInUse` (reads `configRegistry`) stayed on `CollectorService` verbatim. Both were
      verified standalone: untouched by any constructor overload and by `close()`, no lock/scheduler/bus
      coupling, populated only post-construction by `ServiceBootstrap`.
-   - **Step 2 — `PipelineScheduler` (NEXT, HIGH RISK, not started).** This is the repo's most dangerous
-     refactor. Facts the next shift must hold:
+   - **Step 2 SHIPPED (`b6ac2c0` tests + `f40e2d9` extraction).** `PipelineScheduler` (package-private,
+     `com.gamma.service`) now owns the poll-cycle body (`runCycle`, ex-`runAllOnceInSpace`), T13 gating
+     (`dueThisTick`/`cronDue`), the event hand-off (`onUpstreamCommit`/`triggerMatches`), and the
+     `lastRunAtMs`/`eventCoalescers` state. It receives **shared refs** (never clones) to `ingestLock`,
+     `bus`, `triggerWorkers`, `registry`, `configRegistry`, `paused`, `running`, `maxConcurrentRuns`, plus
+     two callbacks for what stayed on `CollectorService`: `runPipeline` (sync run-by-name, same lock) and
+     `syncStatus`. `runAllOnce()` stays public, wraps `underSpace(pipelineScheduler::runCycle)`;
+     `runPipeline` stamps cadence via `scheduler.recordManualRun(...)`. Control-API-facing paths
+     (`runPipeline`, `triggerRunAsync`, `register`/`unregisterPipeline`, `pause`/`resume`, `liveRuns`) and
+     the exact `close()` order are unchanged. **Guarded by** the new `CollectorServiceIngestLockTest`
+     (reflectively holds `ingestLock`, asserts both the poll cycle and the manual trigger block on the one
+     lock — turns a cloned-lock regression into a red test) + the existing `CollectorServiceTriggerTest`
+     (event hand-off / cadence). inspecto: **1471 tests, 0 failures**. The remaining `SourceService`
+     decomposition candidates from §1.7 (`ConnectionRegistryFacade`, `AgentHost`/`OptionalAgentSlot`) are
+     lower-risk and can follow independently.
+   - **Original step-2 hazard notes (kept for provenance).** This was the repo's most dangerous refactor.
+     Facts that governed the extraction:
      - **One `ReentrantLock ingestLock`** (`CollectorService` field) serializes **three** ingest entry
        paths — the scheduled poll cycle (`runAllOnce`→`runAllOnceInSpace`), the sync trigger
        (`runPipeline`), the async trigger (`triggerRunAsync`→`triggerWorkers`) — plus registry mutation
@@ -276,7 +291,7 @@ E3. Bring `inspecto-intelligence` (14/2) and `inspecto-agent-hosted` (2/1) to ba
 | # | Item | Why must |
 |---|---|---|
 | M1 | Parent `dependencyManagement` + version properties (A1) — **SHIPPED 2026-07-21 (`73ea9a1`)**: parent now manages junit/langchain4j/eoiagent/postgresql; per-module literals + duplicate version properties removed. | Version drift across 6 poms is a live risk (core already ignores the parent's `junit.version`); prerequisite for adding modules without multiplying the drift. |
-| M2 | `SourceService`/`CollectorService` decomposition (C1) — **step 1 SHIPPED 2026-07-21 (`06d54e0`)**: Rca/Connection registries extracted. **Step 2 (PipelineScheduler, HIGH RISK) pending — see §2.2.1a.** | 1,178-line god object is the single blocker for every modularization step and the top defect-risk concentration. |
+| M2 | `SourceService`/`CollectorService` decomposition (C1) — **step 1 SHIPPED 2026-07-21 (`06d54e0`)**: Rca/Connection registries extracted. **Step 2 SHIPPED 2026-07-21 (`b6ac2c0`+`f40e2d9`)**: `PipelineScheduler` extracted (the high-risk poll/trigger cluster), shared-`ingestLock` invariant pinned by a characterization test. Remaining lower-risk candidates (ConnectionRegistryFacade, AgentHost/OptionalAgentSlot) optional — see §2.2.1a. | 1,178-line god object is the single blocker for every modularization step and the top defect-risk concentration. |
 | M3 | `agent.spi` facade (C3) | 180 concrete imports of core internals make `inspecto-agent`/`-intelligence` unable to evolve independently; the eoiagent migration plan depends on this seam. |
 | M4 | Remove Fuse leftovers (B1) — **increment 1 SHIPPED 2026-07-21 (`80d6366`)**: dead demo mocks deleted (−25,079 lines). **Increment 2 pending**: the wired `common/{navigation,shortcuts,user,auth}` + `modules/auth` + `modules/commons` + shell nav/auth re-plumb + `provideGamma` de-wire (medium risk, see SESSION_STATUS next-steps). | ~25.8k dead lines *partially wired into the app config* — real bundle weight, security surface, and constant confusion for new shifts. |
 | M5 | Coverage baseline for intelligence + agent-hosted, jacoco in all modules (E3, A2) | Near-zero-tested modules ship in every reactor build; untestable modules can't be refactored safely later. |
