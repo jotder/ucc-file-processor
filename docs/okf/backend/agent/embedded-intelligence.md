@@ -51,11 +51,11 @@ ranked root-cause **Case** with a fix draft.
   **400** (validated in the intelligence module, which owns the enum) → `openSession` puts the
   validated value in the session attributes.
 
-## P2 authoring tier (partially shipped — 3 of 5 tools)
+## P2 authoring tier (partially shipped — 4 of 5 tools)
 
 The L1 "author everything" layer: the agent proposes a config, the tools validate/simulate/profile it
-deterministically, and a clean draft is one a human applies unchanged (apply itself is P3). All three
-are `FunctionTool`s on the belt (now **12**), `mutating=false` — they persist nothing.
+deterministically, and a clean draft is one a human applies unchanged (apply itself is P3). All four
+are `FunctionTool`s on the belt (now **13**), `mutating=false` — they persist nothing.
 
 - **`component_draft`** (the validator repair loop) — validates a proposed draft against the *same*
   gates the control plane enforces on write: structural spec (`ConfigLoader.filesystem().validate(
@@ -76,13 +76,21 @@ are `FunctionTool`s on the belt (now **12**), `mutating=false` — they persist 
   bounds when it is fully numeric. Each suggestion is the exact expectation config shape
   `component_draft` validates (the loop closes: profile → suggest → validate → apply).
   `Capability.READ_METADATA`.
+- **`query_author`** (structured tree → trusted SQL) — the model supplies a dataset ref + a structured
+  condition tree (`{kind:group, op, items:[{field,operator,value}]}`); it **never writes SQL text**. The
+  server resolves the dataset config from the `ComponentStore`, renders the trusted relation via
+  `DatasetRelation.relationSql(config, service.dataRoot(), views)`, renders the `WHERE` via
+  `ConditionSql.predicate(when)` (`"TRUE"` = no constraint), assembles `SELECT * FROM (<rel>) AS __q
+  [WHERE <pred>]`, and guards the whole statement with `SqlGuard.check`. Returns a validated DRAFT
+  `query` component (`{type:sql, text, datasetId}`) with anchored `Finding`s — it persists nothing;
+  `component_apply` is the L2 gated write. `Capability.AUTHOR_PIPELINE`. The seam the backlog named is
+  now threaded: `dataRoot` = new `CollectorService.dataRoot()` accessor (mirrors the BI-5
+  `DatasetMeasureProbe` resolution — `-Ddata.dir` over the space root's `dataDir`), `ViewStore` =
+  `InspectoTools.defaultViews()` (`-Dassist.write.root/views`); no `tools(...)` signature change.
 
-**Deferred (this shift):** `query_author` and `kpi_report_builder`. `query_author` needs trusted
-dataset→relationSql resolution (`DatasetRelation.relationSql` wants a `dataRoot` + `ViewStore`, not on
-the current tool-belt seam) — the model must **not** supply `relationSql` (it bypasses the SqlGuard
-file-read boundary), so this is its own slice. `kpi_report_builder` has no confirmed target component
-kind (no KPI/report kind in `ComponentRegistry`; it would compose `MeasureCompiler` measures into a
-`dashboard`) — needs the dashboard-tile owner's sign-off before scoping.
+**Deferred (this shift):** `kpi_report_builder`. It has no confirmed target component kind (no KPI/report
+kind in `ComponentRegistry`; it would compose `MeasureCompiler` measures into a `dashboard`, which has no
+`ConfigSpec`) — needs the dashboard-tile owner's sign-off before scoping.
 
 ## P3 gated-action tier (partially shipped — slices 1–5 of the plan)
 
@@ -306,8 +314,7 @@ case-similarity recall + the learning dashboard UI). With it, the full AGT-5 P0�
 
 The AGT-5 phased roadmap **P0–P5 is complete**, plus P4 polish (2nd pilot class `alert_triage` +
 periodic state-watch, shipped 2026-07-21). Remaining items are deliberate deferrals, not gaps:
-`query_author` (P2 — buildable; needs a `dataRoot`+`ViewStore` tool-belt seam threaded, a full
-authoring slice, **not** blocked on SqlGuard) · `kpi_report_builder` (P2 — target `dashboard` kind
+`kpi_report_builder` (P2 — target `dashboard` kind
 exists but has no `ConfigSpec`, so it would emit unvalidated drafts; needs tile-shape owner sign-off) ·
 the embedding-retrieval upgrade (assessed **not warranted** at the 256-cap corpus; drop-in seam preserved
 behind `CaseSimilarity.score`) · hosted providers (Standard+) · the optional S8 signal-backbone slice.

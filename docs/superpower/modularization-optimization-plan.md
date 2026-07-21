@@ -240,12 +240,12 @@ E3. Bring `inspecto-intelligence` (14/2) and `inspecto-agent-hosted` (2/1) to ba
 
 | # | Item | Why must |
 |---|---|---|
-| M1 | Parent `dependencyManagement` + version properties (A1) | Version drift across 6 poms is a live risk (core already ignores the parent's `junit.version`); prerequisite for adding modules without multiplying the drift. |
+| M1 | Parent `dependencyManagement` + version properties (A1) — **SHIPPED 2026-07-21 (`73ea9a1`)**: parent now manages junit/langchain4j/eoiagent/postgresql; per-module literals + duplicate version properties removed. | Version drift across 6 poms is a live risk (core already ignores the parent's `junit.version`); prerequisite for adding modules without multiplying the drift. |
 | M2 | `SourceService` decomposition (C1) | 1,178-line god object is the single blocker for every modularization step and the top defect-risk concentration. |
 | M3 | `agent.spi` facade (C3) | 180 concrete imports of core internals make `inspecto-agent`/`-intelligence` unable to evolve independently; the eoiagent migration plan depends on this seam. |
 | M4 | Remove Fuse leftovers (B1) | ~25.8k dead lines *partially wired into the app config* — real bundle weight, security surface, and constant confusion for new shifts. |
 | M5 | Coverage baseline for intelligence + agent-hosted, jacoco in all modules (E3, A2) | Near-zero-tested modules ship in every reactor build; untestable modules can't be refactored safely later. |
-| M6 | Repo hygiene sweep (A3) | Stale 96-MB-scale bundle copy + logs in a shared sandbox; trivially cheap, removes handover noise. |
+| M6 | Repo hygiene sweep (A3) — **SHIPPED 2026-07-21 (`b554048`)**: most targets (deploy-old, root logs, `serve-8091.log`, tracked `*.iml`) were already gone/gitignored by prior shifts; removed the last two — stale `HANDOVER-multi-space.md` + a mangled root build-log. | Stale 96-MB-scale bundle copy + logs in a shared sandbox; trivially cheap, removes handover noise. |
 
 ### SHOULD (high value, not blocking)
 

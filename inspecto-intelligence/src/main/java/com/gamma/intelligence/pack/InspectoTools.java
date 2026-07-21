@@ -24,7 +24,10 @@ import com.gamma.pipeline.ComponentRegistry;
 import com.gamma.pipeline.ComponentStore;
 import com.gamma.pipeline.PipelineCodec;
 import com.gamma.pipeline.PipelineGraph;
+import com.gamma.pipeline.ViewStore;
 import com.gamma.pipeline.exec.PipelineDryRun;
+import com.gamma.query.ConditionSql;
+import com.gamma.query.DatasetRelation;
 import com.gamma.service.CollectorService;
 import com.gamma.signal.Severity;
 import com.gamma.signal.Signal;
@@ -93,7 +96,7 @@ final class InspectoTools {
                 signalsQuery(service), signalTimeline(service),
                 timelineBuild(service, components), diffBatches(service),
                 configVersionsDiff(components), anomalyScan(browseStores),
-                componentDraft(), pipelineAuthor(), suggestExpectations(browseStores),
+                componentDraft(), queryAuthor(service, components), pipelineAuthor(), suggestExpectations(browseStores),
                 componentApply(controlPlane), componentRollback(controlPlane),
                 jobRun(controlPlane), pipelineRerun(controlPlane),
                 alertAck(controlPlane), scheduleApply(controlPlane),
@@ -105,6 +108,13 @@ final class InspectoTools {
     private static ComponentStore defaultComponents() {
         String wr = System.getProperty("assist.write.root");
         return wr == null || wr.isBlank() ? null : new ComponentStore(Path.of(wr).resolve("registry"));
+    }
+
+    /** The view store the dataset relation reads {@code view}-backed datasets from — {@code
+     *  -Dassist.write.root/views} — or {@code null} when no write root is configured. */
+    private static ViewStore defaultViews() {
+        String wr = System.getProperty("assist.write.root");
+        return wr == null || wr.isBlank() ? null : new ViewStore(Path.of(wr).resolve("views"));
     }
 
     private static Tool glossaryLookup() {
@@ -791,6 +801,69 @@ final class InspectoTools {
             Map<String, Object> result = new LinkedHashMap<>();
             result.put("kind", kind);
             result.put("type", type);
+            result.put("clean", findings.isEmpty());
+            result.put("findings", findings.stream().map(InspectoTools::findingMap).toList());
+            result.put("draft", draft);
+            return ok(result);
+        });
+    }
+
+    /**
+     * AGT-5 P2 {@code query_author} (author, L1): compose a runnable, read-only Query from a Dataset ref +
+     * a structured condition tree. The server renders the trusted relation SQL ({@link DatasetRelation})
+     * and the {@code WHERE} predicate ({@link ConditionSql}) — the model never writes SQL text — then
+     * guards the whole statement ({@link SqlGuard}). Returns a validated DRAFT {@code query} component
+     * ({@code {type:sql,text,datasetId}}); it never persists — {@code component_apply} is the L2 gated
+     * write, exactly like {@link #componentDraft()} feeds {@link #componentApply(ControlPlaneClient)}.
+     */
+    private static Tool queryAuthor(CollectorService service, ComponentStore components) {
+        ToolSpec spec = new ToolSpec("query_author",
+                "Author a read-only Query from a dataset ref + a structured condition tree (a 'group' with "
+                        + "'items' of {field,operator,value}). The server renders trusted SQL and guards it — you "
+                        + "never write SQL text. Returns a validated DRAFT 'query' component to promote via "
+                        + "component_apply. Args: dataset (ref), when (condition tree, optional), name (optional id).",
+                "{\"type\":\"object\",\"properties\":{"
+                        + "\"dataset\":{\"type\":\"string\"},"
+                        + "\"when\":{\"type\":\"object\"},"
+                        + "\"name\":{\"type\":\"string\"}},"
+                        + "\"required\":[\"dataset\"]}",
+                false, Role.USER, Capability.AUTHOR_PIPELINE);
+        return new FunctionTool(spec, call -> {
+            if (components == null) {
+                return error("no write root configured — query_author needs -Dassist.write.root");
+            }
+            String dataset = arg(call, "dataset");
+            if (dataset == null || dataset.isBlank()) return error("dataset is required");
+            Map<String, Object> datasetConfig;
+            try {
+                Optional<ComponentRegistry.Component> c = components.get("dataset", dataset);
+                if (c.isEmpty()) return error("unknown dataset '" + dataset + "'");
+                datasetConfig = c.get().content();
+            } catch (IllegalArgumentException e) {
+                return error("could not read dataset '" + dataset + "': " + e.getMessage());
+            }
+            String relation;
+            try {
+                relation = DatasetRelation.relationSql(datasetConfig, service.dataRoot(), defaultViews());
+            } catch (IllegalArgumentException e) {
+                return error("dataset '" + dataset + "' is not queryable: " + e.getMessage());
+            }
+            // The model supplies only a structured tree; ConditionSql renders it to a trusted predicate
+            // ("TRUE" for an empty/absent tree — no constraint), so no model-authored SQL text is spliced.
+            String predicate = ConditionSql.predicate(mapArg(call, "when"));
+            String sql = "SELECT * FROM (" + relation + ") AS __q"
+                    + ("TRUE".equals(predicate) ? "" : " WHERE " + predicate);
+            List<Finding> findings = SqlGuard.check(sql);
+
+            Map<String, Object> draft = new LinkedHashMap<>();
+            draft.put("type", "sql");
+            draft.put("text", sql);
+            draft.put("datasetId", dataset);
+
+            String name = arg(call, "name");
+            Map<String, Object> result = new LinkedHashMap<>();
+            result.put("kind", "query");
+            result.put("id", name == null || name.isBlank() ? null : name.trim());
             result.put("clean", findings.isEmpty());
             result.put("findings", findings.stream().map(InspectoTools::findingMap).toList());
             result.put("draft", draft);

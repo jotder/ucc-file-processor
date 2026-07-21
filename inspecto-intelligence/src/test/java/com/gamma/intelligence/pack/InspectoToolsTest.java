@@ -7,6 +7,8 @@ import com.eoiagent.tool.Tool;
 import com.gamma.etl.BatchAuditWriter;
 import com.gamma.etl.PipelineConfig;
 import com.gamma.pipeline.ComponentStore;
+import com.gamma.pipeline.ViewDefinition;
+import com.gamma.pipeline.ViewStore;
 import com.gamma.service.CollectorService;
 import com.gamma.signal.Ref;
 import com.gamma.signal.Severity;
@@ -593,5 +595,59 @@ class InspectoToolsTest {
         Path p = dir.resolve("mini_pipeline.toon");
         Files.writeString(p, toon);
         return p;
+    }
+
+    // ── query_author (AGT-5 P2) ───────────────────────────────────────────────
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void queryAuthorRendersTrustedSqlFromAConditionTreeAndValidates(@TempDir Path dir) throws Exception {
+        // A view-backed dataset: the relation is the view's derived SQL (dataRoot is irrelevant), so this
+        // is deterministic without a physical data dir. defaultViews() reads -Dassist.write.root/views.
+        String prior = System.setProperty("assist.write.root", dir.toString());
+        try {
+            new ViewStore(dir.resolve("views")).write(new ViewDefinition(
+                    "v_orders", "f_orders", List.of("orders"), "SELECT 1 AS gross", T0.toString()));
+            ComponentStore components = new ComponentStore(dir.resolve("registry"));
+            components.write("dataset", "orders", Map.of("view", "v_orders"));
+
+            Tool qa = tool(InspectoTools.tools(seeded(), components, List::of), "query_author");
+            assertFalse(qa.spec().mutating(), "query_author authors a draft — the gated write is component_apply");
+
+            Map<String, Object> when = Map.of("kind", "group", "op", "AND", "items", List.of(
+                    Map.of("kind", "condition", "field", "gross", "operator", ">", "value", 100)));
+            Map<String, Object> out = invoke(qa, Map.of("dataset", "orders", "when", when, "name", "big_orders"));
+
+            assertEquals("query", out.get("kind"));
+            assertEquals("big_orders", out.get("id"));
+            assertEquals(Boolean.TRUE, out.get("clean"), () -> "SqlGuard findings: " + out.get("findings"));
+            Map<String, Object> draft = (Map<String, Object>) out.get("draft");
+            assertEquals("sql", draft.get("type"));
+            assertEquals("orders", draft.get("datasetId"));
+            String sql = (String) draft.get("text");
+            assertTrue(sql.contains("SELECT 1 AS gross"), sql);   // the trusted relation
+            assertTrue(sql.contains("WHERE"), sql);               // the rendered predicate
+            assertTrue(sql.contains("gross"), sql);               // the model's structured field
+        } finally {
+            if (prior == null) System.clearProperty("assist.write.root");
+            else System.setProperty("assist.write.root", prior);
+        }
+    }
+
+    @Test
+    void queryAuthorWithoutAWriteRootIsAnErrorResult() {
+        Tool qa = tool(InspectoTools.tools(seeded(), null, List::of), "query_author");
+        ToolResult r = qa.invoke(new ToolCall("query_author", Map.of("dataset", "orders"), new RunId("t")));
+        assertFalse(r.ok());
+        assertTrue(r.error().contains("write root"), r.error());
+    }
+
+    @Test
+    void queryAuthorUnknownDatasetIsAnErrorResult(@TempDir Path dir) {
+        ComponentStore components = new ComponentStore(dir.resolve("registry"));
+        Tool qa = tool(InspectoTools.tools(seeded(), components, List::of), "query_author");
+        ToolResult r = qa.invoke(new ToolCall("query_author", Map.of("dataset", "ghost"), new RunId("t")));
+        assertFalse(r.ok());
+        assertTrue(r.error().contains("unknown dataset"), r.error());
     }
 }

@@ -996,6 +996,17 @@ public final class CollectorService implements AutoCloseable {
         return out;
     }
 
+    /**
+     * This space's data directory — the physical dataset root a {@code physicalRef}-backed
+     * {@link com.gamma.query.DatasetRelation} reads from, or {@code null} when unset. Resolved like the
+     * ingest path ({@code -Ddata.dir} overriding the space root's {@code dataDir}). Read-only seam for the
+     * embedded-intelligence belt's {@code query_author} tool, which renders dataset-relation SQL.
+     */
+    public java.nio.file.Path dataRoot() {
+        String dd = System.getProperty("data.dir", root.dataDir());
+        return (dd == null || dd.isBlank()) ? null : java.nio.file.Path.of(dd);
+    }
+
     /** The report aggregator backing the Control API's status / batch-audit report endpoints. */
     public ReportService reports() {
         return reports;
