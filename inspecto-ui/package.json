@@ -8,6 +8,7 @@
     "scripts": {
         "ng": "ng",
         "start": "ng serve --o",
+        "start:offline": "ng serve -c offline --o",
         "build": "ng build",
         "watch": "ng build --watch --configuration development",
         "test": "ng test",

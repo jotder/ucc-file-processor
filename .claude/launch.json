@@ -12,6 +12,16 @@
       "port": 4204
     },
     {
+      "name": "inspecto-ui-offline",
+      "runtimeExecutable": "cmd",
+      "runtimeArgs": [
+        "/c",
+        "cd inspecto-ui && npx ng serve -c offline --port %PORT%"
+      ],
+      "autoPort": true,
+      "port": 4205
+    },
+    {
       "name": "inspector-backend",
       "runtimeExecutable": "cmd",
       "runtimeArgs": [
