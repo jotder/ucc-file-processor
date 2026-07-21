@@ -265,7 +265,7 @@ cd "$(dirname "$0")"
 JAVA="java"; [ -x "runtime/bin/java" ] && JAVA="runtime/bin/java"
 exec "$JAVA" --enable-native-access=ALL-UNNAMED \
           -cp file-processor.jar \
-          com.gamma.util.MainApp "$@"
+          com.gamma.inspector.MainApp "$@"
 '@ | Set-Content -Path "$bundleDir\ura.sh" -NoNewline
 
 $uraBatContent = @'
@@ -281,7 +281,7 @@ set "JAVA=java"
 if exist "runtime\bin\java.exe" set "JAVA=runtime\bin\java.exe"
 "%JAVA%" --enable-native-access=ALL-UNNAMED ^
      -cp file-processor.jar ^
-     com.gamma.util.MainApp %*
+     com.gamma.inspector.MainApp %*
 '@
 # Write with CRLF line endings so Windows cmd.exe parses the batch file correctly.
 [System.IO.File]::WriteAllText(

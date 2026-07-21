@@ -20,7 +20,7 @@ import java.nio.file.Paths;
  * fresh on each run (never appended).  All output produced <em>after</em> this
  * call is written to both the console and the log file simultaneously.
  *
- * <p>Extracted from {@link com.gamma.inspector.CollectorProcessor} where the
+ * <p>Extracted from {@code com.gamma.inspector.CollectorProcessor} (core) where the
  * {@code setupLogFile()} method and inner {@code TeeOutputStream} class lived.
  */
 public final class LogSetup {

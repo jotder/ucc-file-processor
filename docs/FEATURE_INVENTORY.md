@@ -227,7 +227,7 @@ file-processor-deploy/
   examples/                   the runnable example suite (run-example.ps1|sh + catalog)   ← added 2026-06-20
   run.(bat|sh)                one-shot ETL launcher
   serve.(bat|sh)              long-running ControlApi + UI
-  ura.(bat|sh)                utility CLI (com.gamma.util.MainApp)
+  ura.(bat|sh)                utility CLI (com.gamma.inspector.MainApp)
   ui/                         Angular SPA (if built)
   runtime/                    trimmed jlink JVM (Windows; unless -NoRuntime)
   docs/  README.md            docs tree (../docs/ links rewritten)

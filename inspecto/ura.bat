@@ -27,4 +27,4 @@ if not defined JAR (
 
 java --enable-native-access=ALL-UNNAMED ^
      -cp "%JAR%" ^
-     com.gamma.util.MainApp %*
+     com.gamma.inspector.MainApp %*

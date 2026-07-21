@@ -45,7 +45,7 @@ diagnostic context, AG-UI streaming, A2UI inline artifacts — and finally to a 
 * **`BatchAuditWriter`** additively emits `pipeline.batch.committed|failed` Signals alongside the
   pre-existing `BatchEvent` fan-out (both fire; `BatchEventBus` itself is untouched — see the
   `ingestLock` note below for why a full bus migration was deliberately not attempted).
-* **`DottedPath`** (`inspecto/src/main/java/com/gamma/util/DottedPath.java`) — one shared `a.b.c`
+* **`DottedPath`** (`inspecto-util/src/main/java/com/gamma/util/DottedPath.java`) — one shared `a.b.c`
   resolver now used by `{{template}}` interpolation (`NotificationTemplate`), `$signal.<path>` job
   binds (`ParameterResolver`), and `when:` guards (`WhenGuard`) — replacing three independently
   duplicated flat-lookup implementations. `NotificationRule.context(Event)` gained `ts`/`time`/

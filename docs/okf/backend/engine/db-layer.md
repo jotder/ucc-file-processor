@@ -39,8 +39,8 @@ business data (the file lake) and config (TOON) are documented in
 
 | Concern | File |
 |---|---|
-| Connection factory (driver-by-URL-scheme) | [`util/JdbcDrivers.java`](../../../../inspecto/src/main/java/com/gamma/util/JdbcDrivers.java) |
-| DuckDB engine helpers (ETL path) | [`util/DuckDbUtil.java`](../../../../inspecto/src/main/java/com/gamma/util/DuckDbUtil.java) |
+| Connection factory (driver-by-URL-scheme) | [`util/JdbcDrivers.java`](../../../../inspecto-util/src/main/java/com/gamma/util/JdbcDrivers.java) |
+| DuckDB engine helpers (ETL path) | [`util/DuckDbUtil.java`](../../../../inspecto-util/src/main/java/com/gamma/util/DuckDbUtil.java) |
 | Composition root (reads `-D` toggles, opens stores) | [`service/ServiceStores.java`](../../../../inspecto/src/main/java/com/gamma/service/ServiceStores.java) |
 | Per-space file locations | [`service/SpaceRoot.java`](../../../../inspecto/src/main/java/com/gamma/service/SpaceRoot.java) |
 | Business-data read-relation builder | [`sql/SqlViews.java`](../../../../inspecto/src/main/java/com/gamma/sql/SqlViews.java) |
@@ -305,6 +305,6 @@ The **Data Browser** pane (a per-space DB client) browses these stores live. Bac
 
 - **Business-data stores** (§1) read via an ephemeral DuckDB sandbox (`read_parquet`/`read_csv`).
 - **Operational tables** (§3) browse through each store's *live* connection via
-  [`util/BrowsableStore.java`](../../../../inspecto/src/main/java/com/gamma/util/BrowsableStore.java) —
+  [`util/BrowsableStore.java`](../../../../inspecto-util/src/main/java/com/gamma/util/BrowsableStore.java) —
   reads are `synchronized` on the store (single-writer lock) and appear only when that capability runs on
   a `db`/`postgres` backend. Every `Db*Store` in §2/§3 implements this seam.

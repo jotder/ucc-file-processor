@@ -13,7 +13,7 @@ import java.time.format.DateTimeFormatter;
 
 /**
  * Shared DuckDB JDBC utilities used by {@link ParquetSummarizer},
- * {@link PartitionSummarizer}, and {@link com.gamma.inspector.CollectorProcessor}.
+ * {@link PartitionSummarizer}, and {@code com.gamma.inspector.CollectorProcessor} (core).
  *
  * <p>Central home for every recurring DuckDB boilerplate pattern:
  * <ul>

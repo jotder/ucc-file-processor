@@ -6,9 +6,9 @@ import java.util.Map;
 /**
  * Builds DuckDB SQL expression fragments for type casting and partition-key resolution.
  *
- * <p>Extracted from {@link com.gamma.inspector.CollectorProcessor} where these helpers
+ * <p>Extracted from {@code com.gamma.inspector.CollectorProcessor} (core) where these helpers
  * were private static methods unreachable by other classes.  Now shared with
- * {@link com.gamma.etl.DataTransformer}.
+ * {@code com.gamma.etl.DataTransformer} (core).
  */
 public final class SqlBuilder {
 

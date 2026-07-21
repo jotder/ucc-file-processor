@@ -17,7 +17,7 @@ import java.util.function.Function;
  * <p>{@link #append} and {@link #appendAll} are {@code synchronized} per ledger so
  * concurrent producers append whole rows. Durability is deliberately <em>not</em> this
  * class's job — the fsync'd "did it finish" guarantee lives in
- * {@link com.gamma.etl.CommitLog}, which stays separate.
+ * {@code com.gamma.etl.CommitLog} (in the core module), which stays separate.
  *
  * @param <T> the row type; the codec renders one row as one CSV line (no terminator)
  */

@@ -33,6 +33,7 @@
     -->
     <modules>
         <module>inspecto-api</module>
+        <module>inspecto-util</module>
         <module>inspecto-config</module>
         <module>inspecto</module>
         <module>inspecto-agent</module>
@@ -107,6 +108,16 @@
         <!-- Shared by core + fp-config since the S5 split (TOON codec / spec-model annotations). -->
         <jtoon.version>1.0.9</jtoon.version>
         <jackson.version>2.21.3</jackson.version>
+        <!-- Shared by core + fp-util since the WS-D split (DuckDB access / CSV / tar-gzip / gson). -->
+        <duckdb.version>1.5.2.1</duckdb.version>
+        <univocity.version>2.9.1</univocity.version>
+        <commons-compress.version>1.28.0</commons-compress.version>
+        <gson.version>2.11.0</gson.version>
+        <!-- Pinned to what commons-compress 1.28.0 needs (tar-with-username uses lang3 ArrayFill,
+             added in 3.14). fp-util must declare it directly: opencsv 5.9 drags in an older
+             transitive 3.13.0 that would otherwise win Maven's same-depth resolution and break the
+             tar path (NoClassDefFoundError: ArrayFill). -->
+        <commons-lang3.version>3.18.0</commons-lang3.version>
         <!-- Default empty so surefire's @{argLine} resolves cleanly when JaCoCo is inactive
              (normal 'mvn test'). The core module's 'coverage' profile's prepare-agent goal
              overrides this. Both modules inherit it. -->
@@ -130,7 +141,12 @@
                 <artifactId>file-processor-config</artifactId>
                 <version>${project.version}</version>
             </dependency>
-            <!-- TOON + Jackson (core + fp-config since S5). -->
+            <dependency>
+                <groupId>com.gamma.inspector</groupId>
+                <artifactId>file-processor-util</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <!-- TOON + Jackson (core + fp-config since S5; core + fp-util since WS-D). -->
             <dependency>
                 <groupId>dev.toonformat</groupId>
                 <artifactId>jtoon</artifactId>
@@ -140,6 +156,32 @@
                 <groupId>com.fasterxml.jackson.core</groupId>
                 <artifactId>jackson-databind</artifactId>
                 <version>${jackson.version}</version>
+            </dependency>
+            <!-- DuckDB + CSV/compress (core + fp-util since the WS-D split). -->
+            <dependency>
+                <groupId>org.duckdb</groupId>
+                <artifactId>duckdb_jdbc</artifactId>
+                <version>${duckdb.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.univocity</groupId>
+                <artifactId>univocity-parsers</artifactId>
+                <version>${univocity.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.commons</groupId>
+                <artifactId>commons-compress</artifactId>
+                <version>${commons-compress.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.google.code.gson</groupId>
+                <artifactId>gson</artifactId>
+                <version>${gson.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.commons</groupId>
+                <artifactId>commons-lang3</artifactId>
+                <version>${commons-lang3.version}</version>
             </dependency>
             <dependency>
                 <groupId>org.junit.jupiter</groupId>

@@ -13,6 +13,7 @@
 /target/
 /inspecto/target/
 /inspecto-api/target/
+/inspecto-util/target/
 /inspecto-config/target/
 /inspecto-agent/target/
 /inbox/

@@ -7,8 +7,9 @@ modules. Reactor shape, version management, and the module-extraction playbook:
 
 # Modules
 
-* [Reactor & modularization](reactor.md) - build order, parent `dependencyManagement`, extraction rules (S5, 2026-07-21).
+* [Reactor & modularization](reactor.md) - build order, parent `dependencyManagement`, extraction rules (S5 + WS-D, 2026-07-21).
 * `inspecto-api/` — dependency-free leaf: the `@PublicApi` annotation (`file-processor-api`).
+* `inspecto-util/` — leaf (w.r.t. `com.gamma`): DuckDB access + CSV/file/tar helpers (`file-processor-util`).
 * `inspecto-config/` — config spec/codec/safety (`file-processor-config`); depends only on fp-api.
 * [Engine](engine.md) - `inspecto/` — the lean core: engine + control plane (`file-processor.jar`).
 * [Connectors](connectors.md) - `inspecto-connectors/` — SFTP/FTP/FTPS/DB connectors (all network deps).

@@ -9,7 +9,7 @@ timestamp: 2026-06-28T00:00:00Z
 
 # Operations & Launch Flags
 
-The server entry is [`ControlApi.main`](../control-plane/control-api.md) (the `com.gamma.util.MainApp` CLI is a
+The server entry is [`ControlApi.main`](../control-plane/control-api.md) (the `com.gamma.inspector.MainApp` CLI is a
 separate pre-ETL tool suite — search/copy/extract/backup/prepare-inbox/create-schema/reprocess).
 
 ## Key `-D` launch flags

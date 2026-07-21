@@ -1,0 +1,91 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>com.gamma.inspector</groupId>
+        <artifactId>file-processor-parent</artifactId>
+        <version>4.0.0-RC1</version>
+        <relativePath>../pom.xml</relativePath>
+    </parent>
+
+    <!-- Low-level utility layer (WS-D increment 1, modularization plan §2.3): com.gamma.util —
+         DuckDB access point (DuckDbUtil + the JDBC/summarize/schema helpers), CSV/TOON I/O
+         helpers, file movers/walkers, tar/gzip extraction, bounded history, dotted-path grammar.
+         A dependency-free leaf w.r.t. com.gamma (imports nothing from other core packages), so it
+         sits below the core exactly like fp-api/fp-config. The core depends on this module, so the
+         ~30 DuckDbUtil call sites and every other com.gamma.util import across the engine keep
+         resolving unchanged. Prerequisite for extracting fp-acquire (which imports com.gamma.util);
+         com.gamma.event + com.gamma.etl still block on cycle-breaking (they import
+         sql/metrics/signal/query/pipeline, which stay in core). -->
+    <artifactId>file-processor-util</artifactId>
+    <name>Inspecto util (DuckDB access + CSV/file/tar helpers)</name>
+
+    <dependencies>
+        <!-- DuckDB JDBC — DuckDbUtil is the single DuckDB access point (version managed by the
+             parent — shared with the core). -->
+        <dependency>
+            <groupId>org.duckdb</groupId>
+            <artifactId>duckdb_jdbc</artifactId>
+        </dependency>
+
+        <!-- TOON serialisation used by the TOON helpers (version managed by the parent). -->
+        <dependency>
+            <groupId>dev.toonformat</groupId>
+            <artifactId>jtoon</artifactId>
+        </dependency>
+
+        <!-- Jackson for Map conversion alongside the TOON helpers (version managed by the parent). -->
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-databind</artifactId>
+        </dependency>
+
+        <!-- OpenCSV — the CSV reader/writer helpers. Single-owner (only this module uses it since
+             the WS-D split), so it stays pinned here (M1: no drift to prevent). -->
+        <dependency>
+            <groupId>com.opencsv</groupId>
+            <artifactId>opencsv</artifactId>
+            <version>5.9</version>
+        </dependency>
+
+        <!-- Univocity CSV parser — used by the CSV helpers (version managed by the parent —
+             shared with the core). -->
+        <dependency>
+            <groupId>com.univocity</groupId>
+            <artifactId>univocity-parsers</artifactId>
+        </dependency>
+
+        <!-- Commons-compress — tar/gzip extraction helpers (version managed by the parent —
+             shared with the core). -->
+        <dependency>
+            <groupId>org.apache.commons</groupId>
+            <artifactId>commons-compress</artifactId>
+        </dependency>
+
+        <!-- Commons-lang3 — declared DIRECTLY (not left transitive) so commons-compress 1.28.0's
+             tar-with-username path gets 3.18.0 (needs ArrayFill, added in 3.14). Without this,
+             opencsv 5.9's transitive 3.13.0 wins Maven's same-depth resolution and the tar helpers
+             throw NoClassDefFoundError: ArrayFill. Version managed by the parent. -->
+        <dependency>
+            <groupId>org.apache.commons</groupId>
+            <artifactId>commons-lang3</artifactId>
+        </dependency>
+
+        <!-- Gson — JSON sentinel manifest in TarUtil (version managed by the parent — shared
+             with the core). -->
+        <dependency>
+            <groupId>com.google.code.gson</groupId>
+            <artifactId>gson</artifactId>
+        </dependency>
+
+        <!-- JUnit 5 — unit tests (version managed by the parent, M1). -->
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+</project>

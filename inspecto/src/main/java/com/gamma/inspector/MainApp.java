@@ -1,5 +1,6 @@
-package com.gamma.util;
+package com.gamma.inspector;
 
+import com.gamma.util.*;
 import dev.toonformat.jtoon.JToon;
 
 import java.io.IOException;
@@ -19,7 +20,7 @@ import java.util.Map;
  *
  * <p>Usage:
  * <pre>
- *   java -cp file-processor.jar com.gamma.util.MainApp [--dry-run] &lt;command&gt; &lt;pipeline.toon&gt; [args...]
+ *   java -cp file-processor.jar com.gamma.inspector.MainApp [--dry-run] &lt;command&gt; &lt;pipeline.toon&gt; [args...]
  * </pre>
  *
  * <p>Commands and their toon sections:
@@ -126,7 +127,7 @@ public class MainApp {
                         System.err.println("Usage: reprocess <pipeline.toon> <batch_id>");
                         System.exit(1);
                     }
-                    com.gamma.inspector.ReprocessCommand.run(subArgs[0], subArgs[1]);
+                    ReprocessCommand.run(subArgs[0], subArgs[1]);
                     break;
                 }
 
@@ -210,7 +211,7 @@ public class MainApp {
         System.out.println();
         System.out.println("  (ura = ura.sh on Linux/Mac, ura.bat on Windows — shipped alongside file-processor.jar)");
         System.out.println("  (dev: ./ura.sh or ura.bat from the inspecto/ source directory)");
-        System.out.println("  (raw: java --enable-native-access=ALL-UNNAMED -cp file-processor.jar com.gamma.util.MainApp ...)");
+        System.out.println("  (raw: java --enable-native-access=ALL-UNNAMED -cp file-processor.jar com.gamma.inspector.MainApp ...)");
         System.out.println();
         System.out.println("Pre-ETL commands (all read from pipeline.toon sections):");
         System.out.println("  search    <pipeline.toon>   Scan base_dirs for manifest files — log only, no copy.");
