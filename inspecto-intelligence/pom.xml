@@ -35,14 +35,10 @@
             <artifactId>file-processor</artifactId>
             <version>${project.version}</version>
         </dependency>
-        <!-- Bridges the pack's ModelProfile from the existing assist-settings screen
-             (ProviderSettings/AssistModelSettings) so operators configure one model provider,
-             not two. -->
-        <dependency>
-            <groupId>com.gamma.inspector</groupId>
-            <artifactId>file-processor-agent</artifactId>
-            <version>${project.version}</version>
-        </dependency>
+        <!-- S9: no longer depends on file-processor-agent. The pack's ModelProfile + LlmGateway are built
+             from the core-owned read-side model settings (com.gamma.model.ModelSettings/ModelSettingsStore),
+             which read the same assist-settings.properties the agent module's settings screen writes — so
+             operators still configure one model provider, without a sibling-internal compile edge. -->
 
         <!-- eoiagent: ApplicationPack SPI (app-api), PlatformBuilder/AgentPlatform (platform),
              core types (core), and the OpenAI-compatible/Ollama LlmGateway transports (model).

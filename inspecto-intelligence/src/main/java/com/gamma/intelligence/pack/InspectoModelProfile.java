@@ -3,29 +3,28 @@ package com.gamma.intelligence.pack;
 import com.eoiagent.app.ModelProfile;
 import com.eoiagent.app.ModelSelection;
 import com.eoiagent.app.RoutingPolicy;
-import com.gamma.agent.kernel.model.ModelTier;
-import com.gamma.agent.model.AssistModelSettings;
-import com.gamma.agent.model.ProviderSettings;
+import com.gamma.model.ModelSettings;
+import com.gamma.model.ModelSettingsStore;
 
 import java.util.List;
 
 /**
- * Bridges the pack's {@link ModelProfile} from the existing assist-agent settings screen
- * ({@link AssistModelSettings}/{@link ProviderSettings}) so operators configure one model
- * provider for both the reflex skills and embedded-intelligence sessions. Falls back to the
- * local-Ollama default when no settings have been saved yet.
+ * Bridges the pack's {@link ModelProfile} from the core model settings the assist-agent settings screen
+ * writes (S9: {@link ModelSettingsStore}/{@link ModelSettings} in core — no compile dep on
+ * {@code inspecto-agent}), so operators configure one model provider for both the reflex skills and
+ * embedded-intelligence sessions. Falls back to the local-Ollama default when nothing has been saved yet.
  */
 final class InspectoModelProfile implements ModelProfile {
 
-    private final ProviderSettings settings;
+    private final ModelSettings settings;
 
     InspectoModelProfile() {
-        this.settings = AssistModelSettings.load().orElseGet(() -> ProviderSettings.defaults("ollama"));
+        this.settings = ModelSettingsStore.load().orElseGet(() -> ModelSettings.defaults("ollama"));
     }
 
     @Override
     public ModelSelection chat() {
-        return new ModelSelection(settings.provider(), settings.model(ModelTier.MEDIUM),
+        return new ModelSelection(settings.provider(), settings.model("medium"),
                 settings.baseUrl(), settings.local());
     }
 
