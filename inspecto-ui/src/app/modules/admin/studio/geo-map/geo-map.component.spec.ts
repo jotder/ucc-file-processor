@@ -182,40 +182,18 @@ describe('GeoMapComponent', () => {
         expect(c.displayed()?.routes).toHaveLength(1);
     });
 
-    it('geo intelligence: co-location detection over timed points + the graph bridge shape', async () => {
-        const HOUR = 3_600_000;
-        const timedGeo: ProjectedGeo = {
-            points: [
-                { id: 'a1', lat: 23.81, lon: 90.41, kind: 'device', label: 'A', time: 1 * HOUR },
-                { id: 'a2', lat: 23.81, lon: 90.41, kind: 'device', label: 'A', time: 3 * HOUR },
-                { id: 'b1', lat: 23.8101, lon: 90.4101, kind: 'device', label: 'B', time: 1 * HOUR },
-                { id: 'b2', lat: 23.8101, lon: 90.4101, kind: 'device', label: 'B', time: 3 * HOUR },
-                { id: 'c1', lat: 51.5, lon: -0.12, kind: 'device', label: 'C', time: 1 * HOUR },
-            ],
-            routes: [], truncated: false, skipped: 0,
-        };
+    it('a toolbox focus request drives the map emphasis; clearInvestigation clears it', async () => {
+        // The geo-intelligence tools themselves live in GeoAnalysisToolboxComponent (its own spec);
+        // here we cover the host seam: a focus event → resultEmphasis → the `emphasis` computed.
         const { fixture } = create();
         fixture.detectChanges();
         await runQuery(fixture);
         const c = fixture.componentInstance;
-        expect(c.analysisReady()).toBe(false); // GEO fixture is untimed → hint, no tools
 
-        c.geo.set(timedGeo);
-        expect(c.analysisReady()).toBe(true);
-        c.analysisTool.set('coloc');
-        c.runAnalysis();
-        expect(c.colocs()).toHaveLength(1);
-        expect(c.colocs()[0].count).toBe(2);
-
-        c.focusResult(c.colocs()[0].pointIds, 23.81, 90.41);
-        expect(c.emphasis()?.pointIds).toEqual(c.colocs()[0].pointIds);
-
-        c.analysisTool.set('frequent');
-        c.runAnalysis();
-        expect(c.freqs().map((f) => f.entity).sort()).toEqual(['A', 'B']);
+        c.focusResult({ pointIds: ['pt:0', 'pt:1'], lat: 23.81, lon: 90.41 });
+        expect(c.emphasis()?.pointIds).toEqual(['pt:0', 'pt:1']);
 
         c.clearInvestigation();
-        expect(c.colocs()).toHaveLength(0);
         expect(c.emphasis()).toBeNull();
     });
 

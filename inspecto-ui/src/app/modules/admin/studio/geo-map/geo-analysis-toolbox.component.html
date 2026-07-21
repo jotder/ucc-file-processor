@@ -1,0 +1,103 @@
+<!-- ══ geo-intelligence toolbox (geo-map Phase 3) ══ -->
+<div class="bg-card min-w-0 rounded-2xl p-4 shadow" aria-label="Geo intelligence">
+    @if (!analysisReady()) {
+        <p class="text-secondary text-sm">
+            These tools need the <b>entity</b> and <b>time</b> columns mapped — rerun the query with both.
+        </p>
+    } @else {
+        <div class="flex flex-wrap items-center gap-3">
+            <mat-button-toggle-group [value]="analysisTool()" (change)="analysisTool.set($event.value)"
+                                     hideSingleSelectionIndicator aria-label="Geo-intelligence tool">
+                <mat-button-toggle value="coloc">Co-location</mat-button-toggle>
+                <mat-button-toggle value="frequent">Frequent locations</mat-button-toggle>
+                <mat-button-toggle value="stay">Stay points</mat-button-toggle>
+            </mat-button-toggle-group>
+            <mat-form-field subscriptSizing="dynamic" class="w-32">
+                <mat-label>Radius (m)</mat-label>
+                <input matInput type="number" min="10" [value]="radiusM()"
+                       (input)="radiusM.set(+$any($event.target).value || 250)" aria-label="Radius in meters" />
+            </mat-form-field>
+            @if (analysisTool() === 'coloc') {
+                <mat-form-field subscriptSizing="dynamic" class="w-36">
+                    <mat-label>Window (min)</mat-label>
+                    <input matInput type="number" min="1" [value]="windowMin()"
+                           (input)="windowMin.set(+$any($event.target).value || 60)" aria-label="Time window in minutes" />
+                </mat-form-field>
+            }
+            @if (analysisTool() === 'stay') {
+                <mat-form-field subscriptSizing="dynamic" class="w-36">
+                    <mat-label>Min dwell (min)</mat-label>
+                    <input matInput type="number" min="1" [value]="dwellMin()"
+                           (input)="dwellMin.set(+$any($event.target).value || 30)" aria-label="Minimum dwell in minutes" />
+                </mat-form-field>
+            }
+            <button mat-stroked-button (click)="runAnalysis()">
+                <mat-icon svgIcon="heroicons_outline:beaker"></mat-icon>
+                Analyze
+            </button>
+            @if (analysisTool() === 'coloc' && colocs().length) {
+                <button mat-stroked-button (click)="viewCoLocationGraph()"
+                        aria-label="Open the co-location pairs as a link graph">
+                    <mat-icon svgIcon="heroicons_outline:share"></mat-icon>
+                    View as graph
+                </button>
+            }
+        </div>
+
+        @if (analysisRan()) {
+            @switch (analysisTool()) {
+                @case ('coloc') {
+                    @if (colocs().length) {
+                        <ul class="mt-2 flex flex-col gap-1 text-sm" aria-label="Co-location pairs">
+                            @for (p of colocs(); track p.a + p.b) {
+                                <li>
+                                    <button class="underline-offset-2 hover:underline"
+                                            (click)="pick(p.pointIds, p.lat, p.lon)">
+                                        <b>{{ p.a }}</b> ↔ <b>{{ p.b }}</b> · met {{ p.count }}×,
+                                        first {{ timeLabel(p.firstAt) }}
+                                    </button>
+                                </li>
+                            }
+                        </ul>
+                    } @else {
+                        <p class="text-secondary mt-2 text-sm">No co-locations in the current radius/window.</p>
+                    }
+                }
+                @case ('frequent') {
+                    @if (freqs().length) {
+                        <ul class="mt-2 flex flex-col gap-1 text-sm" aria-label="Frequent locations">
+                            @for (f of freqs(); track f.entity + f.lat) {
+                                <li>
+                                    <button class="underline-offset-2 hover:underline"
+                                            (click)="pick(f.pointIds, f.lat, f.lon)">
+                                        <b>{{ f.entity }}</b> · {{ f.count }} sightings at
+                                        {{ f.lat | number: '1.4-4' }}, {{ f.lon | number: '1.4-4' }}
+                                    </button>
+                                </li>
+                            }
+                        </ul>
+                    } @else {
+                        <p class="text-secondary mt-2 text-sm">No repeated locations in the current radius.</p>
+                    }
+                }
+                @case ('stay') {
+                    @if (stays().length) {
+                        <ul class="mt-2 flex flex-col gap-1 text-sm" aria-label="Stay points">
+                            @for (s of stays(); track s.entity + s.from) {
+                                <li>
+                                    <button class="underline-offset-2 hover:underline"
+                                            (click)="pick(s.pointIds, s.lat, s.lon)">
+                                        <b>{{ s.entity }}</b> · stayed {{ timeLabel(s.from) }} →
+                                        {{ timeLabel(s.to) }}
+                                    </button>
+                                </li>
+                            }
+                        </ul>
+                    } @else {
+                        <p class="text-secondary mt-2 text-sm">No dwells meet the current radius/dwell time.</p>
+                    }
+                }
+            }
+        }
+    }
+</div>

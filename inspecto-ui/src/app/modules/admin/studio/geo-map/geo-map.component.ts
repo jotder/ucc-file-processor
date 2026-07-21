@@ -33,21 +33,14 @@ import {
     GeoNote,
     GeoSourceId,
     MapViewComponent,
-    CoLocation,
-    FrequentLocation,
-    StayPoint,
     circleRing,
-    coLocationGraph,
-    coLocations,
     filterByKinds,
     filterByTime,
     formatDistance,
-    frequentLocations,
     haversineMeters,
     nearby,
     pointInPolygon,
     searchPoints,
-    stayPoints,
     timeExtent,
     withinBBox,
 } from 'app/inspecto/geo';
@@ -72,7 +65,7 @@ import { GeocodeResult } from 'app/inspecto/geo';
 /** Annotation accent — the amber chart-token swatch (visually distinct from data kinds). */
 const NOTE_ACCENT = ICON_COLOR_SWATCHES[3];
 import { GeoMapService, GeoMapView } from './geo-map.service';
-import { ColocationGraphDialog } from './colocation-graph.dialog';
+import { GeoAnalysisFocus, GeoAnalysisToolboxComponent } from './geo-analysis-toolbox.component';
 
 /** Investigation pivot (ui-design-review R8): recognize an Incident/Case reference on a point's row,
  *  by convention — `caseId`/`incidentId`, or `objectId` (+ optional `objectType`). Most geo layers
@@ -114,7 +107,7 @@ interface PointRow {
         DecimalPipe, ReactiveFormsModule, MatButtonModule, MatButtonToggleModule, MatCheckboxModule, MatDialogModule,
         MatFormFieldModule, MatIconModule, MatInputModule, MatMenuModule, MatSelectModule, MatSliderModule, MatTooltipModule,
         InspectoAlertComponent, InspectoEmptyStateComponent, InspectoSkeletonComponent, MapViewComponent,
-        DataTableComponent, TransferMenuComponent,
+        DataTableComponent, TransferMenuComponent, GeoAnalysisToolboxComponent,
     ],
     templateUrl: './geo-map.component.html',
 })
@@ -140,6 +133,7 @@ export class GeoMapComponent implements OnInit, OnDestroy {
 
     @ViewChild(MapViewComponent) private mapView?: MapViewComponent;
     @ViewChild('saveTrigger') private saveTrigger?: MatMenuTrigger;
+    @ViewChild(GeoAnalysisToolboxComponent) private analysis?: GeoAnalysisToolboxComponent;
 
     readonly sources = this.geoSources.sources;
 
@@ -190,25 +184,10 @@ export class GeoMapComponent implements OnInit, OnDestroy {
         return g ? timeExtent(g) : null;
     });
 
-    // ── geo intelligence (Phase 3) ──
+    // ── geo intelligence (Phase 3; the toolbox itself lives in GeoAnalysisToolboxComponent) ──
     readonly analysisOpen = signal(false);
-    readonly analysisTool = signal<'stay' | 'frequent' | 'coloc'>('coloc');
-    /** Tool parameters (meters / minutes — converted to ms at run time). */
-    readonly radiusM = signal(250);
-    readonly windowMin = signal(60);
-    readonly dwellMin = signal(30);
-    readonly stays = signal<StayPoint[]>([]);
-    readonly freqs = signal<FrequentLocation[]>([]);
-    readonly colocs = signal<CoLocation[]>([]);
-    readonly analysisRan = signal(false);
     /** Analysis-result highlight (kept separate from search/selection emphasis). */
     readonly resultEmphasis = signal<string[] | null>(null);
-
-    /** The intelligence tools need entity + time mappings — hint instead of empty results. */
-    readonly analysisReady = computed<boolean>(() => {
-        const pts = this.geo()?.points ?? [];
-        return pts.some((p) => p.label && p.time !== undefined);
-    });
 
     // ── playback (animates the time-window end across the extent) ──
     readonly playing = signal(false);
@@ -589,42 +568,17 @@ export class GeoMapComponent implements OnInit, OnDestroy {
         this.stopPlayback();
     }
 
-    // ── geo intelligence ──
-    runAnalysis(): void {
-        const pts = this.displayed()?.points ?? [];
-        const radius = this.radiusM();
-        switch (this.analysisTool()) {
-            case 'stay':
-                this.stays.set(stayPoints(pts, radius, this.dwellMin() * 60_000));
-                break;
-            case 'frequent':
-                this.freqs.set(frequentLocations(pts, radius));
-                break;
-            case 'coloc':
-                this.colocs.set(coLocations(pts, radius, this.windowMin() * 60_000));
-                break;
-        }
-        this.analysisRan.set(true);
-    }
-
-    /** Result click: highlight the folded points and fly to the spot. */
-    focusResult(pointIds: string[], lat: number, lon: number): void {
+    // ── geo intelligence (the toolbox owns the tools + results; the host owns the map + emphasis) ──
+    /** Result click from the toolbox: highlight the folded points and fly to the spot. */
+    focusResult(at: GeoAnalysisFocus): void {
         this.search.set('');
         this.selectedId.set(null);
-        this.resultEmphasis.set(pointIds);
-        this.mapView?.setCamera({ center: [lon, lat], zoom: 12 });
-    }
-
-    /** Open the co-location pairs as an Entity/Link graph (the Link Analysis bridge). */
-    viewCoLocationGraph(): void {
-        this.dialog.open(ColocationGraphDialog, { data: { graph: coLocationGraph(this.colocs()) } });
+        this.resultEmphasis.set(at.pointIds);
+        this.mapView?.setCamera({ center: [at.lon, at.lat], zoom: 12 });
     }
 
     clearAnalysis(): void {
-        this.stays.set([]);
-        this.freqs.set([]);
-        this.colocs.set([]);
-        this.analysisRan.set(false);
+        this.analysis?.reset();
         this.resultEmphasis.set(null);
     }
 
