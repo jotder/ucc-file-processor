@@ -163,9 +163,44 @@ uncaught, so a throw leaves the space half-removed.
 
 The module split is *blocked* until two god objects shrink and two seams exist:
 
-1. **`SourceService` decomposition** — split by domain into thin services the host composes
-   (pipeline-service, job-service, connection/RCA registry, event coalescing), leaving `SourceService`
-   a ≤200-line orchestrator.
+1. **`SourceService`/`CollectorService` decomposition** — split by domain into thin services the host
+   composes (pipeline-service, job-service, connection/RCA registry, event coalescing), leaving the
+   service a ≤200-line orchestrator.
+
+   **1a. Progress + the PipelineScheduler extraction map (as of 2026-07-21).**
+   - **Step 1 SHIPPED (`06d54e0`):** the two standalone in-memory registries pulled out —
+     `RcaTemplateRegistry` + `ConnectionProfileRegistry` (both in `com.gamma.service`, package-private).
+     `CollectorService` holds one field each and delegates its public accessors unchanged. The
+     process-wide `ConnectionRegistry` mirror (under space-scoped `underSpace(...)`) and
+     `connectionInUse` (reads `configRegistry`) stayed on `CollectorService` verbatim. Both were
+     verified standalone: untouched by any constructor overload and by `close()`, no lock/scheduler/bus
+     coupling, populated only post-construction by `ServiceBootstrap`.
+   - **Step 2 — `PipelineScheduler` (NEXT, HIGH RISK, not started).** This is the repo's most dangerous
+     refactor. Facts the next shift must hold:
+     - **One `ReentrantLock ingestLock`** (`CollectorService` field) serializes **three** ingest entry
+       paths — the scheduled poll cycle (`runAllOnce`→`runAllOnceInSpace`), the sync trigger
+       (`runPipeline`), the async trigger (`triggerRunAsync`→`triggerWorkers`) — plus registry mutation
+       (`registerPipeline`/`unregisterPipeline`). **It must stay a single shared instance**; cloning it
+       into a new class = silent live deadlock, no compile error.
+     - **`BatchEventBus.publish()` is synchronous on the publishing (lock-holding) thread.** A pipeline
+       run publishes committed-batch events *while holding `ingestLock`*; the only reason a downstream
+       EVENT-triggered run doesn't self-deadlock is that `onUpstreamCommit` hands it to `triggerWorkers`
+       (a virtual thread) instead of running inline. **Keep that off-thread hand-off verbatim** — any
+       "simplification" to an inline `runPipeline`/`coalescer.signal` reintroduces the deadlock.
+     - **Safest boundary (staged, not opaque):** move only `runAllOnce`/`runAllOnceInSpace`,
+       `dueThisTick`/`cronDue`, `onUpstreamCommit`/`triggerMatches`, and `eventCoalescers`/`lastRunAtMs`
+       into `PipelineScheduler`. **Leave** `runPipeline`, `triggerRunAsync`, `pipelineRunById`,
+       `liveRuns`, `registerPipeline`/`unregisterPipeline`, `pause`/`resume` on `CollectorService`
+       (Control-API-facing). `PipelineScheduler` receives **shared refs** to `ingestLock`,
+       `triggerWorkers`, `running`, `paused`, `bus`, `configRegistry`, `registry`, `scheduler`,
+       `status`/`syncStatus` callback, and the `underSpace(...)` wrapper.
+     - **Invariants to preserve:** the `underSpace(...)` MDC wrap on every relocated method (per-space
+       routing correctness); the exact `close()` shutdown order (`watcher → agent → jobs →
+       triggerWorkers → enrichment → … → scheduler`); the constructor's single
+       `configRegistry.rebuild(this.registry)` pre-population before `start()`.
+     - **Do the prep first:** write characterization tests pinning ingestLock serialization / the
+       event-trigger off-thread hand-off / run non-overlap BEFORE moving code (existing coverage:
+       `CollectorServiceTest`, `CollectorServiceTriggerTest`).
 2. **`RouteModule` ServiceLoader registration** — replace the hardcoded `List.of(new …)` of 24
    modules in `ControlApi.registerRoutes` (335–355) with ServiceLoader discovery. Confirmed
    near-zero-cost: every module is already no-arg constructible, stateless, and pulls deps from
@@ -241,9 +276,9 @@ E3. Bring `inspecto-intelligence` (14/2) and `inspecto-agent-hosted` (2/1) to ba
 | # | Item | Why must |
 |---|---|---|
 | M1 | Parent `dependencyManagement` + version properties (A1) — **SHIPPED 2026-07-21 (`73ea9a1`)**: parent now manages junit/langchain4j/eoiagent/postgresql; per-module literals + duplicate version properties removed. | Version drift across 6 poms is a live risk (core already ignores the parent's `junit.version`); prerequisite for adding modules without multiplying the drift. |
-| M2 | `SourceService` decomposition (C1) | 1,178-line god object is the single blocker for every modularization step and the top defect-risk concentration. |
+| M2 | `SourceService`/`CollectorService` decomposition (C1) — **step 1 SHIPPED 2026-07-21 (`06d54e0`)**: Rca/Connection registries extracted. **Step 2 (PipelineScheduler, HIGH RISK) pending — see §2.2.1a.** | 1,178-line god object is the single blocker for every modularization step and the top defect-risk concentration. |
 | M3 | `agent.spi` facade (C3) | 180 concrete imports of core internals make `inspecto-agent`/`-intelligence` unable to evolve independently; the eoiagent migration plan depends on this seam. |
-| M4 | Remove Fuse leftovers (B1) | ~25.8k dead lines *partially wired into the app config* — real bundle weight, security surface, and constant confusion for new shifts. |
+| M4 | Remove Fuse leftovers (B1) — **increment 1 SHIPPED 2026-07-21 (`80d6366`)**: dead demo mocks deleted (−25,079 lines). **Increment 2 pending**: the wired `common/{navigation,shortcuts,user,auth}` + `modules/auth` + `modules/commons` + shell nav/auth re-plumb + `provideGamma` de-wire (medium risk, see SESSION_STATUS next-steps). | ~25.8k dead lines *partially wired into the app config* — real bundle weight, security surface, and constant confusion for new shifts. |
 | M5 | Coverage baseline for intelligence + agent-hosted, jacoco in all modules (E3, A2) | Near-zero-tested modules ship in every reactor build; untestable modules can't be refactored safely later. |
 | M6 | Repo hygiene sweep (A3) — **SHIPPED 2026-07-21 (`b554048`)**: most targets (deploy-old, root logs, `serve-8091.log`, tracked `*.iml`) were already gone/gitignored by prior shifts; removed the last two — stale `HANDOVER-multi-space.md` + a mangled root build-log. | Stale 96-MB-scale bundle copy + logs in a shared sandbox; trivially cheap, removes handover noise. |
 
