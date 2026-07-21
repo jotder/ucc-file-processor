@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>com.gamma.inspector</groupId>
+        <artifactId>file-processor-parent</artifactId>
+        <version>4.0.0-RC1</version>
+        <relativePath>../pom.xml</relativePath>
+    </parent>
+
+    <!-- com.gamma.etl (WS-D increment 2): the ingest/batch pipeline-config layer — PipelineConfig,
+         the CSV/fixed-width ingesters, batch planning/commit/manifest, quarantine, lineage,
+         partitioned Parquet output. Increment 1 (c76a9634) cut etl's only two main-code up-edges
+         into the rest of the engine cluster (DecisionRuleApplier → pipeline; the batch Signal emit
+         → com.gamma.signal.PipelineBatchSignal via an injected sink), making etl a foundation leaf
+         (out-degree 0 within the engine SCC). This module extracts that leaf below fp-engine —
+         it depends only on api/util (plus the third-party libs etl itself uses), same as fp-sql. -->
+    <artifactId>file-processor-etl</artifactId>
+    <name>Inspecto etl (pipeline-config + batch ingest)</name>
+
+    <dependencies>
+        <dependency>
+            <groupId>com.gamma.inspector</groupId>
+            <artifactId>file-processor-api</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.gamma.inspector</groupId>
+            <artifactId>file-processor-util</artifactId>
+        </dependency>
+
+        <!-- CSV parsing — etl.BoundaryScanner + etl.CsvIngester (parent-managed since WS-D). -->
+        <dependency>
+            <groupId>com.univocity</groupId>
+            <artifactId>univocity-parsers</artifactId>
+        </dependency>
+
+        <!-- DuckDB for Parquet output and DuckLake registration (parent-managed since WS-D). -->
+        <dependency>
+            <groupId>org.duckdb</groupId>
+            <artifactId>duckdb_jdbc</artifactId>
+        </dependency>
+
+        <!-- JToon for configuration serialisation (parent-managed since S5). -->
+        <dependency>
+            <groupId>dev.toonformat</groupId>
+            <artifactId>jtoon</artifactId>
+        </dependency>
+
+        <!-- Jackson for Map conversion used by JToon patterns (parent-managed). -->
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-databind</artifactId>
+        </dependency>
+
+        <!-- Logging — slf4j-api facade (parent-managed). -->
+        <dependency>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-api</artifactId>
+        </dependency>
+
+        <!-- Apache Commons Compress — gz stream handling in etl.Compression (parent-managed since WS-D). -->
+        <dependency>
+            <groupId>org.apache.commons</groupId>
+            <artifactId>commons-compress</artifactId>
+        </dependency>
+
+        <!-- Gson — JSON manifest in etl.ManifestStore (parent-managed since WS-D). -->
+        <dependency>
+            <groupId>com.google.code.gson</groupId>
+            <artifactId>gson</artifactId>
+        </dependency>
+
+        <!-- JUnit 5 — unit tests (parent-managed, M1). -->
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <!-- Publish a test-jar so fp-engine's tests (com.gamma.acquire.SourceConfigTest —
+                 the acquire/etl/event/inspector integration test relocated out of this package
+                 during the split) and the core module can reuse the shared fixture
+                 com.gamma.etl.TestConfigs (the PipelineConfig builder used by ~45 tests). -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-jar-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>test-jar</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
+</project>

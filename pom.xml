@@ -36,6 +36,7 @@
         <module>inspecto-util</module>
         <module>inspecto-config</module>
         <module>inspecto-sql</module>
+        <module>inspecto-etl</module>
         <module>inspecto-engine</module>
         <module>inspecto</module>
         <module>inspecto-agent</module>
@@ -155,6 +156,17 @@
                 <groupId>com.gamma.inspector</groupId>
                 <artifactId>file-processor-sql</artifactId>
                 <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.gamma.inspector</groupId>
+                <artifactId>file-processor-etl</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.gamma.inspector</groupId>
+                <artifactId>file-processor-etl</artifactId>
+                <version>${project.version}</version>
+                <type>test-jar</type>
             </dependency>
             <dependency>
                 <groupId>com.gamma.inspector</groupId>

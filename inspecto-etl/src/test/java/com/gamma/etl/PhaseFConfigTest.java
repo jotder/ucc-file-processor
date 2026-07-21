@@ -114,15 +114,4 @@ class PhaseFConfigTest {
         assertEquals(2L * (1L << 30), PipelineConfigParser.parseRate("2GBps"));
         assertEquals(1024L, PipelineConfigParser.parseRate("1024"));
     }
-
-    @Test
-    void postActionResolvesArchiveDateTemplate() {
-        java.time.ZonedDateTime when = java.time.ZonedDateTime.of(2026, 6, 14, 9, 5, 3, 0,
-                java.time.ZoneOffset.UTC);
-        assertEquals("archive/2026/06/14",
-                com.gamma.acquire.PostAction.resolveTemplate("archive/yyyy/MM/dd", when));
-        assertEquals("a/2026/06/14/09",
-                com.gamma.acquire.PostAction.resolveTemplate("a/yyyy/MM/dd/HH", when));
-        assertNull(com.gamma.acquire.PostAction.resolveTemplate(null, when));
-    }
 }

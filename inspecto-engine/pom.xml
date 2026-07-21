@@ -11,14 +11,16 @@
         <relativePath>../pom.xml</relativePath>
     </parent>
 
-    <!-- The engine cluster (WS-D): the 15-package strongly-connected component that sits BELOW the
-         composition root — etl, event, signal, query, pipeline, inspector, acquire, ingester, ops,
+    <!-- The engine cluster (WS-D): the strongly-connected component that sits BELOW the
+         composition root — event, signal, query, pipeline, inspector, acquire, ingester, ops,
          job, enrich, alert, metrics, notify, catalog. Extracted out of file-processor so the core
          (service/control/report/assist/exchange/expectation/intelligence/model) depends DOWN onto a
          cyclic-free engine layer. The cluster is import-clean of the composition root (both real
          edges — job→Scheduler and job→ReportService — were cut in WS-D Steps 1–2 via the util move
-         and the ReportRunner SPI). Depends only on the extracted leaves (api/util/config/sql) plus
-         the third-party libs the cluster uses. -->
+         and the ReportRunner SPI). Depends only on the extracted leaves (api/util/config/sql/etl)
+         plus the third-party libs the cluster uses. (WS-D increment 2: etl, having become a
+         foundation leaf in increment 1, was extracted into its own module file-processor-etl below
+         this one — see fp-etl's pom for the rationale.) -->
     <artifactId>file-processor-engine</artifactId>
 
     <dependencies>
@@ -39,14 +41,21 @@
             <groupId>com.gamma.inspector</groupId>
             <artifactId>file-processor-sql</artifactId>
         </dependency>
-
-        <!-- CSV parsing — etl.BoundaryScanner + etl.CsvIngester (parent-managed since WS-D). -->
         <dependency>
-            <groupId>com.univocity</groupId>
-            <artifactId>univocity-parsers</artifactId>
+            <groupId>com.gamma.inspector</groupId>
+            <artifactId>file-processor-etl</artifactId>
+        </dependency>
+        <!-- fp-etl test-jar: reuses the shared fixtures com.gamma.etl.TestConfigs and
+             PipelineConfigBatchTest (PipelineConfig builders) across the remaining engine test
+             suites (job/pipeline/alert/catalog/inspector/acquire — ~20 files). -->
+        <dependency>
+            <groupId>com.gamma.inspector</groupId>
+            <artifactId>file-processor-etl</artifactId>
+            <type>test-jar</type>
+            <scope>test</scope>
         </dependency>
 
-        <!-- DuckDB for Parquet output and DuckLake registration (parent-managed since WS-D). -->
+        <!-- DuckDB (parent-managed since WS-D). -->
         <dependency>
             <groupId>org.duckdb</groupId>
             <artifactId>duckdb_jdbc</artifactId>
@@ -75,18 +84,6 @@
             <groupId>ch.qos.logback</groupId>
             <artifactId>logback-classic</artifactId>
             <version>1.5.18</version>
-        </dependency>
-
-        <!-- Apache Commons Compress — gz stream handling in etl.Compression (parent-managed since WS-D). -->
-        <dependency>
-            <groupId>org.apache.commons</groupId>
-            <artifactId>commons-compress</artifactId>
-        </dependency>
-
-        <!-- Gson — JSON manifest in etl.ManifestStore (parent-managed since WS-D). -->
-        <dependency>
-            <groupId>com.google.code.gson</groupId>
-            <artifactId>gson</artifactId>
         </dependency>
 
         <!-- JUnit 5 — unit/integration tests (parent-managed, M1). -->

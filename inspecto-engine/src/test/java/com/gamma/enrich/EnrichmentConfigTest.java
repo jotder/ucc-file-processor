@@ -1,10 +1,12 @@
 package com.gamma.enrich;
 
+import dev.toonformat.jtoon.JToon;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -217,5 +219,27 @@ class EnrichmentConfigTest {
                 \s\sregion_dim:
                 \s\s\s\sformat: CSV"""));
         assertThrows(IllegalArgumentException.class, () -> EnrichmentConfig.load(toon.toString()));
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void fromMapUsesResolvedSqlOrInlineTransform() {
+        Map<String, Object> raw = (Map<String, Object>) JToon.decode("""
+                name: K
+                input:
+                  database: db/in
+                  format: PARQUET
+                  partitions[1]: day
+                output:
+                  database: db/out
+                  format: PARQUET
+                  partitions[1]: day
+                """);
+        // resolved SQL (as if read from a transform_file) wins
+        EnrichmentConfig a = EnrichmentConfig.fromMap(raw, "SELECT 1 FROM input");
+        assertEquals("SELECT 1 FROM input", a.transformSql());
+
+        // null resolved SQL with no inline transform → the same error load would raise
+        assertThrows(IllegalArgumentException.class, () -> EnrichmentConfig.fromMap(raw, null));
     }
 }

@@ -24,8 +24,9 @@ multi-module · embedded **DuckDB** · **TOON** config · OpenCSV. Mainline = `m
 
 Module dirs were renamed 2026-06-12; **artifactIds were NOT renamed** (hence dir ≠ artifactId):
 
-Reactor = **10 modules** (build order below; WS-D 2026-07-22 added `inspecto-engine`). Authoritative
-shape, version management, and the module-extraction playbook: [`okf/backend/modules/reactor.md`](okf/backend/modules/reactor.md).
+Reactor = **11 modules** (build order below; WS-D 2026-07-22 added `inspecto-engine`, then split
+`inspecto-etl` out of it the same day). Authoritative shape, version management, and the
+module-extraction playbook: [`okf/backend/modules/reactor.md`](okf/backend/modules/reactor.md).
 
 | Dir | Role | artifactId / jar |
 |---|---|---|
@@ -33,7 +34,8 @@ shape, version management, and the module-extraction playbook: [`okf/backend/mod
 | `inspecto-util/` | leaf: DuckDB access + CSV/file/tar helpers + `CronExpression` | `file-processor-util` |
 | `inspecto-config/` | config spec / codec (TOON) / safety | `file-processor-config` |
 | `inspecto-sql/` | sandboxed DuckDB SQL (`SqlSandbox`/`SqlOracle`/`SqlGuard`/`SqlViews`) | `file-processor-sql` |
-| `inspecto-engine/` | the 15-pkg engine cluster (`etl`/`event`/`pipeline`/`job`/`acquire`/… ) below core | `file-processor-engine` |
+| `inspecto-etl/` | `com.gamma.etl` — pipeline config + batch ingest (foundation leaf below engine) | `file-processor-etl` |
+| `inspecto-engine/` | the remaining engine cluster (`event`/`pipeline`/`job`/`acquire`/… ) below core | `file-processor-engine` |
 | `inspecto/` | control plane + composition root (lean core), ships the fat JAR | `file-processor` / `file-processor.jar` |
 | `inspecto-connectors/` | remote connectors (SFTP/FTP/FTPS/DB), all network deps | `file-processor-connectors` |
 | `inspecto-agent/` | optional AI assist skills (vendored kernel layer + eoiagent transport) | `file-processor-agent` |

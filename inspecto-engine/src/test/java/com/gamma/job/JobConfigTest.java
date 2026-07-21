@@ -1,10 +1,12 @@
 package com.gamma.job;
 
+import dev.toonformat.jtoon.JToon;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -84,5 +86,29 @@ class JobConfigTest {
     void requiresAJobSection(@TempDir Path dir) throws Exception {
         Path p = write(dir, "empty_job.toon", "name: nope\n");
         assertThrows(IllegalArgumentException.class, () -> JobConfig.load(p.toString()));
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void fromMapParsesAndValidatesCron() {
+        Map<String, Object> ok = (Map<String, Object>) JToon.decode("""
+                job:
+                  name: nightly
+                  type: enrich
+                  cron: "0 2 * * *"
+                  config: x.toon
+                """);
+        JobConfig j = JobConfig.fromMap(ok);
+        assertEquals("nightly", j.name());
+        assertTrue(j.hasCron());
+        assertEquals("x.toon", j.params().get("config"));
+
+        Map<String, Object> badCron = (Map<String, Object>) JToon.decode("""
+                job:
+                  name: bad
+                  type: enrich
+                  cron: "not a cron"
+                """);
+        assertThrows(RuntimeException.class, () -> JobConfig.fromMap(badCron));
     }
 }

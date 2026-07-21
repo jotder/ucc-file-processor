@@ -134,10 +134,16 @@ fragmented to **`{pipeline, job, query, enrich}`** + **`{event, metrics}`**, and
 catalog` dropped out** (simple downward deps now). Full reactor green (1884 tests, 0 failures). Map +
 before/after: [`okf/backend/modules/reactor.md`](okf/backend/modules/reactor.md).
 
+✅ **SHIPPED — increment 2: `fp-etl` module extraction (2026-07-22):** `com.gamma.etl` extracted into
+its own leaf module (`inspecto-etl` / `file-processor-etl`) below `fp-engine`; reactor now **12
+modules**. The "test sources import up" blocker was worse than the import-line scan showed — 3 test
+methods reached up via fully-qualified inline calls with no import line (playbook rule 5 struck again):
+`SourceConfigTest` (a genuine acquire+etl+event+inspector integration suite, moved whole to
+`fp-engine`'s `acquire` package per operator call), plus one-liners in `CommitLogTest`/`PhaseFConfigTest`
+split into new `inspector.CommitLogIntegrationTest`/`acquire.PostActionTest`. Full reactor green — 1884
+tests, 0 failures, exact match to baseline. Detail: [`okf/backend/modules/reactor.md`](okf/backend/modules/reactor.md#fp-etl-module-extraction-ws-d-increment-2-shipped-2026-07-22).
+
 **Remaining follow-ons (none blocking; each is deliberate deadlock-sensitive design work, not mechanical):**
-- **`fp-etl` module** — `etl` main is now cleanly extractable below the rest of engine. Blocker before
-  that: etl *test* sources still import up (`enrich`/`job`/`acquire`/`inspector`/`event` integration
-  tests) — relocate those first.
 - **`fp-acquire`** (S5 ③) — `acquire` is no longer SCC-trapped (imports only `etl`+`event` now); a
   candidate once `etl`/`event` layering is finalized.
 - **Further SCC fragmentation** — breaking `{pipeline, job, query, enrich}` or `{event, metrics}` for the

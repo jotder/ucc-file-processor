@@ -1,12 +1,7 @@
-package com.gamma.etl;
+package com.gamma.acquire;
 
-import com.gamma.acquire.AcquisitionLedgers;
-import com.gamma.acquire.Checksums;
-import com.gamma.acquire.InMemoryAcquisitionLedger;
-import com.gamma.acquire.LedgerEntry;
-import com.gamma.acquire.LocalFileSystemConnector;
-import com.gamma.acquire.CollectorConnector;
-import com.gamma.acquire.CollectorConnectors;
+import com.gamma.etl.PipelineConfig;
+import com.gamma.etl.PipelineConfigBatchTest;
 import com.gamma.inspector.CollectorProcessor;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
