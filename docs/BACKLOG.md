@@ -100,6 +100,19 @@ shifts; only the stale `HANDOVER-multi-space.md` + a mangled root build-log rema
 now subclass it and the ~6 copies of the `assist.write.root` → `<root>/agent/<file>` resolver collapsed
 to one helper. No behavior change (intelligence 135/0/0/0).
 
+**SHOULD tier — mostly drained 2026-07-21** (see `superpower/modularization-optimization-plan.md` §SHOULD
+for full detail): ~~S2~~ (both studio god components split), ~~S3~~ (chart/grid consolidation), ~~S4~~
+(PipelineScheduler map-leak fix), ~~S6~~ (ControlApi.dispatch → middleware chain), ~~S7~~ (shutdown
+robustness), ~~S8~~ (`@PublicApi` SPI freeze), ~~S9~~ (intelligence↔agent decoupled via core model-settings
+bridge) — all shipped + pushed. **S1 skipped by design** (RouteModule→ServiceLoader would widen 39 types).
+**S5 (reactor split — extract `fp-config`/`fp-acquire`) NOT done — premise corrected by recon:** the two
+packages are *package-import*-acyclic but NOT independently Maven-extractable — `com.gamma.api.PublicApi`,
+`etl`, `util`, `event` all live in core. **Corrected order for a dedicated shift:** ① extract a leaf
+`fp-api` (just `com.gamma.api`) → ② `fp-config` (dep fp-api) → ③ `fp-acquire` only after `etl`+`util`+`event`
+are modularized (= the full WS-D split, not low-risk). No package-import cycles exist and
+`CollectorConnectorFactory` is already a proven SPI seam, so the path is sound, just larger than the plan
+claimed. Remaining engineering after S5: COULD tier (WS-D reactor split, C3 ag-Grid trim, C5 OptionalAgentSlot).
+
 ## 6. Security-module scope (deferred wholesale — do not partially implement elsewhere)
 
 Identity/login, user model, role-assignment UI, Admin pane, server enforcement, lens-switcher
