@@ -138,8 +138,10 @@ config parse/validate (`ConfigCodec`/`ConfigSpecs`/`ConfigSafetyValidator`), san
 `inspecto-intelligence` additionally needs a **core-owned model-settings bridge** (today it
 compile-depends on inspecto-agent's `AssistModelSettings`/`ProviderSettings`/`ModelTier`) and its
 `RepoPaths` monorepo-filesystem walk must gain a packaged-artifact mode. `inspecto-connectors` and
-`inspecto-security` are already API-jar-clean; none of their 6 seam interfaces carry `@PublicApi`
-yet (only `AssistAgent` and the zero-implementor `PipelineNodeType` do).
+`inspecto-security` are already API-jar-clean. **(S8, 2026-07-21: all 6 seam interfaces now carry
+`@PublicApi` — `Authenticator`/`TokenRelay`/`CollectorConnectorFactory`/`DescriptionProvider`/
+`IntelligenceAgent` at 4.0.0, `NotificationChannel` at 4.4.0 — joining `AssistAgent` and the
+zero-implementor `PipelineNodeType`.)**
 
 **Lifecycle gaps (new):** `SourceService.close()` has no overall shutdown deadline (a hung agent
 close blocks the JVM shutdown hook); `ControlApi.close()` calls `http.stop(0)` — no in-flight
@@ -302,14 +304,14 @@ E3. Bring `inspecto-intelligence` (14/2) and `inspecto-agent-hosted` (2/1) to ba
 
 | # | Item | Why should |
 |---|---|---|
-| S1 | `RouteModule` ServiceLoader registration (C2) | Lets edition-specific route groups self-register like `Authenticators` already do; small change, unlocks fp-control extraction. |
+| S1 | ~~`RouteModule` ServiceLoader registration (C2)~~ **SKIPPED 2026-07-21** | Scope map (all 38 impls package-private, intra-module, always-present, no-arg) showed conversion would force 39 types public — *widening* API surface, the opposite of M3's freeze — for **zero present benefit**: unlike the `Authenticator` precedent it mirrors, no `RouteModule` is edition-optional (all live in `inspecto` core, always present). Only payoff is the fp-control extraction (C1), which is not scheduled. Revisit as part of C1, not standalone. |
 | S2 | Split UI god components link-analysis + geo-map (B4) | 800+ lines / 50+ signals each; every studio feature added makes them worse. |
 | S3 | Chart + grid consolidation (B2, B3) | Three hand-rolled Chart.js panes and one raw ag-Grid pane are the only design-system violations left; closes the reuse gap while it's small. |
 | S4 | Bound `SourceService` maps, `EventLog.SPACES` cleanup (E1) | Unbounded process-lifetime growth under space/pipeline churn; cheap fix. |
 | S5 | Extract `fp-acquire` + `fp-config` (D1, D2) | The two packages already clean enough to move; proves the split mechanics with low risk. |
 | S6 | Middleware/filter chain for `ControlApi.dispatch` | Six cross-cutting concerns inlined in one ~100-line method; the chain makes S1's route plugins composable and testable. |
 | S7 | Shutdown robustness: deadline around `SourceService.close()`, drain delay in `ControlApi.close()` (`http.stop(0)` today), try/catch in `SpaceManager.delete` | Hung agent close blocks JVM exit; in-flight requests can hit closed stores; failed delete leaves half-removed space. |
-| S8 | `@PublicApi`-freeze the 6 unmarked SPI interfaces (`Authenticator`, `TokenRelay`, `SourceConnectorFactory`, `DescriptionProvider`, `IntelligenceAgent`, `NotificationChannel`) | connectors/security are already API-jar-clean; annotating freezes the contract before the split multiplies consumers. |
+| S8 | ~~`@PublicApi`-freeze the 6 unmarked SPI interfaces~~ **DONE 2026-07-21** | Annotated `Authenticator`, `TokenRelay`, `CollectorConnectorFactory` (the post-rename `SourceConnectorFactory`), `IntelligenceAgent` with `@PublicApi(since="4.0.0")` and `NotificationChannel` with `since="4.4.0"` (matches its `@since`); `DescriptionProvider` was already annotated. Extends M3's freeze; connectors/security stay API-jar-clean. |
 | S9 | Decouple `inspecto-intelligence` from `inspecto-agent`: core-owned model-settings bridge + packaged-artifact mode for `RepoPaths` | Removes the only sibling-internal compile dep and the monorepo-layout assumption; prerequisite for it ever building against an API jar. |
 
 ### COULD (do when adjacent work touches the area)

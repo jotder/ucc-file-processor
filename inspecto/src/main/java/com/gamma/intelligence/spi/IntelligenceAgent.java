@@ -5,6 +5,7 @@ import com.gamma.intelligence.AgentAskRequest;
 import com.gamma.intelligence.AgentAskResult;
 import com.gamma.intelligence.AgentSessionRequest;
 import com.gamma.intelligence.AgentSessionResult;
+import com.gamma.api.PublicApi;
 import com.gamma.service.CollectorService;
 
 import java.util.List;
@@ -31,6 +32,7 @@ import java.util.Optional;
  *   <li>{@link #close()} — called on service shutdown.</li>
  * </ol>
  */
+@PublicApi(since = "4.0.0")
 public interface IntelligenceAgent extends AutoCloseable {
 
     /** Stable, human-readable name for logs (e.g. {@code "inspecto-intelligence"}). */

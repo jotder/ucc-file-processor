@@ -1,5 +1,6 @@
 package com.gamma.acquire;
 
+import com.gamma.api.PublicApi;
 import com.gamma.etl.PipelineConfig;
 
 /**
@@ -13,6 +14,7 @@ import com.gamma.etl.PipelineConfig;
  * {@link CollectorConnectors#forConfig}. Remote connectors (SFTP/FTP/S3/…) live in the optional connector module
  * (roadmap Phase E) so the core's dependency surface stays minimal.
  */
+@PublicApi(since = "4.0.0")
 public interface CollectorConnectorFactory {
 
     /** The {@code source.connector} value this factory handles (e.g. {@code "sftp"}, {@code "s3"}). */

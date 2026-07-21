@@ -1,5 +1,6 @@
 package com.gamma.control;
 
+import com.gamma.api.PublicApi;
 import com.sun.net.httpserver.HttpExchange;
 
 import java.util.Optional;
@@ -13,6 +14,7 @@ import java.util.Optional;
  * {@link Authenticators#active()} is empty and {@link ControlApi#dispatch} enforces nothing at all —
  * Personal edition stays byte-for-byte unchanged.
  */
+@PublicApi(since = "4.0.0")
 public interface Authenticator {
 
     /** Resolve the caller from {@code ex}'s credentials (typically an {@code Authorization: Bearer}

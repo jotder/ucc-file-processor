@@ -1,5 +1,7 @@
 package com.gamma.notify;
 
+import com.gamma.api.PublicApi;
+
 /**
  * SPI for an <em>external</em> notification delivery channel — the seam editions plug Email (SendGrid /
  * Amazon SES / Mailgun / SMTP) or webhooks into. Discovered via {@link java.util.ServiceLoader}, so the
@@ -13,6 +15,7 @@ package com.gamma.notify;
  *
  * @since 4.4.0
  */
+@PublicApi(since = "4.4.0")
 public interface NotificationChannel {
 
     /** Stable channel id used as the preference key (e.g. {@code "email"}). */

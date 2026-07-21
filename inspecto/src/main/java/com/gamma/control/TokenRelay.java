@@ -1,5 +1,7 @@
 package com.gamma.control;
 
+import com.gamma.api.PublicApi;
+
 import java.util.Optional;
 
 /**
@@ -10,6 +12,7 @@ import java.util.Optional;
  * implementation via {@code META-INF/services/com.gamma.control.TokenRelay}; the auth-free core ships
  * none, so the {@code /auth/*} routes answer {@code 503 CAPABILITY_UNAVAILABLE} on Personal.
  */
+@PublicApi(since = "4.0.0")
 public interface TokenRelay {
 
     /** One successful exchange/refresh result. {@code refreshExpiresInSeconds} may be {@code null}
