@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>com.gamma.inspector</groupId>
+        <artifactId>file-processor-parent</artifactId>
+        <version>4.0.0-RC1</version>
+        <relativePath>../pom.xml</relativePath>
+    </parent>
+
+    <!-- The dependency-free LEAF of the reactor (S5 ①, modularization plan §2.3 "fp-api"):
+         holds only com.gamma.api — the @PublicApi stability-contract annotation every other
+         module's frozen surface is marked with. Extracted from the core so future module
+         extractions (fp-config first) can depend on the annotation without depending on the
+         whole core. Must stay dependency-free; behavior code never lives here. -->
+    <artifactId>file-processor-api</artifactId>
+    <name>Inspecto API (stability annotations)</name>
+</project>

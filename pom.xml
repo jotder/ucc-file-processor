@@ -27,10 +27,12 @@
 
     <!--
         Build the whole reactor from here:  mvn test   (root)
-        CI and package.ps1 still build the core alone from inspecto/ via the
-        <parent> relativePath below, so neither needed to change for the v3 module split.
+        Since S5 (fp-api extraction) the core depends on reactor siblings, so a core-alone
+        build from inspecto/ only works after a root `mvn install`; CI builds from the root,
+        and package.ps1 builds `-pl inspecto -am` from the root for the same reason.
     -->
     <modules>
+        <module>inspecto-api</module>
         <module>inspecto</module>
         <module>inspecto-agent</module>
         <module>inspecto-agent-hosted</module>
@@ -113,6 +115,12 @@
          sshj, nimbus, …) stay pinned in their one module, where there is no drift to prevent. -->
     <dependencyManagement>
         <dependencies>
+            <!-- Reactor-internal modules (S5): siblings declare these version-free. -->
+            <dependency>
+                <groupId>com.gamma.inspector</groupId>
+                <artifactId>file-processor-api</artifactId>
+                <version>${project.version}</version>
+            </dependency>
             <dependency>
                 <groupId>org.junit.jupiter</groupId>
                 <artifactId>junit-jupiter</artifactId>

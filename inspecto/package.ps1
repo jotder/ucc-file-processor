@@ -51,10 +51,14 @@ $outZipLinux  = Join-Path $sandboxRoot  'file-processor-deploy-linux.zip'
 $bundleDir    = Join-Path $sandboxRoot  'file-processor-deploy'
 
 # ── step 1: build ─────────────────────────────────────────────────────────────
+# Built from the repo root with -pl inspecto -am (same idiom as step 1c) because since S5 the
+# core depends on reactor siblings (file-processor-api, …) — a core-alone build from inspecto/
+# would only resolve them after a root `mvn install`. -am builds the needed siblings in-pass;
+# the shaded JAR still lands in inspecto/target/.
 if (-not $NoBuild) {
     Write-Host "Building fat JAR (skipping tests)..." -ForegroundColor Cyan
-    Push-Location $adjParserDir
-    & mvn clean package -DskipTests -q
+    Push-Location $sandboxRoot
+    & mvn clean package -pl inspecto -am -DskipTests -q
     if ($LASTEXITCODE -ne 0) { throw "mvn build failed" }
     Pop-Location
     Write-Host "Build complete." -ForegroundColor Green

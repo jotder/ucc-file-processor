@@ -22,6 +22,13 @@
          jacoco 'coverage' profile live here. -->
 
     <dependencies>
+        <!-- @PublicApi stability annotation — the reactor's dependency-free leaf (S5 ①).
+             Version managed by the parent. -->
+        <dependency>
+            <groupId>com.gamma.inspector</groupId>
+            <artifactId>file-processor-api</artifactId>
+        </dependency>
+
         <!-- CSV Parsing -->
         <dependency>
             <groupId>com.univocity</groupId>
