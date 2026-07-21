@@ -158,6 +158,25 @@ public interface IntelligenceAgent extends AutoCloseable {
         return Optional.empty();
     }
 
+    /**
+     * Record an operator's feedback on an investigation Case (AGT-5 P5, "Learning") — the raw signal
+     * the learning tier turns into eval growth + per-skill tuning. {@code body} carries the
+     * {@code rating} (helpful / not-helpful) and an optional {@code note}. Returns the stored feedback
+     * view, or empty when the {@code caseId} is unknown (the control route maps that to 404). Default
+     * empty for implementations without an investigation tier.
+     */
+    default Optional<Map<String, Object>> recordCaseFeedback(String caseId, Map<String, Object> body, String submittedBy) {
+        return Optional.empty();
+    }
+
+    /**
+     * Recent Case feedback, newest first, as plain JSON-friendly maps (AGT-5 P5) — the aggregate the
+     * tuning dashboard reads. Default empty (read-degrading, like {@link #recentCases}).
+     */
+    default List<Map<String, Object>> recentCaseFeedback(int limit) {
+        return List.of();
+    }
+
     /** Released on service shutdown. Default no-op. */
     @Override default void close() {}
 }

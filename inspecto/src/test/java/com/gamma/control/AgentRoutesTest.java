@@ -343,6 +343,39 @@ class AgentRoutesTest {
         }
     }
 
+    // --- AGT-5 P5: Case feedback routes -----------------------------------------------------------
+
+    @Test
+    void feedbackPostValidatesAndRecords(@TempDir Path dir) throws Exception {
+        FakeIntelligenceAgent agent = new FakeIntelligenceAgent(Map.of("case-1", Map.of("id", "case-1")));
+        try (Ctx ctx = open(dir, agent)) {
+            // Missing rating → 400.
+            assertEquals(400, send(ctx.port(), "POST", "/agent/cases/case-1/feedback", "{}").statusCode());
+            // Unknown case → 404.
+            assertEquals(404, send(ctx.port(), "POST", "/agent/cases/nope/feedback",
+                    "{\"rating\":\"helpful\"}").statusCode());
+            // Valid → 200 + stored view.
+            HttpResponse<String> ok = send(ctx.port(), "POST", "/agent/cases/case-1/feedback",
+                    "{\"rating\":\"helpful\",\"note\":\"good\"}");
+            assertEquals(200, ok.statusCode());
+            assertEquals("HELPFUL", JSON.readTree(ok.body()).get("rating").asText());
+        }
+    }
+
+    @Test
+    void feedbackListDegradesEmptyAnd503WhenModuleAbsent(@TempDir Path dir) throws Exception {
+        try (Ctx ctx = open(dir, null)) {
+            assertEquals(503, send(ctx.port(), "GET", "/agent/feedback", null).statusCode());
+        }
+        FakeIntelligenceAgent agent = new FakeIntelligenceAgent(Map.of("case-1", Map.of("id", "case-1")));
+        try (Ctx ctx = open(dir, agent)) {
+            send(ctx.port(), "POST", "/agent/cases/case-1/feedback", "{\"rating\":\"not_helpful\"}");
+            HttpResponse<String> r = send(ctx.port(), "GET", "/agent/feedback", null);
+            assertEquals(200, r.statusCode());
+            assertEquals(1, JSON.readTree(r.body()).get("feedback").size());
+        }
+    }
+
     @Test
     void actionsRoutesDegradeTo503OnlyWhenModuleAbsentAndReturnSeededEntries(@TempDir Path dir) throws Exception {
         try (Ctx ctx = open(dir, null)) {
@@ -411,6 +444,30 @@ class AgentRoutesTest {
             policy.put("killSwitch", engaged);
             policy.put("updatedBy", by);
             return java.util.Optional.of(new java.util.LinkedHashMap<>(policy));
+        }
+
+        // P5: Case feedback the /agent/cases/{id}/feedback + /agent/feedback routes exercise.
+        private final List<Map<String, Object>> feedback = new java.util.ArrayList<>();
+
+        @Override
+        public java.util.Optional<Map<String, Object>> recordCaseFeedback(String caseId, Map<String, Object> body, String by) {
+            if (!cases.containsKey(caseId)) return java.util.Optional.empty(); // unknown case → 404
+            String rating = String.valueOf(body.get("rating"));
+            if (!"helpful".equalsIgnoreCase(rating) && !"not_helpful".equalsIgnoreCase(rating)) {
+                throw new IllegalArgumentException("bad rating"); // → route maps to 400
+            }
+            Map<String, Object> v = new java.util.LinkedHashMap<>();
+            v.put("id", "fb-" + feedback.size());
+            v.put("caseId", caseId);
+            v.put("rating", rating.toUpperCase(java.util.Locale.ROOT));
+            v.put("submittedBy", by);
+            feedback.add(v);
+            return java.util.Optional.of(v);
+        }
+
+        @Override
+        public List<Map<String, Object>> recentCaseFeedback(int limit) {
+            return List.copyOf(feedback);
         }
 
         // P4 slice 2: the autonomy ledger the /agent/actions routes read.

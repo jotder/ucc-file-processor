@@ -98,6 +98,34 @@ class InspectoIntelligenceAgentTest {
         }
     }
 
+    @Test
+    void caseFeedbackIsRecordedValidatedAndFoldedIntoTheCaseView() {
+        InspectoIntelligenceAgent agent = open(StubLlmGateway.builder().defaultReplyText("ok").build());
+        try {
+            agent.caseStore().add(new com.gamma.intelligence.investigation.Case(
+                    "case-1", "incident:1", Map.of("type", "pipeline.batch.failed"),
+                    List.of(), List.of(), "open", List.of(), java.time.Instant.now()));
+
+            // Unknown case → empty (route maps to 404); a known case records + echoes the stored view.
+            assertTrue(agent.recordCaseFeedback("nope", Map.of("rating", "helpful"), "alice").isEmpty());
+            Map<String, Object> stored = agent.recordCaseFeedback(
+                    "case-1", Map.of("rating", "helpful", "note", "fixed it"), "alice").orElseThrow();
+            assertEquals("HELPFUL", stored.get("rating"));
+            assertEquals("alice", stored.get("submittedBy"));
+
+            // A bad rating value throws (the route maps that to 400).
+            assertThrows(IllegalArgumentException.class,
+                    () -> agent.recordCaseFeedback("case-1", Map.of("rating", "banana"), "alice"));
+
+            // Feedback is folded into the case's detail view and listed in the recent feed.
+            Object folded = agent.caseById("case-1").orElseThrow().get("feedback");
+            assertTrue(folded instanceof List<?> l && l.size() == 1);
+            assertEquals(1, agent.recentCaseFeedback(50).size());
+        } finally {
+            agent.close();
+        }
+    }
+
     // S4: no live eoiagent session/tool produces an INLINE_ARTIFACT answer today (checked
     // DefaultAgentSession, eoiagent-examples, eoiagent-app-reference — no producer anywhere), so
     // these two tests construct the AgentAnswer/InlineArtifact directly and drive the package-private

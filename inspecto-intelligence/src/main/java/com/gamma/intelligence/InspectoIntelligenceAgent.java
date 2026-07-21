@@ -30,6 +30,8 @@ import com.gamma.intelligence.action.RunbookActions;
 import com.gamma.intelligence.context.ContextBroker;
 import com.gamma.intelligence.investigation.Case;
 import com.gamma.intelligence.investigation.CaseStore;
+import com.gamma.intelligence.investigation.Feedback;
+import com.gamma.intelligence.investigation.FeedbackStore;
 import com.gamma.intelligence.investigation.Incident;
 import com.gamma.intelligence.investigation.TriageQueue;
 import com.gamma.intelligence.policy.ActionRecord;
@@ -70,6 +72,9 @@ public final class InspectoIntelligenceAgent implements IntelligenceAgent {
 
     private final Map<String, AgentSession> sessions = new ConcurrentHashMap<>();
     private final CaseStore caseStore = new CaseStore();
+    // P5 (Learning): durable operator feedback on Cases (the eval-growth/tuning corpus). Always present;
+    // start() replaces it with a write-root-backed instance so feedback survives a restart.
+    private FeedbackStore feedback = new FeedbackStore();
     // P3 (L2): the approvals inbox + the bridge that makes eoiagent's gate non-headless. Present
     // regardless of the act tier — the inbox reads degrade to empty when the tier is off (no request
     // is ever raised then). When the tier is on, start() replaces this with a previewer-backed instance
@@ -140,6 +145,10 @@ public final class InspectoIntelligenceAgent implements IntelligenceAgent {
         // P4 (L3): the durable autonomy policy (kill switch + per-class mode/budget). Configurable via
         // GET/PUT /agent/policy regardless of any driver; a driver added later gates on autonomy.authorize.
         autonomy = new AutonomyPolicyEngine(autonomyPolicyStore());
+
+        // P5 (Learning): durable Case feedback. Always available (reads degrade to empty); the store is
+        // write-root-backed so operator ratings accrue across restarts as the learning corpus.
+        feedback = feedbackStore();
 
         // P4 slice 2 (L3): the ops_monitor loop is opt-in. When enabled, it watches for a
         // pipeline.batch.failed Signal and — only if the operator set batch_rerun to AUTO and there is
@@ -230,7 +239,29 @@ public final class InspectoIntelligenceAgent implements IntelligenceAgent {
 
     @Override
     public Optional<Map<String, Object>> caseById(String id) {
-        return caseStore.byId(id).map(Case::toView);
+        return caseStore.byId(id).map(c -> {
+            Map<String, Object> view = c.toView();
+            // P5: fold the operator feedback for this Case into its detail view.
+            view.put("feedback", feedback.byCaseId(id).stream().map(Feedback::toView).toList());
+            return view;
+        });
+    }
+
+    @Override
+    public Optional<Map<String, Object>> recordCaseFeedback(String caseId, Map<String, Object> body, String submittedBy) {
+        if (caseStore.byId(caseId).isEmpty()) return Optional.empty();     // unknown case → route 404
+        Feedback.Rating rating = Feedback.parseRating(body == null ? null : String.valueOf(body.get("rating")));
+        if (rating == null) throw new IllegalArgumentException("rating must be 'helpful' or 'not_helpful'");
+        String note = body.get("note") == null ? null : String.valueOf(body.get("note"));
+        Feedback f = new Feedback(UUID.randomUUID().toString(), caseId, rating, note,
+                submittedBy == null || submittedBy.isBlank() ? "operator" : submittedBy, Instant.now());
+        feedback.add(f);
+        return Optional.of(f.toView());
+    }
+
+    @Override
+    public List<Map<String, Object>> recentCaseFeedback(int limit) {
+        return feedback.recent(limit).stream().map(Feedback::toView).toList();
     }
 
     @Override
@@ -347,6 +378,18 @@ public final class InspectoIntelligenceAgent implements IntelligenceAgent {
         return wr == null || wr.isBlank()
                 ? new AutonomyPolicyStore()
                 : new AutonomyPolicyStore(java.nio.file.Path.of(wr).resolve("agent").resolve("policy.json"));
+    }
+
+    /**
+     * The Case-feedback store (AGT-5 P5). Durable at {@code <assist.write.root>/agent/feedback.jsonl}
+     * when a write root is set — so operator ratings accrue across restarts as the learning corpus —
+     * else in-memory (dev/tests).
+     */
+    private static FeedbackStore feedbackStore() {
+        String wr = System.getProperty("assist.write.root");
+        return wr == null || wr.isBlank()
+                ? new FeedbackStore()
+                : new FeedbackStore(java.nio.file.Path.of(wr).resolve("agent").resolve("feedback.jsonl"));
     }
 
     /**

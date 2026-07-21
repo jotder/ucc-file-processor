@@ -60,6 +60,21 @@ final class AgentRoutes implements RouteModule {
                 agentOr503(api).caseById(ApiContext.name(m))
                         .orElseThrow(() -> new ApiException(404, "unknown case: '" + ApiContext.name(m) + "'")));
 
+        // AGT-5 P5 (Learning): operator feedback on an investigation Case — the raw signal the learning
+        // tier turns into eval growth + per-skill tuning. The write is audited by ControlApi.dispatch.
+        api.post("/agent/cases/(.+)/feedback", (e, m) -> {
+            Map<String, Object> body = api.body(e);
+            if (ApiContext.str(body, "rating") == null) throw new ApiException(400, "rating is required");
+            try {
+                return agentOr503(api).recordCaseFeedback(ApiContext.name(m), body, actorOrOperator(e))
+                        .orElseThrow(() -> new ApiException(404, "unknown case: '" + ApiContext.name(m) + "'"));
+            } catch (IllegalArgumentException bad) {   // unrecognized rating value → reject at the edge
+                throw new ApiException(400, bad.getMessage());
+            }
+        });
+        api.get("/agent/feedback", (e, m) -> Map.of("feedback",
+                agentOr503(api).recentCaseFeedback(ApiContext.parseIntOr(ApiContext.query(e, "limit"), 100))));
+
         // AGT-5 P3 (autonomy L2): the approvals inbox. A mutating agent tool call parks in the
         // intelligence module's ApprovalStore until an operator decides here; the decision POST resumes
         // (approve) or denies the gated tool. Reads degrade to empty when the module is absent (no 503),

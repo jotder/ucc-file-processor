@@ -410,6 +410,18 @@ remediation with budget enforcement, a live-proven hard-off switch, and the auto
 **P5 — Learning.** Feedback capture → eval growth; case-similarity recall; per-skill tuning
 dashboards; embedding retrieval upgrade if warranted.
 
+*P5 slice 1 — Case feedback capture — SHIPPED 2026-07-21.* The raw learning signal: an operator rates
+an investigation Case helpful / not-helpful (+ optional note) via `POST /agent/cases/{id}/feedback`.
+`com.gamma.intelligence.investigation.Feedback` (`{id, caseId, rating, note, submittedBy, at}`) +
+durable `FeedbackStore` (JSON-lines at `<assist.write.root>/agent/feedback.jsonl`, the
+`ApprovalStore` ring idiom) — feedback outlives the ephemeral `CaseStore` (256-deep, in-memory), with
+`caseId` the durable join key. SPI `recordCaseFeedback` (unknown case → 404; bad rating → 400) +
+`recentCaseFeedback`; feedback is folded into the `GET /agent/cases/{id}` detail view and listed at
+`GET /agent/feedback`. *Still open for P5:* case-similarity recall (surface similar past Cases to a new
+investigation — deterministic token-overlap first, embeddings only if warranted; likely graduates
+`CaseStore` to durable), and a per-skill tuning dashboard (helpful-rate aggregation over the feedback
+corpus).
+
 ## 9. Risks & mitigations
 
 - **eoiagent SNAPSHOT / Phase-3.5 churn** → pin exact jars in `.m2`; adopt platform seams only

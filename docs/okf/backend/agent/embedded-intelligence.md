@@ -174,7 +174,7 @@ governed from an operator inbox UI. Five slices shipped (`a30049a`, `b5069c1`, `
   auth-free core (no `Subject`), same as the S6 agent-invoke path — a secured edition gates it at the
   `ApiContext`/`WriteGates` seam.
 
-## P4 — bounded autonomy (L3), in progress
+## P4 — bounded autonomy (L3), complete
 
 Autonomous (un-prompted) action, gated by an operator-set policy. **P4 complete 2026-07-21** (policy
 substrate + the `ops_monitor` loop with a first pilot action class + the autonomy dashboard UI). A
@@ -226,6 +226,23 @@ second pilot class (alert triage) and a periodic state-watch trigger are deferre
   actions); intelligence module 100→119. UI: `autonomy.component.spec.ts` (8) + `AutonomyService`;
   `npm run test:ci` 276 files/1533 pass, `npm run build` clean.
 
+## P5 — learning, in progress
+
+Turning operator judgement into eval growth + tuning. **Slice 1 (feedback capture) shipped 2026-07-21**;
+case-similarity recall and a per-skill tuning dashboard are the remaining slices.
+
+- **Case feedback (slice 1)** — `investigation.Feedback` (`{id, caseId, rating HELPFUL|NOT_HELPFUL,
+  note, submittedBy, at}`) + durable `FeedbackStore` (JSON-lines at
+  `<assist.write.root>/agent/feedback.jsonl`, the `ApprovalStore` ring idiom; in-memory without a write
+  root). Feedback is durable and **outlives the ephemeral `CaseStore`** (256-deep, in-memory) — the
+  `caseId` is the join key, so a rating survives even after its Case is evicted. `POST
+  /agent/cases/{id}/feedback` (`rating` synonyms parsed by `Feedback.parseRating`; unknown case → 404,
+  bad rating → 400, missing rating → 400), SPI `recordCaseFeedback` / `recentCaseFeedback`. The Case's
+  `GET /agent/cases/{id}` detail view folds in its `feedback[]`; `GET /agent/feedback` lists the corpus.
+- **Verified**: `FeedbackStoreTest` (5: add/recent/byCaseId/byId, bounded eviction, durable reload,
+  rating-synonym parsing, view round-trip), `InspectoIntelligenceAgentTest` +1 (record/validate/fold
+  into case view), `AgentRoutesTest` +2 (feedback 400/404/200 + list 503/degrade). Module 119→125.
+
 ## Gotchas / seams
 
 - **`ingestLock` deadlock rule** governs every `EventLog`/Signal-bus subscriber: subscribers run
@@ -247,7 +264,7 @@ second pilot class (alert triage) and a periodic state-watch trigger are deferre
 
 ## Still open (parent plan `embedded-intelligence-plan.md`, §8)
 
-P2 remainder (`query_author`, `kpi_report_builder` — see the P2 tier above for why deferred) · P3 is
-complete (mid-plan runbook resume deferred to P4) · P4/P5 ·
-Case persistence + similarity recall · hosted providers (Standard+) · the optional S8 signal-backbone
-slice. See `docs/BACKLOG.md`.
+P2 remainder (`query_author`, `kpi_report_builder` — see the P2 tier above for why deferred) · P3
+complete · P4 complete · P5 in progress (feedback capture shipped; **case-similarity recall** + Case
+persistence + per-skill tuning dashboard remain) · hosted providers (Standard+) · the optional S8
+signal-backbone slice. See `docs/BACKLOG.md`.
