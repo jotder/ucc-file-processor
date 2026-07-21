@@ -5,6 +5,7 @@ import com.gamma.etl.PipelineConfig;
 import com.gamma.service.EnrichmentService;
 import com.gamma.service.CollectorService;
 import com.gamma.etl.StatusStore;
+import com.gamma.job.ReportRunner;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -37,7 +38,7 @@ import java.util.Map;
  * holds no state of its own.
  */
 @PublicApi(since = "2.8.0")
-public final class ReportService {
+public final class ReportService implements ReportRunner {
 
     private static final DateTimeFormatter TS = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 

@@ -10,8 +10,11 @@ The entire low/mid-level engine — a **15-package strongly-connected component*
 composition root (`service`/`control`/`report`) by **exactly two real compile edges, both from
 `com.gamma.job`**:
 
-1. `job → service.Scheduler`   → **RESOLVED (Step 1, done)** — `Scheduler` relocated to `util`.
-2. `job → report.ReportService` → needs a small **dependency inversion** (Step 2, pending decision).
+1. `job → service.Scheduler`   → **RESOLVED (Step 1)** — `Scheduler` relocated to `util`.
+2. `job → report.ReportService` → **RESOLVED (Step 2)** — `ReportRunner` SPI (`ReportService` implements it).
+
+**Both edges are now cut; the cluster is import-clean of the composition root** (verified). What remains
+is the actual module extraction — a separate, larger, empirically-verified move (see the last section).
 
 Resolve those two and the whole cluster can drop below `core` as a module (or cluster of modules).
 This is a *far* smaller lever than the "decompose the `CollectorService` god-object" work the roadmap
@@ -77,34 +80,47 @@ Added `org.slf4j:slf4j-api` — parent-managed (`slf4j.version` = 2.0.17, the lo
 version-free in both `inspecto-util` and `inspecto` (M1 shared-dep convention). Gate: full reactor
 `mvn -o clean test`.
 
-## Step 2 — invert `job → report.ReportService`  (design decision needed)
+## Step 2 — invert `job → report.ReportService`  ✅ DONE (ReportRunner SPI)
 
-`ReportJob` calls only two no-arg methods: `statusReport()` → `StatusReport`, `serviceReport()` →
-`ServiceReport`. `JobService` merely holds the reference and hands it to `ReportJob`. **But** the
-return types (`StatusReport`/`ServiceReport`) are declared **inside `report.ReportService`** (a
-`@PublicApi` class fused to `service`), and `ReportJob` treats the result as an opaque `Object` it
-serializes to JSON / delivers. Options:
+`ReportJob` calls only two no-arg methods (`statusReport()`, `serviceReport()`) and treats the result
+as an opaque `Object` it serialises to JSON; `JobService` merely holds+forwards the reference. So the
+edge was purely the **`ReportService` type name** in `job`. Options B (relocate the nested value
+records) and D (extract the two methods into a lower class) were **rejected after reading the code**:
+`job` never names the value records, and `statusReport()`/`serviceReport()` read `CollectorService`
+state (`service.pipelines()` → `CollectorService.PipelineView`, `service.configFor()`,
+`service.statusStore()`) — so pulling them down would only *move* the `service` edge, not remove it.
+`ReportService` is intrinsically a service-side aggregator.
 
-- **(A) SPI returning a neutral artifact.** Define `ReportRunner` (in `job` or a low SPI package) with
-  `Object run(String scope)` (or a small neutral record). `ReportService` implements it; the
-  composition root injects it into `JobService`. `ReportJob` already treats the value as `Object` →
-  minimal churn, no report types leak into `job`. **Recommended.**
-- **(B) Relocate the report *value* types** (`StatusReport`/`ServiceReport`/…) down into `C`, leaving
-  the fused `ReportService` orchestrator in `core`. Larger surface; `@PublicApi` return types move
-  (FQN change → api-stability update + sibling repoint). More invasive.
-- **(C) Move `ReportJob` out of `job`** into `core` and register it via the Job descriptor SPI, so
-  `job` never names `ReportService`. Changes the job-pack wiring; needs a look at `JobConfig`/descriptor
-  discovery.
+**Shipped (A):** new interface `com.gamma.job.ReportRunner { Object statusReport(); Object
+serviceReport(); }`. `ReportService implements ReportRunner` — its existing typed methods satisfy the
+`Object` returns by **covariant override**, so zero method-body changes. `JobService`/`ReportJob` now
+name `ReportRunner` (same package, no import) instead of importing `com.gamma.report.ReportService`.
+The composition root passes the `ReportService` instance unchanged (widening to `ReportRunner`). Net
+direction flip: `report` (core) now depends **down** on `job` (cluster) — correct. Not `@PublicApi`
+(internal seam); adding an implemented interface to the `@PublicApi` `ReportService` is compatible, so
+no api-stability change.
+
+## Both edges cut — the cluster is now import-clean of the composition root
+
+Re-ran the cluster→outside import scan: **zero** real edges from `C` into `service`/`control`/`report`/
+`assist`/`report` (the lone `acquire → "Binary file …StabilityGate.java"` is a grep binary-detection
+artifact — its only `com.gamma` import is `com.gamma.event`, in-cluster). The 15-package engine cluster
+`C` no longer compile-depends on anything above it except the already-extracted leaves
+(`api`/`util`/`config`/`sql`).
 
 ## After the two edges: the extraction itself (future, large)
 
-With `C` detached, it can go below `core` as **one `fp-engine` module** first (lowest-risk: one move,
+With `C` now import-clean, it can go below `core` as **one `fp-engine` module** first (lowest-risk: one move,
 `core`/`service`/`control`/`report`/`assist` depend down onto it), then later be split into the §2.3
 clusters (fp-core-etl / fp-ops / fp-catalog) if desired. This is a big, separate, test-guarded move —
 do NOT attempt it in the same shift as Steps 1–2. Verify the "only 2 edges" claim empirically at that
 point by actually forming the module and letting the reactor prove acyclicity.
 
-## Open question for the operator
+## Next-shift decision (before the extraction)
 
-Step 2 approach — **(A) `ReportRunner` SPI** (recommended, minimal) vs (B) relocate value types vs
-(C) move `ReportJob`. Pick before implementing.
+Both prerequisite edge-cuts are shipped. The remaining work — forming the `fp-engine` module — is
+large and should be its own shift. Open question for whoever picks it up: **one big `fp-engine` module
+first** (recommended, lowest-risk single move) **vs** going straight to the §2.3 three-cluster split
+(fp-core-etl / fp-ops / fp-catalog). Verify the "import-clean" claim empirically by actually forming
+the module and letting the reactor prove acyclicity (watch for test-scope deps, `META-INF/services`,
+resource files, and the shaded-jar assembly — import-clean ≠ build-clean until proven).

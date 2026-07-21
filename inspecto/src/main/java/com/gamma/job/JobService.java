@@ -10,7 +10,6 @@ import com.gamma.event.Event;
 import com.gamma.event.EventLog;
 import com.gamma.event.EventType;
 import com.gamma.metrics.MetricRegistry;
-import com.gamma.report.ReportService;
 import com.gamma.etl.BatchEventBus;
 import com.gamma.util.Scheduler;
 import com.gamma.util.CronExpression;
@@ -78,7 +77,7 @@ public final class JobService implements AutoCloseable {
     private final List<JobConfig> configs;
     private final BatchEventBus bus;
     private final Scheduler scheduler;
-    private final ReportService reports;
+    private final ReportRunner reports;
     private final ZoneId zone;
     /** Run journal (T26/T27): the durable {@code jobs_runs.csv} audit, the in-memory history the Control
      *  API serves, and the optional DuckDB run projection. */
@@ -156,19 +155,19 @@ public final class JobService implements AutoCloseable {
                           boolean enabled, String lastStatus, String lastRunTime, String nextFire) {}
 
     public JobService(List<JobConfig> configs, BatchEventBus bus, Scheduler scheduler,
-                      ReportService reports, String auditDir) {
+                      ReportRunner reports, String auditDir) {
         this(configs, bus, scheduler, reports, auditDir, null);
     }
 
     /** As above, plus an optional DuckDB job-run projection for reporting (T27); {@code null} disables it. */
     public JobService(List<JobConfig> configs, BatchEventBus bus, Scheduler scheduler,
-                      ReportService reports, String auditDir, DbJobRunStore jobRunStore) {
+                      ReportRunner reports, String auditDir, DbJobRunStore jobRunStore) {
         this(configs, bus, scheduler, reports, auditDir, jobRunStore, null, "database");
     }
 
     /** As the full constructor, with no data-plane provenance store (T21). */
     public JobService(List<JobConfig> configs, BatchEventBus bus, Scheduler scheduler,
-                      ReportService reports, String auditDir, DbJobRunStore jobRunStore,
+                      ReportRunner reports, String auditDir, DbJobRunStore jobRunStore,
                       PipelineStore flowStore, String dataDir) {
         this(configs, bus, scheduler, reports, auditDir, jobRunStore, flowStore, dataDir, null);
     }
@@ -180,7 +179,7 @@ public final class JobService implements AutoCloseable {
      * {@code null}/default when no flow jobs / no provenance backend are configured.
      */
     public JobService(List<JobConfig> configs, BatchEventBus bus, Scheduler scheduler,
-                      ReportService reports, String auditDir, DbJobRunStore jobRunStore,
+                      ReportRunner reports, String auditDir, DbJobRunStore jobRunStore,
                       PipelineStore flowStore, String dataDir,
                       com.gamma.pipeline.exec.DbProvenanceStore provenanceStore) {
         this.configs   = new CopyOnWriteArrayList<>(configs);

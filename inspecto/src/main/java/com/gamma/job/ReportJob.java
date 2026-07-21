@@ -10,7 +10,6 @@ import com.gamma.pipeline.ViewStore;
 import com.gamma.query.DatasetRelation;
 import com.gamma.query.MeasureCompiler;
 import com.gamma.query.QueryExecutor;
-import com.gamma.report.ReportService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -35,7 +34,7 @@ import java.util.Set;
  *
  * <h3>Scopes</h3>
  * <ul>
- *   <li>{@code status} (default) — the live snapshot from {@link ReportService}.</li>
+ *   <li>{@code status} (default) — the live snapshot from {@link ReportRunner}.</li>
  *   <li>{@code batch} / {@code service} / {@code all} — the historical batch-audit rollup.</li>
  *   <li>{@code dataset} (BI-4 export) — a headless BI query over a Dataset: params {@code dataset}
  *       (component id, required), {@code measures} (comma-separated {@code agg(field)}/{@code count};
@@ -56,15 +55,15 @@ final class ReportJob implements Job {
     private static final DateTimeFormatter TS = DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss");
 
     private final JobConfig cfg;
-    private final ReportService reports;
+    private final ReportRunner reports;
     /** The space's data dir (for a dataset export's {@code physicalRef}); {@code null} degrades to view-backed only. */
     private final String dataDir;
 
-    ReportJob(JobConfig cfg, ReportService reports) {
+    ReportJob(JobConfig cfg, ReportRunner reports) {
         this(cfg, reports, null);
     }
 
-    ReportJob(JobConfig cfg, ReportService reports, String dataDir) {
+    ReportJob(JobConfig cfg, ReportRunner reports, String dataDir) {
         this.cfg = cfg;
         this.reports = reports;
         this.dataDir = dataDir;
