@@ -1,47 +1,21 @@
 import { inject, Injectable } from '@angular/core';
-import { AcademyMockApi } from 'app/mock-api/apps/academy/api';
-import { ChatMockApi } from 'app/mock-api/apps/chat/api';
-import { ContactsMockApi } from 'app/mock-api/apps/contacts/api';
-import { ECommerceInventoryMockApi } from 'app/mock-api/apps/ecommerce/inventory/api';
-import { FileManagerMockApi } from 'app/mock-api/apps/file-manager/api';
-import { HelpCenterMockApi } from 'app/mock-api/apps/help-center/api';
-import { MailboxMockApi } from 'app/mock-api/apps/mailbox/api';
-import { NotesMockApi } from 'app/mock-api/apps/notes/api';
-import { ScrumboardMockApi } from 'app/mock-api/apps/scrumboard/api';
-import { TasksMockApi } from 'app/mock-api/apps/tasks/api';
 import { AuthMockApi } from 'app/mock-api/common/auth/api';
 import { NavigationMockApi } from 'app/mock-api/common/navigation/api';
-import { SearchMockApi } from 'app/mock-api/common/search/api';
 import { ShortcutsMockApi } from 'app/mock-api/common/shortcuts/api';
 import { UserMockApi } from 'app/mock-api/common/user/api';
-import { AnalyticsMockApi } from 'app/mock-api/dashboards/analytics/api';
-import { CryptoMockApi } from 'app/mock-api/dashboards/crypto/api';
-import { FinanceMockApi } from 'app/mock-api/dashboards/finance/api';
-import { ProjectMockApi } from 'app/mock-api/dashboards/project/api';
-import { ActivitiesMockApi } from 'app/mock-api/pages/activities/api';
-import { IconsMockApi } from 'app/mock-api/ui/icons/api';
 
+/**
+ * The remaining Fuse-template mock APIs. The demo trees (apps/dashboards/pages/ui + common/search)
+ * were removed in the M4 dead-weight sweep — the app's real domain mocking lives in inspecto/mock/.
+ * What stays is only what the classic shell still fetches over the Fuse mock interceptor:
+ * common navigation (api/common/navigation), user menu (api/common/user), shortcuts, and the
+ * vendored auth mock. These come out in the follow-up increment that re-plumbs the shell nav/auth
+ * off the Fuse layer.
+ */
 @Injectable({ providedIn: 'root' })
 export class MockApiService {
-    academyMockApi = inject(AcademyMockApi);
-    activitiesMockApi = inject(ActivitiesMockApi);
-    analyticsMockApi = inject(AnalyticsMockApi);
     authMockApi = inject(AuthMockApi);
-    chatMockApi = inject(ChatMockApi);
-    contactsMockApi = inject(ContactsMockApi);
-    cryptoMockApi = inject(CryptoMockApi);
-    eCommerceInventoryMockApi = inject(ECommerceInventoryMockApi);
-    fileManagerMockApi = inject(FileManagerMockApi);
-    financeMockApi = inject(FinanceMockApi);
-    helpCenterMockApi = inject(HelpCenterMockApi);
-    iconsMockApi = inject(IconsMockApi);
-    mailboxMockApi = inject(MailboxMockApi);
     navigationMockApi = inject(NavigationMockApi);
-    notesMockApi = inject(NotesMockApi);
-    projectMockApi = inject(ProjectMockApi);
-    searchMockApi = inject(SearchMockApi);
-    scrumboardMockApi = inject(ScrumboardMockApi);
     shortcutsMockApi = inject(ShortcutsMockApi);
-    tasksMockApi = inject(TasksMockApi);
     userMockApi = inject(UserMockApi);
 }
