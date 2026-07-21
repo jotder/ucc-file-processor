@@ -225,9 +225,10 @@ The module split is *blocked* until two god objects shrink and two seams exist:
    2b. **Cycle-breaking moves** (blocker list from §1.7): relocate `BatchEventBus` +
    `CronExpression` out of `service` to a lower layer; move `StatusStore` below `catalog`; relocate
    shared types in `ops↔ops.link/workflow` and `catalog↔catalog.spi`.
-3. **`com.gamma.agent.spi` facade** — widen `assist.spi` (or add a sibling) to cover the catalog
-   lookups, config specs, and SQL sandbox access `inspecto-agent` currently takes from core internals,
-   dropping its 180 concrete imports to one thin contract.
+3. **`com.gamma.agent.spi` seam** — **DONE (`fc772f0`) as a `@PublicApi` freeze, not a wrapping facade**
+   (see M3 row for why: small inventory, already via `UccAgentContext`, reactor-internal so a DTO wrapper
+   pays nothing). The consumed core surface is frozen `@PublicApi(since=4.0.0)`; `UccAgentContext` stays
+   the single access seam.
 4. **`acquire` as a self-contained SPI package** — it nearly is already; keep retry/circuit-breaker
    inside it so connectors need exactly one artifact.
 
@@ -292,7 +293,7 @@ E3. Bring `inspecto-intelligence` (14/2) and `inspecto-agent-hosted` (2/1) to ba
 |---|---|---|
 | M1 | Parent `dependencyManagement` + version properties (A1) — **SHIPPED 2026-07-21 (`73ea9a1`)**: parent now manages junit/langchain4j/eoiagent/postgresql; per-module literals + duplicate version properties removed. | Version drift across 6 poms is a live risk (core already ignores the parent's `junit.version`); prerequisite for adding modules without multiplying the drift. |
 | M2 | `SourceService`/`CollectorService` decomposition (C1) — **step 1 SHIPPED 2026-07-21 (`06d54e0`)**: Rca/Connection registries extracted. **Step 2 SHIPPED 2026-07-21 (`b6ac2c0`+`f40e2d9`)**: `PipelineScheduler` extracted (the high-risk poll/trigger cluster), shared-`ingestLock` invariant pinned by a characterization test. Remaining lower-risk candidates (ConnectionRegistryFacade, AgentHost/OptionalAgentSlot) optional — see §2.2.1a. | 1,178-line god object is the single blocker for every modularization step and the top defect-risk concentration. |
-| M3 | `agent.spi` facade (C3) | 180 concrete imports of core internals make `inspecto-agent`/`-intelligence` unable to evolve independently; the eoiagent migration plan depends on this seam. |
+| M3 | `agent.spi` seam (C3) — **SHIPPED 2026-07-21 (`fc772f0`) as a CONTRACT FREEZE, not a wrapping facade.** Live inventory corrected the premise: `inspecto-agent` imports **~38 distinct** core types across 10 packages (not 180), `pipeline`/`query` have **zero** agent imports, and access already funnels through `UccAgentContext`. Since the modularization is reactor-internal (one deployable, W2), a DTO-wrapping `agent.spi` would duplicate data shapes for no payoff. Instead marked exactly the consumed surface (~31 types: catalog, config.io/safety/spec, sql, signal, service Cron/Status, etl.BatchEvent, enrich, job, ReportService.Window) `@PublicApi(since=4.0.0)`, so the architecture rule "L5 touches core only through SPI + @PublicApi" is now honored. Documented in `docs/okf/backend/control-plane/api-stability.md`. | 180 concrete imports of core internals make `inspecto-agent`/`-intelligence` unable to evolve independently; the eoiagent migration plan depends on this seam. |
 | M4 | Remove Fuse leftovers (B1) — **increment 1 SHIPPED 2026-07-21 (`80d6366`)**: dead demo mocks deleted (−25,079 lines). **Increment 2 pending**: the wired `common/{navigation,shortcuts,user,auth}` + `modules/auth` + `modules/commons` + shell nav/auth re-plumb + `provideGamma` de-wire (medium risk, see SESSION_STATUS next-steps). | ~25.8k dead lines *partially wired into the app config* — real bundle weight, security surface, and constant confusion for new shifts. |
 | M5 | Coverage baseline for intelligence + agent-hosted, jacoco in all modules (E3, A2) | Near-zero-tested modules ship in every reactor build; untestable modules can't be refactored safely later. |
 | M6 | Repo hygiene sweep (A3) — **SHIPPED 2026-07-21 (`b554048`)**: most targets (deploy-old, root logs, `serve-8091.log`, tracked `*.iml`) were already gone/gitignored by prior shifts; removed the last two — stale `HANDOVER-multi-space.md` + a mangled root build-log. | Stale 96-MB-scale bundle copy + logs in a shared sandbox; trivially cheap, removes handover noise. |
