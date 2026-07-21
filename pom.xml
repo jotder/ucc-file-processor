@@ -51,6 +51,34 @@
                 <module>inspecto-security</module>
             </modules>
         </profile>
+        <!-- M5 (A2): JaCoCo lives in the PARENT so every module instruments in one reactor pass —
+             'mvn -Pcoverage test'. A normal 'mvn test' is unaffected (profile inactive; the default
+             empty <argLine> below keeps surefire's @{argLine} resolving cleanly). Formerly duplicated
+             in only the inspecto + inspecto-agent child POMs; centralised here so all modules
+             (intelligence + agent-hosted + connectors + security included) report coverage. -->
+        <profile>
+            <id>coverage</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.jacoco</groupId>
+                        <artifactId>jacoco-maven-plugin</artifactId>
+                        <version>0.8.13</version>
+                        <executions>
+                            <execution>
+                                <id>prepare-agent</id>
+                                <goals><goal>prepare-agent</goal></goals>
+                            </execution>
+                            <execution>
+                                <id>report</id>
+                                <phase>test</phase>
+                                <goals><goal>report</goal></goals>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
     </profiles>
 
     <properties>

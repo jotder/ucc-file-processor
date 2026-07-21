@@ -84,32 +84,8 @@
     <!-- Build config (compiler + surefire native-access flag) is inherited from the parent
          POM's <pluginManagement>. No module-specific plugins here. -->
 
-    <!-- Coverage parity with the core module: a normal 'mvn test' is unaffected; run
-         'mvn -Pcoverage test' to instrument BOTH modules in one reactor pass. JaCoCo (and
-         all other AI deps) only ever build here, never in the lean core fat-JAR. -->
-    <profiles>
-        <profile>
-            <id>coverage</id>
-            <build>
-                <plugins>
-                    <plugin>
-                        <groupId>org.jacoco</groupId>
-                        <artifactId>jacoco-maven-plugin</artifactId>
-                        <version>0.8.13</version>
-                        <executions>
-                            <execution>
-                                <id>prepare-agent</id>
-                                <goals><goal>prepare-agent</goal></goals>
-                            </execution>
-                            <execution>
-                                <id>report</id>
-                                <phase>test</phase>
-                                <goals><goal>report</goal></goals>
-                            </execution>
-                        </executions>
-                    </plugin>
-                </plugins>
-            </build>
-        </profile>
-    </profiles>
+    <!-- Coverage: the 'coverage' profile moved to the parent POM (M5) so a normal 'mvn test' is
+         unaffected and 'mvn -Pcoverage test' instruments every module (not just core+agent) in one
+         reactor pass. JaCoCo (and all other AI deps) only ever build here, never in the lean core
+         fat-JAR. -->
 </project>

@@ -183,34 +183,9 @@
 
             <!-- Surefire (JUnit 5 runner + native-access flag) is configured in the parent POM's
                  <pluginManagement> and applies to this module's default-lifecycle test run.
-                 JaCoCo (line/branch coverage) is activated by the 'coverage' profile below so a
-                 normal 'mvn test' is unaffected; run 'mvn -Pcoverage test' to instrument. -->
+                 JaCoCo (line/branch coverage) is activated by the parent POM's 'coverage' profile so a
+                 normal 'mvn test' is unaffected; run 'mvn -Pcoverage test' to instrument (M5: the profile
+                 moved to the parent so every module reports coverage in one reactor pass). -->
         </plugins>
     </build>
-
-    <profiles>
-        <profile>
-            <id>coverage</id>
-            <build>
-                <plugins>
-                    <plugin>
-                        <groupId>org.jacoco</groupId>
-                        <artifactId>jacoco-maven-plugin</artifactId>
-                        <version>0.8.13</version>
-                        <executions>
-                            <execution>
-                                <id>prepare-agent</id>
-                                <goals><goal>prepare-agent</goal></goals>
-                            </execution>
-                            <execution>
-                                <id>report</id>
-                                <phase>test</phase>
-                                <goals><goal>report</goal></goals>
-                            </execution>
-                        </executions>
-                    </plugin>
-                </plugins>
-            </build>
-        </profile>
-    </profiles>
 </project>
