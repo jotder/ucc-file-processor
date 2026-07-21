@@ -142,6 +142,22 @@ public interface IntelligenceAgent extends AutoCloseable {
         return Optional.empty();
     }
 
+    /**
+     * The autonomy ledger (AGT-5 P4, L3) — recent decisions the {@code ops_monitor} loop reached
+     * (executed, shadowed, or skipped), newest first, as plain JSON-friendly maps. The dashboard's
+     * "what the agent did, why, and spend" feed. Default empty (read-degrading, like
+     * {@link #recentApprovals}): an implementation without an autonomy driver yields no actions rather
+     * than a 503.
+     */
+    default List<Map<String, Object>> recentAutonomousActions(int limit) {
+        return List.of();
+    }
+
+    /** One autonomy-ledger entry by id, or empty when unknown (the control route maps that to 404). */
+    default Optional<Map<String, Object>> autonomousActionById(String id) {
+        return Optional.empty();
+    }
+
     /** Released on service shutdown. Default no-op. */
     @Override default void close() {}
 }

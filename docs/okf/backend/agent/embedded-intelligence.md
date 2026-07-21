@@ -176,9 +176,9 @@ governed from an operator inbox UI. Five slices shipped (`a30049a`, `b5069c1`, `
 
 ## P4 — bounded autonomy (L3), in progress
 
-Autonomous (un-prompted) action, gated by an operator-set policy. **Slice 1 (policy substrate)
-shipped 2026-07-21**; the `ops_monitor` loop + pilot action classes + autonomy dashboard are the
-remaining slices.
+Autonomous (un-prompted) action, gated by an operator-set policy. **Slices 1–2 shipped 2026-07-21**
+(policy substrate + the `ops_monitor` loop with a first pilot action class); the autonomy dashboard UI
+and a second pilot class (alert triage) are the remaining slices.
 
 - **Policy substrate (slice 1)** — package `com.gamma.intelligence.policy`. `AutonomyPolicy` is an
   immutable doc: a global `killSwitch` + a map of action-class → `ClassPolicy {mode, maxPerHour,
@@ -199,9 +199,24 @@ remaining slices.
   `ControlApi.dispatch`; a secured edition prepends the `agent.admin` capability gate. The engine is
   wired into `InspectoIntelligenceAgent` (durable store when a write root is set), always present when
   the module is loaded so operators can configure policy before any driver exists.
+- **ops_monitor loop (slice 2)** — `OpsMonitor` is the L3 driver: a live `EventLog` subscriber
+  (same `ingestLock`-safe type-check→bounded-offer→daemon-vthread-handoff as `TriageQueue`; opt-in
+  `-Dintelligence.opsmonitor.enabled`) that watches for a `pipeline.batch.failed` Signal (pilot action
+  class `batch_rerun`), extracts pipeline (subject) + batchId (correlationId), dedupes per batch, and
+  calls `AutonomyPolicyEngine.authorize("batch_rerun")`: **DENY** → record SKIPPED + do nothing;
+  **SHADOW** → record SHADOWED ("would rerun …"), never execute; **ALLOW** → `Remediator` replays the
+  batch via the same audited `pipeline_rerun` path an operator's approval would (actor
+  `agent:ops-monitor`), recording SUCCEEDED/FAILED. Never chases `agent.*` self-telemetry. Where
+  `TriageQueue` (L1) turns a failure into an *investigation*, `OpsMonitor` (L3) turns it into a
+  bounded *action*. Every decision (incl. denials/shadows) lands in the in-memory `AutonomyLog`
+  (`ActionRecord`s), surfaced via `GET /agent/actions[/{id}]` (SPI `recentAutonomousActions` /
+  `autonomousActionById`, read-degrading) — the dashboard's "what/why/spend" feed. The control plane's
+  append-only `AuditTrail` remains the durable system of record; the ledger is a live view.
 - **Verified**: `AutonomyPolicyEngineTest` (10: mode/kill/budget precedence, daily-vs-hourly windows,
-  durable reload, malformed-mode tolerance, concurrent-authorize-never-exceeds-cap), `AgentRoutesTest`
-  +6 (policy 503/GET/PUT/kill-switch/400). Module 100→110.
+  durable reload, malformed-mode tolerance, concurrent-authorize-never-exceeds-cap), `OpsMonitorTest`
+  (9: off/shadow/auto/fail paths, kill-switch override, budget exhaustion, end-to-end dedup over the
+  bus, non-trigger/agent-signal ignore), `AgentRoutesTest` +7 (policy 503/GET/PUT/kill-switch/400 +
+  actions). Module 100→119.
 
 ## Gotchas / seams
 

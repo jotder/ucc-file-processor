@@ -9,7 +9,9 @@ import com.eoiagent.core.InlineArtifact;
 import com.eoiagent.core.NavigationIntent;
 import com.eoiagent.core.PageContext;
 import com.eoiagent.core.Role;
+import com.eoiagent.core.RunId;
 import com.eoiagent.core.ToolCall;
+import com.eoiagent.core.ToolResult;
 import com.eoiagent.core.UserId;
 import com.eoiagent.core.UserMessage;
 import com.eoiagent.host.AgentSession;
@@ -30,8 +32,12 @@ import com.gamma.intelligence.investigation.Case;
 import com.gamma.intelligence.investigation.CaseStore;
 import com.gamma.intelligence.investigation.Incident;
 import com.gamma.intelligence.investigation.TriageQueue;
+import com.gamma.intelligence.policy.ActionRecord;
+import com.gamma.intelligence.policy.AutonomyLog;
 import com.gamma.intelligence.policy.AutonomyPolicyEngine;
 import com.gamma.intelligence.policy.AutonomyPolicyStore;
+import com.gamma.intelligence.policy.OpsMonitor;
+import com.gamma.intelligence.action.ControlPlaneClient;
 import com.gamma.intelligence.pack.InspectoPack;
 import com.gamma.intelligence.pack.Investigator;
 import com.gamma.pipeline.ComponentStore;
@@ -74,6 +80,10 @@ public final class InspectoIntelligenceAgent implements IntelligenceAgent {
     // autonomous driver exists; start() replaces this with a durable-store instance. Nothing acts on
     // the policy until a driver (ops_monitor) consults authorize(...) — the engine alone is inert.
     private AutonomyPolicyEngine autonomy = new AutonomyPolicyEngine(new AutonomyPolicyStore());
+    // P4 slice 2 (L3): the autonomy ledger (what ops_monitor did/why/spend) + the driver itself. The
+    // ledger is always present (reads degrade to empty); the loop is opt-in and only attached in start().
+    private final AutonomyLog autonomyLog = new AutonomyLog();
+    private OpsMonitor opsMonitor;
     private final LlmGateway gatewayOverride;
     private CollectorService service;
     private InspectoPack pack;
@@ -130,6 +140,16 @@ public final class InspectoIntelligenceAgent implements IntelligenceAgent {
         // P4 (L3): the durable autonomy policy (kill switch + per-class mode/budget). Configurable via
         // GET/PUT /agent/policy regardless of any driver; a driver added later gates on autonomy.authorize.
         autonomy = new AutonomyPolicyEngine(autonomyPolicyStore());
+
+        // P4 slice 2 (L3): the ops_monitor loop is opt-in. When enabled, it watches for a
+        // pipeline.batch.failed Signal and — only if the operator set batch_rerun to AUTO and there is
+        // budget — replays the batch through the same audited pipeline_rerun path (actor=agent:ops-monitor).
+        // With the class at its OFF default (or the kill switch engaged) it records a skip and does nothing.
+        if (OpsMonitor.enabled()) {
+            opsMonitor = new OpsMonitor(autonomy, autonomyLog, this::remediate);
+            opsMonitor.attach(service.eventLog());
+            log.info("ops_monitor enabled ({}=true): batch_rerun remediation gated by /agent/policy", OpsMonitor.ENABLED_FLAG);
+        }
 
         // Slice E: autonomous triage is opt-in. When enabled, subscribe to the canonical Signal bus
         // and run an RCA investigation (L1 — Case + draft only) on each error/critical breach.
@@ -243,9 +263,41 @@ public final class InspectoIntelligenceAgent implements IntelligenceAgent {
         return Optional.of(autonomy.setKillSwitch(engaged, updatedBy).toView());
     }
 
+    @Override
+    public List<Map<String, Object>> recentAutonomousActions(int limit) {
+        return autonomyLog.recent(limit).stream().map(ActionRecord::toView).toList();
+    }
+
+    @Override
+    public Optional<Map<String, Object>> autonomousActionById(String id) {
+        return autonomyLog.byId(id).map(ActionRecord::toView);
+    }
+
     /** Test seam: the policy engine, for asserting authorize verdicts + budget behaviour directly. */
     AutonomyPolicyEngine autonomy() {
         return autonomy;
+    }
+
+    /**
+     * The {@code ops_monitor} remediator for the {@code batch_rerun} class (P4 slice 2): replay the
+     * failed batch through the <em>same</em> audited {@code pipeline_rerun} control-plane path an
+     * operator's approval would drive (never an in-process shortcut), attributed to
+     * {@code agent:ops-monitor}. Returns a human detail on success; throws on a non-2xx / unreachable
+     * control plane so {@link OpsMonitor} records the action as FAILED.
+     */
+    private String remediate(String actionClass, Map<String, Object> subject) throws Exception {
+        if (!OpsMonitor.ACTION_BATCH_RERUN.equals(actionClass)) {
+            throw new IllegalArgumentException("no remediator for action class '" + actionClass + "'");
+        }
+        String pipeline = String.valueOf(subject.get("pipeline"));
+        String batchId = String.valueOf(subject.get("batchId"));
+        ToolCall call = new ToolCall(OperationalActions.TOOL_PIPELINE_RERUN,
+                Map.of("pipeline", pipeline, "batchId", batchId), new RunId(OpsMonitor.ACTOR_SESSION));
+        ToolResult result = OperationalActions.pipelineRerun(new ControlPlaneClient(), call, OpsMonitor.ACTOR_SESSION);
+        if (!result.ok()) {
+            throw new IllegalStateException(result.error() == null ? "pipeline_rerun failed" : result.error());
+        }
+        return "reprocessed batch " + batchId + " of pipeline " + pipeline;
     }
 
     /**
@@ -322,6 +374,10 @@ public final class InspectoIntelligenceAgent implements IntelligenceAgent {
 
     @Override
     public void close() {
+        if (opsMonitor != null) {
+            try { opsMonitor.close(); } catch (RuntimeException e) { log.warn("Error closing ops_monitor: {}", e.getMessage()); }
+            opsMonitor = null;
+        }
         if (triage != null) {
             try { triage.close(); } catch (RuntimeException e) { log.warn("Error closing triage: {}", e.getMessage()); }
             triage = null;

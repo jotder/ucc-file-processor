@@ -382,9 +382,20 @@ switch (`inspecto-intelligence` `com.gamma.intelligence.policy`): an immutable `
 (ALLOW consumes one budget unit atomically; SHADOW logs-but-suppresses; DENY on off/killed/exhausted).
 Surfaced via `GET/PUT /agent/policy` + one-call `POST /agent/policy/kill-switch` (SPI additions;
 absent tier → 503; writes audited by `ControlApi.dispatch`). The engine is inert until a driver calls
-`authorize` — that driver is slice 2 (`ops_monitor`). *Still open for P4:* the `ops_monitor` state-watch
-loop + pilot action classes (batch re-run, alert triage), the autonomy Dashboard, and mid-plan runbook
-resume (carried from P3).
+`authorize` — that driver is slice 2.
+
+*P4 slice 2 — `ops_monitor` loop + first pilot action class — SHIPPED 2026-07-21.* The autonomy driver
+(`com.gamma.intelligence.policy.OpsMonitor`): a live `EventLog` subscriber (same `ingestLock`-safe
+type-check→offer→hand-off pattern as `TriageQueue`, opt-in `-Dintelligence.opsmonitor.enabled`) that
+watches for a `pipeline.batch.failed` Signal and, gated by `AutonomyPolicyEngine.authorize
+("batch_rerun")`, either replays the batch via the **same audited `pipeline_rerun` control-plane path**
+(actor=`agent:ops-monitor`, AUTO), shadow-logs what it would do (SHADOW), or stands down (DENY —
+off/killed/exhausted). Deduped per batch id; never chases `agent.*` self-telemetry. Every decision —
+executed, shadowed, or skipped — is written to an in-memory `AutonomyLog` of `ActionRecord`s (the
+dashboard feed) and surfaced via `GET /agent/actions[/{id}]` (SPI `recentAutonomousActions` /
+`autonomousActionById`, read-degrading). *Still open for P4:* the autonomy **Dashboard** UI (slice 3);
+a second pilot class (alert triage); a periodic state-watch trigger (today event-driven only); and
+mid-plan runbook resume (carried from P3).
 
 **P5 — Learning.** Feedback capture → eval growth; case-similarity recall; per-skill tuning
 dashboards; embedding retrieval upgrade if warranted.

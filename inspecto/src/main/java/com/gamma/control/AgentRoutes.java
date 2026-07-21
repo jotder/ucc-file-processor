@@ -99,6 +99,14 @@ final class AgentRoutes implements RouteModule {
             return agentOr503(api).setAutonomyKillSwitch(engaged, actorOrOperator(e))
                     .orElseThrow(() -> new ApiException(503, "autonomy policy not available (no L3 tier)"));
         });
+
+        // AGT-5 P4 (autonomy L3): the autonomy ledger — what the ops_monitor loop did, why, and spend.
+        // Read-degrading (empty when there is no autonomy driver, no 503), mirroring /agent/approvals.
+        api.get("/agent/actions", (e, m) -> Map.of("actions",
+                agentOr503(api).recentAutonomousActions(ApiContext.parseIntOr(ApiContext.query(e, "limit"), 50))));
+        api.get("/agent/actions/(.+)", (e, m) ->
+                agentOr503(api).autonomousActionById(ApiContext.name(m))
+                        .orElseThrow(() -> new ApiException(404, "unknown action: '" + ApiContext.name(m) + "'")));
     }
 
     /** The request's audited actor (agent/human) as the policy's {@code updatedBy}, defaulting to "operator". */

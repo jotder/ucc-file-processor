@@ -343,6 +343,24 @@ class AgentRoutesTest {
         }
     }
 
+    @Test
+    void actionsRoutesDegradeTo503OnlyWhenModuleAbsentAndReturnSeededEntries(@TempDir Path dir) throws Exception {
+        try (Ctx ctx = open(dir, null)) {
+            assertEquals(503, send(ctx.port(), "GET", "/agent/actions", null).statusCode());
+        }
+        FakeIntelligenceAgent agent = new FakeIntelligenceAgent();
+        agent.seedAction("act-1", "batch_rerun", "SUCCEEDED");
+        try (Ctx ctx = open(dir, agent)) {
+            HttpResponse<String> r = send(ctx.port(), "GET", "/agent/actions", null);
+            assertEquals(200, r.statusCode());
+            JsonNode actions = JSON.readTree(r.body()).get("actions");
+            assertEquals(1, actions.size());
+            assertEquals("batch_rerun", actions.get(0).get("actionClass").asText());
+            assertEquals(200, send(ctx.port(), "GET", "/agent/actions/act-1", null).statusCode());
+            assertEquals(404, send(ctx.port(), "GET", "/agent/actions/nope", null).statusCode());
+        }
+    }
+
     /** A deterministic in-memory agent — no eoiagent/model dependency needed in the core test tree. */
     private static final class FakeIntelligenceAgent implements IntelligenceAgent {
         // Stand-in for the eoiagent GoalKind enum (not on the core test classpath).
@@ -393,6 +411,27 @@ class AgentRoutesTest {
             policy.put("killSwitch", engaged);
             policy.put("updatedBy", by);
             return java.util.Optional.of(new java.util.LinkedHashMap<>(policy));
+        }
+
+        // P4 slice 2: the autonomy ledger the /agent/actions routes read.
+        private final Map<String, Map<String, Object>> actions = new java.util.LinkedHashMap<>();
+
+        void seedAction(String id, String actionClass, String status) {
+            Map<String, Object> v = new java.util.LinkedHashMap<>();
+            v.put("id", id);
+            v.put("actionClass", actionClass);
+            v.put("status", status);
+            actions.put(id, v);
+        }
+
+        @Override
+        public List<Map<String, Object>> recentAutonomousActions(int limit) {
+            return List.copyOf(actions.values());
+        }
+
+        @Override
+        public java.util.Optional<Map<String, Object>> autonomousActionById(String id) {
+            return java.util.Optional.ofNullable(actions.get(id));
         }
 
         @Override
