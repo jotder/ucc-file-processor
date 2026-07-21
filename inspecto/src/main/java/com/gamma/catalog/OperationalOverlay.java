@@ -1,5 +1,7 @@
 package com.gamma.catalog;
 
+import com.gamma.api.PublicApi;
+
 import java.util.List;
 
 /**
@@ -21,6 +23,7 @@ import java.util.List;
  * @param lineageRefs      output partition paths / files attributable to this node
  * @param dataProduced     whether any data has been committed for this node yet
  */
+@PublicApi(since = "4.0.0")
 public record OperationalOverlay(String latestStatus, String latestRunTime,
                                  long totalOutputRows, long totalOutputBytes,
                                  long parsedRows, long errorRows,

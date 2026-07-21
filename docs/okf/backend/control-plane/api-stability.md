@@ -61,6 +61,25 @@ Two audiences depend on the framework from outside:
 | `com.gamma.job.JobService` | 2.8.0 | Registry + scheduler for config-driven jobs (cron / event / manual) hosting ingest, enrichment, report and maintenance work uniformly (backs `GET /jobs`, `/jobs/{name}/runs`, `POST /jobs/{name}/trigger`) |
 | `com.gamma.job.JobConfig` | 2.8.0 | A `*_job.toon` definition: name, `type`, `cron`, `on_pipeline`, `enabled`, type-specific params |
 
+### Agent-consumed core surface (frozen 4.0.0, M3)
+
+The optional `file-processor-agent` (and `-intelligence`) modules are an L5 consumer that, per
+[architecture-layers.md](../architecture-layers.md), must touch core **only through SPI interfaces +
+`@PublicApi` types**. The read-only surface they actually consume — captured once in
+`UccAgentContext` and reached by the capabilities/skills — is now `@PublicApi`-frozen `since = "4.0.0"`
+so this contract can't drift silently. It is deliberately a *freeze*, not a wrapping facade: a parallel
+`agent.spi` DTO layer was rejected because the modularization is reactor-internal (one deployable — no
+build against an API jar), so wrapping would duplicate data shapes for no payoff. The frozen surface:
+
+| Package | Types |
+|---|---|
+| `com.gamma.catalog` (+`.spi`) | `ConfigSource`, `Description`, `IdScheme`, `MetadataGraph`, `MetadataGraphService`, `MetadataNode`, `NodeKind`, `OperationalOverlay`, `Provenance`, `DescriptionProvider` |
+| `com.gamma.config` (`.io`/`.safety`/`.spec`) | `ConfigCodec`, `ConfigLoader`, `ConfigSafetyValidator`, `SafetyPolicy`, `ConfigSpec`, `ConfigSpecs`, `FieldSpec`, `Finding`, `RawConfig`, `Severity` |
+| `com.gamma.sql` | `SqlOracle`, `SqlSandboxPolicy` |
+| `com.gamma.signal` | `Ref`, `Severity`, `Signal` |
+| `com.gamma.service` | `CronExpression`, `StatusStore` (`CollectorService` already public) |
+| `com.gamma.etl` / `com.gamma.enrich` / `com.gamma.job` / `com.gamma.event` / `com.gamma.report` | `BatchEvent`; `EnrichmentAuditReader`, `EnrichmentConfig`; `JobConfig`; `EventLog` (4.2.0); `ReportService.Window` |
+
 ## Explicitly internal (do not depend on)
 
 `CsvIngester`, `DuckDbCsvIngester`, `DataTransformer`, `TransformCompiler`,

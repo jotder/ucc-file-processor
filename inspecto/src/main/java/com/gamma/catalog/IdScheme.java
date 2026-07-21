@@ -1,5 +1,7 @@
 package com.gamma.catalog;
 
+import com.gamma.api.PublicApi;
+
 import java.util.Optional;
 
 /**
@@ -25,6 +27,7 @@ import java.util.Optional;
  * identifiers (validated by {@code Identifiers}); segment keys and column names are alphanumeric.
  * Ids may therefore contain {@code /} but not whitespace; route handlers URL-decode path params.
  */
+@PublicApi(since = "4.0.0")
 public final class IdScheme {
 
     private IdScheme() {}

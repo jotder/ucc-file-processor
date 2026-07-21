@@ -1,5 +1,7 @@
 package com.gamma.etl;
 
+import com.gamma.api.PublicApi;
+
 import java.util.List;
 
 /**
@@ -38,6 +40,7 @@ import java.util.List;
  * @param offendingFile the first member file that errored/was rejected ({@code null} when none)
  * @param errorRows     total rows that failed to parse across the batch's member files
  */
+@PublicApi(since = "4.0.0")
 public record BatchEvent(String pipeline, String batchId, String status,
                          List<String> partitions, long outputRows,
                          long durationMs, int rejectedCount,

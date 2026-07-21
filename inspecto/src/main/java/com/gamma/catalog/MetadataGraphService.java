@@ -1,5 +1,6 @@
 package com.gamma.catalog;
 
+import com.gamma.api.PublicApi;
 import com.gamma.catalog.spi.DescriptionProvider;
 
 import java.util.ArrayList;
@@ -25,6 +26,7 @@ import java.util.Set;
  * {@code REPORT -CONSUMES-> kpi/table} — so a consumer can walk from a KPI all the way down to the
  * source columns that feed it.
  */
+@PublicApi(since = "4.0.0")
 public final class MetadataGraphService {
 
     /** BFS direction over directed edges. */

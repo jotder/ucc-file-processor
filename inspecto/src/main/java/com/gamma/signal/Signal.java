@@ -1,5 +1,6 @@
 package com.gamma.signal;
 
+import com.gamma.api.PublicApi;
 import com.gamma.event.Event;
 import com.gamma.event.EventType;
 
@@ -22,6 +23,7 @@ import java.util.UUID;
  * fields live in attributes (the legacy flat-String-attribute view), while {@code payload} rides the
  * native {@link Event#payload()} column (no JSON-in-a-string) — and reconstructs from it losslessly.
  */
+@PublicApi(since = "4.0.0")
 public record Signal(String signalId, String type, Instant at, Severity severity, Ref source,
                      Ref subject, String correlationId, String causationId, String space,
                      Ref actor, String message, Map<String, Object> payload, int schemaVersion) {

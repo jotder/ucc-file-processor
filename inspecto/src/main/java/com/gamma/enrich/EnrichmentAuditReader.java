@@ -1,5 +1,6 @@
 package com.gamma.enrich;
 
+import com.gamma.api.PublicApi;
 import com.gamma.util.Csv;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -24,6 +25,7 @@ import java.util.Map;
  * writer only ever appends to. Missing ledgers (a job that has not run yet) read as an
  * empty list rather than an error, mirroring the file-backed status store.
  */
+@PublicApi(since = "4.0.0")
 public final class EnrichmentAuditReader {
 
     private static final Logger log = LoggerFactory.getLogger(EnrichmentAuditReader.class);

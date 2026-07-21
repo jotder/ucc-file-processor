@@ -1,5 +1,7 @@
 package com.gamma.service;
 
+import com.gamma.api.PublicApi;
+
 import java.time.ZonedDateTime;
 import java.util.HashMap;
 import java.util.Map;
@@ -52,6 +54,7 @@ import java.util.Map;
  *
  * <p>Instances are immutable and thread-safe.
  */
+@PublicApi(since = "4.0.0")
 public final class CronExpression {
 
     private final boolean[] seconds = new boolean[60];

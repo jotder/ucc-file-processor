@@ -1,5 +1,7 @@
 package com.gamma.config.safety;
 
+import com.gamma.api.PublicApi;
+
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
@@ -28,6 +30,7 @@ import java.util.Set;
  * @param allowedCompression permitted {@code output.compression} codecs (lower-case)
  * @since 3.5.0
  */
+@PublicApi(since = "4.0.0")
 public record SafetyPolicy(
         List<Path> allowedRoots,
         int maxThreads,

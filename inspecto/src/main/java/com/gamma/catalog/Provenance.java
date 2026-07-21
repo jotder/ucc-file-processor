@@ -1,5 +1,7 @@
 package com.gamma.catalog;
 
+import com.gamma.api.PublicApi;
+
 /**
  * Where a {@link Description} came from, in descending order of authority.
  *
@@ -8,6 +10,7 @@ package com.gamma.catalog;
  * relies on {@link #ordinal()} so a higher-authority description never loses to a lower one —
  * in particular, operator-authored prose is sticky against re-derivation and AI suggestion.
  */
+@PublicApi(since = "4.0.0")
 public enum Provenance {
     /** Hand-authored by an operator (in the schema {@code .toon} or {@code *_meta.toon}). */
     MANUAL,

@@ -90,6 +90,7 @@ public final class ReportService {
      * form, which sorts lexicographically, so the filter is a plain string compare — no
      * parsing, identical over the file and DB backends.
      */
+    @PublicApi(since = "4.0.0")
     public record Window(String from, String to) {
         /** The unbounded window — every row matches. */
         public static final Window ALL = new Window("", "");

@@ -1,5 +1,6 @@
 package com.gamma.catalog;
 
+import com.gamma.api.PublicApi;
 import com.gamma.enrich.EnrichmentConfig;
 import com.gamma.etl.PipelineConfig;
 
@@ -13,6 +14,7 @@ import java.util.List;
  * {@code ConfigRegistry} (O(1), watch/reload) lands it will implement the same interface and the
  * service's constructor argument swaps with no change to {@code MetadataGraphService}.
  */
+@PublicApi(since = "4.0.0")
 public interface ConfigSource {
 
     /** All Stage-1 pipelines currently configured. */

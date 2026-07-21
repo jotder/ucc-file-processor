@@ -1,5 +1,7 @@
 package com.gamma.sql;
 
+import com.gamma.api.PublicApi;
+
 /**
  * Resource caps for a {@link SqlSandbox} — the limits a locked-down validation connection runs under.
  * Introduced at M6 (v3.6.0) for the {@code kpi-to-sql} SQL oracle (architecture gap G4: unsandboxed
@@ -15,6 +17,7 @@ package com.gamma.sql;
  * @param queryTimeoutSeconds  JDBC statement timeout applied to each sandbox query ({@code >= 1})
  * @since 3.6.0
  */
+@PublicApi(since = "4.0.0")
 public record SqlSandboxPolicy(String memoryLimit, int maxThreads, int queryTimeoutSeconds) {
 
     private static final String DEFAULT_MEMORY = "1GB";

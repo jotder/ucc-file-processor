@@ -1,5 +1,6 @@
 package com.gamma.job;
 
+import com.gamma.api.PublicApi;
 import com.gamma.service.CronExpression;
 import com.gamma.util.ToonHelper;
 
@@ -37,6 +38,7 @@ import java.util.Map;
  * @param catchUp    whether to run once on startup when a scheduled fire was missed while down (T26)
  * @param params     type-specific parameters (all values as strings)
  */
+@PublicApi(since = "4.0.0")
 public record JobConfig(String name, String type, String cron, String onPipeline,
                         boolean enabled, boolean catchUp, Map<String, String> params,
                         String onSignal, String when,

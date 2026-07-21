@@ -1,5 +1,6 @@
 package com.gamma.enrich;
 
+import com.gamma.api.PublicApi;
 import com.gamma.etl.Identifiers;
 import com.gamma.util.ToonHelper;
 
@@ -57,6 +58,7 @@ import java.util.Map;
  * enrichment's {@code name} and it fires on that enrichment's own commit. Absent
  * triggers, the job is CLI-only ({@link EnrichmentProcessor}).
  */
+@PublicApi(since = "4.0.0")
 public record EnrichmentConfig(String name,
                                Input input,
                                List<Reference> references,

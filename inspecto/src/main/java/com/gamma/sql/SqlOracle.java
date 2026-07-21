@@ -1,5 +1,6 @@
 package com.gamma.sql;
 
+import com.gamma.api.PublicApi;
 import com.gamma.config.spec.Finding;
 import com.gamma.util.JdbcRows;
 
@@ -38,6 +39,7 @@ import java.util.Map;
  *
  * @since 3.6.0
  */
+@PublicApi(since = "4.0.0")
 public final class SqlOracle {
 
     /** Rows materialised per input table when a sample is requested (bounds the preview's cost). */

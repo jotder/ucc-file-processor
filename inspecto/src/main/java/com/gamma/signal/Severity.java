@@ -1,5 +1,6 @@
 package com.gamma.signal;
 
+import com.gamma.api.PublicApi;
 import com.gamma.event.EventLevel;
 
 /**
@@ -9,6 +10,7 @@ import com.gamma.event.EventLevel;
  * has no separate {@link EventLevel} counterpart and maps onto {@code ERROR} (lossy in that one
  * direction only — the existing precedent for this ladder).
  */
+@PublicApi(since = "4.0.0")
 public enum Severity {
     TRACE, DEBUG, INFO, WARN, ERROR, CRITICAL;
 

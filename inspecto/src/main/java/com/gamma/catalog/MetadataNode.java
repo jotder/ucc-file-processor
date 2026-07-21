@@ -1,5 +1,7 @@
 package com.gamma.catalog;
 
+import com.gamma.api.PublicApi;
+
 import java.util.Map;
 
 /**
@@ -18,6 +20,7 @@ import java.util.Map;
  * @param attrs       kind-specific structural attributes (never {@code null})
  * @param overlay     lazily-hydrated operational state, or {@code null} if not yet fetched
  */
+@PublicApi(since = "4.0.0")
 public record MetadataNode(String id, NodeKind kind, String label,
                            Description description, Map<String, Object> attrs,
                            OperationalOverlay overlay) {

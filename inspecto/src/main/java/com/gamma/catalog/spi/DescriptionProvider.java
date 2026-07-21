@@ -1,5 +1,6 @@
 package com.gamma.catalog.spi;
 
+import com.gamma.api.PublicApi;
 import com.gamma.catalog.Description;
 
 import java.util.List;
@@ -16,6 +17,7 @@ import java.util.List;
  * {@link Description#EMPTY} to abstain, and must never throw (the builder treats a thrown
  * exception as an abstention).
  */
+@PublicApi(since = "4.0.0")
 public interface DescriptionProvider {
 
     /** Short identifier for logging/diagnostics (e.g. {@code "noop"}, {@code "ollama-qwen"}). */

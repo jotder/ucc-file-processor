@@ -1,5 +1,6 @@
 package com.gamma.config.io;
 
+import com.gamma.api.PublicApi;
 import com.gamma.config.spec.ConfigSpec;
 import com.gamma.config.spec.CrossFieldRule;
 import com.gamma.config.spec.FieldSpec;
@@ -25,6 +26,7 @@ import java.util.Map;
  * various {@code load} methods and as messages in {@code ConfigValidator}: per-field
  * required/type/enum/pattern, then every {@link CrossFieldRule} in the spec.
  */
+@PublicApi(since = "4.0.0")
 public final class ConfigLoader {
 
     private final ResourceLoader resourceLoader;

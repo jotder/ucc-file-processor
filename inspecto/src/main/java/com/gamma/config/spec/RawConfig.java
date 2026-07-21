@@ -1,5 +1,7 @@
 package com.gamma.config.spec;
 
+import com.gamma.api.PublicApi;
+
 import java.util.Map;
 
 /**
@@ -15,6 +17,7 @@ import java.util.Map;
  * key, or a scalar where a map was expected) yields {@code null}/the supplied default rather than
  * throwing, because "field absent" is a normal validation input, not an error.
  */
+@PublicApi(since = "4.0.0")
 public final class RawConfig {
 
     private RawConfig() {}

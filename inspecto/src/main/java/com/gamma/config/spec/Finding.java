@@ -1,5 +1,7 @@
 package com.gamma.config.spec;
 
+import com.gamma.api.PublicApi;
+
 /**
  * One validation result — the structured unit returned by config validation.
  *
@@ -13,6 +15,7 @@ package com.gamma.config.spec;
  * @param fieldPath dotted path the finding is anchored to (never {@code null}; may be blank)
  * @param message   human-readable explanation (never {@code null})
  */
+@PublicApi(since = "4.0.0")
 public record Finding(Severity severity, String fieldPath, String message) {
 
     public Finding {

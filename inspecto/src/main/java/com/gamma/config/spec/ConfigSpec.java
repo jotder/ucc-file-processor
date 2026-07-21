@@ -1,5 +1,7 @@
 package com.gamma.config.spec;
 
+import com.gamma.api.PublicApi;
+
 import java.util.List;
 
 /**
@@ -17,6 +19,7 @@ import java.util.List;
  * @param fields the per-field specs (never {@code null})
  * @param rules  the cross-field rules (never {@code null})
  */
+@PublicApi(since = "4.0.0")
 public record ConfigSpec(String type, List<FieldSpec> fields, List<CrossFieldRule> rules) {
 
     public ConfigSpec {

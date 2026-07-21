@@ -1,5 +1,7 @@
 package com.gamma.catalog;
 
+import com.gamma.api.PublicApi;
+
 /**
  * A description with its {@link Provenance}, used for column and table prose.
  *
@@ -11,6 +13,7 @@ package com.gamma.catalog;
  * @param text       the description text (never {@code null}; blank means "no prose")
  * @param provenance where {@link #text} came from (never {@code null})
  */
+@PublicApi(since = "4.0.0")
 public record Description(String text, Provenance provenance) {
 
     /** The absence of a description. */

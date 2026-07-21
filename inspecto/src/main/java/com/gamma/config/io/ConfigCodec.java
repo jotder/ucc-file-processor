@@ -1,5 +1,6 @@
 package com.gamma.config.io;
 
+import com.gamma.api.PublicApi;
 import dev.toonformat.jtoon.DecodeOptions;
 import dev.toonformat.jtoon.JToon;
 
@@ -24,6 +25,7 @@ import java.util.Map;
  * <p>The JSON wire form needed by the Control API is produced by the API's Jackson mapper directly
  * on the decoded {@code Map} / the spec records, so it is not duplicated here.
  */
+@PublicApi(since = "4.0.0")
 public final class ConfigCodec {
 
     private static final DecodeOptions STRICT = DecodeOptions.withStrict(true);

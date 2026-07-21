@@ -1,5 +1,6 @@
 package com.gamma.service;
 
+import com.gamma.api.PublicApi;
 import com.gamma.etl.PipelineConfig;
 
 import java.util.List;
@@ -17,6 +18,7 @@ import java.util.Set;
  * the audit CSVs carry list-valued columns (output paths/sizes) that don't round-trip
  * cleanly into the write-side record types, and a map serialises directly to JSON.
  */
+@PublicApi(since = "4.0.0")
 public interface StatusStore {
 
     /**

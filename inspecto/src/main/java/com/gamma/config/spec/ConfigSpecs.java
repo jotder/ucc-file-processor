@@ -1,5 +1,7 @@
 package com.gamma.config.spec;
 
+import com.gamma.api.PublicApi;
+
 import java.util.List;
 import java.util.Map;
 
@@ -20,6 +22,7 @@ import static com.gamma.config.spec.RawConfig.str;
  * <p>Fields are addressed by dotted path (see {@link RawConfig}); the paths match the nested
  * structure of the corresponding {@code .toon} file exactly.
  */
+@PublicApi(since = "4.0.0")
 public final class ConfigSpecs {
 
     private ConfigSpecs() {}

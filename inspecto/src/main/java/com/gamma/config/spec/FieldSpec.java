@@ -1,5 +1,7 @@
 package com.gamma.config.spec;
 
+import com.gamma.api.PublicApi;
+
 import java.util.List;
 
 /**
@@ -24,6 +26,7 @@ import java.util.List;
  * @param visibleWhen  optional {@code "otherPath=value"} UI predicate for conditional display
  *                     (a rendering hint only — never evaluated server-side)
  */
+@PublicApi(since = "4.0.0")
 public record FieldSpec(String path, String label, String description, FieldType type,
                         boolean required, Object defaultValue, List<String> enumValues,
                         String pattern, String uiHint, String visibleWhen) {

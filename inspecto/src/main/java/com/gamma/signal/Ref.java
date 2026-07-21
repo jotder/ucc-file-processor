@@ -1,5 +1,7 @@
 package com.gamma.signal;
 
+import com.gamma.api.PublicApi;
+
 import java.util.LinkedHashMap;
 import java.util.Map;
 
@@ -9,6 +11,7 @@ import java.util.Map;
  * (optionally) how it relates ({@code binds · tiles · renders · projects · loads · triggers · emits ·
  * invokes}) and via what.
  */
+@PublicApi(since = "4.0.0")
 public record Ref(String kind, String id, String rel, String via) {
 
     /** A Ref with no {@code rel}/{@code via} — the common case for a plain pointer. */

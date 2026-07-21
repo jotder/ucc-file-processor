@@ -1,5 +1,6 @@
 package com.gamma.config.safety;
 
+import com.gamma.api.PublicApi;
 import com.gamma.config.spec.Finding;
 import com.gamma.config.spec.RawConfig;
 
@@ -39,6 +40,7 @@ import java.util.Map;
  *
  * @since 3.5.0
  */
+@PublicApi(since = "4.0.0")
 public final class ConfigSafetyValidator {
 
     private ConfigSafetyValidator() {}
