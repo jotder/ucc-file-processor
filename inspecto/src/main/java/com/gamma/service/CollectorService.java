@@ -119,12 +119,13 @@ public final class CollectorService implements AutoCloseable {
     /** Object Engine + Workflow Engine over {@link #objectStore} + {@link #linkStore} + {@link #noteStore}. */
     private final com.gamma.ops.ObjectService objects;
     /** Loaded {@code *_rca.toon} templates by name (Phase 4) — backs {@code GET /rca/templates} and
-     *  {@code POST /objects/{id}/rca {template:<name>}}. Populated by {@link #fromArgs} or
-     *  {@link #registerRcaTemplate}; empty otherwise. */
-    private final Map<String, com.gamma.ops.rca.RcaTemplate> rcaTemplates = new ConcurrentHashMap<>();
+     *  {@code POST /objects/{id}/rca {template:<name>}}. Extracted registry (M2); populated by
+     *  {@link #fromArgs} or {@link #registerRcaTemplate}; empty otherwise. */
+    private final RcaTemplateRegistry rcaTemplates = new RcaTemplateRegistry();
     /** Reusable connection profiles by id (Data Acquisition) — loaded from {@code *_connection.toon}; backs
-     *  {@code GET /connections} + {@code POST /connections/{id}/test} and the {@code source.connection} binding. */
-    private final Map<String, com.gamma.acquire.ConnectionProfile> connections = new ConcurrentHashMap<>();
+     *  {@code GET /connections} + {@code POST /connections/{id}/test} and the {@code source.connection} binding.
+     *  Extracted registry (M2); the process-wide {@code ConnectionRegistry} mirror stays in register/unregister below. */
+    private final ConnectionProfileRegistry connections = new ConnectionProfileRegistry();
     /** Authoritative on-disk audit reader; also the sync source when a DB backend is used. */
     private final FileStatusStore fileStatus = new FileStatusStore();
     /** The read surface the Control API + observability query — file- or DB-backed (M5). */
@@ -502,24 +503,24 @@ public final class CollectorService implements AutoCloseable {
 
     /** Register an RCA template (Phase 4), keyed by {@link com.gamma.ops.rca.RcaTemplate#name()}; {@code null} ignored. */
     public void registerRcaTemplate(com.gamma.ops.rca.RcaTemplate template) {
-        if (template != null) rcaTemplates.put(template.name(), template);
+        rcaTemplates.register(template);
     }
 
     /** All registered RCA templates by name (Phase 4) — backs {@code GET /rca/templates}. */
     public Map<String, com.gamma.ops.rca.RcaTemplate> rcaTemplates() {
-        return Map.copyOf(rcaTemplates);
+        return rcaTemplates.all();
     }
 
     /** A registered RCA template by name, if any (Phase 4). */
     public java.util.Optional<com.gamma.ops.rca.RcaTemplate> rcaTemplate(String name) {
-        return java.util.Optional.ofNullable(name == null ? null : rcaTemplates.get(name.trim()));
+        return rcaTemplates.byName(name);
     }
 
     /** Register a connection profile (Data Acquisition), keyed by {@link com.gamma.acquire.ConnectionProfile#id};
      *  {@code null} ignored. A later registration with the same id replaces the earlier one. */
     public void registerConnection(com.gamma.acquire.ConnectionProfile profile) {
         if (profile != null) {
-            connections.put(profile.id(), profile);
+            connections.register(profile);
             // Also publish into the process-wide registry so the static poll path (CollectorConnectors.forConfig)
             // can resolve a pipeline's source.connection binding to a remote connector (Phase E). Publish under
             // THIS service's space so the per-space registry namespaces it correctly regardless of caller thread.
@@ -553,12 +554,12 @@ public final class CollectorService implements AutoCloseable {
 
     /** All registered connection profiles by id — backs {@code GET /connections}. */
     public Map<String, com.gamma.acquire.ConnectionProfile> connections() {
-        return Map.copyOf(connections);
+        return connections.all();
     }
 
     /** A registered connection profile by id, if any — backs {@code GET /connections/{id}} + the test action. */
     public java.util.Optional<com.gamma.acquire.ConnectionProfile> connection(String id) {
-        return java.util.Optional.ofNullable(id == null ? null : connections.get(id.trim()));
+        return connections.byId(id);
     }
 
     /**
@@ -1203,7 +1204,7 @@ public final class CollectorService implements AutoCloseable {
     /** Drop a connection profile from the in-memory registries (UI delete); idempotent. */
     public void unregisterConnection(String id) {
         if (id != null) {
-            connections.remove(id.trim());
+            connections.remove(id);
             underSpace(() -> com.gamma.acquire.ConnectionRegistry.remove(id));
         }
     }
