@@ -228,8 +228,8 @@ second pilot class (alert triage) and a periodic state-watch trigger are deferre
 
 ## P5 — learning, in progress
 
-Turning operator judgement into eval growth + tuning. **Slice 1 (feedback capture) shipped 2026-07-21**;
-case-similarity recall and a per-skill tuning dashboard are the remaining slices.
+Turning operator judgement into eval growth + tuning. **Slices 1–2 shipped 2026-07-21** (feedback
+capture + case-similarity recall); the per-skill tuning dashboard is the remaining slice.
 
 - **Case feedback (slice 1)** — `investigation.Feedback` (`{id, caseId, rating HELPFUL|NOT_HELPFUL,
   note, submittedBy, at}`) + durable `FeedbackStore` (JSON-lines at
@@ -239,9 +239,20 @@ case-similarity recall and a per-skill tuning dashboard are the remaining slices
   /agent/cases/{id}/feedback` (`rating` synonyms parsed by `Feedback.parseRating`; unknown case → 404,
   bad rating → 400, missing rating → 400), SPI `recordCaseFeedback` / `recentCaseFeedback`. The Case's
   `GET /agent/cases/{id}` detail view folds in its `feedback[]`; `GET /agent/feedback` lists the corpus.
-- **Verified**: `FeedbackStoreTest` (5: add/recent/byCaseId/byId, bounded eviction, durable reload,
-  rating-synonym parsing, view round-trip), `InspectoIntelligenceAgentTest` +1 (record/validate/fold
-  into case view), `AgentRoutesTest` +2 (feedback 400/404/200 + list 503/degrade). Module 119→125.
+- **Case-similarity recall (slice 2)** — `CaseStore` is now durable (`<assist.write.root>/agent/cases.jsonl`,
+  `ApprovalStore` ring idiom; in-memory without a write root, as through P1–P4) so the corpus survives a
+  restart and backs recall. `CaseSimilarity` = **Jaccard token overlap** of two `Case.symptomText()`
+  fingerprints (signal type + subject + message + payload keys + hypothesis titles; tokens < 3 chars
+  dropped) — deterministic, dependency-free; the "embeddings if warranted" upgrade is a drop-in behind
+  `CaseSimilarity.score` and is **not warranted** at this scale. `CaseStore.similar(text, k, excludeId)`
+  → top-k positive matches (score desc, newest tie-break), each `Case.toView()` + a `similarity` score.
+  SPI `similarCases(id, k)`; `GET /agent/cases/{id}/similar?k=` (registered before the greedy
+  `/agent/cases/(.+)` so it wins first-match; 404 unknown case, else neighbours). `Case` gained
+  `toRecord`/`fromRecord`/`symptomText`.
+- **Verified**: `FeedbackStoreTest` (5), `CaseRecallTest` (4: Jaccard scoring + short-token drop,
+  ranking + self-exclude, empty on blank/​k≤0, durable reload + recall over reloaded corpus),
+  `InspectoIntelligenceAgentTest` +1 (feedback), `AgentRoutesTest` +3 (feedback 400/404/200, list,
+  similar 200/404). Module 119→129.
 
 ## Gotchas / seams
 

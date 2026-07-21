@@ -343,6 +343,23 @@ class AgentRoutesTest {
         }
     }
 
+    // --- AGT-5 P5: case-similarity recall route ---------------------------------------------------
+
+    @Test
+    void similarCasesRouteReturnsNeighboursOr404(@TempDir Path dir) throws Exception {
+        FakeIntelligenceAgent agent = new FakeIntelligenceAgent(Map.of("case-1", Map.of("id", "case-1")));
+        agent.seedSimilar("case-1", List.of(Map.of("id", "case-2", "similarity", 0.5)));
+        try (Ctx ctx = open(dir, agent)) {
+            HttpResponse<String> ok = send(ctx.port(), "GET", "/agent/cases/case-1/similar", null);
+            assertEquals(200, ok.statusCode());
+            JsonNode similar = JSON.readTree(ok.body()).get("similar");
+            assertEquals(1, similar.size());
+            assertEquals("case-2", similar.get(0).get("id").asText());
+            // The greedy /agent/cases/(.+) must not shadow /similar (registration-order match).
+            assertEquals(404, send(ctx.port(), "GET", "/agent/cases/nope/similar", null).statusCode());
+        }
+    }
+
     // --- AGT-5 P5: Case feedback routes -----------------------------------------------------------
 
     @Test
@@ -522,6 +539,18 @@ class AgentRoutesTest {
         @SuppressWarnings("unchecked")
         public java.util.Optional<Map<String, Object>> caseById(String id) {
             return java.util.Optional.ofNullable((Map<String, Object>) cases.get(id));
+        }
+
+        // P5: seeded similarity neighbours the /agent/cases/{id}/similar route reads.
+        private final Map<String, List<Map<String, Object>>> similar = new java.util.LinkedHashMap<>();
+
+        void seedSimilar(String caseId, List<Map<String, Object>> neighbours) {
+            similar.put(caseId, neighbours);
+        }
+
+        @Override
+        public List<Map<String, Object>> similarCases(String id, int k) {
+            return similar.getOrDefault(id, List.of());
         }
 
         @Override

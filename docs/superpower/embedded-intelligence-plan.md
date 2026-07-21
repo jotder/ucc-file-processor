@@ -417,10 +417,18 @@ durable `FeedbackStore` (JSON-lines at `<assist.write.root>/agent/feedback.jsonl
 `ApprovalStore` ring idiom) — feedback outlives the ephemeral `CaseStore` (256-deep, in-memory), with
 `caseId` the durable join key. SPI `recordCaseFeedback` (unknown case → 404; bad rating → 400) +
 `recentCaseFeedback`; feedback is folded into the `GET /agent/cases/{id}` detail view and listed at
-`GET /agent/feedback`. *Still open for P5:* case-similarity recall (surface similar past Cases to a new
-investigation — deterministic token-overlap first, embeddings only if warranted; likely graduates
-`CaseStore` to durable), and a per-skill tuning dashboard (helpful-rate aggregation over the feedback
-corpus).
+`GET /agent/feedback`.
+
+*P5 slice 2 — case-similarity recall — SHIPPED 2026-07-21.* `CaseStore` is now durable
+(`<assist.write.root>/agent/cases.jsonl`, the `ApprovalStore` ring idiom) so the investigation corpus
+survives a restart and backs recall. `CaseSimilarity` scores two Cases by **Jaccard token overlap** of
+their `Case.symptomText()` (signal type + subject + message + payload keys + hypothesis titles) — the
+plan's "deterministic token-overlap first; embeddings only if warranted"; the embedding upgrade is
+**not warranted** at this corpus size and is left as a drop-in replacement behind `CaseSimilarity.score`.
+`CaseStore.similar(text, k, excludeId)` returns top-k positive-scoring prior Cases (score + newest as
+tie-break); SPI `similarCases(id, k)` + `GET /agent/cases/{id}/similar?k=` (404 unknown case, else the
+neighbour list with a `similarity` score). *Still open for P5:* a per-skill tuning dashboard (helpful
+-rate aggregation over the feedback corpus).
 
 ## 9. Risks & mitigations
 

@@ -71,7 +71,9 @@ public final class InspectoIntelligenceAgent implements IntelligenceAgent {
     private static final Set<String> ARTIFACT_KINDS = Set.of("text", "kpi", "chart", "data-table");
 
     private final Map<String, AgentSession> sessions = new ConcurrentHashMap<>();
-    private final CaseStore caseStore = new CaseStore();
+    // P5: durable so the investigation corpus survives a restart and backs case-similarity recall;
+    // start() replaces this with a write-root-backed instance (in-memory until then / without a root).
+    private CaseStore caseStore = new CaseStore();
     // P5 (Learning): durable operator feedback on Cases (the eval-growth/tuning corpus). Always present;
     // start() replaces it with a write-root-backed instance so feedback survives a restart.
     private FeedbackStore feedback = new FeedbackStore();
@@ -146,8 +148,9 @@ public final class InspectoIntelligenceAgent implements IntelligenceAgent {
         // GET/PUT /agent/policy regardless of any driver; a driver added later gates on autonomy.authorize.
         autonomy = new AutonomyPolicyEngine(autonomyPolicyStore());
 
-        // P5 (Learning): durable Case feedback. Always available (reads degrade to empty); the store is
-        // write-root-backed so operator ratings accrue across restarts as the learning corpus.
+        // P5 (Learning): durable Case corpus (backs similarity recall) + durable Case feedback. Both are
+        // write-root-backed so they accrue across restarts; in-memory (as before) without a write root.
+        caseStore = durableCaseStore();
         feedback = feedbackStore();
 
         // P4 slice 2 (L3): the ops_monitor loop is opt-in. When enabled, it watches for a
@@ -245,6 +248,13 @@ public final class InspectoIntelligenceAgent implements IntelligenceAgent {
             view.put("feedback", feedback.byCaseId(id).stream().map(Feedback::toView).toList());
             return view;
         });
+    }
+
+    @Override
+    public List<Map<String, Object>> similarCases(String id, int k) {
+        return caseStore.byId(id)
+                .map(c -> caseStore.similar(c.symptomText(), k <= 0 ? 5 : k, id))
+                .orElseGet(List::of);
     }
 
     @Override
@@ -390,6 +400,18 @@ public final class InspectoIntelligenceAgent implements IntelligenceAgent {
         return wr == null || wr.isBlank()
                 ? new FeedbackStore()
                 : new FeedbackStore(java.nio.file.Path.of(wr).resolve("agent").resolve("feedback.jsonl"));
+    }
+
+    /**
+     * The Case store (AGT-5 P5). Durable at {@code <assist.write.root>/agent/cases.jsonl} when a write
+     * root is set — so the investigation corpus survives a restart and backs similarity recall — else
+     * in-memory (dev/tests), exactly as it was through P1–P4.
+     */
+    private static CaseStore durableCaseStore() {
+        String wr = System.getProperty("assist.write.root");
+        return wr == null || wr.isBlank()
+                ? new CaseStore()
+                : new CaseStore(java.nio.file.Path.of(wr).resolve("agent").resolve("cases.jsonl"));
     }
 
     /**

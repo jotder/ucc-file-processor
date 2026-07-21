@@ -87,6 +87,17 @@ public interface IntelligenceAgent extends AutoCloseable {
     }
 
     /**
+     * The prior Cases most similar to the Case {@code id} (AGT-5 P5, case-similarity recall), newest
+     * -and-most-relevant first, each carrying a {@code similarity} score — so an operator (or the
+     * investigator) can reuse earlier root-cause work on a like incident. Empty when the id is unknown
+     * <em>or</em> the tier is absent; the control route reads the base Case first to distinguish
+     * unknown (404) from simply-no-neighbours (empty list). Default empty.
+     */
+    default List<Map<String, Object>> similarCases(String id, int k) {
+        return List.of();
+    }
+
+    /**
      * Recent agent-action approvals (AGT-5 P3, autonomy L2), newest first, as plain JSON-friendly
      * maps — the core stays free of the {@code Approval} type, which lives in the optional
      * {@code file-processor-intelligence} module. Includes both pending and already-decided entries so

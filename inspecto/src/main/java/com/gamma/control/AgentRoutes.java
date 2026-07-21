@@ -56,6 +56,15 @@ final class AgentRoutes implements RouteModule {
         });
         api.get("/agent/cases", (e, m) ->
                 Map.of("cases", agentOr503(api).recentCases(ApiContext.parseIntOr(ApiContext.query(e, "limit"), 50))));
+        // AGT-5 P5 (Learning): case-similarity recall — prior Cases like this one. Registered BEFORE the
+        // greedy /agent/cases/(.+) so it wins (routes match in registration order, first-match). 404 when
+        // the base Case is unknown (read it first), else the (possibly empty) neighbour list.
+        api.get("/agent/cases/(.+)/similar", (e, m) -> {
+            String id = ApiContext.name(m);
+            IntelligenceAgent agent = agentOr503(api);
+            if (agent.caseById(id).isEmpty()) throw new ApiException(404, "unknown case: '" + id + "'");
+            return Map.of("similar", agent.similarCases(id, ApiContext.parseIntOr(ApiContext.query(e, "k"), 5)));
+        });
         api.get("/agent/cases/(.+)", (e, m) ->
                 agentOr503(api).caseById(ApiContext.name(m))
                         .orElseThrow(() -> new ApiException(404, "unknown case: '" + ApiContext.name(m) + "'")));
