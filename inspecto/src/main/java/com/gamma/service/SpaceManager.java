@@ -6,6 +6,7 @@ import com.gamma.acquire.StabilityGate;
 import com.gamma.event.EventLog;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -55,6 +56,10 @@ public final class SpaceManager implements AutoCloseable {
     /** The convention subdirectories a space owns under its root (also what {@link SpaceRoot} addresses).
      *  Authored flows live under {@code config/flows/} (minted on first write), not a top-level dir. */
     private static final List<String> SPACE_SUBDIRS = List.of("config", "data", "audit", "duckdb");
+
+    /** S7: max time to wait for one space's drain-and-close before abandoning it. A hung agent/DB close
+     *  must never block a runtime {@link #delete} nor, via the shutdown hook, JVM exit. */
+    private static final long CLOSE_DEADLINE_MS = 10_000;
 
     private final ConcurrentHashMap<SpaceId, SpaceContext> spaces = new ConcurrentHashMap<>();
     /** Serialises the rare create/delete admin mutations; reads ({@link #space}/{@link #current}) stay lock-free. */
@@ -338,7 +343,9 @@ public final class SpaceManager implements AutoCloseable {
             ctx = spaces.remove(id);
         }
         if (ctx == null) return false;
-        ctx.close();
+        // S7: the space is already deregistered — a hung or failing drain-and-close must not abort the
+        // rest of teardown, or the process-wide per-space registries below would leak (half-removed space).
+        closeWithDeadline(ctx);
         AcquisitionLedgers.unregister(id.value());   // release the per-space ledger SpaceBootstrap registered (+ its DB handle)
         ConnectionRegistry.forget(id.value());        // drop the space's connection profiles (process-wide static map)
         StabilityGate.forget(id.value());             // drop the space's file-stability gate + its retained sightings
@@ -398,12 +405,36 @@ public final class SpaceManager implements AutoCloseable {
     @Override
     public void close() {
         for (SpaceContext c : spaces.values()) {
-            try {
-                c.close();
-            } catch (Exception e) {
-                log.warn("Error closing space '{}': {}", c.id(), e.getMessage());
-            }
+            closeWithDeadline(c);   // S7: bound each drain so one hung space can't stall JVM shutdown
         }
         spaces.clear();
+    }
+
+    /**
+     * S7: drain-and-close one space's service under {@link #CLOSE_DEADLINE_MS}, best-effort. The close runs
+     * on a daemon thread; this returns as soon as it finishes or the deadline lapses. A close still running
+     * past the deadline is abandoned — being a daemon, it can never hold the JVM open — and any exception it
+     * throws is logged, not propagated, so teardown always continues. Never throws.
+     */
+    private void closeWithDeadline(SpaceContext ctx) {
+        Map<String, String> mdc = MDC.getCopyOfContextMap();   // preserve space-log routing on the close thread
+        Thread t = new Thread(() -> {
+            if (mdc != null) MDC.setContextMap(mdc);
+            try {
+                ctx.close();
+            } catch (Exception e) {
+                log.warn("Error closing space '{}': {}", ctx.id(), e.getMessage());
+            }
+        }, "space-close-" + ctx.id());
+        t.setDaemon(true);
+        t.start();
+        try {
+            t.join(CLOSE_DEADLINE_MS);
+            if (t.isAlive())
+                log.warn("Close of space '{}' did not finish within {} ms; abandoning it and continuing teardown",
+                        ctx.id(), CLOSE_DEADLINE_MS);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
     }
 }

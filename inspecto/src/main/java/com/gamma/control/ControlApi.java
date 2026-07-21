@@ -309,9 +309,13 @@ public final class ControlApi implements AutoCloseable, ApiContext {
 
     private static boolean blank(String s) { return s == null || s.isBlank(); }
 
+    /** S7: seconds to let in-flight exchanges finish before force-closing on shutdown (was {@code stop(0)},
+     *  which dropped in-flight requests immediately). */
+    private static final int SHUTDOWN_DRAIN_SECONDS = 2;
+
     @Override
     public void close() {
-        http.stop(0);
+        http.stop(SHUTDOWN_DRAIN_SECONDS);
         // Only clear the loopback URL if it still points at us (a later ControlApi in the same JVM may
         // have re-published its own — don't strip a live one out from under it).
         String mine = "http://127.0.0.1:" + port();
