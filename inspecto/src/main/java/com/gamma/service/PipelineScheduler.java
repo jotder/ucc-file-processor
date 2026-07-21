@@ -231,4 +231,15 @@ final class PipelineScheduler {
     void recordManualRun(String id, long nowMs) {
         lastRunAtMs.put(id, nowMs);
     }
+
+    /**
+     * Drop a pipeline's scheduler bookkeeping when it is unregistered. Without this, the cadence
+     * ({@link #lastRunAtMs}) and coalescer ({@link #eventCoalescers}) maps accumulate one orphan entry
+     * per deleted pipeline for the lifetime of the space's service — a slow leak under pipeline churn.
+     * The {@link TriggerCoalescer} holds only in-heap atomics, so dropping the reference is enough.
+     */
+    void forget(String id) {
+        lastRunAtMs.remove(id);
+        eventCoalescers.remove(id);
+    }
 }

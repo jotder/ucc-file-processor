@@ -854,6 +854,10 @@ public final class CollectorService implements AutoCloseable {
             boolean removed = registry.remove(norm);
             if (!removed) return false;
             configRegistry.rebuild(registry);   // refresh the read surface now; fires catalog invalidation
+            id.ifPresent(i -> {                 // prune per-pipeline bookkeeping so it can't leak under churn
+                pipelineScheduler.forget(i);    // cadence + coalescer maps (keyed by pipeline id)
+                paused.remove(i);               // a paused-then-deleted pipeline would otherwise linger here
+            });
             log.info("Unregistered pipeline{} from {} ({} pipeline(s) now active)",
                     id.map(i -> " '" + i + "'").orElse(""), norm, registry.size());
             this.eventLog.emit(Event.builder(EventType.PIPELINE_UNREGISTERED)
