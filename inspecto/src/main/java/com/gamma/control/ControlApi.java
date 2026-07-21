@@ -33,7 +33,7 @@ import java.util.regex.Pattern;
  * JDK's {@link HttpServer} (no extra dependencies — keeps the lean fat-JAR) with
  * Jackson for JSON. Every CLI operation has an HTTP equivalent: list/trigger/pause/
  * resume pipelines, query runs/batches/files/lineage/quarantine via the
- * {@link com.gamma.service.StatusStore}, reprocess a batch, and validate a config.
+ * {@link com.gamma.etl.StatusStore}, reprocess a batch, and validate a config.
  *
  * <h3>Authentication (W6)</h3>
  * The core (Personal edition) is <b>auth-free</b> — every route is open, exactly as before. Authentication

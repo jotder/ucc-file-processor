@@ -81,10 +81,12 @@ Direct files / lines, role, and outbound `com.gamma` dependencies (import counts
 ### Known dependency cycles (module-extraction blockers)
 
 - **`service` ↔ `job` ↔ `pipeline.exec`** (3-way): `SourceService` → `JobService`; `job` →
-  `service.BatchEventBus`/`CronExpression` and → `pipeline.exec.PipelineJobRunner`;
-  `pipeline.exec` → `job.Job*` types and → `service.BatchEventBus`. Break by moving
-  `BatchEventBus` + `CronExpression` down a layer and extracting job contract types.
-- **`service` ↔ `catalog`**: `CatalogOverlay` → `service.StatusStore` (interface belongs lower).
+  `service.BatchEventBus` and → `pipeline.exec.PipelineJobRunner`; `pipeline.exec` → `job.Job*`
+  types and → `service.BatchEventBus`. Break by moving `BatchEventBus` down a layer and extracting
+  job contract types. **Partially done (WS-D §1.7):** `CronExpression` moved `service` → `util`;
+  `BatchEventBus` → `etl` still pending.
+- ~~**`service` ↔ `catalog`**~~ **RESOLVED (WS-D §1.7):** `StatusStore` (interface) moved
+  `service` → `etl` — it was `CatalogOverlay`'s only `service` edge, so this cycle is now broken.
 - **`ops` ↔ `ops.link` / `ops` ↔ `ops.workflow`**, **`catalog` ↔ `catalog.spi`**: parent↔child
   type cycles (`ObjectType`, `Description`) — resolvable by moving the shared types into the
   sub-package or a `*.model` namespace.

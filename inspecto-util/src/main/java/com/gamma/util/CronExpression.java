@@ -1,4 +1,4 @@
-package com.gamma.service;
+package com.gamma.util;
 
 import com.gamma.api.PublicApi;
 

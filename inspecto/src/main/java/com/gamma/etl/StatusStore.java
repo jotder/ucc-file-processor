@@ -1,7 +1,6 @@
-package com.gamma.service;
+package com.gamma.etl;
 
 import com.gamma.api.PublicApi;
-import com.gamma.etl.PipelineConfig;
 
 import java.util.List;
 import java.util.Map;

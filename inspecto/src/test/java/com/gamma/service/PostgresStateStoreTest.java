@@ -4,6 +4,7 @@ import com.gamma.acquire.DbAcquisitionLedger;
 import com.gamma.acquire.LedgerEntry;
 import com.gamma.etl.PipelineConfig;
 import com.gamma.etl.PipelineConfigBatchTest;
+import com.gamma.etl.StatusStore;
 import com.gamma.etl.TestConfigs;
 import com.gamma.job.DbJobRunStore;
 import com.gamma.job.JobRun;

@@ -24,6 +24,13 @@
     <name>Inspecto util (DuckDB access + CSV/file/tar helpers)</name>
 
     <dependencies>
+        <!-- @PublicApi stability annotation — used by CronExpression (version managed by the
+             parent). -->
+        <dependency>
+            <groupId>com.gamma.inspector</groupId>
+            <artifactId>file-processor-api</artifactId>
+        </dependency>
+
         <!-- DuckDB JDBC — DuckDbUtil is the single DuckDB access point (version managed by the
              parent — shared with the core). -->
         <dependency>

@@ -4,7 +4,7 @@ import com.gamma.api.PublicApi;
 import com.gamma.etl.PipelineConfig;
 import com.gamma.service.EnrichmentService;
 import com.gamma.service.CollectorService;
-import com.gamma.service.StatusStore;
+import com.gamma.etl.StatusStore;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;

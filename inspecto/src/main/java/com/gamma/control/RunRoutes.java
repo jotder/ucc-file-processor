@@ -24,7 +24,7 @@ import java.util.regex.Matcher;
 /**
  * Core pipeline routes ({@code /runs*}, {@code /trigger}, {@code /status}, {@code /report}):
  * the pipeline registry + lifecycle (list / register / trigger / pause / resume), the audit reads
- * backed by the {@link com.gamma.service.StatusStore} (commits / batches / files / lineage /
+ * backed by the {@link com.gamma.etl.StatusStore} (commits / batches / files / lineage /
  * quarantine / pending / reprocess), and the aggregated reports. Extracted verbatim from
  * {@link ControlApi}: identical routes, order, statuses and shapes.
  */

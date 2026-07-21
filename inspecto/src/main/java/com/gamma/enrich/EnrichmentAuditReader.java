@@ -20,7 +20,7 @@ import java.util.Map;
  * API, v2.9.0) without coupling readers to the CSV layout.
  *
  * <p>Rows come back as ordered {@code header→value} maps (so they serialise straight
- * to JSON, exactly like {@link com.gamma.service.StatusStore} rows) in <b>append
+ * to JSON, exactly like {@link com.gamma.etl.StatusStore} rows) in <b>append
  * order</b> — which is chronological, since each ledger is a single growing file the
  * writer only ever appends to. Missing ledgers (a job that has not run yet) read as an
  * empty list rather than an error, mirroring the file-backed status store.

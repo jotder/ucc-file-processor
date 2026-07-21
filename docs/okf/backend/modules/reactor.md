@@ -84,6 +84,17 @@ resolves after a root `mvn install`**. Every entry point builds via the root rea
 Shipped so far: **increment 1 `util`** (fp-util) and **increment 2 `sql`** (fp-sql) — the two
 genuinely leaf-extractable packages, each depending only on already-extracted modules.
 
+**§1.7 cycle-breaking prep (in progress — no new module, just relocations that shrink the `service`
+god-object's fan-in ahead of the cluster splits):**
+- ✅ `CronExpression` `service` → `util` (fp-util): a dependency-free cron primitive (needs only
+  `api.PublicApi`); removes the `job`/`pipeline` → `service` edge that existed only for scheduling.
+- ✅ `StatusStore` (interface) `service` → `etl`: it was the **sole `catalog` → `service` edge**
+  (`CatalogOverlay` → `service.StatusStore`), so relocating it (floor is `etl`, via
+  `etl.PipelineConfig`) **broke the `service ↔ catalog` cycle** outright. Its impls
+  (`DbStatusStore`/`FileStatusStore`) stay in `service`.
+- ⏳ `BatchEventBus` `service` → `etl` (beside `etl.BatchEvent`, its payload type): fan-in reduction,
+  not a full cycle break — deferred (lower value; ~17 files).
+
 **`event` and `etl` are NOT leaf-extractable — and the blocker is bigger than BACKLOG implied.** The
 original `import`-only recon undersold it; the **inline-aware** full package-edge map (playbook rule 5)
 shows they point *up* into the god-object cluster, not just sideways at sql/metrics:

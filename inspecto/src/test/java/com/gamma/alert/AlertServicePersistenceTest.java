@@ -10,7 +10,7 @@ import com.gamma.ops.ObjectQuery;
 import com.gamma.ops.ObjectService;
 import com.gamma.ops.ObjectType;
 import com.gamma.ops.OperationalObject;
-import com.gamma.service.StatusStore;
+import com.gamma.etl.StatusStore;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 

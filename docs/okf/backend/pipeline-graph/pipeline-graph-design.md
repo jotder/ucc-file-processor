@@ -409,7 +409,7 @@ scheduler (the pipeline's own cadence, gated in `SourceService.runAllOnce` by [`
 
 **Scheduler implementation = the existing `Scheduler` + `JobService`, not Quartz (decided 2026-06-17).** Both
 schedulers are the home-grown [`Scheduler`](../../../../inspecto/src/main/java/com/gamma/service/Scheduler.java) (fixed-delay
-`everySeconds` + a drift-free self-re-arming `cron` over [`CronExpression`](../../../../inspecto/src/main/java/com/gamma/service/CronExpression.java)),
+`everySeconds` + a drift-free self-re-arming `cron` over [`CronExpression`](../../../../inspecto-util/src/main/java/com/gamma/util/CronExpression.java)),
 with [`JobService`](../../../../inspecto/src/main/java/com/gamma/job/JobService.java) adding event/manual triggers, per-job
 non-overlap (`LockingRunner` → `SKIPPED`), and **job-execution reporting that already exists**: a durable
 `jobs_runs.csv` (`CsvLedger<JobRun>`) + per-job in-memory history + `inspecto_jobs_total` /

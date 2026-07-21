@@ -8,7 +8,7 @@ import com.gamma.etl.PipelineConfig;
 import com.gamma.etl.PipelineConfigBatchTest;
 import com.gamma.etl.TestConfigs;
 import com.gamma.service.CollectorService;
-import com.gamma.service.StatusStore;
+import com.gamma.etl.StatusStore;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 

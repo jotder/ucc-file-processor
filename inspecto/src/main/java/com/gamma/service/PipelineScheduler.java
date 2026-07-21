@@ -5,6 +5,7 @@ import com.gamma.etl.PipelineConfig;
 import com.gamma.inspector.MultiCollectorProcessor;
 import com.gamma.pipeline.PipelineTrigger;
 import com.gamma.pipeline.exec.TriggerCoalescer;
+import com.gamma.util.CronExpression;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

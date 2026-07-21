@@ -77,8 +77,9 @@ build against an API jar), so wrapping would duplicate data shapes for no payoff
 | `com.gamma.config` (`.io`/`.safety`/`.spec`) | `ConfigCodec`, `ConfigLoader`, `ConfigSafetyValidator`, `SafetyPolicy`, `ConfigSpec`, `ConfigSpecs`, `FieldSpec`, `Finding`, `RawConfig`, `Severity` |
 | `com.gamma.sql` | `SqlOracle`, `SqlSandboxPolicy` |
 | `com.gamma.signal` | `Ref`, `Severity`, `Signal` |
-| `com.gamma.service` | `CronExpression`, `StatusStore` (`CollectorService` already public) |
-| `com.gamma.etl` / `com.gamma.enrich` / `com.gamma.job` / `com.gamma.event` / `com.gamma.report` | `BatchEvent`; `EnrichmentAuditReader`, `EnrichmentConfig`; `JobConfig`; `EventLog` (4.2.0); `ReportService.Window` |
+| `com.gamma.util` | `CronExpression` (relocated from `com.gamma.service`, WS-D §1.7) |
+| `com.gamma.service` | (`CollectorService` already public) |
+| `com.gamma.etl` / `com.gamma.enrich` / `com.gamma.job` / `com.gamma.event` / `com.gamma.report` | `BatchEvent`, `StatusStore` (StatusStore relocated from `com.gamma.service`, WS-D §1.7); `EnrichmentAuditReader`, `EnrichmentConfig`; `JobConfig`; `EventLog` (4.2.0); `ReportService.Window` |
 
 ## Explicitly internal (do not depend on)
 

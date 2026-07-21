@@ -11,6 +11,7 @@ import com.gamma.enrich.EnrichmentConfig;
 import com.gamma.etl.BatchEvent;
 import com.gamma.etl.IngestProgress;
 import com.gamma.etl.PipelineConfig;
+import com.gamma.etl.StatusStore;
 import com.gamma.pipeline.DeletionFence;
 import com.gamma.pipeline.PipelineGraph;
 import com.gamma.pipeline.PipelineStore;

@@ -8,14 +8,14 @@ import java.util.List;
  * {@code humanReadable} field of an {@code nl-to-schedule} draft. This is deterministic
  * presentation (no model), so a UI and the golden tests can rely on it.
  *
- * <p>The codebase had no cron describer (the core {@link com.gamma.service.CronExpression} only
+ * <p>The codebase had no cron describer (the core {@link com.gamma.util.CronExpression} only
  * <em>evaluates</em> a schedule), so this fills that gap. It recognises the common shapes
  * (every-N-seconds/minutes/hours, hourly, daily-at, weekday/weekend, named days-of-week, monthly)
  * and falls back to a safe generic phrasing for anything exotic — it never throws and never claims
  * more than it can prove, because a wrong description is worse than a generic one.
  *
  * <p>Accepts both 5-field ({@code min hour dom month dow}) and 6-field ({@code sec min hour dom
- * month dow}) cron, matching {@link com.gamma.service.CronExpression}.
+ * month dow}) cron, matching {@link com.gamma.util.CronExpression}.
  *
  * @since 3.4.0
  */

@@ -2,6 +2,7 @@ package com.gamma.service;
 
 import com.gamma.etl.CommitLog;
 import com.gamma.etl.PipelineConfig;
+import com.gamma.etl.StatusStore;
 import com.gamma.util.Csv;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

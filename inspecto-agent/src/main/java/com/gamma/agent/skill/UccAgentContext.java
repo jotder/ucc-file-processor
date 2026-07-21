@@ -10,7 +10,7 @@ import com.gamma.agent.kernel.tool.ToolRegistry;
 import com.gamma.catalog.ConfigSource;
 import com.gamma.catalog.MetadataGraphService;
 import com.gamma.report.ReportService;
-import com.gamma.service.StatusStore;
+import com.gamma.etl.StatusStore;
 
 import java.util.List;
 import java.util.Optional;

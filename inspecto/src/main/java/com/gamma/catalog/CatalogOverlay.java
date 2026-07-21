@@ -1,7 +1,7 @@
 package com.gamma.catalog;
 
 import com.gamma.etl.PipelineConfig;
-import com.gamma.service.StatusStore;
+import com.gamma.etl.StatusStore;
 
 import java.util.ArrayList;
 import java.util.LinkedHashSet;

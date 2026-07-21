@@ -4,7 +4,7 @@ import com.gamma.catalog.ConfigSource;
 import com.gamma.enrich.EnrichmentAuditReader;
 import com.gamma.enrich.EnrichmentConfig;
 import com.gamma.etl.PipelineConfig;
-import com.gamma.service.StatusStore;
+import com.gamma.etl.StatusStore;
 import com.gamma.sql.SqlOracle;
 
 import java.util.ArrayList;

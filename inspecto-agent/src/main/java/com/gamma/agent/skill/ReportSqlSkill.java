@@ -40,7 +40,7 @@ import java.util.Optional;
  * The sibling {@code kpi-to-sql} validates SQL over the catalog's data partitions; this skill validates
  * over the platform's own ledgers — {@code batches} / {@code files} / {@code lineage} /
  * {@code quarantine} for a pipeline, {@code enrich_runs} / {@code enrich_lineage} for an enrichment job.
- * Those reach the agent as header→value row maps through the backend-agnostic {@link com.gamma.service.StatusStore}
+ * Those reach the agent as header→value row maps through the backend-agnostic {@link com.gamma.etl.StatusStore}
  * / {@link com.gamma.enrich.EnrichmentAuditReader} seams, so {@link OperationalTables} materialises them
  * as in-memory {@link SqlOracle.TableData}s (all-{@code VARCHAR}; the SQL {@code CAST}s as needed) and
  * the M6 {@link SqlOracle} registers them in a sealed sandbox.

@@ -1,5 +1,6 @@
 package com.gamma.service;
 
+import com.gamma.etl.StatusStore;
 import com.gamma.event.EventStore;
 import com.gamma.event.InMemoryEventStore;
 import com.gamma.event.ParquetEventStore;

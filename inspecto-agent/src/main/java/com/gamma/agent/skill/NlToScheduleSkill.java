@@ -25,7 +25,7 @@ import com.gamma.config.spec.ConfigSpecs;
 import com.gamma.config.spec.Finding;
 import com.gamma.config.spec.Severity;
 import com.gamma.job.JobConfig;
-import com.gamma.service.CronExpression;
+import com.gamma.util.CronExpression;
 
 import java.time.ZoneId;
 import java.time.ZonedDateTime;

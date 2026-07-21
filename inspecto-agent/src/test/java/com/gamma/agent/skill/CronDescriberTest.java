@@ -1,6 +1,6 @@
 package com.gamma.agent.skill;
 
-import com.gamma.service.CronExpression;
+import com.gamma.util.CronExpression;
 import org.junit.jupiter.api.Test;
 
 import java.time.ZoneId;

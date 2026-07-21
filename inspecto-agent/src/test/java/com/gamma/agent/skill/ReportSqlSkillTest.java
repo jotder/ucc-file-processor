@@ -9,7 +9,7 @@ import com.gamma.agent.kernel.agent.AgentRequest;
 import com.gamma.agent.kernel.agent.AgentResult;
 import com.gamma.etl.PipelineConfig;
 import com.gamma.service.CollectorService;
-import com.gamma.service.StatusStore;
+import com.gamma.etl.StatusStore;
 import com.gamma.sql.SqlSandboxPolicy;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;

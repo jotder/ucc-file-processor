@@ -1,7 +1,7 @@
 package com.gamma.job;
 
 import com.gamma.api.PublicApi;
-import com.gamma.service.CronExpression;
+import com.gamma.util.CronExpression;
 import com.gamma.util.ToonHelper;
 
 import java.io.IOException;

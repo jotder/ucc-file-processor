@@ -60,7 +60,7 @@ implementations are **plain JDBC over a single shared `Connection`**, with hand-
 | Correlation links | `ops/link/LinkStore` | [`DbLinkStore`](../../../../inspecto/src/main/java/com/gamma/ops/link/DbLinkStore.java) | `objects.backend` (shared) | `memory` |
 | Notes / evidence | `ops/note/NoteStore` | [`DbNoteStore`](../../../../inspecto/src/main/java/com/gamma/ops/note/DbNoteStore.java) | `objects.backend` (shared) | `memory` |
 | Events (append-only facts) | `event/EventStore` | [`ParquetEventStore`](../../../../inspecto/src/main/java/com/gamma/event/ParquetEventStore.java) *(Parquet, not JDBC)* | `events.backend=memory\|parquet` | `memory` |
-| Ingest status / audit projection | `service/StatusStore` | [`DbStatusStore`](../../../../inspecto/src/main/java/com/gamma/service/DbStatusStore.java) | `status.backend=file\|db` | `file` |
+| Ingest status / audit projection | `etl/StatusStore` | [`DbStatusStore`](../../../../inspecto/src/main/java/com/gamma/service/DbStatusStore.java) | `status.backend=file\|db` | `file` |
 | Job-run reporting | *(class is the API)* | [`DbJobRunStore`](../../../../inspecto/src/main/java/com/gamma/job/DbJobRunStore.java) | `jobs.backend=none\|duckdb\|postgres` | `none` |
 | Flow-run provenance (per-edge counts) | *(class is the API)* | [`DbProvenanceStore`](../../../../inspecto/src/main/java/com/gamma/pipeline/exec/DbProvenanceStore.java) | `provenance.backend=none\|duckdb\|postgres` | `none` |
 | Acquisition / dedup ledger + export watermark | `acquire/AcquisitionLedger` | [`DbAcquisitionLedger`](../../../../inspecto/src/main/java/com/gamma/acquire/DbAcquisitionLedger.java) | `acquire.ledger.backend=memory\|db` *(via `AcquisitionLedgers`, not `ServiceStores`)* | `memory` |
