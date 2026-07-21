@@ -1,5 +1,5 @@
 import { ChangeDetectionStrategy, Component, ElementRef, OnInit, ViewChild, computed, inject, signal } from '@angular/core';
-import { FormArray, FormBuilder, FormGroup, ReactiveFormsModule, Validators, AbstractControl, ValidatorFn } from '@angular/forms';
+import { FormBuilder, ReactiveFormsModule, Validators, AbstractControl, ValidatorFn } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatButtonToggleModule } from '@angular/material/button-toggle';
 import { MatCheckboxModule } from '@angular/material/checkbox';
@@ -8,7 +8,6 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
 import { MatMenuModule, MatMenuTrigger } from '@angular/material/menu';
-import { MatSelectModule } from '@angular/material/select';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { ActivatedRoute, Router } from '@angular/router';
 import { ToastrService } from 'ngx-toastr';
@@ -20,7 +19,6 @@ import { InspectoSkeletonComponent } from 'app/inspecto/components/skeleton.comp
 import { DataTableComponent } from 'app/inspecto/data-table';
 import { TransferMenuComponent } from 'app/inspecto/transfer';
 import {
-    EntityProjection,
     G6GraphData,
     GraphSourceId,
     GraphSourceQuery,
@@ -53,11 +51,11 @@ import {
 import { ElementDetailDialog, ElementDetailResult, ElementObjectRef, PivotService } from 'app/inspecto/investigation';
 import { Dataset } from 'app/modules/admin/studio/datasets/dataset-types';
 import { DatasetsService } from 'app/modules/admin/studio/datasets/datasets.service';
-import { SAMPLE_SOURCES } from 'app/modules/admin/studio/datasets/dataset-sources';
 import { ProjectedGraph } from './entity-projection';
 import { GraphSourcesService } from './graph-sources';
 import { LinkAnalysisService, LinkAnalysisView } from './link-analysis.service';
 import { LinkAnalysisToolboxComponent } from './link-analysis-toolbox.component';
+import { LinkAnalysisQueryPanelComponent, QuerySummaryItem } from './link-analysis-query-panel.component';
 
 /** Inline duplicate-name guard (house form rule) — blocks saving a view under a taken name. */
 function uniqueNameValidator(taken: () => string[]): ValidatorFn {
@@ -83,13 +81,6 @@ interface PresentationSnapshot {
     layoutId: GraphLayoutId;
 }
 
-/** One line of the collapsed-query status (left-pane summary + the top status bar chips). */
-interface QuerySummaryItem {
-    icon: string;
-    label: string;
-    value: string;
-}
-
 /**
  * **Link Analysis Studio** (C5, plan: docs/superpower/link-analysis-studio-plan.md §3 P3) — pick a
  * GraphSource, shape a query, render through the shared {@link GraphViewComponent}, analyze with the
@@ -101,9 +92,9 @@ interface QuerySummaryItem {
     changeDetection: ChangeDetectionStrategy.OnPush,
     imports: [
         ReactiveFormsModule, MatButtonModule, MatButtonToggleModule, MatCheckboxModule, MatDialogModule,
-        MatFormFieldModule, MatIconModule, MatInputModule, MatMenuModule, MatSelectModule, MatTooltipModule,
+        MatFormFieldModule, MatIconModule, MatInputModule, MatMenuModule, MatTooltipModule,
         InspectoAlertComponent, InspectoEmptyStateComponent, InspectoSkeletonComponent, GraphViewComponent,
-        DataTableComponent, TransferMenuComponent, LinkAnalysisToolboxComponent,
+        DataTableComponent, TransferMenuComponent, LinkAnalysisToolboxComponent, LinkAnalysisQueryPanelComponent,
     ],
     templateUrl: './link-analysis.component.html',
     host: {
@@ -127,6 +118,7 @@ export class LinkAnalysisComponent implements OnInit {
 
     @ViewChild(GraphViewComponent) private graphView?: GraphViewComponent;
     @ViewChild(LinkAnalysisToolboxComponent) private toolbox?: LinkAnalysisToolboxComponent;
+    @ViewChild(LinkAnalysisQueryPanelComponent) private queryPanel?: LinkAnalysisQueryPanelComponent;
     @ViewChild('studioRoot') private studioRoot?: ElementRef<HTMLElement>;
     @ViewChild('canvasZone') private canvasZone?: ElementRef<HTMLElement>;
     @ViewChild('saveTrigger') private saveTrigger?: MatMenuTrigger;
@@ -135,63 +127,10 @@ export class LinkAnalysisComponent implements OnInit {
     /** Full query form vs its collapsed selected-values summary (auto-collapses after a run). */
     readonly queryOpen = signal(true);
 
-    // ── query builder ──
+    // ── query source (the form itself lives in the query-panel child) ──
     readonly sourceId = signal<GraphSourceId>('entity-projection');
     readonly datasets = signal<Dataset[]>([]);
     readonly pipelines = signal<PipelineSummary[]>([]);
-    readonly queryForm = this.fb.nonNullable.group({
-        from: [''],
-        depth: [2],
-        direction: ['both' as 'out' | 'in' | 'both'],
-        pipeline: [''],
-        counts: [false],
-        datasetId: [''],
-        sourceCol: [''],
-        targetCol: [''],
-        linkKindCol: [''],
-        attrCols: [[] as string[]],
-        /** Only meaningful once a second mapping exists (Phase C) — see {@link EntityProjection.entityType}. */
-        entityType: [''],
-        /** Multi-root seeds (Phase D, lineage only): extra roots beyond `from`, comma-separated. */
-        extraRoots: [''],
-        /** Multi-root seeds (Phase D, provenance only): extra pipelines beyond `pipeline`. */
-        extraPipelines: [[] as string[]],
-    });
-
-    /** Columns offered by the projection mapping selects — the picked Dataset's columns (or its sample rows'). */
-    readonly datasetColumns = signal<string[]>([]);
-
-    /**
-     * Extra entity-projection mappings beyond the primary one above (Phase C, multi-entity/multi-dataset
-     * mapping): each row is its own Dataset + column mapping, merged client-side into one graph by
-     * {@link mergeProjectedGraphs} — no new backend endpoint, {@code /inv/projection} runs once per row.
-     */
-    readonly extraMappings = this.fb.array<FormGroup>([]);
-    /** Column choices per extra-mapping row, indexed like `extraMappings.controls`. */
-    readonly extraMappingColumns = signal<string[][]>([]);
-
-    private newMappingGroup() {
-        return this.fb.nonNullable.group({
-            datasetId: [''], sourceCol: [''], targetCol: [''], linkKindCol: [''],
-            attrCols: [[] as string[]], entityType: ['', Validators.required],
-        });
-    }
-
-    addMapping(): void {
-        const group = this.newMappingGroup();
-        const i = this.extraMappings.length;
-        group.controls.datasetId.valueChanges.subscribe((id) => {
-            const cols = this.columnsForDataset(id);
-            this.extraMappingColumns.update((all) => all.map((c, idx) => (idx === i ? cols : c)));
-        });
-        this.extraMappings.push(group);
-        this.extraMappingColumns.update((all) => [...all, []]);
-    }
-
-    removeMapping(i: number): void {
-        this.extraMappings.removeAt(i);
-        this.extraMappingColumns.update((all) => all.filter((_, idx) => idx !== i));
-    }
 
     // ── result state ──
     readonly loading = signal(false);
@@ -382,7 +321,6 @@ export class LinkAnalysisComponent implements OnInit {
         this.datasetsService.list().subscribe({ next: (d) => this.datasets.set(d), error: () => undefined });
         this.pipelinesService.list().subscribe({ next: (p) => this.pipelines.set(p), error: () => undefined });
         this.viewsService.list().subscribe({ next: (v) => this.views.set(v), error: () => undefined });
-        this.queryForm.controls.datasetId.valueChanges.subscribe((id) => this.onDatasetPicked(id));
         this.pendingPivot = this.pivotService.readIncoming(this.route);
     }
 
@@ -407,63 +345,8 @@ export class LinkAnalysisComponent implements OnInit {
     readonly labelOf = (id: string): string =>
         this.graph()?.nodes.find((n) => n.id === id)?.data.label ?? id;
 
-    private onDatasetPicked(id: string): void {
-        this.datasetColumns.set(this.columnsForDataset(id));
-    }
-
-    /** The columns a mapping row's Dataset select should offer — declared columns, or sampled ones. */
-    private columnsForDataset(id: string): string[] {
-        const ds = this.datasets().find((d) => d.id === id);
-        if (!ds) return [];
-        const declared = ds.columns.map((c) => c.name);
-        const sampled = Object.keys(SAMPLE_SOURCES[ds.sourceName]?.[0] ?? {});
-        return declared.length ? declared : sampled;
-    }
-
-    /** The query the current form + source amounts to (also what a saved view persists). */
-    private buildQuery(): GraphSourceQuery | { error: string } {
-        const f = this.queryForm.getRawValue();
-        switch (this.sourceId()) {
-            case 'entity-projection': {
-                if (!f.datasetId || !f.sourceCol || !f.targetCol) {
-                    return { error: 'Pick a dataset plus its source and target columns.' };
-                }
-                const primary: EntityProjection = {
-                    datasetId: f.datasetId, sourceCol: f.sourceCol, targetCol: f.targetCol,
-                    linkKindCol: f.linkKindCol || undefined,
-                    attrCols: f.attrCols.length ? f.attrCols : undefined,
-                    entityType: f.entityType || undefined,
-                };
-                const extras = this.extraMappings.controls
-                    .map((g) => g.getRawValue())
-                    .filter((m) => m.datasetId && m.sourceCol && m.targetCol) as EntityProjection[];
-                if (!extras.length) return { projection: primary };
-                if (extras.some((m) => !m.entityType) || !primary.entityType) {
-                    return { error: 'Every mapping needs an entity type when combining more than one.' };
-                }
-                return { projections: [primary, ...extras] };
-            }
-            case 'provenance': {
-                if (!f.pipeline) return { error: 'Pick a pipeline.' };
-                const pipelineRoots = [f.pipeline, ...f.extraPipelines.filter((p) => p && p !== f.pipeline)];
-                return pipelineRoots.length > 1
-                    ? { roots: pipelineRoots, counts: f.counts }
-                    : { from: f.pipeline, counts: f.counts };
-            }
-            case 'lineage': {
-                const extra = f.extraRoots.split(',').map((r) => r.trim()).filter(Boolean);
-                const lineageRoots = [f.from, ...extra].filter((r): r is string => !!r);
-                return lineageRoots.length > 1
-                    ? { roots: lineageRoots, depth: f.depth, direction: f.direction }
-                    : { from: f.from || undefined, depth: f.depth, direction: f.direction };
-            }
-            default:
-                return {};
-        }
-    }
-
     async run(): Promise<void> {
-        const q = this.buildQuery();
+        const q = this.queryPanel?.buildQuery() ?? { error: 'The query form is not ready.' };
         if ('error' in q) {
             this.loadError.set(q.error);
             return;
@@ -852,7 +735,7 @@ export class LinkAnalysisComponent implements OnInit {
     async saveView(): Promise<void> {
         this.saveForm.markAllAsTouched();
         if (this.saveForm.invalid) return;
-        const q = this.buildQuery();
+        const q = this.queryPanel?.buildQuery() ?? { error: 'The query form is not ready.' };
         if ('error' in q) {
             this.loadError.set(q.error);
             return;
@@ -885,18 +768,7 @@ export class LinkAnalysisComponent implements OnInit {
         this.sourceId.set(view.sourceId);
         this.applyDisplay(view.display);
         this.layoutId.set(view.layout ?? 'dagre');
-        const p = view.query.projection;
-        this.queryForm.patchValue({
-            from: view.query.from ?? '',
-            depth: view.query.depth ?? 2,
-            direction: view.query.direction ?? 'both',
-            pipeline: view.sourceId === 'provenance' ? (view.query.from ?? '') : '',
-            counts: view.query.counts ?? false,
-            datasetId: p?.datasetId ?? '',
-            sourceCol: p?.sourceCol ?? '',
-            targetCol: p?.targetCol ?? '',
-            linkKindCol: p?.linkKindCol ?? '',
-        });
+        this.queryPanel?.patchFormFromView(view);
         await this.execute(view.sourceId, view.query);
     }
 }

@@ -1,4 +1,5 @@
 import { TestBed } from '@angular/core/testing';
+import { By } from '@angular/platform-browser';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
 import { MatDialog } from '@angular/material/dialog';
@@ -14,6 +15,7 @@ import { Dataset } from '../datasets/dataset-types';
 import { DatasetsService } from '../datasets/datasets.service';
 import { GraphSourcesService } from './graph-sources';
 import { LinkAnalysisComponent } from './link-analysis.component';
+import { LinkAnalysisQueryPanelComponent } from './link-analysis-query-panel.component';
 import { LinkAnalysisService, LinkAnalysisView } from './link-analysis.service';
 
 const DS: Dataset = { id: 'links-ds', name: 'Links', kind: 'physical', sourceName: 'links', columns: [], measures: [], calculated: [] };
@@ -66,7 +68,11 @@ function create(opts: { fail?: boolean; views?: LinkAnalysisView[]; expand?: Gra
 // the G6 host can't instantiate in jsdom (see registry.component.spec.ts).
 async function runQuery(fixture: ReturnType<typeof create>['fixture']): Promise<void> {
     const c = fixture.componentInstance;
-    c.queryForm.patchValue({ datasetId: 'links-ds', sourceCol: 'source', targetCol: 'target' });
+    // The query form lives in the (always-mounted, [hidden]-gated) query-panel child; patch it there.
+    // Callers detectChanges() once before this (graph is still null then, so the G6 host never mounts).
+    const panel = fixture.debugElement.query(By.directive(LinkAnalysisQueryPanelComponent))
+        .componentInstance as LinkAnalysisQueryPanelComponent;
+    panel.queryForm.patchValue({ datasetId: 'links-ds', sourceCol: 'source', targetCol: 'target' });
     await c.run();
 }
 
