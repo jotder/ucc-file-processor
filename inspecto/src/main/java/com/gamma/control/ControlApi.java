@@ -191,6 +191,9 @@ public final class ControlApi implements AutoCloseable, ApiContext {
     private final SpaceManager spaces;
     private final ObjectMapper json = new ObjectMapper();
     private final List<Route> routes = new ArrayList<>();
+    /** S6 — the composed request pipeline: an ordered chain of cross-cutting {@link Middleware} wrapping the
+     *  terminal route dispatch. Built once in the constructor, after the route table is registered. */
+    private final Chain pipeline;
     /** Allowed CORS origin ({@code -Dcontrol.cors}); {@code null} ⇒ CORS disabled (default). */
     private final String corsOrigin;
     /** Static SPA root ({@code -Dui.dir}); {@code null} ⇒ no static serving (default). */
@@ -251,6 +254,12 @@ public final class ControlApi implements AutoCloseable, ApiContext {
         // grant-checked for the calling space (a no-op resolver until installed — fail-closed).
         com.gamma.query.SharedRefResolver.install(new ExchangeRefResolver(spaces));
         registerRoutes();
+        // S6 — compose the request pipeline once (outermost first): correlation and CORS wrap the error
+        // boundary so error/preflight responses still carry the Correlation-ID + CORS headers; path
+        // normalization → idempotency replay → space binding then feed the terminal route dispatch.
+        this.pipeline = compose(this::routeDispatch,
+                this::correlation, this::cors, this::errorBoundary,
+                this::normalizePath, this::idempotency, this::bindSpace);
         this.http.createContext("/", this::dispatch);
         // Fail-closed at the edge (W6): resolve the edition's Authenticator now, not on the first
         // request, so a misconfigured Standard deployment (e.g. missing -Dauth.oidc.jwksUri, which the
@@ -394,122 +403,202 @@ public final class ControlApi implements AutoCloseable, ApiContext {
             module.register(this);
     }
 
-    // ── dispatch ───────────────────────────────────────────────────────────────
+    // ── dispatch: a composable middleware chain (S6) ─────────────────────────────
+    //
+    // Each cross-cutting concern is one Middleware, composed once in the constructor (see `pipeline`).
+    // The route-matching path is threaded across stages as an exchange attribute (successively rewritten
+    // by normalizePath + bindSpace); read it with `path(ex)`. The terminal is `routeDispatch`.
+
+    /** A stage of the request pipeline: do its work, then (unless it writes the response and returns) call
+     *  {@code next}. Ordering + the shared per-exchange state (effective path, MDC) are the contract.
+     *  Throws {@code Exception} so a route handler's checked failure propagates up to {@link #errorBoundary}. */
+    @FunctionalInterface
+    private interface Middleware { void handle(HttpExchange ex, Chain next) throws Exception; }
+
+    /** A link in the composed chain — either a {@link Middleware} bound to its successor, or the terminal. */
+    @FunctionalInterface
+    private interface Chain { void proceed(HttpExchange ex) throws Exception; }
+
+    /** Fold {@code middlewares} (outermost first) around {@code terminal} into a single {@link Chain}. */
+    private static Chain compose(Chain terminal, Middleware... middlewares) {
+        Chain chain = terminal;
+        for (int i = middlewares.length - 1; i >= 0; i--) {
+            Middleware m = middlewares[i];
+            Chain next = chain;
+            chain = ex -> m.handle(ex, next);
+        }
+        return chain;
+    }
+
+    /** The route-matching path — the raw URI path as rewritten by {@link #normalizePath}/{@link #bindSpace}
+     *  (its {@code /api[/v1]} and {@code /spaces/{id}} prefixes stripped). Defaults to the raw path. */
+    private static final String ATTR_EFFECTIVE_PATH = "inspecto.effectivePath";
+    private static String path(HttpExchange ex) {
+        return ex.getAttribute(ATTR_EFFECTIVE_PATH) instanceof String s ? s : ex.getRequestURI().getPath();
+    }
+    private static void setPath(HttpExchange ex, String path) { ex.setAttribute(ATTR_EFFECTIVE_PATH, path); }
 
     private void dispatch(HttpExchange ex) throws IOException {
-        String path   = ex.getRequestURI().getPath();
-        String method = ex.getRequestMethod();
-        // Correlation (v1 contract, applied to EVERY request — v4.8.0): honour a caller-supplied
-        // Correlation-ID, else issue one; echo it as a response header, carry it on the exchange for
-        // the v1 envelope/error bodies, and put it on the SLF4J MDC so events bridged during this
-        // request (EventStoreAppender reads mdc "correlationId") tie back to the request. Engine-typed
-        // events keep their own explicit correlation (batch/run ids) — the builder value wins there.
+        try {
+            pipeline.proceed(ex);
+        } catch (IOException e) {
+            throw e;
+        } catch (Exception e) {
+            // The errorBoundary stage maps business failures to responses; reaching here means a stage
+            // itself failed (e.g. while writing the response). Surface it to the HTTP server as IOException.
+            throw new IOException(e);
+        }
+    }
+
+    /** Correlation-ID (v1 contract, EVERY request — v4.8.0): honour a caller-supplied id, else mint one;
+     *  echo it as a response header, carry it on the exchange for the v1 envelope/error bodies, and put it
+     *  on the SLF4J MDC so events bridged during this request (EventStoreAppender reads mdc "correlationId")
+     *  tie back. Engine-typed events keep their own explicit correlation (batch/run ids). Outermost stage:
+     *  its finally closes the exchange once the whole chain has unwound. */
+    private void correlation(HttpExchange ex, Chain next) throws Exception {
         String cid = ex.getRequestHeaders().getFirst("Correlation-ID");
         cid = (cid == null || cid.isBlank()) ? java.util.UUID.randomUUID().toString() : cid.trim();
         ex.setAttribute(ApiContext.ATTR_CORRELATION_ID, cid);
         ex.getResponseHeaders().set("Correlation-ID", cid);
         MDC.put("correlationId", cid);
-        // Versioned-API seam (v4.8.0): "/api/v1/…" marks this exchange for the v1 transport contract
-        // (Envelope + structured errors, docs/superpower/api-contract-design.md) and is matched against
-        // the same route table. Checked before the plain "/api" strip ("/api/v1/…" also starts with it).
+        try {
+            next.proceed(ex);
+        } finally {
+            MDC.remove("correlationId");
+            ex.close();
+        }
+    }
+
+    /** CORS: emit the permissive headers for the configured origin (they ride every response below) and
+     *  answer a preflight OPTIONS before any routing (no token, no body). Inert unless {@code -Dcontrol.cors}. */
+    private void cors(HttpExchange ex, Chain next) throws Exception {
+        if (corsOrigin != null) {
+            applyCors(ex);
+            if ("OPTIONS".equals(ex.getRequestMethod())) { ex.sendResponseHeaders(204, -1); return; }
+        }
+        next.proceed(ex);
+    }
+
+    /** Error boundary: map a thrown {@link ApiException} to its status (carrying its error code for the v1
+     *  envelope) and anything else to a 500. Inside correlation + CORS, so error bodies still carry the
+     *  Correlation-ID and CORS headers. */
+    private void errorBoundary(HttpExchange ex, Chain next) throws IOException {
+        try {
+            next.proceed(ex);
+        } catch (ApiException ae) {
+            if (ae.errorCode != null) ex.setAttribute(ApiContext.ATTR_ERROR_CODE, ae.errorCode);
+            respond(ex, ae.status, Map.of("error", ae.getMessage()));
+        } catch (Exception e) {
+            log.error("{} {} failed", ex.getRequestMethod(), path(ex), e);
+            respond(ex, 500, Map.of("error", String.valueOf(e.getMessage())));
+        }
+    }
+
+    /** Resolve the route-matching path: mark a "/api/v1/…" request for the v1 transport contract (Envelope +
+     *  structured errors, docs/superpower/api-contract-design.md) and strip the version/"/api" prefix so a
+     *  single SPA build works both behind the ng-serve dev proxy (which rewrites "/api" → "") and same-origin
+     *  (no proxy). Static assets never carry "/api", so they're untouched. */
+    private void normalizePath(HttpExchange ex, Chain next) throws Exception {
+        String path = ex.getRequestURI().getPath();
         if (path.equals("/api/v1") || path.startsWith("/api/v1/")) {
             ex.setAttribute(ApiContext.ATTR_V1, Boolean.TRUE);
             ex.setAttribute(ApiContext.ATTR_START_NANOS, System.nanoTime());
             ex.setAttribute(ApiContext.ATTR_SELF_PATH, path);
             path = path.length() == 7 ? "/" : path.substring(7);
-        }
-        // Accept an optional "/api" prefix so a single SPA build works in both deployment modes:
-        // behind the ng-serve dev proxy (which rewrites "/api" → "") and when served same-origin by
-        // ControlApi itself (no proxy). The Angular app addresses every route as "/api/...", so strip
-        // the prefix here before route matching. Static assets never carry "/api", so they're untouched.
-        else if (path.startsWith("/api/")) path = path.substring(4);
+        } else if (path.startsWith("/api/")) path = path.substring(4);
         else if (path.equals("/api")) path = "/";
-        if (corsOrigin != null) applyCors(ex);     // rides every response written below
-        boolean spaceBound = false;
-        try {
-            // CORS preflight: answer before route matching (no token, no body).
-            if (corsOrigin != null && "OPTIONS".equals(method)) {
-                ex.sendResponseHeaders(204, -1);
+        setPath(ex, path);
+        next.proceed(ex);
+    }
+
+    /** Idempotency-Key (W5): a keyed write whose response is already cached replays it verbatim, skipping the
+     *  handler — so a retried trigger/create does not run twice. Keyed on the raw request path so /api/v1 and
+     *  legacy surfaces don't share entries. A miss marks the exchange so ApiContext.respondJson captures the
+     *  first response. */
+    private void idempotency(HttpExchange ex, Chain next) throws Exception {
+        String method = ex.getRequestMethod();
+        String idemKey = Idempotency.keyFor(ex, method, ex.getRequestURI().getPath());
+        if (idemKey != null) {
+            Idempotency.Entry hit = idempotency.get(idemKey);
+            if (hit != null) {
+                Idempotency.replay(ex, hit);
+                AuditTrail.record(ex, method, path(ex), hit.status());
                 return;
             }
-            // Idempotency-Key (W5): a keyed write whose response is already cached replays it verbatim,
-            // skipping the handler entirely — so a retried trigger/create does not run twice. Keyed on the
-            // raw request path so /api/v1 and legacy surfaces don't share entries. A miss marks the exchange
-            // so ApiContext.respondJson captures the first response.
-            String idemKey = Idempotency.keyFor(ex, method, ex.getRequestURI().getPath());
-            if (idemKey != null) {
-                Idempotency.Entry hit = idempotency.get(idemKey);
-                if (hit != null) {
-                    Idempotency.replay(ex, hit);
-                    AuditTrail.record(ex, method, path, hit.status());
-                    return;
-                }
-                ex.setAttribute(ApiContext.ATTR_IDEMPOTENCY_STORE, idempotency);
-                ex.setAttribute(ApiContext.ATTR_IDEMPOTENCY_KEY, idemKey);
-            }
-            // Per-space request seam: a "/spaces/{id}/<rest>" path binds this request to that space and is then
-            // matched as "/<rest>" against the unchanged route table — so RouteModules never see the prefix. An
-            // unknown id is a 404. The bound space is carried on the SLF4J MDC (the same per-space routing key the
-            // engine singletons read — Stage 3a), so service()/writeRoot() and every space-scoped singleton resolve
-            // to it for the life of this request only. "default" sets no MDC (the fallback namespace everywhere),
-            // keeping single-space output byte-identical. /health, /ready, /metrics and /spaces CRUD stay un-prefixed.
-            Matcher sp = SPACE_PREFIX.matcher(path);
+            ex.setAttribute(ApiContext.ATTR_IDEMPOTENCY_STORE, idempotency);
+            ex.setAttribute(ApiContext.ATTR_IDEMPOTENCY_KEY, idemKey);
+        }
+        next.proceed(ex);
+    }
+
+    /** Per-space request seam: a "/spaces/{id}/<rest>" path binds this request to that space and is then
+     *  matched as "/<rest>" against the unchanged route table — so RouteModules never see the prefix. An
+     *  unknown id is a 404. The bound space is carried on the SLF4J MDC (the same per-space routing key the
+     *  engine singletons read — Stage 3a), so service()/writeRoot() and every space-scoped singleton resolve
+     *  to it for the life of this request only. "default" sets no MDC (the fallback namespace everywhere),
+     *  keeping single-space output byte-identical. /health, /ready, /metrics and /spaces CRUD stay un-prefixed. */
+    private void bindSpace(HttpExchange ex, Chain next) throws Exception {
+        String path = path(ex);
+        Matcher sp = SPACE_PREFIX.matcher(path);
+        boolean spaceBound = false;
+        try {
             if (sp.matches()) {
                 String id = sp.group(1);
                 if (spaces.space(SpaceId.of(id)).isEmpty()) {
                     respond(ex, 404, Map.of("error", "no such space '" + id + "'"));
                     return;
                 }
-                path = sp.group(2);
+                setPath(ex, sp.group(2));
                 if (!EventLog.DEFAULT_SPACE_ID.equals(id)) {
                     MDC.put(EventLog.SPACE_MDC_KEY, id);
                     spaceBound = true;
                 }
             }
-            boolean pathMatched = false;
-            for (Route r : routes) {
-                Matcher m = r.pattern.matcher(path);
-                if (!m.matches()) continue;
-                pathMatched = true;
-                if (!r.method.equals(method)) continue;
-                // API-5 sunset: a business route reached on the unversioned legacy surface either gets the
-                // deprecation signalling headers (default) or, once the deployment flips
-                // -Dapi.legacy.routes=off after its soak, a 410 pointing at /api/v1. The usage metric keeps
-                // counting either way, so residual demand stays visible through the off-window.
-                boolean legacySurface = !ApiContext.v1(ex) && !isInfraRoute(path);
-                if (legacySurface && legacyRoutesOff) {
-                    recordLegacyUsage(ex, method, path, r);
-                    if (!"GET".equals(method)) AuditTrail.accessDenied(ex, method, path, 410);
-                    respond(ex, 410, Map.of("error",
-                            "the unversioned legacy API surface is retired here (api.legacy.routes=off) — use /api/v1"));
-                    return;
-                }
-                if (legacySurface) markDeprecated(ex);
-                authenticate(ex, path);
-                Object result = r.handler.handle(ex, m);
-                if (result != HANDLED) respond(ex, 200, result);
-                AuditTrail.record(ex, method, path, 200);   // audit successful state-changing requests
-                recordLegacyUsage(ex, method, path, r);     // W7 sunset signal (non-v1 calls to versioned routes)
+            next.proceed(ex);
+        } finally {
+            if (spaceBound) MDC.remove(EventLog.SPACE_MDC_KEY);
+        }
+    }
+
+    /** Terminal stage: match the resolved path against the route table (applying the API-5 legacy-surface
+     *  sunset + deprecation signalling and the auth gate), fall back to an SPA asset for an unmatched GET,
+     *  else answer 404/405. */
+    private void routeDispatch(HttpExchange ex) throws Exception {
+        String method = ex.getRequestMethod();
+        String path = path(ex);
+        boolean pathMatched = false;
+        for (Route r : routes) {
+            Matcher m = r.pattern.matcher(path);
+            if (!m.matches()) continue;
+            pathMatched = true;
+            if (!r.method.equals(method)) continue;
+            // API-5 sunset: a business route reached on the unversioned legacy surface either gets the
+            // deprecation signalling headers (default) or, once the deployment flips -Dapi.legacy.routes=off
+            // after its soak, a 410 pointing at /api/v1. The usage metric keeps counting either way, so
+            // residual demand stays visible through the off-window.
+            boolean legacySurface = !ApiContext.v1(ex) && !isInfraRoute(path);
+            if (legacySurface && legacyRoutesOff) {
+                recordLegacyUsage(ex, method, path, r);
+                if (!"GET".equals(method)) AuditTrail.accessDenied(ex, method, path, 410);
+                respond(ex, 410, Map.of("error",
+                        "the unversioned legacy API surface is retired here (api.legacy.routes=off) — use /api/v1"));
                 return;
             }
-            // No API route matched the path: a GET may be an SPA asset / deep link (PUBLIC).
-            if (!pathMatched && "GET".equals(method) && serveStatic(ex, path)) return;
-            int status = pathMatched ? 405 : 404;
-            // A non-GET attempt at a forbidden/unknown route (or a disallowed method on a read-only
-            // route — the append-only immutability guard) is the auth-free analogue of a 401/403.
-            if (!"GET".equals(method)) AuditTrail.accessDenied(ex, method, path, status);
-            respond(ex, status, Map.of("error", pathMatched ? "method not allowed" : "not found"));
-        } catch (ApiException ae) {
-            if (ae.errorCode != null) ex.setAttribute(ApiContext.ATTR_ERROR_CODE, ae.errorCode);
-            respond(ex, ae.status, Map.of("error", ae.getMessage()));
-        } catch (Exception e) {
-            log.error("{} {} failed", method, path, e);
-            respond(ex, 500, Map.of("error", String.valueOf(e.getMessage())));
-        } finally {
-            MDC.remove("correlationId");
-            if (spaceBound) MDC.remove(EventLog.SPACE_MDC_KEY);
-            ex.close();
+            if (legacySurface) markDeprecated(ex);
+            authenticate(ex, path);
+            Object result = r.handler.handle(ex, m);
+            if (result != HANDLED) respond(ex, 200, result);
+            AuditTrail.record(ex, method, path, 200);   // audit successful state-changing requests
+            recordLegacyUsage(ex, method, path, r);     // W7 sunset signal (non-v1 calls to versioned routes)
+            return;
         }
+        // No API route matched the path: a GET may be an SPA asset / deep link (PUBLIC).
+        if (!pathMatched && "GET".equals(method) && serveStatic(ex, path)) return;
+        int status = pathMatched ? 405 : 404;
+        // A non-GET attempt at a forbidden/unknown route (or a disallowed method on a read-only route —
+        // the append-only immutability guard) is the auth-free analogue of a 401/403.
+        if (!"GET".equals(method)) AuditTrail.accessDenied(ex, method, path, status);
+        respond(ex, status, Map.of("error", pathMatched ? "method not allowed" : "not found"));
     }
 
     /** AuthN gate (W6): a no-op when no {@link Authenticator} is on the classpath (Personal edition —
