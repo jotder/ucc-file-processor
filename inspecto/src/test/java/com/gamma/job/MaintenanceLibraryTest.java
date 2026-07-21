@@ -302,7 +302,7 @@ class MaintenanceLibraryTest {
         JobConfig orphanSig = new JobConfig("listens", JobType.MAINTENANCE, null, null, true, false,
                 Map.of("task", "heartbeat"), "custom.signal.type", null);
         JobConfig auditJob  = new JobConfig("hygiene", JobType.MAINTENANCE, null, null, true, false, Map.of("task", "scheduler_audit"));
-        try (com.gamma.service.Scheduler s = new com.gamma.service.Scheduler();
+        try (com.gamma.util.Scheduler s = new com.gamma.util.Scheduler();
              JobService js = new JobService(List.of(disabled, twinA, twinB, orphanPipe, orphanSig, auditJob),
                      new com.gamma.etl.BatchEventBus(), s, null, audit.toString())) {
             js.knownPipelines(() -> java.util.Set.of("real_pipeline"));
@@ -327,7 +327,7 @@ class MaintenanceLibraryTest {
         JobConfig listener = new JobConfig("chained", JobType.MAINTENANCE, null, null, true, false,
                 Map.of("task", "heartbeat"), "job.run.completed", null);   // a declared framework producer
         JobConfig auditJob = new JobConfig("hygiene", JobType.MAINTENANCE, null, null, true, false, Map.of("task", "scheduler_audit"));
-        try (com.gamma.service.Scheduler s = new com.gamma.service.Scheduler();
+        try (com.gamma.util.Scheduler s = new com.gamma.util.Scheduler();
              JobService js = new JobService(List.of(ok, listener, auditJob),
                      new com.gamma.etl.BatchEventBus(), s, null, audit.toString())) {
             js.knownPipelines(() -> java.util.Set.of());
@@ -537,7 +537,7 @@ class MaintenanceLibraryTest {
     void dbMaintenanceCoversTheHostsProjectionStores(@TempDir Path audit) throws Exception {
         DuckDbUtil.loadDriver();
         try (DbJobRunStore runStore = DbJobRunStore.open("jdbc:duckdb:");
-             com.gamma.service.Scheduler s = new com.gamma.service.Scheduler();
+             com.gamma.util.Scheduler s = new com.gamma.util.Scheduler();
              JobService js = new JobService(List.of(), new com.gamma.etl.BatchEventBus(), s, null,
                      audit.toString(), runStore)) {
             JobResult r = new MaintenanceJob(job(Map.of("task", "db_maintenance")),

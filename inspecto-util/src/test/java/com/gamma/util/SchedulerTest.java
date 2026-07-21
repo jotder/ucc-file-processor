@@ -1,6 +1,4 @@
-package com.gamma.service;
-
-import com.gamma.util.CronExpression;
+package com.gamma.util;
 
 import org.junit.jupiter.api.Test;
 

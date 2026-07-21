@@ -12,7 +12,7 @@ import com.gamma.event.EventType;
 import com.gamma.metrics.MetricRegistry;
 import com.gamma.report.ReportService;
 import com.gamma.etl.BatchEventBus;
-import com.gamma.service.Scheduler;
+import com.gamma.util.Scheduler;
 import com.gamma.util.CronExpression;
 import com.gamma.signal.Ref;
 import com.gamma.signal.Severity;

@@ -9,6 +9,7 @@ import com.gamma.etl.BatchEventBus;
 import com.gamma.etl.PipelineConfigBatchTest;
 import com.gamma.etl.TestConfigs;
 import com.gamma.util.DuckDbUtil;
+import com.gamma.util.Scheduler;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 

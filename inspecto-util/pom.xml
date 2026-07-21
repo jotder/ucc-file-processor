@@ -88,6 +88,13 @@
             <artifactId>gson</artifactId>
         </dependency>
 
+        <!-- slf4j-api — logging facade used by Scheduler (version managed by the parent; shared
+             with the core, which supplies the logback binding). -->
+        <dependency>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-api</artifactId>
+        </dependency>
+
         <!-- JUnit 5 — unit tests (version managed by the parent, M1). -->
         <dependency>
             <groupId>org.junit.jupiter</groupId>

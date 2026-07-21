@@ -11,6 +11,7 @@ import com.gamma.etl.PartitionOutput;
 import com.gamma.etl.PipelineConfig;
 import com.gamma.metrics.MetricRegistry;
 import com.gamma.util.LockingRunner;
+import com.gamma.util.Scheduler;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

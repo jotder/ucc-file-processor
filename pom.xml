@@ -114,6 +114,9 @@
         <univocity.version>2.9.1</univocity.version>
         <commons-compress.version>1.28.0</commons-compress.version>
         <gson.version>2.11.0</gson.version>
+        <!-- slf4j-api facade: core (with its logback binding) + fp-util (Scheduler logging, since the
+             WS-D Scheduler relocation). Pinned to what logback 1.5.x compiles against. -->
+        <slf4j.version>2.0.17</slf4j.version>
         <!-- Pinned to what commons-compress 1.28.0 needs (tar-with-username uses lang3 ArrayFill,
              added in 3.14). fp-util must declare it directly: opencsv 5.9 drags in an older
              transitive 3.13.0 that would otherwise win Maven's same-depth resolution and break the
@@ -188,6 +191,12 @@
                 <groupId>org.apache.commons</groupId>
                 <artifactId>commons-lang3</artifactId>
                 <version>${commons-lang3.version}</version>
+            </dependency>
+            <!-- slf4j-api facade (core + fp-util since the WS-D Scheduler move). -->
+            <dependency>
+                <groupId>org.slf4j</groupId>
+                <artifactId>slf4j-api</artifactId>
+                <version>${slf4j.version}</version>
             </dependency>
             <dependency>
                 <groupId>org.junit.jupiter</groupId>

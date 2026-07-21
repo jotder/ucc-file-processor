@@ -82,12 +82,11 @@
         <!-- Logging — logback-classic is the SLF4J binding (replaced slf4j-simple at 4.2.0 so the
              Operational-Intelligence event engine can auto-capture INFO+ log records via a custom
              appender; slf4j-simple has no appender SPI). Console output is preserved by logback's
-             ConsoleAppender (see src/main/resources/logback.xml). slf4j-api is pinned to the version
-             logback 1.5.x compiles against. -->
+             ConsoleAppender (see src/main/resources/logback.xml). slf4j-api's version is parent-managed
+             (${slf4j.version}, pinned to what logback 1.5.x compiles against) since the WS-D Scheduler move. -->
         <dependency>
             <groupId>org.slf4j</groupId>
             <artifactId>slf4j-api</artifactId>
-            <version>2.0.17</version>
         </dependency>
         <dependency>
             <groupId>ch.qos.logback</groupId>

@@ -94,8 +94,17 @@ god-object's fan-in ahead of the cluster splits):**
   (`DbStatusStore`/`FileStatusStore`) stay in `service`.
 - ✅ `BatchEventBus` `service` → `etl` (beside `etl.BatchEvent`, its payload type): fan-in reduction,
   not a full cycle break. ~18 files repointed; the trigger bus now sits with its payload in `etl` and
-  the `service` package no longer owns it. **This drains the §1.7 cycle-breaking prep** — no further
-  useful relocations remain before the M2 decomposition.
+  the `service` package no longer owns it. **This drains the §1.7 cycle-breaking prep.**
+- ✅ `Scheduler` `service` → `util` (fp-util): depends only on `util.CronExpression`; not `@PublicApi`.
+  This removed one of the **two** real edges tying the engine cluster to the composition root (see the
+  superseding banner below).
+
+> ⚠️ **SUPERSEDED (2026-07-21).** The paragraph below concluded `etl`/`event` are gated on the **M2
+> `CollectorService` decomposition**. That was **wrong** — it counted javadoc `{@link}` references as
+> compile edges. Ground truth: `etl → service` has **zero** compile edges. The whole ~15-package engine
+> SCC is tied to the composition root by only **two `job` edges** (`job→service.Scheduler`, now
+> resolved, and `job→report.ReportService`, pending an inversion). M2 is maintainability-only, **not** a
+> split blocker. Full corrected analysis + plan: [`superpower/engine-cluster-extraction-plan.md`](../../../../superpower/engine-cluster-extraction-plan.md).
 
 **`event` and `etl` are NOT leaf-extractable — and the blocker is bigger than BACKLOG implied.** The
 original `import`-only recon undersold it; the **inline-aware** full package-edge map (playbook rule 5)
