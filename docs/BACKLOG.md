@@ -113,21 +113,11 @@ components split), ~~S3~~ (chart/grid consolidation), ~~S4~~ (PipelineScheduler 
 `aa87b2c3`) · ~~C5~~ was already shipped (`defb1281`, stale row) · ~~C7~~ `PipelineNodeType` documented
 as a reserved ServiceLoader seam (`1ec510d9`).
 
-**OPEN — reactor-split tail (WS-D; reactor now 9 modules). Progress 2026-07-21:**
-- ✅ **`fp-util`** (`b6758466`) + **`fp-sql`** (`a71829c0`) leaf modules extracted — the only two
-  genuinely leaf-extractable packages (each depends only on already-extracted modules).
-- ✅ **§1.7 cycle-breaking (DONE):** `CronExpression`→`util`, `StatusStore`→`etl` (`c681231f`) —
-  `StatusStore` was `catalog`'s only `service` edge, so this **broke the `service↔catalog` cycle**;
-  then `BatchEventBus`→`etl` (beside its `BatchEvent` payload) — fan-in reduction, ~18 files. **No
-  further useful §1.7 relocations remain** before M2.
-- ❌ **`etl` / `event` are NOT leaf-extractable** (inline-aware recon): they point *up* into
-  `service`/`inspector`/`pipeline`/`alert`/`signal`. Getting them below core (and then **`fp-acquire`**,
-  S5 ③) is gated on the **M2 `SourceService`/`CollectorService` decomposition** (the flagged
-  deadlock-hazard refactor), then the C1 cluster split (fp-core-etl / fp-catalog / fp-ops / fp-control /
-  fp-host). NOTE: the `ops↔ops.link/workflow` and `catalog↔catalog.spi` §1.7 cycles are **intra-module-
-  family** (same target module) → **not reactor-split blockers**; skip. Playbook + full analysis:
-  `okf/backend/modules/reactor.md`. Trigger-gated: C2 store-pair generic base, C4 BOM, C6 DuckDB per-run
-  connection reuse (NEVER pool the `SqlSandbox` HTTP path).
+✅ **SHIPPED — reactor-split tail (WS-D; 2026-07-22, commits `ee3e618f..33fa51ca`):** Reactor now **9 modules**, engine cluster is **import-clean of composition root** (both job edges cut). Plan + full analysis: `docs/superpower/engine-cluster-extraction-plan.md` (in-flight; will distill to `okf/backend/modules/reactor.md` + move to archive when next phase ships). Historical context: the old roadmap assumed `etl`/`event` were gated on M2's `CollectorService` decomposition, but that was **wrong** (javadoc `{@link}` miscounted as compile edges). Real blockers were two edges from `job` — both now cut, cluster de-tangled from root.
+
+**Next phase: `fp-engine` extraction** (next shift). The cluster can now drop below core as a module. Lowest-risk approach: extract the whole cluster as one `fp-engine` first, optionally sub-divide per §2.3 (fp-core-etl / fp-ops / fp-catalog / fp-control / fp-host) later. **Critical:** verify empirically (import-clean ≠ build-clean) — watch transitive test-scope deps, `META-INF/services`, resource files, and the shaded-jar assembly. Then **`fp-acquire`** (S5 ③) falls out naturally once the cluster is below core.
+
+**Deferred by design:** M2 `SourceService`/`CollectorService` decomposition — maintainability-only, not a split blocker (the old premise was corrected). The intra-module `ops↔ops.link/workflow` and `catalog↔catalog.spi` cycles are same-family, not reactor-split blockers. Trigger-gated: C2 store-pair generic base, C4 BOM, C6 DuckDB per-run connection reuse.
 
 ## 6. Security-module scope (deferred wholesale — do not partially implement elsewhere)
 
