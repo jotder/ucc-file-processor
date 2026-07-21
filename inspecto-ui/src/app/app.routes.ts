@@ -108,6 +108,7 @@ export const appRoutes: Route[] = [
             { path: 'assist', loadChildren: () => import('app/modules/admin/assist/assist.routes') },
             { path: 'agent-chat', loadChildren: () => import('app/modules/admin/agent-chat/agent-chat.routes') },
             { path: 'approvals', loadChildren: () => import('app/modules/admin/approvals/approvals.routes') }, // AGT-5 P3 approvals inbox
+            { path: 'autonomy', loadChildren: () => import('app/modules/admin/autonomy/autonomy.routes') }, // AGT-5 P4 autonomy dashboard
             { path: 'notification-center', loadChildren: () => import('app/modules/admin/notification-center/notification-center.routes') },
             // Menu Builder: the authoring pane + the dynamic host every custom menu leaf links to (`/w/<nodeId>`).
             // Registered BEFORE the settings matcher so /settings/menus stays a standalone page.

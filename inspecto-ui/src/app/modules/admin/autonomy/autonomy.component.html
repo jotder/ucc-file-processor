@@ -1,0 +1,150 @@
+<div class="flex min-w-0 flex-auto flex-col p-6 md:p-8">
+    <!-- Header -->
+    <div class="flex items-center justify-between">
+        <div>
+            <h1 class="text-3xl font-extrabold leading-tight tracking-tight">Autonomy</h1>
+            <div class="text-secondary mt-1">
+                Bounded autonomy (L3): the agent may remediate seeded failures on its own, within limits you set
+                here. Each action class is off until you enable it; the kill switch halts everything at once.
+            </div>
+        </div>
+        <div class="flex items-center gap-3">
+            @if (loading) {
+                <mat-spinner diameter="24"></mat-spinner>
+            }
+            <button mat-icon-button (click)="load()" [disabled]="loading" aria-label="Refresh">
+                <mat-icon [svgIcon]="'heroicons_outline:arrow-path'"></mat-icon>
+            </button>
+        </div>
+    </div>
+
+    @if (unavailable) {
+        <div class="mt-6 rounded-lg border border-warn-200 bg-warn-50 p-4 text-secondary">
+            The autonomy policy is unavailable — the intelligence module may be absent or its L3 tier is not
+            configured. The controls below are disabled.
+        </div>
+    }
+
+    <!-- Kill switch -->
+    <div class="mt-6 flex items-center justify-between rounded-lg border border-gray-200 p-4 dark:border-gray-700">
+        <div>
+            <div class="text-lg font-semibold">Kill switch</div>
+            <div class="text-secondary text-sm">
+                @if (policy?.killSwitch) {
+                    <span class="font-medium text-warn-600">Engaged</span> — all autonomous actions are halted.
+                } @else {
+                    Disengaged — actions run per the modes below.
+                }
+                @if (policy?.updatedBy) {
+                    <span class="ml-1">Last changed by {{ policy?.updatedBy }}.</span>
+                }
+            </div>
+        </div>
+        <button
+            mat-flat-button
+            [color]="policy?.killSwitch ? 'primary' : 'warn'"
+            [disabled]="!canOperate || unavailable || !policy"
+            (click)="toggleKillSwitch()"
+        >
+            <mat-icon
+                class="icon-size-5"
+                [svgIcon]="policy?.killSwitch ? 'heroicons_outline:play' : 'heroicons_outline:stop'"
+            ></mat-icon>
+            <span class="ml-2">{{ policy?.killSwitch ? 'Disengage' : 'Engage kill switch' }}</span>
+        </button>
+    </div>
+
+    <!-- Per-class policy editor -->
+    <div class="mt-6 rounded-lg border border-gray-200 p-4 dark:border-gray-700">
+        <div class="flex items-center justify-between">
+            <div class="text-lg font-semibold">Action classes</div>
+            <button
+                mat-flat-button
+                color="primary"
+                [disabled]="!canOperate || unavailable || saving || !policy"
+                (click)="savePolicy()"
+            >
+                @if (saving) {
+                    <mat-spinner diameter="18"></mat-spinner>
+                } @else {
+                    <span>Save policy</span>
+                }
+            </button>
+        </div>
+        <div class="text-secondary mt-1 text-sm">
+            <b>Off</b>: never autonomous (falls back to the approvals inbox). <b>Shadow</b>: log what it
+            would do, but don't act. <b>Auto</b>: act within budget. Budgets are executions per rolling
+            window; 0 means no limit.
+        </div>
+
+        <div class="mt-4 overflow-x-auto">
+            <table class="w-full min-w-[640px] text-left text-sm">
+                <thead class="text-secondary border-b border-gray-200 dark:border-gray-700">
+                    <tr>
+                        <th class="py-2 pr-4 font-medium">Action class</th>
+                        <th class="py-2 pr-4 font-medium">Mode</th>
+                        <th class="py-2 pr-4 font-medium">Max / hour</th>
+                        <th class="py-2 pr-4 font-medium">Max / day</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @for (row of rows; track row.name) {
+                        <tr class="border-b border-gray-100 dark:border-gray-800">
+                            <td class="py-2 pr-4 font-mono">{{ row.name }}</td>
+                            <td class="py-2 pr-4">
+                                <select
+                                    class="rounded border border-gray-300 bg-transparent px-2 py-1 dark:border-gray-600"
+                                    [(ngModel)]="row.mode"
+                                    [disabled]="!canOperate || unavailable"
+                                    [attr.aria-label]="'Mode for ' + row.name"
+                                >
+                                    @for (m of modes; track m) {
+                                        <option [value]="m">{{ m }}</option>
+                                    }
+                                </select>
+                            </td>
+                            <td class="py-2 pr-4">
+                                <input
+                                    type="number"
+                                    min="0"
+                                    class="w-24 rounded border border-gray-300 bg-transparent px-2 py-1 dark:border-gray-600"
+                                    [(ngModel)]="row.maxPerHour"
+                                    [disabled]="!canOperate || unavailable"
+                                    [attr.aria-label]="'Max per hour for ' + row.name"
+                                />
+                            </td>
+                            <td class="py-2 pr-4">
+                                <input
+                                    type="number"
+                                    min="0"
+                                    class="w-24 rounded border border-gray-300 bg-transparent px-2 py-1 dark:border-gray-600"
+                                    [(ngModel)]="row.maxPerDay"
+                                    [disabled]="!canOperate || unavailable"
+                                    [attr.aria-label]="'Max per day for ' + row.name"
+                                />
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Action ledger -->
+    <div class="mt-6">
+        <div class="text-lg font-semibold">Recent actions</div>
+        <div class="text-secondary text-sm">What the agent did, why, and the outcome — including shadow and skipped decisions.</div>
+        <div class="mt-3 flex-auto">
+            <inspecto-data-table
+                tier="pro"
+                sourceName="agent-actions"
+                exportName="agent-actions"
+                [rows]="actions"
+                [columns]="columnDefs"
+                [loading]="loading"
+                noRowsTitle="No autonomous actions yet"
+                noRowsHint="When ops_monitor is enabled and an action class is set to Shadow or Auto, its decisions appear here."
+            />
+        </div>
+    </div>
+</div>

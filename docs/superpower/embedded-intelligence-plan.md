@@ -393,9 +393,19 @@ watches for a `pipeline.batch.failed` Signal and, gated by `AutonomyPolicyEngine
 off/killed/exhausted). Deduped per batch id; never chases `agent.*` self-telemetry. Every decision —
 executed, shadowed, or skipped — is written to an in-memory `AutonomyLog` of `ActionRecord`s (the
 dashboard feed) and surfaced via `GET /agent/actions[/{id}]` (SPI `recentAutonomousActions` /
-`autonomousActionById`, read-degrading). *Still open for P4:* the autonomy **Dashboard** UI (slice 3);
-a second pilot class (alert triage); a periodic state-watch trigger (today event-driven only); and
-mid-plan runbook resume (carried from P3).
+`autonomousActionById`, read-degrading).
+
+*P4 slice 3 — autonomy Dashboard UI — SHIPPED 2026-07-21.* The operator surface in `inspecto-ui`
+(`modules/admin/autonomy/`, route `/autonomy`, nav leaf under Operations): a kill-switch card
+(engage/disengage, confirm-gated), a per-action-class editor (mode `OFF|SHADOW|AUTO` + hourly/daily
+budgets, saved as a full-policy `PUT`), and the action ledger (`GET /agent/actions`) rendering the
+what/why/spend of every autonomous decision. All editing is Ops-gated (`canOperateRuns`); reads
+degrade to a disabled "unavailable" state when the module/tier is absent. `AutonomyService` +
+barrel; Vitest specs (8) cover load, pilot-class surfacing, kill-switch confirm, Ops gating,
+policy save, and the unavailable degrade. **P4 complete** (exit met: policy-bounded autonomous
+remediation with budget enforcement, a live-proven hard-off switch, and the autonomy dashboard).
+*Deferred beyond P4-core:* a second pilot class (alert triage), a periodic state-watch trigger
+(today event-driven only), and mid-plan runbook resume (carried from P3) — all candidate P5/polish.
 
 **P5 — Learning.** Feedback capture → eval growth; case-similarity recall; per-skill tuning
 dashboards; embedding retrieval upgrade if warranted.

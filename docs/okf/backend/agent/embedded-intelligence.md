@@ -176,9 +176,9 @@ governed from an operator inbox UI. Five slices shipped (`a30049a`, `b5069c1`, `
 
 ## P4 — bounded autonomy (L3), in progress
 
-Autonomous (un-prompted) action, gated by an operator-set policy. **Slices 1–2 shipped 2026-07-21**
-(policy substrate + the `ops_monitor` loop with a first pilot action class); the autonomy dashboard UI
-and a second pilot class (alert triage) are the remaining slices.
+Autonomous (un-prompted) action, gated by an operator-set policy. **P4 complete 2026-07-21** (policy
+substrate + the `ops_monitor` loop with a first pilot action class + the autonomy dashboard UI). A
+second pilot class (alert triage) and a periodic state-watch trigger are deferred polish.
 
 - **Policy substrate (slice 1)** — package `com.gamma.intelligence.policy`. `AutonomyPolicy` is an
   immutable doc: a global `killSwitch` + a map of action-class → `ClassPolicy {mode, maxPerHour,
@@ -212,11 +212,19 @@ and a second pilot class (alert triage) are the remaining slices.
   (`ActionRecord`s), surfaced via `GET /agent/actions[/{id}]` (SPI `recentAutonomousActions` /
   `autonomousActionById`, read-degrading) — the dashboard's "what/why/spend" feed. The control plane's
   append-only `AuditTrail` remains the durable system of record; the ledger is a live view.
+- **Autonomy Dashboard (slice 3)** — the operator surface in `inspecto-ui` (`modules/admin/autonomy/`,
+  route `/autonomy`, Operations nav leaf). A kill-switch card (engage/disengage, confirm-gated), a
+  per-action-class editor (mode `OFF|SHADOW|AUTO` + hourly/daily budget inputs, persisted as a
+  full-policy `PUT`), and the action ledger over `GET /agent/actions` (what/why/spend, incl. shadow +
+  skipped rows). Pilot classes (`batch_rerun`) are always surfaced so they can be configured before
+  first use. All editing Ops-gated (`canOperateRuns`); degrades to a disabled "unavailable" state on a
+  policy 503. `AutonomyService` (`policy`/`updatePolicy`/`setKillSwitch`/`actions`) + barrel.
 - **Verified**: `AutonomyPolicyEngineTest` (10: mode/kill/budget precedence, daily-vs-hourly windows,
   durable reload, malformed-mode tolerance, concurrent-authorize-never-exceeds-cap), `OpsMonitorTest`
   (9: off/shadow/auto/fail paths, kill-switch override, budget exhaustion, end-to-end dedup over the
   bus, non-trigger/agent-signal ignore), `AgentRoutesTest` +7 (policy 503/GET/PUT/kill-switch/400 +
-  actions). Module 100→119.
+  actions); intelligence module 100→119. UI: `autonomy.component.spec.ts` (8) + `AutonomyService`;
+  `npm run test:ci` 276 files/1533 pass, `npm run build` clean.
 
 ## Gotchas / seams
 
