@@ -335,472 +335,219 @@
                 </button>
             </div>
 
-            @if (bottomOpen()) {
-                <div id="bottom-panel-body" class="max-h-[45vh] overflow-y-auto border-t px-3 py-3">
-                    @switch (bottomTab()) {
-                        <!-- ── Query ── -->
-                        @case ('query') {
-                            @if (queryOpen()) {
-                                <form [formGroup]="queryForm" (ngSubmit)="run()" class="flex flex-wrap items-start gap-3" aria-label="Graph query">
+            <!-- body: panes are `[hidden]`-gated (not `@if`/`@switch`) so the toolbox child keeps its
+                 result state across tab switches and panel collapse (angular-ui skill idiom). -->
+            <div id="bottom-panel-body" [hidden]="!bottomOpen()" class="max-h-[45vh] overflow-y-auto border-t px-3 py-3">
+                <!-- ── Query ── -->
+                <div [hidden]="bottomTab() !== 'query'">
+                    @if (queryOpen()) {
+                        <form [formGroup]="queryForm" (ngSubmit)="run()" class="flex flex-wrap items-start gap-3" aria-label="Graph query">
+                            <mat-form-field subscriptSizing="dynamic" class="w-56">
+                                <mat-label>Graph source</mat-label>
+                                <mat-icon matPrefix class="icon-size-5" svgIcon="heroicons_outline:circle-stack"></mat-icon>
+                                <mat-select [value]="sourceId()" (valueChange)="sourceId.set($event)" aria-label="Graph source">
+                                    @for (s of sources; track s.id) {
+                                        <mat-option [value]="s.id">{{ s.label }}</mat-option>
+                                    }
+                                </mat-select>
+                            </mat-form-field>
+
+                            @switch (sourceId()) {
+                                @case ('entity-projection') {
                                     <mat-form-field subscriptSizing="dynamic" class="w-56">
-                                        <mat-label>Graph source</mat-label>
-                                        <mat-icon matPrefix class="icon-size-5" svgIcon="heroicons_outline:circle-stack"></mat-icon>
-                                        <mat-select [value]="sourceId()" (valueChange)="sourceId.set($event)" aria-label="Graph source">
-                                            @for (s of sources; track s.id) {
-                                                <mat-option [value]="s.id">{{ s.label }}</mat-option>
+                                        <mat-label>Dataset</mat-label>
+                                        <mat-icon matPrefix class="icon-size-5" svgIcon="heroicons_outline:table-cells"></mat-icon>
+                                        <mat-select formControlName="datasetId">
+                                            @for (d of datasets(); track d.id) {
+                                                <mat-option [value]="d.id">{{ d.name }}</mat-option>
                                             }
                                         </mat-select>
                                     </mat-form-field>
+                                    <mat-form-field subscriptSizing="dynamic" class="w-56">
+                                        <mat-label>Source entity column</mat-label>
+                                        <mat-icon matPrefix class="icon-size-5" svgIcon="heroicons_outline:arrow-long-right"></mat-icon>
+                                        <mat-select formControlName="sourceCol">
+                                            @for (c of datasetColumns(); track c) {
+                                                <mat-option [value]="c">{{ c }}</mat-option>
+                                            }
+                                        </mat-select>
+                                    </mat-form-field>
+                                    <mat-form-field subscriptSizing="dynamic" class="w-56">
+                                        <mat-label>Target entity column</mat-label>
+                                        <mat-icon matPrefix class="icon-size-5" svgIcon="heroicons_outline:viewfinder-circle"></mat-icon>
+                                        <mat-select formControlName="targetCol">
+                                            @for (c of datasetColumns(); track c) {
+                                                <mat-option [value]="c">{{ c }}</mat-option>
+                                            }
+                                        </mat-select>
+                                    </mat-form-field>
+                                    <mat-form-field subscriptSizing="dynamic" class="w-56">
+                                        <mat-label>Link type column (optional)</mat-label>
+                                        <mat-icon matPrefix class="icon-size-5" svgIcon="heroicons_outline:hashtag"></mat-icon>
+                                        <mat-select formControlName="linkKindCol">
+                                            <mat-option value="">—</mat-option>
+                                            @for (c of datasetColumns(); track c) {
+                                                <mat-option [value]="c">{{ c }}</mat-option>
+                                            }
+                                        </mat-select>
+                                    </mat-form-field>
+                                    <mat-form-field subscriptSizing="dynamic" class="w-56">
+                                        <mat-label>Attribute columns (optional)</mat-label>
+                                        <mat-icon matPrefix class="icon-size-5" svgIcon="heroicons_outline:tag"></mat-icon>
+                                        <mat-select formControlName="attrCols" multiple>
+                                            @for (c of datasetColumns(); track c) {
+                                                <mat-option [value]="c">{{ c }}</mat-option>
+                                            }
+                                        </mat-select>
+                                    </mat-form-field>
+                                    @if (extraMappings.length) {
+                                        <mat-form-field subscriptSizing="dynamic" class="w-40">
+                                            <mat-label>Entity type</mat-label>
+                                            <mat-icon matPrefix class="icon-size-5" svgIcon="heroicons_outline:identification"></mat-icon>
+                                            <input matInput formControlName="entityType" placeholder="e.g. person" />
+                                        </mat-form-field>
+                                    }
 
-                                    @switch (sourceId()) {
-                                        @case ('entity-projection') {
-                                            <mat-form-field subscriptSizing="dynamic" class="w-56">
+                                    <!-- ── extra mappings (multi-entity/multi-dataset merge) ── -->
+                                    @for (m of extraMappings.controls; track $index; let i = $index) {
+                                        <div [formGroup]="m" class="flex w-full flex-wrap items-center gap-2 rounded-lg border p-2">
+                                            <mat-form-field subscriptSizing="dynamic" class="w-48">
                                                 <mat-label>Dataset</mat-label>
-                                                <mat-icon matPrefix class="icon-size-5" svgIcon="heroicons_outline:table-cells"></mat-icon>
                                                 <mat-select formControlName="datasetId">
                                                     @for (d of datasets(); track d.id) {
                                                         <mat-option [value]="d.id">{{ d.name }}</mat-option>
                                                     }
                                                 </mat-select>
                                             </mat-form-field>
-                                            <mat-form-field subscriptSizing="dynamic" class="w-56">
-                                                <mat-label>Source entity column</mat-label>
-                                                <mat-icon matPrefix class="icon-size-5" svgIcon="heroicons_outline:arrow-long-right"></mat-icon>
+                                            <mat-form-field subscriptSizing="dynamic" class="w-40">
+                                                <mat-label>Source column</mat-label>
                                                 <mat-select formControlName="sourceCol">
-                                                    @for (c of datasetColumns(); track c) {
+                                                    @for (c of extraMappingColumns()[i] ?? []; track c) {
                                                         <mat-option [value]="c">{{ c }}</mat-option>
                                                     }
                                                 </mat-select>
                                             </mat-form-field>
-                                            <mat-form-field subscriptSizing="dynamic" class="w-56">
-                                                <mat-label>Target entity column</mat-label>
-                                                <mat-icon matPrefix class="icon-size-5" svgIcon="heroicons_outline:viewfinder-circle"></mat-icon>
+                                            <mat-form-field subscriptSizing="dynamic" class="w-40">
+                                                <mat-label>Target column</mat-label>
                                                 <mat-select formControlName="targetCol">
-                                                    @for (c of datasetColumns(); track c) {
+                                                    @for (c of extraMappingColumns()[i] ?? []; track c) {
                                                         <mat-option [value]="c">{{ c }}</mat-option>
                                                     }
                                                 </mat-select>
                                             </mat-form-field>
-                                            <mat-form-field subscriptSizing="dynamic" class="w-56">
-                                                <mat-label>Link type column (optional)</mat-label>
-                                                <mat-icon matPrefix class="icon-size-5" svgIcon="heroicons_outline:hashtag"></mat-icon>
-                                                <mat-select formControlName="linkKindCol">
-                                                    <mat-option value="">—</mat-option>
-                                                    @for (c of datasetColumns(); track c) {
-                                                        <mat-option [value]="c">{{ c }}</mat-option>
-                                                    }
-                                                </mat-select>
+                                            <mat-form-field subscriptSizing="dynamic" class="w-40">
+                                                <mat-label>Entity type</mat-label>
+                                                <input matInput formControlName="entityType" placeholder="e.g. account" />
                                             </mat-form-field>
-                                            <mat-form-field subscriptSizing="dynamic" class="w-56">
-                                                <mat-label>Attribute columns (optional)</mat-label>
-                                                <mat-icon matPrefix class="icon-size-5" svgIcon="heroicons_outline:tag"></mat-icon>
-                                                <mat-select formControlName="attrCols" multiple>
-                                                    @for (c of datasetColumns(); track c) {
-                                                        <mat-option [value]="c">{{ c }}</mat-option>
-                                                    }
-                                                </mat-select>
-                                            </mat-form-field>
-                                            @if (extraMappings.length) {
-                                                <mat-form-field subscriptSizing="dynamic" class="w-40">
-                                                    <mat-label>Entity type</mat-label>
-                                                    <mat-icon matPrefix class="icon-size-5" svgIcon="heroicons_outline:identification"></mat-icon>
-                                                    <input matInput formControlName="entityType" placeholder="e.g. person" />
-                                                </mat-form-field>
-                                            }
-
-                                            <!-- ── extra mappings (multi-entity/multi-dataset merge) ── -->
-                                            @for (m of extraMappings.controls; track $index; let i = $index) {
-                                                <div [formGroup]="m" class="flex w-full flex-wrap items-center gap-2 rounded-lg border p-2">
-                                                    <mat-form-field subscriptSizing="dynamic" class="w-48">
-                                                        <mat-label>Dataset</mat-label>
-                                                        <mat-select formControlName="datasetId">
-                                                            @for (d of datasets(); track d.id) {
-                                                                <mat-option [value]="d.id">{{ d.name }}</mat-option>
-                                                            }
-                                                        </mat-select>
-                                                    </mat-form-field>
-                                                    <mat-form-field subscriptSizing="dynamic" class="w-40">
-                                                        <mat-label>Source column</mat-label>
-                                                        <mat-select formControlName="sourceCol">
-                                                            @for (c of extraMappingColumns()[i] ?? []; track c) {
-                                                                <mat-option [value]="c">{{ c }}</mat-option>
-                                                            }
-                                                        </mat-select>
-                                                    </mat-form-field>
-                                                    <mat-form-field subscriptSizing="dynamic" class="w-40">
-                                                        <mat-label>Target column</mat-label>
-                                                        <mat-select formControlName="targetCol">
-                                                            @for (c of extraMappingColumns()[i] ?? []; track c) {
-                                                                <mat-option [value]="c">{{ c }}</mat-option>
-                                                            }
-                                                        </mat-select>
-                                                    </mat-form-field>
-                                                    <mat-form-field subscriptSizing="dynamic" class="w-40">
-                                                        <mat-label>Entity type</mat-label>
-                                                        <input matInput formControlName="entityType" placeholder="e.g. account" />
-                                                    </mat-form-field>
-                                                    <button mat-icon-button type="button" (click)="removeMapping(i)" [attr.aria-label]="'Remove mapping ' + (i + 2)">
-                                                        <mat-icon svgIcon="heroicons_outline:x-mark"></mat-icon>
-                                                    </button>
-                                                </div>
-                                            }
-                                            <button mat-stroked-button type="button" (click)="addMapping()">
-                                                <mat-icon svgIcon="heroicons_outline:plus"></mat-icon>
-                                                Add another mapping
+                                            <button mat-icon-button type="button" (click)="removeMapping(i)" [attr.aria-label]="'Remove mapping ' + (i + 2)">
+                                                <mat-icon svgIcon="heroicons_outline:x-mark"></mat-icon>
                                             </button>
-                                        }
-                                        @case ('lineage') {
-                                            <mat-form-field subscriptSizing="dynamic" class="w-56">
-                                                <mat-label>Root node (optional)</mat-label>
-                                                <mat-icon matPrefix class="icon-size-5" svgIcon="heroicons_outline:viewfinder-circle"></mat-icon>
-                                                <input matInput formControlName="from" placeholder="e.g. table:cdr" />
-                                            </mat-form-field>
-                                            <mat-form-field subscriptSizing="dynamic" class="w-56">
-                                                <mat-label>Depth</mat-label>
-                                                <mat-icon matPrefix class="icon-size-5" svgIcon="heroicons_outline:hashtag"></mat-icon>
-                                                <input matInput type="number" min="1" max="10" formControlName="depth" />
-                                            </mat-form-field>
-                                            <mat-form-field subscriptSizing="dynamic" class="w-56">
-                                                <mat-label>Direction</mat-label>
-                                                <mat-icon matPrefix class="icon-size-5" svgIcon="heroicons_outline:arrows-right-left"></mat-icon>
-                                                <mat-select formControlName="direction">
-                                                    <mat-option value="both">Both</mat-option>
-                                                    <mat-option value="out">Downstream</mat-option>
-                                                    <mat-option value="in">Upstream</mat-option>
-                                                </mat-select>
-                                            </mat-form-field>
-                                            <mat-form-field subscriptSizing="dynamic" class="w-56">
-                                                <mat-label>Extra roots (optional, comma-separated)</mat-label>
-                                                <mat-icon matPrefix class="icon-size-5" svgIcon="heroicons_outline:plus"></mat-icon>
-                                                <input matInput formControlName="extraRoots" placeholder="e.g. table:orders, table:invoices" />
-                                            </mat-form-field>
-                                        }
-                                        @case ('provenance') {
-                                            <mat-form-field subscriptSizing="dynamic" class="w-56">
-                                                <mat-label>Pipeline</mat-label>
-                                                <mat-icon matPrefix class="icon-size-5" svgIcon="heroicons_outline:queue-list"></mat-icon>
-                                                <mat-select formControlName="pipeline">
-                                                    @for (p of pipelines(); track p.name) {
-                                                        <mat-option [value]="p.name">{{ p.name }}</mat-option>
-                                                    }
-                                                </mat-select>
-                                            </mat-form-field>
-                                            <mat-form-field subscriptSizing="dynamic" class="w-56">
-                                                <mat-label>Extra pipelines (optional)</mat-label>
-                                                <mat-icon matPrefix class="icon-size-5" svgIcon="heroicons_outline:plus"></mat-icon>
-                                                <mat-select formControlName="extraPipelines" multiple>
-                                                    @for (p of pipelines(); track p.name) {
-                                                        <mat-option [value]="p.name">{{ p.name }}</mat-option>
-                                                    }
-                                                </mat-select>
-                                            </mat-form-field>
-                                            <mat-checkbox formControlName="counts" class="self-center">Weight edges by last run's record counts</mat-checkbox>
-                                        }
-                                        @default {
-                                            <p class="text-secondary self-center text-sm">Graphs every registered component and its references.</p>
-                                        }
-                                    }
-
-                                    <button mat-flat-button color="primary" type="submit" [disabled]="loading()" class="self-center">
-                                        <mat-icon svgIcon="heroicons_outline:play"></mat-icon>
-                                        Run query
-                                    </button>
-                                </form>
-                            } @else {
-                                <div class="flex flex-wrap items-center gap-x-6 gap-y-2" aria-label="Active query summary">
-                                    <div class="flex items-center gap-2 text-sm">
-                                        <mat-icon class="icon-size-4" svgIcon="heroicons_outline:circle-stack"></mat-icon>
-                                        <span class="text-secondary">Source</span>
-                                        <span class="font-medium">{{ sourceLabel() }}</span>
-                                    </div>
-                                    @for (item of querySummary(); track item.label) {
-                                        <div class="flex items-center gap-2 text-sm">
-                                            <mat-icon class="icon-size-4" [svgIcon]="item.icon"></mat-icon>
-                                            <span class="text-secondary">{{ item.label }}</span>
-                                            <span class="font-medium">{{ item.value }}</span>
                                         </div>
                                     }
-                                    <button mat-stroked-button (click)="editQuery()">
-                                        <mat-icon svgIcon="heroicons_outline:pencil-square"></mat-icon>
-                                        Edit
+                                    <button mat-stroked-button type="button" (click)="addMapping()">
+                                        <mat-icon svgIcon="heroicons_outline:plus"></mat-icon>
+                                        Add another mapping
                                     </button>
-                                    <button mat-stroked-button (click)="run()" [disabled]="loading()">
-                                        <mat-icon svgIcon="heroicons_outline:arrow-path"></mat-icon>
-                                        Re-run
-                                    </button>
+                                }
+                                @case ('lineage') {
+                                    <mat-form-field subscriptSizing="dynamic" class="w-56">
+                                        <mat-label>Root node (optional)</mat-label>
+                                        <mat-icon matPrefix class="icon-size-5" svgIcon="heroicons_outline:viewfinder-circle"></mat-icon>
+                                        <input matInput formControlName="from" placeholder="e.g. table:cdr" />
+                                    </mat-form-field>
+                                    <mat-form-field subscriptSizing="dynamic" class="w-56">
+                                        <mat-label>Depth</mat-label>
+                                        <mat-icon matPrefix class="icon-size-5" svgIcon="heroicons_outline:hashtag"></mat-icon>
+                                        <input matInput type="number" min="1" max="10" formControlName="depth" />
+                                    </mat-form-field>
+                                    <mat-form-field subscriptSizing="dynamic" class="w-56">
+                                        <mat-label>Direction</mat-label>
+                                        <mat-icon matPrefix class="icon-size-5" svgIcon="heroicons_outline:arrows-right-left"></mat-icon>
+                                        <mat-select formControlName="direction">
+                                            <mat-option value="both">Both</mat-option>
+                                            <mat-option value="out">Downstream</mat-option>
+                                            <mat-option value="in">Upstream</mat-option>
+                                        </mat-select>
+                                    </mat-form-field>
+                                    <mat-form-field subscriptSizing="dynamic" class="w-56">
+                                        <mat-label>Extra roots (optional, comma-separated)</mat-label>
+                                        <mat-icon matPrefix class="icon-size-5" svgIcon="heroicons_outline:plus"></mat-icon>
+                                        <input matInput formControlName="extraRoots" placeholder="e.g. table:orders, table:invoices" />
+                                    </mat-form-field>
+                                }
+                                @case ('provenance') {
+                                    <mat-form-field subscriptSizing="dynamic" class="w-56">
+                                        <mat-label>Pipeline</mat-label>
+                                        <mat-icon matPrefix class="icon-size-5" svgIcon="heroicons_outline:queue-list"></mat-icon>
+                                        <mat-select formControlName="pipeline">
+                                            @for (p of pipelines(); track p.name) {
+                                                <mat-option [value]="p.name">{{ p.name }}</mat-option>
+                                            }
+                                        </mat-select>
+                                    </mat-form-field>
+                                    <mat-form-field subscriptSizing="dynamic" class="w-56">
+                                        <mat-label>Extra pipelines (optional)</mat-label>
+                                        <mat-icon matPrefix class="icon-size-5" svgIcon="heroicons_outline:plus"></mat-icon>
+                                        <mat-select formControlName="extraPipelines" multiple>
+                                            @for (p of pipelines(); track p.name) {
+                                                <mat-option [value]="p.name">{{ p.name }}</mat-option>
+                                            }
+                                        </mat-select>
+                                    </mat-form-field>
+                                    <mat-checkbox formControlName="counts" class="self-center">Weight edges by last run's record counts</mat-checkbox>
+                                }
+                                @default {
+                                    <p class="text-secondary self-center text-sm">Graphs every registered component and its references.</p>
+                                }
+                            }
+
+                            <button mat-flat-button color="primary" type="submit" [disabled]="loading()" class="self-center">
+                                <mat-icon svgIcon="heroicons_outline:play"></mat-icon>
+                                Run query
+                            </button>
+                        </form>
+                    } @else {
+                        <div class="flex flex-wrap items-center gap-x-6 gap-y-2" aria-label="Active query summary">
+                            <div class="flex items-center gap-2 text-sm">
+                                <mat-icon class="icon-size-4" svgIcon="heroicons_outline:circle-stack"></mat-icon>
+                                <span class="text-secondary">Source</span>
+                                <span class="font-medium">{{ sourceLabel() }}</span>
+                            </div>
+                            @for (item of querySummary(); track item.label) {
+                                <div class="flex items-center gap-2 text-sm">
+                                    <mat-icon class="icon-size-4" [svgIcon]="item.icon"></mat-icon>
+                                    <span class="text-secondary">{{ item.label }}</span>
+                                    <span class="font-medium">{{ item.value }}</span>
                                 </div>
                             }
-                        }
-
-                        <!-- ── Analysis (the graph-algorithms toolbox) ── -->
-                        @case ('analysis') {
-                            @if (analysisError()) {
-                                <inspecto-alert variant="warning" title="Analysis">{{ analysisError() }}</inspecto-alert>
-                            }
-                            <div class="flex flex-col gap-2">
-                                @for (t of tools; track t.id) {
-                                    <section class="rounded-lg border">
-                                        <button type="button" class="flex w-full items-center gap-2 p-3 text-left"
-                                                (click)="toggleTool(t.id)" [attr.aria-expanded]="tab() === t.id" [attr.aria-controls]="'tool-' + t.id">
-                                            <mat-icon class="icon-size-5" [svgIcon]="t.icon"></mat-icon>
-                                            <span class="font-medium">{{ t.label }}</span>
-                                            @if (toolBadge(t.id); as badge) {
-                                                <span class="truncate rounded-full border px-2 py-0.5 text-xs">{{ badge }}</span>
-                                            }
-                                            <mat-icon class="icon-size-4 ml-auto shrink-0"
-                                                      [svgIcon]="tab() === t.id ? 'heroicons_outline:chevron-up' : 'heroicons_outline:chevron-down'"></mat-icon>
-                                        </button>
-
-                                        @if (tab() === t.id) {
-                                            <div [id]="'tool-' + t.id" class="flex flex-col gap-2 p-3 pt-0">
-                                                @switch (t.id) {
-                                                    @case ('path') {
-                                                        <div class="flex flex-wrap items-center gap-2">
-                                                            <mat-form-field subscriptSizing="dynamic" class="w-56">
-                                                                <mat-label>From</mat-label>
-                                                                <mat-select [value]="pathFrom()" (valueChange)="pathFrom.set($event)">
-                                                                    @for (n of nodeOptions(); track n.id) {
-                                                                        <mat-option [value]="n.id">{{ n.label }}</mat-option>
-                                                                    }
-                                                                </mat-select>
-                                                            </mat-form-field>
-                                                            <mat-form-field subscriptSizing="dynamic" class="w-56">
-                                                                <mat-label>To</mat-label>
-                                                                <mat-select [value]="pathTo()" (valueChange)="pathTo.set($event)">
-                                                                    @for (n of nodeOptions(); track n.id) {
-                                                                        <mat-option [value]="n.id">{{ n.label }}</mat-option>
-                                                                    }
-                                                                </mat-select>
-                                                            </mat-form-field>
-                                                            <button mat-stroked-button (click)="runPath()" [disabled]="!pathFrom() || !pathTo()">
-                                                                <mat-icon svgIcon="heroicons_outline:arrows-right-left"></mat-icon>
-                                                                Find shortest path
-                                                            </button>
-                                                        </div>
-                                                        @if (pathResult(); as p) {
-                                                            <ol class="mt-1 list-inside list-decimal text-sm" aria-label="Path hops">
-                                                                @for (hop of p.hops; track hop) {
-                                                                    <li>
-                                                                        <button class="underline-offset-2 hover:underline" (click)="focusNode(hop)">{{ labelOf(hop) }}</button>
-                                                                    </li>
-                                                                }
-                                                            </ol>
-                                                        }
-                                                    }
-                                                    @case ('all-paths') {
-                                                        <div class="flex flex-wrap items-center gap-2">
-                                                            <mat-form-field subscriptSizing="dynamic" class="w-56">
-                                                                <mat-label>From</mat-label>
-                                                                <mat-select [value]="pathFrom()" (valueChange)="pathFrom.set($event)">
-                                                                    @for (n of nodeOptions(); track n.id) {
-                                                                        <mat-option [value]="n.id">{{ n.label }}</mat-option>
-                                                                    }
-                                                                </mat-select>
-                                                            </mat-form-field>
-                                                            <mat-form-field subscriptSizing="dynamic" class="w-56">
-                                                                <mat-label>To</mat-label>
-                                                                <mat-select [value]="pathTo()" (valueChange)="pathTo.set($event)">
-                                                                    @for (n of nodeOptions(); track n.id) {
-                                                                        <mat-option [value]="n.id">{{ n.label }}</mat-option>
-                                                                    }
-                                                                </mat-select>
-                                                            </mat-form-field>
-                                                            <button mat-stroked-button (click)="runAllPaths()" [disabled]="!pathFrom() || !pathTo()">
-                                                                <mat-icon svgIcon="heroicons_outline:share"></mat-icon>
-                                                                Find all paths
-                                                            </button>
-                                                        </div>
-                                                        @if (allPathsResult().length) {
-                                                            <ul class="mt-1 flex flex-col gap-1 text-sm" aria-label="All paths">
-                                                                @for (p of allPathsResult(); track $index) {
-                                                                    <li>
-                                                                        <button class="underline-offset-2 hover:underline" (click)="focusAllPath(p)">{{ patternMatchLabel(p) }}</button>
-                                                                    </li>
-                                                                }
-                                                            </ul>
-                                                        }
-                                                    }
-                                                    @case ('explain') {
-                                                        <div class="flex flex-wrap items-center gap-2">
-                                                            <mat-form-field subscriptSizing="dynamic" class="w-56">
-                                                                <mat-label>Node</mat-label>
-                                                                <mat-select [value]="explainFor()" (valueChange)="explainFor.set($event)">
-                                                                    @for (n of nodeOptions(); track n.id) {
-                                                                        <mat-option [value]="n.id">{{ n.label }}</mat-option>
-                                                                    }
-                                                                </mat-select>
-                                                            </mat-form-field>
-                                                            <mat-form-field subscriptSizing="dynamic" class="w-28">
-                                                                <mat-label>Hops</mat-label>
-                                                                <input matInput type="number" min="1" max="5" [value]="explainHops()"
-                                                                       (input)="explainHops.set(+$any($event.target).value || 1)" />
-                                                            </mat-form-field>
-                                                            <button mat-stroked-button (click)="runExplain()" [disabled]="!explainFor()">
-                                                                <mat-icon svgIcon="heroicons_outline:light-bulb"></mat-icon>
-                                                                Explain neighborhood
-                                                            </button>
-                                                        </div>
-                                                        @if (explainText()) {
-                                                            <p class="mt-1 text-sm" role="status">{{ explainText() }}</p>
-                                                        }
-                                                    }
-                                                    @case ('centrality') {
-                                                        <div class="flex flex-wrap items-center gap-2">
-                                                            <mat-button-toggle-group [value]="centralityMetric()" (change)="centralityMetric.set($event.value)"
-                                                                                     aria-label="Centrality metric">
-                                                                <mat-button-toggle value="degree">Degree</mat-button-toggle>
-                                                                <mat-button-toggle value="betweenness">Betweenness</mat-button-toggle>
-                                                            </mat-button-toggle-group>
-                                                            <button mat-stroked-button (click)="runCentrality()">
-                                                                <mat-icon svgIcon="heroicons_outline:star"></mat-icon>
-                                                                Rank nodes
-                                                            </button>
-                                                        </div>
-                                                        @if (ranking().length) {
-                                                            <table class="mt-1 w-full max-w-md text-sm">
-                                                                <caption class="sr-only">Node ranking by {{ centralityMetric() }} centrality</caption>
-                                                                <thead>
-                                                                    <tr class="text-left">
-                                                                        <th scope="col" class="py-1">Node</th>
-                                                                        <th scope="col" class="py-1 text-right">Score</th>
-                                                                    </tr>
-                                                                </thead>
-                                                                <tbody>
-                                                                    @for (r of ranking(); track r.id) {
-                                                                        <tr>
-                                                                            <td class="py-0.5">
-                                                                                <button class="underline-offset-2 hover:underline" (click)="focusNode(r.id)">{{ r.label }}</button>
-                                                                            </td>
-                                                                            <td class="py-0.5 text-right tabular-nums">{{ r.score | number: '1.0-2' }}</td>
-                                                                        </tr>
-                                                                    }
-                                                                </tbody>
-                                                            </table>
-                                                        }
-                                                    }
-                                                    @case ('communities') {
-                                                        <div class="flex flex-wrap items-center gap-2">
-                                                            <mat-button-toggle-group [value]="communityMethod()" (change)="communityMethod.set($event.value)"
-                                                                                     aria-label="Community detection method">
-                                                                <mat-button-toggle value="label-prop">LP automatic clustering</mat-button-toggle>
-                                                                <mat-button-toggle value="louvain">Louvain</mat-button-toggle>
-                                                            </mat-button-toggle-group>
-                                                            <button mat-stroked-button (click)="runCommunities()">
-                                                                <mat-icon svgIcon="heroicons_outline:user-group"></mat-icon>
-                                                                Detect communities
-                                                            </button>
-                                                        </div>
-                                                        @if (communities().length) {
-                                                            <ul class="mt-1 flex flex-col gap-1 text-sm" aria-label="Communities">
-                                                                @for (c of communities(); track c.id; let i = $index) {
-                                                                    <li>
-                                                                        <button class="underline-offset-2 hover:underline" (click)="focusCommunity(c.members)">
-                                                                            Community {{ i + 1 }} — {{ c.members.length }} nodes
-                                                                        </button>
-                                                                    </li>
-                                                                }
-                                                            </ul>
-                                                        }
-                                                    }
-                                                    @case ('components') {
-                                                        <div class="flex flex-wrap items-center gap-2">
-                                                            <button mat-stroked-button (click)="runConnectedComponents()">
-                                                                <mat-icon svgIcon="heroicons_outline:squares-2x2"></mat-icon>
-                                                                Find connected components
-                                                            </button>
-                                                        </div>
-                                                        @if (components().length) {
-                                                            <ul class="mt-1 flex flex-col gap-1 text-sm" aria-label="Connected components">
-                                                                @for (c of components(); track $index; let i = $index) {
-                                                                    <li>
-                                                                        <button class="underline-offset-2 hover:underline" (click)="focusComponent(c)">
-                                                                            Component {{ i + 1 }} — {{ c.length }} nodes
-                                                                        </button>
-                                                                    </li>
-                                                                }
-                                                            </ul>
-                                                        }
-                                                    }
-                                                    @case ('pattern') {
-                                                        <p class="text-sm text-secondary">Match a path motif — a start node, then one hop per step.</p>
-                                                        <div class="flex flex-col gap-2">
-                                                            @for (step of patternSteps(); track $index; let i = $index) {
-                                                                <div class="flex flex-wrap items-center gap-2">
-                                                                    @if (i === 0) {
-                                                                        <span class="w-16 text-sm font-medium">Start</span>
-                                                                    } @else {
-                                                                        <mat-button-toggle-group class="shrink-0" [value]="step.direction ?? 'out'"
-                                                                                                 (change)="updatePatternStep(i, { direction: $event.value })"
-                                                                                                 [attr.aria-label]="'Step ' + (i + 1) + ' direction'">
-                                                                            <mat-button-toggle value="out" aria-label="outgoing">→</mat-button-toggle>
-                                                                            <mat-button-toggle value="in" aria-label="incoming">←</mat-button-toggle>
-                                                                            <mat-button-toggle value="both" aria-label="either direction">↔</mat-button-toggle>
-                                                                        </mat-button-toggle-group>
-                                                                        <mat-form-field subscriptSizing="dynamic" class="w-40">
-                                                                            <mat-label>Link kind</mat-label>
-                                                                            <mat-select [value]="step.edgeKind ?? ''" (valueChange)="updatePatternStep(i, { edgeKind: $event || undefined })">
-                                                                                <mat-option [value]="''">Any</mat-option>
-                                                                                @for (k of edgeKinds(); track k) {
-                                                                                    <mat-option [value]="k">{{ k }}</mat-option>
-                                                                                }
-                                                                            </mat-select>
-                                                                        </mat-form-field>
-                                                                    }
-                                                                    <mat-form-field subscriptSizing="dynamic" class="w-40">
-                                                                        <mat-label>Node kind</mat-label>
-                                                                        <mat-select [value]="step.nodeKind ?? ''" (valueChange)="updatePatternStep(i, { nodeKind: $event || undefined })">
-                                                                            <mat-option [value]="''">Any</mat-option>
-                                                                            @for (k of nodeKinds(); track k) {
-                                                                                <mat-option [value]="k">{{ k }}</mat-option>
-                                                                            }
-                                                                        </mat-select>
-                                                                    </mat-form-field>
-                                                                    @if (i > 0) {
-                                                                        <button mat-icon-button (click)="removePatternStep(i)" [attr.aria-label]="'Remove step ' + (i + 1)">
-                                                                            <mat-icon svgIcon="heroicons_outline:x-mark"></mat-icon>
-                                                                        </button>
-                                                                    }
-                                                                </div>
-                                                            }
-                                                        </div>
-                                                        <div class="flex flex-wrap items-center gap-2">
-                                                            <button mat-stroked-button (click)="addPatternStep()">
-                                                                <mat-icon svgIcon="heroicons_outline:plus"></mat-icon>
-                                                                Add step
-                                                            </button>
-                                                            <button mat-stroked-button (click)="runPattern()">
-                                                                <mat-icon svgIcon="heroicons_outline:magnifying-glass-circle"></mat-icon>
-                                                                Find matches
-                                                            </button>
-                                                        </div>
-                                                        @if (patternMatches().length) {
-                                                            <ul class="mt-1 flex flex-col gap-1 text-sm" aria-label="Pattern matches">
-                                                                @for (m of patternMatches(); track $index) {
-                                                                    <li>
-                                                                        <button class="underline-offset-2 hover:underline" (click)="focusMatch(m)">{{ patternMatchLabel(m) }}</button>
-                                                                    </li>
-                                                                }
-                                                            </ul>
-                                                        }
-                                                    }
-                                                }
-                                            </div>
-                                        }
-                                    </section>
-                                }
-                            </div>
-                        }
-
-                        <!-- ── Data ── -->
-                        @case ('data') {
-                            <inspecto-data-table tier="standard" [rows]="tableRows()" height="15rem" [pageSize]="10"
-                                                 exportName="link-analysis" sourceName="link-analysis"
-                                                 noRowsTitle="Nothing matches the current graph"
-                                                 (rowClick)="onTableRow($event)"></inspecto-data-table>
-                        }
+                            <button mat-stroked-button (click)="editQuery()">
+                                <mat-icon svgIcon="heroicons_outline:pencil-square"></mat-icon>
+                                Edit
+                            </button>
+                            <button mat-stroked-button (click)="run()" [disabled]="loading()">
+                                <mat-icon svgIcon="heroicons_outline:arrow-path"></mat-icon>
+                                Re-run
+                            </button>
+                        </div>
                     }
                 </div>
-            }
+
+                <!-- ── Analysis (the graph-algorithms toolbox) — extracted to a smart child. Kept mounted
+                     via `[hidden]` so its results survive tab switches; emits emphasis for the canvas. ── -->
+                <inspecto-link-analysis-toolbox [hidden]="bottomTab() !== 'analysis'"
+                                                [graph]="displayed()" [nodeOptions]="nodeOptions()"
+                                                [nodeKinds]="nodeKinds()" [edgeKinds]="edgeKinds()"
+                                                [labelOf]="labelOf"
+                                                (emphasisChange)="emphasis.set($event)"></inspecto-link-analysis-toolbox>
+
+                <!-- ── Data ── -->
+                <div [hidden]="bottomTab() !== 'data'">
+                    <inspecto-data-table tier="standard" [rows]="tableRows()" height="15rem" [pageSize]="10"
+                                         exportName="link-analysis" sourceName="link-analysis"
+                                         noRowsTitle="Nothing matches the current graph"
+                                         (rowClick)="onTableRow($event)"></inspecto-data-table>
+                </div>
+            </div>
         </div>
     </div>
 </div>

@@ -1,4 +1,3 @@
-import { DecimalPipe } from '@angular/common';
 import { ChangeDetectionStrategy, Component, ElementRef, OnInit, ViewChild, computed, inject, signal } from '@angular/core';
 import { FormArray, FormBuilder, FormGroup, ReactiveFormsModule, Validators, AbstractControl, ValidatorFn } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
@@ -23,31 +22,18 @@ import { TransferMenuComponent } from 'app/inspecto/transfer';
 import {
     EntityProjection,
     G6GraphData,
-    GraphSelection,
     GraphSourceId,
     GraphSourceQuery,
     HistoryStack,
-    NodeScore,
-    PatternStep,
-    allPaths,
-    betweennessCentrality,
     collapseBranches,
-    connectedComponents,
-    degreeCentrality,
     descendants,
-    detectCommunities,
-    explainNode,
     filterByKinds,
     isForest,
-    louvainCommunities,
-    matchPattern,
     emptyHistory,
     mergeGraphs,
-    neighborhood,
     pushHistory,
     redo as redoHistory,
     searchNodes,
-    shortestPath,
     toGraphml,
     undo as undoHistory,
 } from 'app/inspecto/graph';
@@ -71,6 +57,7 @@ import { SAMPLE_SOURCES } from 'app/modules/admin/studio/datasets/dataset-source
 import { ProjectedGraph } from './entity-projection';
 import { GraphSourcesService } from './graph-sources';
 import { LinkAnalysisService, LinkAnalysisView } from './link-analysis.service';
+import { LinkAnalysisToolboxComponent } from './link-analysis-toolbox.component';
 
 /** Inline duplicate-name guard (house form rule) — blocks saving a view under a taken name. */
 function uniqueNameValidator(taken: () => string[]): ValidatorFn {
@@ -79,8 +66,6 @@ function uniqueNameValidator(taken: () => string[]): ValidatorFn {
         return taken().some((t) => t.trim().toLowerCase() === v) ? { duplicate: true } : null;
     };
 }
-
-type AnalysisTab = 'path' | 'explain' | 'centrality' | 'communities' | 'pattern' | 'all-paths' | 'components';
 
 /** Undo/redo scope (Phase G): presentation state only — search/filter, display options, layout, and
  *  collapsed branches. NOT the query or the loaded graph itself (a heavier, separate feature). */
@@ -115,10 +100,10 @@ interface QuerySummaryItem {
     standalone: true,
     changeDetection: ChangeDetectionStrategy.OnPush,
     imports: [
-        DecimalPipe, ReactiveFormsModule, MatButtonModule, MatButtonToggleModule, MatCheckboxModule, MatDialogModule,
+        ReactiveFormsModule, MatButtonModule, MatButtonToggleModule, MatCheckboxModule, MatDialogModule,
         MatFormFieldModule, MatIconModule, MatInputModule, MatMenuModule, MatSelectModule, MatTooltipModule,
         InspectoAlertComponent, InspectoEmptyStateComponent, InspectoSkeletonComponent, GraphViewComponent,
-        DataTableComponent, TransferMenuComponent,
+        DataTableComponent, TransferMenuComponent, LinkAnalysisToolboxComponent,
     ],
     templateUrl: './link-analysis.component.html',
     host: {
@@ -141,6 +126,7 @@ export class LinkAnalysisComponent implements OnInit {
     readonly sources = this.graphSources.sources;
 
     @ViewChild(GraphViewComponent) private graphView?: GraphViewComponent;
+    @ViewChild(LinkAnalysisToolboxComponent) private toolbox?: LinkAnalysisToolboxComponent;
     @ViewChild('studioRoot') private studioRoot?: ElementRef<HTMLElement>;
     @ViewChild('canvasZone') private canvasZone?: ElementRef<HTMLElement>;
     @ViewChild('saveTrigger') private saveTrigger?: MatMenuTrigger;
@@ -148,17 +134,6 @@ export class LinkAnalysisComponent implements OnInit {
     // ── workspace layout: canvas-first; a single bottom panel holds Query / Analysis / Data ──
     /** Full query form vs its collapsed selected-values summary (auto-collapses after a run). */
     readonly queryOpen = signal(true);
-
-    /** The analysis tool groups (the Analysis-tab accordion = the graph-algorithms toolbox). */
-    readonly tools: { id: AnalysisTab; label: string; icon: string }[] = [
-        { id: 'path', label: 'Shortest path', icon: 'heroicons_outline:arrows-right-left' },
-        { id: 'all-paths', label: 'All paths', icon: 'heroicons_outline:share' },
-        { id: 'explain', label: 'Explain node', icon: 'heroicons_outline:light-bulb' },
-        { id: 'centrality', label: 'Centrality', icon: 'heroicons_outline:star' },
-        { id: 'communities', label: 'Communities', icon: 'heroicons_outline:user-group' },
-        { id: 'components', label: 'Connected components', icon: 'heroicons_outline:squares-2x2' },
-        { id: 'pattern', label: 'Pattern match', icon: 'heroicons_outline:magnifying-glass-circle' },
-    ];
 
     // ── query builder ──
     readonly sourceId = signal<GraphSourceId>('entity-projection');
@@ -383,26 +358,8 @@ export class LinkAnalysisComponent implements OnInit {
             .slice(0, 500);
     });
 
-    // ── analysis ──
-    /** The open tool group (accordion: one open at a time; `null` = all collapsed). */
-    readonly tab = signal<AnalysisTab | null>('path');
-    readonly pathFrom = signal('');
-    readonly pathTo = signal('');
-    readonly explainFor = signal('');
-    readonly explainHops = signal(1);
-    readonly centralityMetric = signal<'degree' | 'betweenness'>('degree');
-    readonly analysisError = signal('');
+    // ── canvas emphasis (shared: written by search / canvas clicks / the analysis toolbox child) ──
     readonly emphasis = signal<GraphEmphasis | null>(null);
-    readonly pathResult = signal<{ hops: string[] } | null>(null);
-    readonly allPathsResult = signal<GraphSelection[]>([]);
-    readonly explainText = signal('');
-    readonly ranking = signal<NodeScore[]>([]);
-    readonly communityMethod = signal<'label-prop' | 'louvain'>('label-prop');
-    readonly communities = signal<{ id: string; members: string[] }[]>([]);
-    readonly components = signal<string[][]>([]);
-    /** The pattern-match motif — step 0 = the start node; each later step traverses one edge. */
-    readonly patternSteps = signal<PatternStep[]>([{}, { direction: 'out' }]);
-    readonly patternMatches = signal<GraphSelection[]>([]);
 
     // ── saved views ──
     readonly views = signal<LinkAnalysisView[]>([]);
@@ -445,9 +402,10 @@ export class LinkAnalysisComponent implements OnInit {
         this.viewsService.list().subscribe({ next: (v) => this.views.set(v), error: () => undefined });
     }
 
-    labelOf(id: string): string {
-        return this.graph()?.nodes.find((n) => n.id === id)?.data.label ?? id;
-    }
+    /** Node-id → label over the full loaded graph. An arrow field so it can be passed to the toolbox
+     *  child as an `[labelOf]` input without losing its `this` binding. */
+    readonly labelOf = (id: string): string =>
+        this.graph()?.nodes.find((n) => n.id === id)?.data.label ?? id;
 
     private onDatasetPicked(id: string): void {
         this.datasetColumns.set(this.columnsForDataset(id));
@@ -518,7 +476,11 @@ export class LinkAnalysisComponent implements OnInit {
         if (!source) return;
         this.loading.set(true);
         this.loadError.set('');
-        this.resetAnalysis();
+        // A fresh graph clears the canvas emphasis + presentation filters and the analysis toolbox's results.
+        this.emphasis.set(null);
+        this.toolbox?.reset();
+        this.search.set('');
+        this.collapsedRoots.set([]);
         this.history.set(emptyHistory()); // a fresh graph invalidates prior undo/redo snapshots
         try {
             const g = await source.query(q);
@@ -557,50 +519,6 @@ export class LinkAnalysisComponent implements OnInit {
     selectBottomTab(tab: 'query' | 'analysis' | 'data'): void {
         this.bottomTab.set(tab);
         this.bottomOpen.set(true);
-    }
-
-    /** Accordion header click — open this group, or collapse it if already open. */
-    toggleTool(tool: AnalysisTab): void {
-        this.tab.set(this.tab() === tool ? null : tool);
-    }
-
-    /** The result chip on a tool-group header (empty until that analysis has run). */
-    toolBadge(tool: AnalysisTab): string {
-        switch (tool) {
-            case 'path': {
-                const p = this.pathResult();
-                return p ? `${p.hops.length} hops` : '';
-            }
-            case 'explain':
-                return this.explainText() ? this.labelOf(this.explainFor()) : '';
-            case 'centrality':
-                return this.ranking().length ? `top ${this.ranking().length}` : '';
-            case 'communities':
-                return this.communities().length ? `${this.communities().length} found` : '';
-            case 'pattern':
-                return this.patternMatches().length ? `${this.patternMatches().length} matches` : '';
-            case 'all-paths':
-                return this.allPathsResult().length ? `${this.allPathsResult().length} paths` : '';
-            case 'components':
-                return this.components().length ? `${this.components().length} found` : '';
-        }
-    }
-
-    private resetAnalysis(): void {
-        this.emphasis.set(null);
-        this.pathResult.set(null);
-        this.allPathsResult.set([]);
-        this.explainText.set('');
-        this.ranking.set([]);
-        this.communities.set([]);
-        this.components.set([]);
-        this.patternMatches.set([]);
-        this.analysisError.set('');
-        this.pathFrom.set('');
-        this.pathTo.set('');
-        this.explainFor.set('');
-        this.search.set('');
-        this.collapsedRoots.set([]);
     }
 
     // ── display options ──
@@ -886,149 +804,9 @@ export class LinkAnalysisComponent implements OnInit {
         this.emphasis.set(null);
     }
 
-    // ── analysis ──
-
-    runPath(): void {
-        const g = this.displayed();
-        if (!g || !this.pathFrom() || !this.pathTo()) return;
-        this.analysisError.set('');
-        const p = shortestPath(g, this.pathFrom(), this.pathTo());
-        if (!p) {
-            this.pathResult.set(null);
-            this.emphasis.set(null);
-            this.analysisError.set('No path connects the two nodes.');
-            return;
-        }
-        this.pathResult.set({ hops: p.nodeIds });
-        this.emphasis.set({ nodeIds: p.nodeIds, edgeIds: p.edgeIds });
-    }
-
-    runExplain(): void {
-        const g = this.displayed();
-        const id = this.explainFor();
-        if (!g || !id) return;
-        const nb = neighborhood(g, id, this.explainHops());
-        this.explainText.set(explainNode(g, id));
-        this.emphasis.set({ nodeIds: nb.nodes.map((n) => n.id), edgeIds: nb.edges.map((e) => e.id) });
-    }
-
-    runCentrality(): void {
-        const g = this.displayed();
-        if (!g) return;
-        this.analysisError.set('');
-        try {
-            const scores = this.centralityMetric() === 'degree' ? degreeCentrality(g) : betweennessCentrality(g);
-            this.ranking.set(scores.slice(0, 20));
-            this.emphasis.set(null);
-        } catch (err) {
-            this.ranking.set([]);
-            this.analysisError.set(err instanceof Error ? err.message : 'The analysis failed.');
-        }
-    }
-
+    /** Emphasize a single node on the canvas (pivot resolution, table-row click, node-detail focus). */
     focusNode(id: string): void {
         this.emphasis.set({ nodeIds: [id], edgeIds: [] });
-    }
-
-    runCommunities(): void {
-        const g = this.displayed();
-        if (!g) return;
-        this.analysisError.set('');
-        let byNode: Map<string, string>;
-        try {
-            byNode = this.communityMethod() === 'louvain' ? louvainCommunities(g) : detectCommunities(g);
-        } catch (err) {
-            this.communities.set([]);
-            this.analysisError.set(err instanceof Error ? err.message : 'The analysis failed.');
-            return;
-        }
-        const grouped = new Map<string, string[]>();
-        for (const [node, community] of byNode) {
-            const arr = grouped.get(community) ?? [];
-            arr.push(node);
-            grouped.set(community, arr);
-        }
-        const list = [...grouped.entries()]
-            .map(([id, members]) => ({ id, members }))
-            .sort((a, b) => b.members.length - a.members.length);
-        this.communities.set(list);
-        this.emphasis.set({ nodeIds: [], groups: byNode });
-    }
-
-    focusCommunity(members: string[]): void {
-        this.emphasis.set({ nodeIds: members, edgeIds: [] });
-    }
-
-    runAllPaths(): void {
-        const g = this.displayed();
-        if (!g || !this.pathFrom() || !this.pathTo()) return;
-        this.analysisError.set('');
-        const paths = allPaths(g, this.pathFrom(), this.pathTo());
-        this.allPathsResult.set(paths);
-        if (!paths.length) {
-            this.emphasis.set(null);
-            this.analysisError.set('No path connects the two nodes.');
-            return;
-        }
-        this.emphasis.set({
-            nodeIds: [...new Set(paths.flatMap((p) => p.nodeIds))],
-            edgeIds: [...new Set(paths.flatMap((p) => p.edgeIds))],
-        });
-    }
-
-    focusAllPath(p: GraphSelection): void {
-        this.emphasis.set({ nodeIds: p.nodeIds, edgeIds: p.edgeIds });
-    }
-
-    runConnectedComponents(): void {
-        const g = this.displayed();
-        if (!g) return;
-        this.analysisError.set('');
-        this.components.set(connectedComponents(g));
-    }
-
-    focusComponent(members: string[]): void {
-        this.emphasis.set({ nodeIds: members, edgeIds: [] });
-    }
-
-    // ── pattern matching (motif builder) ──
-
-    addPatternStep(): void {
-        this.patternSteps.update((s) => [...s, { direction: 'out' }]);
-    }
-
-    removePatternStep(i: number): void {
-        this.patternSteps.update((s) => (s.length > 1 ? s.filter((_, idx) => idx !== i) : s));
-    }
-
-    updatePatternStep(i: number, patch: Partial<PatternStep>): void {
-        this.patternSteps.update((s) => s.map((step, idx) => (idx === i ? { ...step, ...patch } : step)));
-    }
-
-    runPattern(): void {
-        const g = this.displayed();
-        if (!g) return;
-        this.analysisError.set('');
-        const matches = matchPattern(g, this.patternSteps());
-        this.patternMatches.set(matches);
-        if (!matches.length) {
-            this.emphasis.set(null);
-            this.analysisError.set('No matches for this pattern.');
-            return;
-        }
-        this.emphasis.set({
-            nodeIds: [...new Set(matches.flatMap((m) => m.nodeIds))],
-            edgeIds: [...new Set(matches.flatMap((m) => m.edgeIds))],
-        });
-    }
-
-    focusMatch(m: GraphSelection): void {
-        this.emphasis.set({ nodeIds: m.nodeIds, edgeIds: m.edgeIds });
-    }
-
-    /** The node labels of a match joined into a readable chain (`Acme → Bob → Store`). */
-    patternMatchLabel(m: GraphSelection): string {
-        return m.nodeIds.map((id) => this.labelOf(id)).join(' → ');
     }
 
     // ── export ──

@@ -140,47 +140,8 @@ describe('LinkAnalysisComponent', () => {
         expect(infoSpy).toHaveBeenCalled();
     });
 
-    it('analysis: path, explain, centrality and communities all work over the loaded graph', async () => {
-        const { fixture } = create();
-        fixture.detectChanges();
-        await runQuery(fixture);
-        const c = fixture.componentInstance;
-
-        c.pathFrom.set('a');
-        c.pathTo.set('c');
-        c.runPath();
-        expect(c.pathResult()?.hops).toEqual(['a', 'b', 'c']);
-        expect(c.emphasis()?.edgeIds).toEqual(['a->b', 'b->c']);
-
-        c.pathTo.set('e');
-        c.runPath();
-        expect(c.analysisError()).toMatch(/No path/);
-
-        c.explainFor.set('b');
-        c.runExplain();
-        expect(c.explainText()).toContain('B (entity)');
-
-        c.runCentrality();
-        expect(c.ranking()[0].id).toBe('b'); // the a–b–c middle has the highest degree
-
-        c.runCommunities();
-        expect(c.communities()).toHaveLength(2);
-        expect(c.emphasis()?.groups?.get('a')).toBe(c.emphasis()?.groups?.get('c'));
-
-        c.pathFrom.set('a');
-        c.pathTo.set('c');
-        c.runAllPaths();
-        expect(c.allPathsResult()).toHaveLength(1);
-        expect(c.allPathsResult()[0].nodeIds).toEqual(['a', 'b', 'c']);
-
-        c.pathTo.set('e');
-        c.runAllPaths();
-        expect(c.analysisError()).toMatch(/No path/);
-
-        c.runConnectedComponents();
-        expect(c.components()).toHaveLength(2);
-        expect(c.components()[0]).toHaveLength(3); // a-b-c is the larger component, sorted first
-    });
+    // Analysis-toolbox logic (shortest path, explain, centrality, communities, all-paths, components,
+    // patterns, tool badges) lives in LinkAnalysisToolboxComponent — see its own spec.
 
     it('expandNode (Phase E): merges the source\'s one-hop neighborhood into the loaded graph, filters intact', async () => {
         const expand = vi.fn(async () => ({
@@ -279,7 +240,7 @@ describe('LinkAnalysisComponent', () => {
         expect(c.queryOpen()).toBe(true);
     });
 
-    it('workspace: a failed query keeps the form open; openAnalysis/toggleTool drive the analysis toolbox', async () => {
+    it('workspace: a failed query keeps the form open; openAnalysis opens the bottom Analysis tab', async () => {
         const { fixture } = create({ fail: true });
         fixture.detectChanges();
         await runQuery(fixture);
@@ -291,35 +252,6 @@ describe('LinkAnalysisComponent', () => {
         c.openAnalysis(); // the toolbar algorithms icon opens the bottom Analysis tab
         expect(c.bottomOpen()).toBe(true);
         expect(c.bottomTab()).toBe('analysis');
-        c.toggleTool('communities'); // clicking the open header collapses the group
-        expect(c.tab()).toBe('communities');
-        c.toggleTool('communities');
-        expect(c.tab()).toBeNull();
-        c.toggleTool('path');
-        expect(c.tab()).toBe('path');
-    });
-
-    it('tool-group headers chip their results after each analysis runs', async () => {
-        const { fixture } = create();
-        fixture.detectChanges();
-        await runQuery(fixture);
-        const c = fixture.componentInstance;
-        expect(c.toolBadge('path')).toBe('');
-
-        c.pathFrom.set('a');
-        c.pathTo.set('c');
-        c.runPath();
-        expect(c.toolBadge('path')).toBe('3 hops');
-
-        c.explainFor.set('b');
-        c.runExplain();
-        expect(c.toolBadge('explain')).toBe('B');
-
-        c.runCentrality();
-        expect(c.toolBadge('centrality')).toBe('top 5');
-
-        c.runCommunities();
-        expect(c.toolBadge('communities')).toBe('2 found');
     });
 
     it('surfaces a failing source as an inline error, not a blank pane', async () => {
@@ -432,55 +364,6 @@ describe('LinkAnalysisComponent', () => {
         c.toggleKind('other', false); // the kind filter flows through too
         c.onSearch('');
         expect(c.tableRows().map((r) => r['id'])).toEqual(['a->b', 'b->c']);
-    });
-
-    it('communities: the Louvain method also groups the graph and paints group emphasis', async () => {
-        const { fixture } = create();
-        fixture.detectChanges();
-        await runQuery(fixture);
-        const c = fixture.componentInstance;
-
-        c.communityMethod.set('louvain');
-        c.runCommunities();
-        expect(c.communities()).toHaveLength(2); // a–b–c and d–e
-        expect(c.toolBadge('communities')).toBe('2 found');
-        expect(c.emphasis()?.groups?.get('a')).toBe(c.emphasis()?.groups?.get('c'));
-        expect(c.emphasis()?.groups?.get('a')).not.toBe(c.emphasis()?.groups?.get('d'));
-    });
-
-    it('pattern: builds a motif, matches it, gates on node kind, and focuses a match', async () => {
-        const { fixture } = create();
-        fixture.detectChanges();
-        await runQuery(fixture);
-        const c = fixture.componentInstance;
-
-        // default motif = any start → any out-edge → any node: every out-edge (a→b, b→c, d→e)
-        c.runPattern();
-        expect(c.patternMatches()).toHaveLength(3);
-        expect(c.toolBadge('pattern')).toBe('3 matches');
-        expect(c.emphasis()?.nodeIds).toEqual(expect.arrayContaining(['a', 'b', 'c', 'd', 'e']));
-
-        // constrain the start to 'entity' (a,b,c): only a→b and b→c remain
-        c.updatePatternStep(0, { nodeKind: 'entity' });
-        c.runPattern();
-        expect(c.patternMatches()).toHaveLength(2);
-
-        c.addPatternStep();
-        expect(c.patternSteps()).toHaveLength(3);
-        c.removePatternStep(2);
-        expect(c.patternSteps()).toHaveLength(2);
-        c.removePatternStep(0); // never drops below one step
-        expect(c.patternSteps()).toHaveLength(1);
-
-        const first = c.patternMatches()[0];
-        c.focusMatch(first);
-        expect(c.emphasis()?.nodeIds).toEqual(first.nodeIds);
-
-        // a motif with no occurrence surfaces an inline message, not a blank result
-        c.patternSteps.set([{ nodeKind: 'other' }, { edgeKind: 'nope', direction: 'out' }]);
-        c.runPattern();
-        expect(c.patternMatches()).toHaveLength(0);
-        expect(c.analysisError()).toMatch(/No matches/);
     });
 
     it('saves a view (duplicate name blocked inline) and reloads a saved view', async () => {
