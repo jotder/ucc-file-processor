@@ -10,6 +10,7 @@ import com.gamma.intelligence.action.ComponentActions;
 import com.gamma.intelligence.action.ControlPlaneClient;
 import com.gamma.intelligence.action.OperationalActions;
 import com.gamma.intelligence.action.RunbookActions;
+import com.gamma.intelligence.action.RunbookRunStore;
 import com.gamma.config.io.ConfigLoader;
 import com.gamma.config.safety.ConfigSafetyValidator;
 import com.gamma.config.safety.SafetyPolicy;
@@ -923,7 +924,10 @@ final class InspectoTools {
                         + "\"params\":{\"type\":\"object\"}},"
                         + "\"required\":[\"runbook\"]}",
                 true, Role.USER, Capability.EDIT_CONFIG);
-        return new FunctionTool(spec, call -> RunbookActions.execute(controlPlane, call, agentSession(call)));
+        // P3 mid-plan resume: a durable run-state store (write-root-backed) so a re-issued runbook
+        // resumes at the failed step rather than re-running succeeded ones. Built once with the belt.
+        RunbookRunStore runs = RunbookRunStore.fromWriteRoot();
+        return new FunctionTool(spec, call -> RunbookActions.execute(controlPlane, call, agentSession(call), runs));
     }
 
     /** The agent-session token carried as {@code X-Agent-Session} → audited {@code actor=agent:<run>}. */

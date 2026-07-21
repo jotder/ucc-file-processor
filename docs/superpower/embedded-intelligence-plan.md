@@ -411,8 +411,16 @@ a `StateScanner` for `Finding`s and runs them through the same `authorize → de
 ledger` path. The scanner surfaces open `ALERT` operational objects (each carries its own id +
 pipeline, so no Signal-id gap) as the second pilot class **`alert_triage`**, remediated by the audited
 `alert_ack` — once acked, an alert leaves the `OPEN` scan (natural dedup). Both pilot classes default
-`OFF`; the dashboard's class editor now surfaces `alert_triage` too. *Deferred beyond P4-core:*
-mid-plan runbook resume (carried from P3).
+`OFF`; the dashboard's class editor now surfaces `alert_triage` too.
+
+*Mid-plan runbook resume — SHIPPED 2026-07-21 (closes the last P3 deferral).* A durable
+`RunbookRunStore` (JSON-lines at `<assist.write.root>/agent/runbook-runs.jsonl`, the `ApprovalStore`
+idiom) checkpoints each seeded-runbook execution keyed by `(runbook, canonical params)`. A re-issued
+identical `runbook_operator` call now **resumes at the failed step** — already-succeeded (possibly
+non-idempotent) steps are skipped, logged as such — and this survives a restart when a write root is
+set. A fully-completed (terminal) run is not resumed: re-invoking it runs afresh. The operator still
+re-approves the resumed call through the gate (no bypass). Without a write root the store is in-memory,
+so behaviour matches the pre-resume cut (start from step 1).
 
 **P5 — Learning.** Feedback capture → eval growth; case-similarity recall; per-skill tuning
 dashboards; embedding retrieval upgrade if warranted.

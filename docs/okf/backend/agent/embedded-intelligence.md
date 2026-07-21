@@ -271,6 +271,17 @@ case-similarity recall + the learning dashboard UI). With it, the full AGT-5 P0�
   ACKNOWLEDGED`); an acked alert leaves the scan, so status is the natural dedup. `OpsMonitorTest`
   9→**12** (state-watch poll dedup, mode/kill respect, throwing-scanner swallowed); dashboard class
   editor surfaces `alert_triage`. Module 129→**132**.
+- **Mid-plan runbook resume (2026-07-21, closes the last P3 deferral)** — a durable `RunbookRunStore`
+  (JSON-lines at `<assist.write.root>/agent/runbook-runs.jsonl`, `ApprovalStore` idiom) checkpoints each
+  seeded-runbook execution keyed by `(runbook, canonical params)`. `RunbookActions.execute(..., runs)`
+  consults `resumeIndex(key)` and starts at the first not-yet-completed step, skipping (not re-running)
+  already-succeeded ones — logged as `skipped`; the result carries `resumedFromStep`. A checkpoint is
+  written after each successful step and a terminal marker on completion, so a **terminal** run is not
+  resumed (a re-invocation runs afresh) while a **halted** one resumes — across a restart when a write
+  root is set. The operator re-approves the resumed call through the gate (no bypass). The 3-arg
+  `execute` overload (in-memory store) preserves the pre-resume behaviour for tests. `RunbookActionsTest`
+  7→**10** (resume-at-failed-step + skip, terminal-runs-afresh, durable resumeIndex reload). Module
+  132→**135**.
 
 ## Gotchas / seams
 
@@ -298,8 +309,7 @@ periodic state-watch, shipped 2026-07-21). Remaining items are deliberate deferr
 `query_author` (P2 — buildable; needs a `dataRoot`+`ViewStore` tool-belt seam threaded, a full
 authoring slice, **not** blocked on SqlGuard) · `kpi_report_builder` (P2 — target `dashboard` kind
 exists but has no `ConfigSpec`, so it would emit unvalidated drafts; needs tile-shape owner sign-off) ·
-mid-plan runbook resume (P3 — buildable; `ApprovalStore` resume-token idiom is the precedent) · the
-embedding-retrieval upgrade (assessed **not warranted** at the 256-cap corpus; drop-in seam preserved
+the embedding-retrieval upgrade (assessed **not warranted** at the 256-cap corpus; drop-in seam preserved
 behind `CaseSimilarity.score`) · hosted providers (Standard+) · the optional S8 signal-backbone slice.
 One actionable cross-repo gotcha remains: the eoiagent gate has no per-tool `DryRunProvider` seam
 through `PlatformBuilder` (a refactor to let the framework populate `ApprovalRequest.preview` instead of

@@ -88,6 +88,67 @@ class RunbookActionsTest {
 
     @Test
     @SuppressWarnings("unchecked")
+    void aHaltedRunbookResumesAtTheFailedStepAndSkipsCompletedOnes() {
+        RunbookRunStore runs = new RunbookRunStore(); // shared across the two invocations
+        Map<String, Object> params = Map.of("alertId", "alert-9", "pipeline", "orders", "batchId", "B-7");
+
+        // Run 1: step 1 (ack) succeeds, step 2 (reprocess) fails → halts, checkpoint completedSteps=1.
+        failPathContains = "/reprocess";
+        ToolResult first = RunbookActions.execute(new ControlPlaneClient(),
+                run("triage_and_replay", params, "sess-r"), "sess-r", runs);
+        Map<String, Object> v1 = (Map<String, Object>) first.value();
+        assertEquals(false, v1.get("success"));
+        assertEquals(1, v1.get("completed"));
+        assertEquals(2, v1.get("haltedAtStep"));
+        assertEquals(2, requests.size()); // ack + failed reprocess both hit the plane
+
+        // Run 2: same params, failure cleared → resumes at step 2; step 1 (ack) is NOT re-executed.
+        requests.clear();
+        failPathContains = null;
+        ToolResult second = RunbookActions.execute(new ControlPlaneClient(),
+                run("triage_and_replay", params, "sess-r"), "sess-r", runs);
+        Map<String, Object> v2 = (Map<String, Object>) second.value();
+        assertEquals(true, v2.get("success"));
+        assertEquals(2, v2.get("completed"));
+        assertEquals(2, v2.get("resumedFromStep"));
+        assertEquals(1, requests.size(), "only the previously-failed reprocess step re-runs");
+        assertEquals("/runs/orders/reprocess", requests.get(0).path());
+        List<Map<String, Object>> steps = (List<Map<String, Object>>) v2.get("steps");
+        assertEquals(true, steps.get(0).get("skipped"), "step 1 is skipped (already completed)");
+        assertEquals(true, steps.get(1).get("ok"));
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void aCompletedRunbookRunsAfreshOnReinvocation() {
+        RunbookRunStore runs = new RunbookRunStore();
+        Map<String, Object> params = Map.of("job", "nightly", "cron", "0 0 * * *");
+        RunbookActions.execute(new ControlPlaneClient(), run("reschedule_and_trigger", params, "s"), "s", runs);
+        requests.clear();
+        // Terminal prior run → a fresh invocation re-runs every step (no resume, no skips).
+        ToolResult again = RunbookActions.execute(new ControlPlaneClient(),
+                run("reschedule_and_trigger", params, "s"), "s", runs);
+        Map<String, Object> v = (Map<String, Object>) again.value();
+        assertEquals(true, v.get("success"));
+        assertEquals(2, v.get("completed"));
+        assertFalse(v.containsKey("resumedFromStep"));
+        assertEquals(2, requests.size(), "both steps run again on a fresh invocation");
+    }
+
+    @Test
+    void resumeIndexIsDurableAcrossAStoreReload(@org.junit.jupiter.api.io.TempDir java.nio.file.Path dir) {
+        java.nio.file.Path file = dir.resolve("agent").resolve("runbook-runs.jsonl");
+        String key = RunbookRunStore.key("triage_and_replay", Map.of("alertId", "a", "pipeline", "p", "batchId", "b"));
+        RunbookRunStore first = new RunbookRunStore(file);
+        first.record(key, "triage_and_replay", 1, false); // halted after step 1
+        RunbookRunStore reloaded = new RunbookRunStore(file);
+        assertEquals(1, reloaded.resumeIndex(key));
+        reloaded.record(key, "triage_and_replay", 2, true); // now terminal → fresh next time
+        assertEquals(0, new RunbookRunStore(file).resumeIndex(key));
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
     void aFailedFirstStepHaltsTheRunbookAndNoLaterStepRuns() {
         failPathContains = "/ack"; // fail the first step (alert_ack)
         ToolResult r = RunbookActions.execute(new ControlPlaneClient(),

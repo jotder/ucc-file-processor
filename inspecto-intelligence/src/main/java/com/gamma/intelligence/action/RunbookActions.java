@@ -25,10 +25,12 @@ import java.util.function.Function;
  * while every underlying step still executes through the same audited control-plane route a UI caller
  * hits, carrying {@code X-Agent-Session} so each mutation audits as {@code actor=agent:<session>}.
  *
- * <p><b>Checkpointing (this cut).</b> Execution is stepwise with a per-step log and halt-on-first-failure
- * (the result reports {@code haltedAtStep} and what completed). True checkpoint/<em>resume across process
- * restarts</em> remains open (see the plan) — today a halted runbook is re-triggered from the start once
- * the blocking condition is fixed.
+ * <p><b>Checkpointing + resume.</b> Execution is stepwise with a per-step log and halt-on-first-failure
+ * (the result reports {@code haltedAtStep} and what completed). Progress is persisted to a
+ * {@link RunbookRunStore} keyed by {@code (runbook, params)}, so a re-issued identical call
+ * <em>resumes at the failed step</em> — already-succeeded (possibly non-idempotent) steps are skipped,
+ * not re-run — and this survives a process restart when a write root is configured. A fully-completed
+ * (terminal) run is not resumed: re-invoking it runs afresh from the start.
  */
 public final class RunbookActions {
 
@@ -103,6 +105,16 @@ public final class RunbookActions {
      * flag (a mid-runbook step failure is a runbook <em>outcome</em>, not a tool-invocation error).
      */
     public static ToolResult execute(ControlPlaneClient client, ToolCall call, String session) {
+        return execute(client, call, session, new RunbookRunStore()); // in-memory → no resume (legacy behaviour)
+    }
+
+    /**
+     * Resume-aware execution (AGT-5 P3 mid-plan resume): consults {@code runs} for prior progress on the
+     * same {@code (runbook, params)} and starts at the first not-yet-completed step, skipping the rest.
+     * Progress is recorded after each successful step (and on completion), so a halted run re-issued
+     * later — even across a restart — picks up where it stopped rather than re-running succeeded steps.
+     */
+    public static ToolResult execute(ControlPlaneClient client, ToolCall call, String session, RunbookRunStore runs) {
         String name = str(call, "runbook");
         if (name == null || name.isBlank()) return error("runbook is required (available: " + names() + ")");
         Runbook rb = CATALOG.get(name.trim().toLowerCase(Locale.ROOT));
@@ -114,11 +126,23 @@ public final class RunbookActions {
             return error("runbook '" + rb.name() + "' requires params: " + missing);
         }
 
+        String key = RunbookRunStore.key(rb.name(), params);
+        int startIndex = Math.min(runs.resumeIndex(key), rb.steps().size()); // resume point (0 = fresh)
+
         List<Map<String, Object>> log = new ArrayList<>();
-        int completed = 0;
+        int completed = startIndex; // already-succeeded steps from a prior run count as completed
         boolean success = true;
         for (int i = 0; i < rb.steps().size(); i++) {
             Step step = rb.steps().get(i);
+            if (i < startIndex) { // skip a step a prior run already completed — do not re-execute
+                Map<String, Object> skipped = new LinkedHashMap<>();
+                skipped.put("step", i + 1);
+                skipped.put("tool", step.tool());
+                skipped.put("skipped", true);
+                skipped.put("reason", "already completed in a prior run (resumed)");
+                log.add(skipped);
+                continue;
+            }
             ToolCall stepCall = new ToolCall(step.tool(), step.args().apply(params), new RunId(session));
             ToolResult r = dispatch(step.tool(), client, stepCall, session);
             Map<String, Object> entry = new LinkedHashMap<>();
@@ -133,13 +157,16 @@ public final class RunbookActions {
                 break;
             }
             completed++;
+            runs.record(key, rb.name(), completed, false); // checkpoint after each success
         }
+        if (success) runs.record(key, rb.name(), completed, true); // terminal — a re-run starts fresh
 
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("runbook", rb.name());
         result.put("success", success);
         result.put("completed", completed);
         result.put("total", rb.steps().size());
+        if (startIndex > 0) result.put("resumedFromStep", startIndex + 1);
         if (!success) result.put("haltedAtStep", completed + 1);
         result.put("steps", log);
         result.put("actor", "agent:" + session);
