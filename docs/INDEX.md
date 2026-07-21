@@ -51,7 +51,8 @@ former root reference docs** (each index lists them):
     DB/persistence layer, plugins), acquisition (incl. the full framework doc), control plane (`/api/v1`,
     API-stability policy, queries, jobs + Job Framework, metadata bundle, multi-space), pipeline-graph
     (incl. the full design doc), components, config (incl. the configuration + parsing-options
-    references), editions & security, agent, build-run (incl. operations reference, troubleshooting,
+    references), editions & security, agent, modules (incl. the Maven reactor & module-extraction
+    playbook, new 2026-07-21), build-run (incl. operations reference, troubleshooting,
     performance), gotchas, integrations, architecture layers.
   - [`okf/agentic/`](okf/agentic/index.md) — **eoiagent** (the embeddable agent framework, separate repo)
     distilled + the Inspecto integration seam.
@@ -76,8 +77,6 @@ former root reference docs** (each index lists them):
   spine + **P1 investigation tier SHIPPED** (2026-07-20, distilled into
   [`okf/backend/agent/embedded-intelligence.md`](okf/backend/agent/embedded-intelligence.md));
   **P2–P5 open** (§8 = live phasing).
-- [`superpower/modularization-optimization-plan.md`](superpower/modularization-optimization-plan.md) —
-  PROPOSED, analysis unexecuted; headline Musts indexed in `BACKLOG.md`.
 - [`superpower/living-operational-system.md`](superpower/living-operational-system.md) — standing
   **architecture north-star** (seven networks over one Component metamodel); R1–R6 all shipped.
 - [`superpower/geo-map-case-studies.md`](superpower/geo-map-case-studies.md) — Geo Map CS1–CS5

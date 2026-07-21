@@ -86,9 +86,10 @@ SQL-side, since objects are low-volume and the visibility filter would otherwise
 
 ## 5. Engineering / tech-debt
 
-The full engineering MoSCoW (build hygiene, `SourceService` decomposition, `agent.spi` facade,
-Fuse-leftover removal, reactor split, shutdown robustness, `@PublicApi` freezing) lives in
-**`superpower/modularization-optimization-plan.md`** §4 (ACTIVE, analysis unexecuted). Headline Musts:
+The engineering MoSCoW (build hygiene, `SourceService` decomposition, `agent.spi` facade,
+Fuse-leftover removal, reactor split, shutdown robustness, `@PublicApi` freezing) lived in
+**`archived-documents/plans-archive/modularization-optimization-plan.md`** §4 — **COMPLETE 2026-07-21
+and archived**; as-built facts distilled to `okf/backend/modules/reactor.md`. Headline Musts:
 ~~M1 parent `dependencyManagement`~~ **SHIPPED 2026-07-21** (`73ea9a1`) · M2 `SourceService`
 decomposition · M3 `agent.spi` facade · M4 UI Fuse-leftover removal (~25.8k lines) · M5 coverage
 baseline · ~~M6 repo-clutter sweep~~ **SHIPPED 2026-07-21** (`b554048` — most already done by prior
@@ -100,18 +101,26 @@ shifts; only the stale `HANDOVER-multi-space.md` + a mangled root build-log rema
 now subclass it and the ~6 copies of the `assist.write.root` → `<root>/agent/<file>` resolver collapsed
 to one helper. No behavior change (intelligence 135/0/0/0).
 
-**SHOULD tier — mostly drained 2026-07-21** (see `superpower/modularization-optimization-plan.md` §SHOULD
-for full detail): ~~S2~~ (both studio god components split), ~~S3~~ (chart/grid consolidation), ~~S4~~
-(PipelineScheduler map-leak fix), ~~S6~~ (ControlApi.dispatch → middleware chain), ~~S7~~ (shutdown
-robustness), ~~S8~~ (`@PublicApi` SPI freeze), ~~S9~~ (intelligence↔agent decoupled via core model-settings
-bridge) — all shipped + pushed. **S1 skipped by design** (RouteModule→ServiceLoader would widen 39 types).
-**S5 (reactor split — extract `fp-config`/`fp-acquire`) NOT done — premise corrected by recon:** the two
-packages are *package-import*-acyclic but NOT independently Maven-extractable — `com.gamma.api.PublicApi`,
-`etl`, `util`, `event` all live in core. **Corrected order for a dedicated shift:** ① extract a leaf
-`fp-api` (just `com.gamma.api`) → ② `fp-config` (dep fp-api) → ③ `fp-acquire` only after `etl`+`util`+`event`
-are modularized (= the full WS-D split, not low-risk). No package-import cycles exist and
-`CollectorConnectorFactory` is already a proven SPI seam, so the path is sound, just larger than the plan
-claimed. Remaining engineering after S5: COULD tier (WS-D reactor split, C3 ag-Grid trim, C5 OptionalAgentSlot).
+**SHOULD tier — DRAINED 2026-07-21** (full detail in the archived plan §SHOULD): ~~S2~~ (both studio god
+components split), ~~S3~~ (chart/grid consolidation), ~~S4~~ (PipelineScheduler map-leak fix), ~~S6~~
+(ControlApi.dispatch → middleware chain), ~~S7~~ (shutdown robustness), ~~S8~~ (`@PublicApi` SPI freeze),
+~~S9~~ (intelligence↔agent decoupled via core model-settings bridge). **S1 skipped by design**
+(RouteModule→ServiceLoader would widen 39 types). ~~S5 steps ①②~~ **SHIPPED 2026-07-21** (`bc4d5f4d` +
+`0398a02b`): leaf **`inspecto-api`** (`file-processor-api`, just `com.gamma.api.PublicApi`) and
+**`inspecto-config`** (`file-processor-config`, `com.gamma.config` moved verbatim) extracted; reactor is
+8 modules; `package.ps1` builds `-pl inspecto -am` from the root. COULD tier resolved the same day:
+~~C3~~ ag-Grid trim (audited 12-module registration, grid chunk 1.17 MB→970 kB raw / 262→219 kB transfer,
+`aa87b2c3`) · ~~C5~~ was already shipped (`defb1281`, stale row) · ~~C7~~ `PipelineNodeType` documented
+as a reserved ServiceLoader seam (`1ec510d9`).
+
+**OPEN — reactor-split tail (the only engineering remainder; needs a dedicated shift):**
+**WS-D**: extract `etl` + `util` + `event` from core (prerequisite cycle-breaking moves in the archived
+plan §1.7: `BatchEventBus`+`CronExpression` out of `service`, `StatusStore` below `catalog`, `ops`/
+`catalog` shared-type relocations) → **then `fp-acquire`** (S5 ③; imports etl/util/event) → then the C1
+tail (fp-catalog / fp-ops / fp-core-etl / fp-control / fp-host). Playbook + gotchas:
+`okf/backend/modules/reactor.md`. Trigger-gated (do only when the trigger fires): C2 store-pair generic
+base (touching several store pairs), C4 BOM (external artifact consumers appear), C6 DuckDB per-run
+connection reuse (profiling shows open cost matters — NEVER pool the `SqlSandbox` HTTP path).
 
 ## 6. Security-module scope (deferred wholesale — do not partially implement elsewhere)
 

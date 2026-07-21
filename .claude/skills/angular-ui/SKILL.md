@@ -149,6 +149,11 @@ src/app/
   non-actions renderers. **The shared `<inspecto-data-table>` already binds `refreshAllCells`**, so every
   host's badge columns render regardless of tier (and survive the pro-tier AlaSQL re-run — `resultColumns()`
   reuses the host's explicit `ColDef` for matching fields) — bare direct hosts must do this themselves.
+  **Module registration is TRIMMED (C3, 2026-07-21):** `grid/index.ts` registers an explicit 12-module set,
+  not `AllCommunityModule` (grid chunk −200 kB). A new grid feature (e.g. number/date filters, CSV export,
+  editing, row drag) needs its community module ADDED to that list — in dev builds `ValidationModule` is
+  registered, so the missing module fails loudly by name (ag-Grid error 200) in test:ci/preview. Never
+  "fix" that error by restoring `AllCommunityModule`.
 - **G6 graph hosts — two patterns.** *Read-only* (`catalog/graph-view.component`) rebuilds the `Graph` on every
   data/scheme change — fine for static views. *Interactive editing* (`flows/flow-editor-graph.component`, T32) keeps a
   **persistent** `Graph` and mutates it in place (`add/remove/updateNodeData` + `draw()`), rebuilding only when the
