@@ -182,12 +182,14 @@ public final class CollectorService implements AutoCloseable {
                               String status, int total, int failed, String message) {}
     /** Optional embedded assist agent (v3.0, M0): discovered via {@link ServiceLoader} at
      *  {@link #start()} or registered explicitly with {@link #registerAgent(AssistAgent)};
-     *  {@code null} when the {@code file-processor-agent} module is absent. */
-    private volatile AssistAgent agent;
-    /** Optional embedded-intelligence agent (AGT-5, P0): the deliberative-session successor to
-     *  {@link #agent}, discovered/registered the same way; {@code null} when the
+     *  empty when the {@code file-processor-agent} module is absent. */
+    private final OptionalAgentSlot<AssistAgent> assistSlot =
+            new OptionalAgentSlot<>("Assist", AssistAgent::name);
+    /** Optional embedded-intelligence agent (AGT-5, P0): the deliberative-session successor to the
+     *  {@link #assistSlot}, discovered/registered the same way; empty when the
      *  {@code file-processor-intelligence} module is absent. */
-    private volatile IntelligenceAgent intelligenceAgent;
+    private final OptionalAgentSlot<IntelligenceAgent> intelligenceSlot =
+            new OptionalAgentSlot<>("Intelligence", IntelligenceAgent::name);
     /** Push discovery for local {@code source.discovery: watch} sources (ACQ-6); {@code null} when no
      *  source opts in. Started in {@link #start()}, closed first in {@link #close()}. */
     private CollectorWatcher watcher;
@@ -595,19 +597,12 @@ public final class CollectorService implements AutoCloseable {
      * @param a the agent provider; {@code null} is a no-op
      */
     public synchronized void registerAgent(AssistAgent a) {
-        if (a == null) return;
-        if (agent != null) {
-            log.warn("Assist agent '{}' already registered; ignoring '{}'", agent.name(), a.name());
-            return;
-        }
-        a.init(this);     // init before publishing the reference, so assistAgent() never sees a half-wired agent
-        agent = a;
-        log.info("Assist agent registered: {}", a.name());
+        assistSlot.register(a, x -> x.init(this));
     }
 
     /** The embedded assist agent, or empty when none is registered/discovered (v3.0). */
     public Optional<AssistAgent> assistAgent() {
-        return Optional.ofNullable(agent);
+        return assistSlot.get();
     }
 
     /**
@@ -618,19 +613,67 @@ public final class CollectorService implements AutoCloseable {
      * @param a the agent provider; {@code null} is a no-op
      */
     public synchronized void registerIntelligenceAgent(IntelligenceAgent a) {
-        if (a == null) return;
-        if (intelligenceAgent != null) {
-            log.warn("Intelligence agent '{}' already registered; ignoring '{}'", intelligenceAgent.name(), a.name());
-            return;
-        }
-        a.init(this);
-        intelligenceAgent = a;
-        log.info("Intelligence agent registered: {}", a.name());
+        intelligenceSlot.register(a, x -> x.init(this));
     }
 
     /** The embedded intelligence agent, or empty when none is registered/discovered (AGT-5, P0). */
     public Optional<IntelligenceAgent> intelligenceAgent() {
-        return Optional.ofNullable(intelligenceAgent);
+        return intelligenceSlot.get();
+    }
+
+    /**
+     * One optional embedded agent (assist or intelligence), which share an identical lifecycle:
+     * {@code init} runs <em>before</em> the reference is published (so {@link #get()} never sees a
+     * half-wired agent), one per service (a second non-null registration is warned and ignored),
+     * {@code start()} runs after the service starts (opt-in — the caller decides whether to invoke
+     * it), and {@code close()} runs on shutdown. Collapses the two former copy-pasted register/lookup/
+     * close blocks (modularization plan §1.7) so the ordering invariant lives in exactly one place.
+     *
+     * @param <T> the agent SPI type (both extend {@link AutoCloseable} and expose {@code init}/{@code name})
+     */
+    private static final class OptionalAgentSlot<T extends AutoCloseable> {
+        private final String kind;   // "Assist" / "Intelligence" — the log label
+        private final java.util.function.Function<T, String> nameOf;
+        private volatile T agent;
+
+        OptionalAgentSlot(String kind, java.util.function.Function<T, String> nameOf) {
+            this.kind = kind;
+            this.nameOf = nameOf;
+        }
+
+        /** Register {@code a} ({@code null} is a no-op), running {@code init} before the reference is
+         *  published; a second non-null registration is ignored with a warning (one agent per service). */
+        void register(T a, java.util.function.Consumer<T> init) {
+            if (a == null) return;
+            if (agent != null) {
+                log.warn("{} agent '{}' already registered; ignoring '{}'", kind, nameOf.apply(agent), nameOf.apply(a));
+                return;
+            }
+            init.accept(a);   // init before publishing the reference, so get() never sees a half-wired agent
+            agent = a;
+            log.info("{} agent registered: {}", kind, nameOf.apply(a));
+        }
+
+        /** The registered agent, or empty when none was registered/discovered. */
+        Optional<T> get() {
+            return Optional.ofNullable(agent);
+        }
+
+        /** Run {@code starter} on the agent if present, logging (never rethrowing) a start failure. */
+        void start(java.util.function.Consumer<T> starter) {
+            T a = agent;
+            if (a == null) return;
+            try { starter.accept(a); }
+            catch (Exception e) { log.warn("{} agent '{}' start failed: {}", kind, nameOf.apply(a), e.getMessage()); }
+        }
+
+        /** Close the agent if present, logging (never rethrowing) a close failure. */
+        void close() {
+            T a = agent;
+            if (a == null) return;
+            try { a.close(); }
+            catch (Exception e) { log.warn("Error closing {} agent '{}': {}", kind, nameOf.apply(a), e.getMessage()); }
+        }
     }
 
     /** Report recovery state, wire enrichment, then schedule the recurring poll cycle. */
@@ -638,12 +681,12 @@ public final class CollectorService implements AutoCloseable {
         // v3.0 (M0): discover an optional embedded assist agent on the classpath and wire it
         // in before the bus gets its first event. No-op when the agent module is absent (no
         // ServiceLoader provider) or one was already registered explicitly.
-        if (agent == null) {
+        if (assistSlot.get().isEmpty()) {
             ServiceLoader.load(AssistAgent.class).findFirst().ifPresent(this::registerAgent);
         }
         // AGT-5 (P0): discover an optional embedded intelligence agent, same pattern as the
         // reflex-layer AssistAgent above; no-op when file-processor-intelligence is absent.
-        if (intelligenceAgent == null) {
+        if (intelligenceSlot.get().isEmpty()) {
             ServiceLoader.load(IntelligenceAgent.class).findFirst().ifPresent(this::registerIntelligenceAgent);
         }
         for (ConfigRegistry.Entry e : configRegistry.all()) {
@@ -660,10 +703,7 @@ public final class CollectorService implements AutoCloseable {
         metrics.start();
         enrichment.start();
         if (jobs != null) jobs.start();
-        if (agent != null) {
-            try { agent.start(); }
-            catch (Exception e) { log.warn("Assist agent '{}' start failed: {}", agent.name(), e.getMessage()); }
-        }
+        assistSlot.start(AssistAgent::start);   // intelligence agent is intentionally not start()ed here
         // T13 / §3.8 — drive event-triggered flows: an upstream batch-commit signals the downstream
         // flow's coalescer (off the publishing thread, see triggerWorkers). Subscribed before the first
         // poll cycle so no commit is missed; flows with no event trigger ignore every event.
@@ -1169,14 +1209,8 @@ public final class CollectorService implements AutoCloseable {
     @Override
     public void close() {
         if (watcher != null) { watcher.close(); watcher = null; }   // stop push triggers before draining runs
-        if (agent != null) {                           // release agent resources first
-            try { agent.close(); }
-            catch (Exception e) { log.warn("Error closing assist agent '{}': {}", agent.name(), e.getMessage()); }
-        }
-        if (intelligenceAgent != null) {
-            try { intelligenceAgent.close(); }
-            catch (Exception e) { log.warn("Error closing intelligence agent '{}': {}", intelligenceAgent.name(), e.getMessage()); }
-        }
+        assistSlot.close();                            // release agent resources first
+        intelligenceSlot.close();
         if (jobs != null) jobs.close();               // drain in-flight job runs first
         triggerWorkers.close();                        // drain in-flight event-triggered flow runs (T13)
         enrichment.close();   // drain in-flight recomputes first
