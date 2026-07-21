@@ -12,6 +12,8 @@
 /errors/
 /target/
 /inspecto/target/
+/inspecto-api/target/
+/inspecto-config/target/
 /inspecto-agent/target/
 /inbox/
 /markers/

@@ -29,6 +29,13 @@
             <artifactId>file-processor-api</artifactId>
         </dependency>
 
+        <!-- com.gamma.config — spec/codec/safety, extracted to its own module (S5 ②).
+             Version managed by the parent. -->
+        <dependency>
+            <groupId>com.gamma.inspector</groupId>
+            <artifactId>file-processor-config</artifactId>
+        </dependency>
+
         <!-- CSV Parsing -->
         <dependency>
             <groupId>com.univocity</groupId>
@@ -43,18 +50,17 @@
             <version>1.5.2.1</version>
         </dependency>
 
-        <!-- JToon for configuration serialisation -->
+        <!-- JToon for configuration serialisation (version managed by the parent — shared
+             with fp-config since S5) -->
         <dependency>
             <groupId>dev.toonformat</groupId>
             <artifactId>jtoon</artifactId>
-            <version>1.0.9</version>
         </dependency>
 
-        <!-- Jackson for Map conversion used by JToon patterns -->
+        <!-- Jackson for Map conversion used by JToon patterns (version managed by the parent) -->
         <dependency>
             <groupId>com.fasterxml.jackson.core</groupId>
             <artifactId>jackson-databind</artifactId>
-            <version>2.21.3</version>
         </dependency>
 
         <!-- Logging — logback-classic is the SLF4J binding (replaced slf4j-simple at 4.2.0 so the

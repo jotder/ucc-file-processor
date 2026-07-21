@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>com.gamma.inspector</groupId>
+        <artifactId>file-processor-parent</artifactId>
+        <version>4.0.0-RC1</version>
+        <relativePath>../pom.xml</relativePath>
+    </parent>
+
+    <!-- Configuration contract + codec (S5 ②, modularization plan §2.3 "fp-config"):
+         com.gamma.config — spec (ConfigSpec/FieldSpec/Finding descriptor model), io
+         (ConfigCodec TOON round-trip, ConfigLoader, ResourceLoader), safety
+         (ConfigSafetyValidator). Extracted from the core; depends only on fp-api (the
+         @PublicApi annotation) plus jtoon/jackson for the TOON codec. The core depends
+         on this module, so pipeline/service/control code keeps importing
+         com.gamma.config unchanged. -->
+    <artifactId>file-processor-config</artifactId>
+    <name>Inspecto config (spec + codec + safety)</name>
+
+    <dependencies>
+        <!-- @PublicApi stability annotation (version managed by the parent). -->
+        <dependency>
+            <groupId>com.gamma.inspector</groupId>
+            <artifactId>file-processor-api</artifactId>
+        </dependency>
+
+        <!-- TOON serialisation for ConfigCodec (version managed by the parent — shared
+             with the core since the S5 split). -->
+        <dependency>
+            <groupId>dev.toonformat</groupId>
+            <artifactId>jtoon</artifactId>
+        </dependency>
+
+        <!-- Jackson annotations used on the spec model (@JsonIgnore); databind is what
+             the core already ships, so no new artifact enters the fat JAR. -->
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-databind</artifactId>
+        </dependency>
+
+        <!-- JUnit 5 — unit tests (version managed by the parent, M1). -->
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+</project>

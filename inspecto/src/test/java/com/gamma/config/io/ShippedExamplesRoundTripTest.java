@@ -12,12 +12,17 @@ import java.util.stream.Stream;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Tests for the canonical {@code .toon} codec (P1): every shipped config round-trips through
- * {@code decode → encode → strict-decode} with an equal map, and the re-encoded form is always
- * strict-decodable (comment-free, canonical) — the G5 guarantee that anything the codec produces
- * can be re-parsed under strict rules even if the original on-disk file carried {@code #} comments.
+ * Contract test over the CORE module's shipped {@code examples/} tree: every committed sample
+ * config round-trips through {@code decode → encode → strict-decode} with an equal map, and the
+ * re-encoded form is always strict-decodable (comment-free, canonical) — the G5 guarantee that
+ * anything the codec produces can be re-parsed under strict rules even if the original on-disk
+ * file carried {@code #} comments.
+ *
+ * <p>Lives in the core module (not fp-config, where the rest of {@code ConfigCodecTest} moved in
+ * the S5 split) because the fixture it walks is the core's own {@code examples/} directory —
+ * surefire's working directory is the module root, so the walk only resolves here.
  */
-class ConfigCodecTest {
+class ShippedExamplesRoundTripTest {
 
     // The shipped, committed sample configs live under the module's examples/ tree (runnable feature
     // examples). The old target — config/ — was a gitignored scratch dir: present on a dev box but
@@ -47,34 +52,5 @@ class ConfigCodecTest {
             Map<String, Object> map2 = ConfigCodec.toMapStrict(canonical);      // strict re-decode
             assertEquals(map1, map2, "round-trip map mismatch for " + p);
         }
-    }
-
-    @Test
-    void colonAndSlashBearingValuesSurviveStrictRoundTrip() {
-        // mirrors the events_meta.toon refs ("events/CALL") and grain strings ("a, b") that broke
-        // tabular parsing before — they must encode quoted and strict-decode back intact
-        Map<String, Object> src = Map.of(
-                "name", "x",
-                "kpis", Map.of("arpu", Map.of(
-                        "inputs", List.of("events/CALL", "EVENTS_DAILY_KPI"),
-                        "grain", "msisdn, month")));
-        String toon = ConfigCodec.toToon(src);
-        assertTrue(ConfigCodec.isStrictDecodable(toon));
-        assertEquals(src, ConfigCodec.toMapStrict(toon));
-    }
-
-    @Test
-    void encodeNormalisesCommentBearingInputToStrictCleanForm() {
-        // lenient decode reads a comment-bearing draft; the canonical re-encode drops the comments
-        // and is strict-decodable — the guarantee that matters, independent of JToon's own
-        // (version-dependent) tolerance of comments under strict mode.
-        String commented = "name: x\n# a comment line\nversion: 1\n";
-        Map<String, Object> m = ConfigCodec.toMap(commented);
-        assertEquals("x", m.get("name"));
-
-        String canonical = ConfigCodec.toToon(m);
-        assertFalse(canonical.contains("#"), "canonical form carries no comments");
-        assertTrue(ConfigCodec.isStrictDecodable(canonical));
-        assertEquals(m, ConfigCodec.toMapStrict(canonical));
     }
 }
