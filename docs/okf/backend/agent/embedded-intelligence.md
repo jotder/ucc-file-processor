@@ -226,10 +226,10 @@ second pilot class (alert triage) and a periodic state-watch trigger are deferre
   actions); intelligence module 100→119. UI: `autonomy.component.spec.ts` (8) + `AutonomyService`;
   `npm run test:ci` 276 files/1533 pass, `npm run build` clean.
 
-## P5 — learning, in progress
+## P5 — learning, complete
 
-Turning operator judgement into eval growth + tuning. **Slices 1–2 shipped 2026-07-21** (feedback
-capture + case-similarity recall); the per-skill tuning dashboard is the remaining slice.
+Turning operator judgement into eval growth + tuning. **P5 complete 2026-07-21** (feedback capture +
+case-similarity recall + the learning dashboard UI). With it, the full AGT-5 P0–P5 roadmap is shipped.
 
 - **Case feedback (slice 1)** — `investigation.Feedback` (`{id, caseId, rating HELPFUL|NOT_HELPFUL,
   note, submittedBy, at}`) + durable `FeedbackStore` (JSON-lines at
@@ -253,6 +253,12 @@ capture + case-similarity recall); the per-skill tuning dashboard is the remaini
   ranking + self-exclude, empty on blank/​k≤0, durable reload + recall over reloaded corpus),
   `InspectoIntelligenceAgentTest` +1 (feedback), `AgentRoutesTest` +3 (feedback 400/404/200, list,
   similar 200/404). Module 119→129.
+- **Learning dashboard (slice 3)** — the operator surface in `inspecto-ui` (`modules/admin/learning/`,
+  route `/learning`, Operations nav leaf). Helpful-rate KPIs (total / helpful / not-helpful /
+  helpful-rate %) over the feedback corpus + the recent-feedback ledger in the shared
+  `<inspecto-data-table>`. `LearningService` (`feedback` / `rateCase` / `similarCases`) + barrel.
+  Read-only; degrades to an empty state + toast. `learning.component.spec.ts` (4: KPI aggregation,
+  empty-corpus rate, failure degrade, a11y); `npm run test:ci` 277 files/1537 pass, `npm run build` clean.
 
 ## Gotchas / seams
 
@@ -275,7 +281,9 @@ capture + case-similarity recall); the per-skill tuning dashboard is the remaini
 
 ## Still open (parent plan `embedded-intelligence-plan.md`, §8)
 
-P2 remainder (`query_author`, `kpi_report_builder` — see the P2 tier above for why deferred) · P3
-complete · P4 complete · P5 in progress (feedback capture shipped; **case-similarity recall** + Case
-persistence + per-skill tuning dashboard remain) · hosted providers (Standard+) · the optional S8
-signal-backbone slice. See `docs/BACKLOG.md`.
+The AGT-5 phased roadmap **P0–P5 is complete**. Remaining items are deliberate deferrals, not gaps:
+P2 remainder (`query_author` — blocked on a trusted dataset→relationSql seam; `kpi_report_builder` — no
+confirmed target kind) · P4 polish (a second `ops_monitor` pilot class e.g. alert-triage; a periodic
+state-watch trigger — today event-driven) · P3's mid-plan runbook resume · the embedding-retrieval
+upgrade (assessed not-warranted) · hosted providers (Standard+) · the optional S8 signal-backbone slice.
+See `docs/BACKLOG.md`.

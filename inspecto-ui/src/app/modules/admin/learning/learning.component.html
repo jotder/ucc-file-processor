@@ -1,0 +1,64 @@
+<div class="flex min-w-0 flex-auto flex-col p-6 md:p-8">
+    <!-- Header -->
+    <div class="flex items-center justify-between">
+        <div>
+            <h1 class="text-3xl font-extrabold leading-tight tracking-tight">Learning</h1>
+            <div class="text-secondary mt-1">
+                How useful the agent's investigations have been, from operator feedback. The helpful-rate is
+                the signal the learning tier tunes against — it grows the eval set and sharpens each skill.
+            </div>
+        </div>
+        <div class="flex items-center gap-3">
+            @if (loading) {
+                <mat-spinner diameter="24"></mat-spinner>
+            }
+            <button mat-icon-button (click)="load()" [disabled]="loading" aria-label="Refresh">
+                <mat-icon [svgIcon]="'heroicons_outline:arrow-path'"></mat-icon>
+            </button>
+        </div>
+    </div>
+
+    <!-- KPIs -->
+    <div class="mt-6 grid grid-cols-2 gap-4 md:grid-cols-4">
+        <div class="rounded-lg border border-gray-200 p-4 dark:border-gray-700">
+            <div class="text-secondary text-sm">Feedback</div>
+            <div class="mt-1 text-3xl font-bold">{{ total }}</div>
+        </div>
+        <div class="rounded-lg border border-gray-200 p-4 dark:border-gray-700">
+            <div class="text-secondary text-sm">Helpful</div>
+            <div class="mt-1 text-3xl font-bold text-green-600">{{ helpful }}</div>
+        </div>
+        <div class="rounded-lg border border-gray-200 p-4 dark:border-gray-700">
+            <div class="text-secondary text-sm">Not helpful</div>
+            <div class="mt-1 text-3xl font-bold text-warn-600">{{ notHelpful }}</div>
+        </div>
+        <div class="rounded-lg border border-gray-200 p-4 dark:border-gray-700">
+            <div class="text-secondary text-sm">Helpful rate</div>
+            <div class="mt-1 text-3xl font-bold">
+                @if (helpfulRate === null) {
+                    <span class="text-secondary text-2xl">—</span>
+                } @else {
+                    {{ helpfulRate }}<span class="text-xl">%</span>
+                }
+            </div>
+        </div>
+    </div>
+
+    <!-- Feedback ledger -->
+    <div class="mt-6">
+        <div class="text-lg font-semibold">Recent feedback</div>
+        <div class="text-secondary text-sm">Each operator rating on an investigation Case, newest first.</div>
+        <div class="mt-3 flex-auto">
+            <inspecto-data-table
+                tier="pro"
+                sourceName="agent-feedback"
+                exportName="agent-feedback"
+                [rows]="feedback"
+                [columns]="columnDefs"
+                [loading]="loading"
+                noRowsTitle="No feedback yet"
+                noRowsHint="When operators rate the agent's investigation Cases (helpful / not helpful), their feedback appears here and feeds the helpful-rate above."
+            />
+        </div>
+    </div>
+</div>

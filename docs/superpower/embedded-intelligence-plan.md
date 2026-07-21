@@ -427,8 +427,17 @@ plan's "deterministic token-overlap first; embeddings only if warranted"; the em
 **not warranted** at this corpus size and is left as a drop-in replacement behind `CaseSimilarity.score`.
 `CaseStore.similar(text, k, excludeId)` returns top-k positive-scoring prior Cases (score + newest as
 tie-break); SPI `similarCases(id, k)` + `GET /agent/cases/{id}/similar?k=` (404 unknown case, else the
-neighbour list with a `similarity` score). *Still open for P5:* a per-skill tuning dashboard (helpful
--rate aggregation over the feedback corpus).
+neighbour list with a `similarity` score).
+
+*P5 slice 3 — Learning dashboard UI — SHIPPED 2026-07-21.* The operator surface in `inspecto-ui`
+(`modules/admin/learning/`, route `/learning`, nav leaf under Operations): helpful-rate KPIs (total /
+helpful / not-helpful / helpful-rate %) computed over the feedback corpus, plus the recent-feedback
+ledger in the shared `<inspecto-data-table>`. `LearningService` (`feedback` / `rateCase` /
+`similarCases`) + barrel; Vitest specs (4) cover KPI aggregation, the empty-corpus rate, failure
+degrade, and a11y. **P5 complete** — and with it the full P0–P5 roadmap. (The embedding-retrieval
+upgrade was assessed **not warranted** at this corpus size and left as a drop-in behind
+`CaseSimilarity.score`; a per-skill breakdown is a trivial extension once feedback spans more skills
+than the single RCA-investigation skill that produces Cases today.)
 
 ## 9. Risks & mitigations
 
