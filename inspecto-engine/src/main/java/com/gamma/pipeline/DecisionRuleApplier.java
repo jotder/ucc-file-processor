@@ -1,7 +1,11 @@
-package com.gamma.etl;
+package com.gamma.pipeline;
 
+import com.gamma.etl.LineageCollector;
+import com.gamma.etl.LineageRow;
+import com.gamma.etl.PartitionOutput;
+import com.gamma.etl.PartitionWriter;
+import com.gamma.etl.PipelineConfig;
 import com.gamma.event.EventLog;
-import com.gamma.pipeline.DecisionRules;
 import com.gamma.query.ConditionSql;
 import com.gamma.signal.Ref;
 import com.gamma.signal.Severity;
@@ -27,8 +31,8 @@ import java.util.Map;
  * {@code /decision-rules/{name}/simulate} previews ({@code docs/okf/backend/control-plane/
  * decision-rules.md}). Three subjects hook in:
  * <ul>
- *   <li><b>pipeline batches</b> — the {@code transformed} table, between {@link DataTransformer} and
- *       {@link PartitionWriter} ({@code BatchIngestStrategy.writeAndTrace}), matched by
+ *   <li><b>pipeline batches</b> — the {@code transformed} table, between {@link com.gamma.etl.DataTransformer}
+ *       and {@link PartitionWriter} ({@code BatchIngestStrategy.writeAndTrace}), matched by
  *       {@code targetType: pipeline};</li>
  *   <li><b>{@code sql.template} job runs</b> — the materialized template result before its snapshot
  *       {@code COPY}, matched by {@code targetType: job} + the job's name;</li>

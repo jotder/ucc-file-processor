@@ -1,6 +1,6 @@
 package com.gamma.enrich;
 
-import com.gamma.etl.DecisionRuleApplier;
+import com.gamma.pipeline.DecisionRuleApplier;
 import com.gamma.etl.PartitionOutput;
 import com.gamma.etl.PartitionWriter;
 import com.gamma.etl.PipelineConfig;

@@ -131,7 +131,8 @@ is maintainability-only, **not** a split blocker.
 scan, both directions) mapped its internal shape. **The optimistic "trivially available" / "falls out
 naturally" claims for the sub-splits were WRONG — the third time this arc under-estimated coupling.**
 
-Layering (top = consumed only by core; bottom = the mutually-cyclic core):
+Layering **as first measured** (top = consumed only by core; bottom = the mutually-cyclic core) —
+increment 1 below then reshaped the bottom row:
 
 | Layer | Packages | Note |
 |---|---|---|
@@ -139,21 +140,38 @@ Layering (top = consumed only by core; bottom = the mutually-cyclic core):
 | Mid | `catalog` | imported only by `alert` |
 | **SCC (10 pkgs, mutually cyclic)** | `etl, event, metrics, pipeline, job, acquire, signal, query, enrich, ops` | inseparable without cycle-breaking |
 
-- **`fp-acquire` below engine is NOT available.** `acquire` is *inside* the SCC
-  (`acquire→etl→pipeline→job→acquire`). It cannot drop below the rest of the engine until the SCC is
-  decomposed. (The S5 ③ "falls out naturally" premise is retired.)
-- **The §2.3 three-cluster sub-split (fp-core-etl / fp-ops / fp-catalog) is impossible as specified.**
-  Those clusters split packages (`etl`, `event`, `pipeline`, `ops`, `query`) that all live in the *one*
-  10-package SCC, so they cannot occupy different modules.
-- **What the map does show is feasible (a future, deliberate effort).** The SCC is held together
-  substantially by `etl` importing *up* into `event`/`pipeline`/`query`/`signal`, and those back-edges
-  are **thin** — `event.EventLog`/`EventType`, `pipeline.PipelineTrigger`/`DecisionRules`,
-  `query.ConditionSql`, `signal.Signal`/`Severity`/`Ref` (~7 symbols). Inverting them (SPI/relocation)
-  would make `etl` a foundation leaf and fragment the SCC. This is behavior-touching **design** work
-  (SPI inversions in a codebase with known `ingestLock`+sync-bus deadlock sensitivity — see
-  `PROJECT_NOTES.md`), NOT a mechanical `git mv`; do it as its own shift only if finer module
-  granularity is actually wanted. The coarse `fp-engine` already delivers the acyclic core↔engine
-  boundary, which was the whole point of WS-D.
+- **`fp-acquire` below engine was NOT available as first measured.** `acquire` was *inside* the SCC
+  (`acquire→etl→pipeline→job→acquire`), so it could not drop below the rest of the engine until the SCC
+  was decomposed. (The S5 ③ "falls out naturally" premise is retired.) **Increment 1 changed this** —
+  `acquire` fell out of the SCC (see below).
+- **The §2.3 three-cluster sub-split (fp-core-etl / fp-ops / fp-catalog) was impossible as specified**,
+  because those clusters split packages (`etl`, `event`, `pipeline`, `ops`, `query`) that all lived in
+  the *one* 10-package SCC. Increment 1 shrank that SCC but did not (and was not meant to) realize the
+  §2.3 clusters exactly; further work is still deliberate cycle-breaking, not a mechanical move.
+- **What the map showed as feasible — and increment 1 (2026-07-22) then DID.** The SCC was held
+  together substantially by `etl` importing *up* into `event`/`pipeline`/`query`/`signal` via only
+  **two files**: `etl.DecisionRuleApplier` (`pipeline.DecisionRules` + `query.ConditionSql`) and
+  `etl.BatchAuditWriter` (`event.EventLog` + `signal.Signal` for the `pipeline.batch.*` observability
+  tail). Both were cut without touching behavior:
+    - `DecisionRuleApplier` → relocated to `com.gamma.pipeline` (its cohesive home with `DecisionRules`);
+      all 3 callers (`inspector`/`enrich`/`job`) are higher-layer, so no etl→pipeline edge returns.
+    - `BatchAuditWriter` → the inlined Signal build+emit moved to the new `com.gamma.signal.PipelineBatchSignal`,
+      wired via an injected `setTerminalBatchSink(Consumer<BatchEvent>)` that `CollectorProcessor` sets to
+      `PipelineBatchSignal::emit`. `BatchEvent` already carried every field the Signal needs, so it is a
+      pure fan-out split. (One test method moved etl→signal to keep etl-test clean of the up-packages.)
+  **Result — the mega-SCC fragmented (verified by re-mapping, full reactor green, 1884 tests):**
+
+  | Before (10-pkg SCC) | After increment 1 |
+  |---|---|
+  | `etl, event, metrics, pipeline, job, acquire, signal, query, enrich, ops` | `etl` = **foundation leaf** (out-degree 0 in engine) · SCC → **`{pipeline, job, query, enrich}`** + **`{event, metrics}`** · `acquire`, `signal`, `ops`, `catalog` dropped OUT (now simple downward deps on `etl`/`event`) |
+
+  So `acquire` is no longer SCC-trapped (it now imports only `etl`+`event`), and `etl` is cleanly
+  extractable as an `fp-etl` module below the rest whenever wanted — **note** etl *test* sources still
+  reach up (integration tests importing `enrich`/`job`/`acquire`/`inspector`/`event`); those must be
+  relocated before an actual standalone `fp-etl` module, but they don't affect the main-code layering.
+  Further fragmentation (breaking `{pipeline,job,query,enrich}` or `{event,metrics}`) is the same class
+  of deliberate, deadlock-sensitive design work — do it only if finer module granularity is wanted. The
+  coarse `fp-engine` already delivers the acyclic core↔engine boundary, which was the whole point of WS-D.
 - **M2 `CollectorService`/`SourceService` decomposition** remains open as maintainability work (it
   reorganizes classes *within* core's `service` package; it is NOT a split blocker).
 

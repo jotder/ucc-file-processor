@@ -41,7 +41,7 @@ import java.util.Map;
  * {@code generate-report}, {@code invoke-api}), matching the mock's own scope; the routing actions
  * ({@code route}/{@code tag}/{@code quarantine}/{@code drop}) are record-level — {@code simulate}
  * counts the rows they would affect, and they take effect during live pipeline runs via
- * {@link com.gamma.etl.DecisionRuleApplier} (every batch applies the target pipeline's enabled rules
+ * {@link com.gamma.pipeline.DecisionRuleApplier} (every batch applies the target pipeline's enabled rules
  * between transform and write), so {@code apply} has nothing to execute for them on demand.
  */
 final class DecisionRoutes implements RouteModule {

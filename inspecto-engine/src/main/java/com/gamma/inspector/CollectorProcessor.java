@@ -107,6 +107,11 @@ public class CollectorProcessor {
                 cfg.dirs().statusFilePath(), cfg.dirs().batchesFilePath(), cfg.dirs().lineageFilePath(),
                 cfg.dirs().commitLogPath());
         if (onCommit != null) audit.setCommitListener(onCommit);
+        // Emit the canonical pipeline.batch.committed|failed Signal onto the ledger for every terminal
+        // batch. Formerly inlined in BatchAuditWriter; lifted to signal.PipelineBatchSignal so etl stays
+        // a foundation layer (no event/signal imports). Wired unconditionally — PipelineBatchSignal uses
+        // the ambient EventLog.current(), a no-op when no space log is installed (e.g. one-shot CLI).
+        audit.setTerminalBatchSink(com.gamma.signal.PipelineBatchSignal::emit);
 
         // Virtual threads + a Semaphore: a batch blocked on file I/O or DuckDB parks
         // its carrier cheaply instead of pinning a platform thread, but the semaphore

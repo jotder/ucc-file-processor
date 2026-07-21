@@ -1,6 +1,6 @@
 package com.gamma.job;
 
-import com.gamma.etl.DecisionRuleApplier;
+import com.gamma.pipeline.DecisionRuleApplier;
 import com.gamma.etl.PartitionOutput;
 import com.gamma.pipeline.exec.SourceStoreReader;
 import com.gamma.signal.Severity;

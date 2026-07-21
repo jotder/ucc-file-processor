@@ -25,7 +25,7 @@ import static org.junit.jupiter.api.Assertions.*;
 /**
  * Live-wiring tests for the record-level Decision Rule consequences: {@code writeAndTrace} (the
  * shared tail of every ingest path) applies the pipeline's enabled rules to the {@code transformed}
- * table via {@link com.gamma.etl.DecisionRuleApplier} before {@code PartitionWriter} — so
+ * table via {@link com.gamma.pipeline.DecisionRuleApplier} before {@code PartitionWriter} — so
  * {@code drop} rows never reach the output, {@code quarantine} rows land as record-level Parquet
  * under {@code dirs.quarantine}, {@code route} rows land under {@code dirs.database/<destination>}
  * with their own outputs, and {@code tag} appends a {@code __tags} column. Rules are loaded from the

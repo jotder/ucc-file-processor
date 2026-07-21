@@ -124,17 +124,24 @@ classes bundled). Two build-clean-only issues resolved: fp-engine publishes a **
 [`okf/backend/modules/reactor.md`](okf/backend/modules/reactor.md); plan archived. Prior tail (both `job`
 edges cut) shipped `ee3e618f..33fa51ca`.
 
-**Optional follow-ons (none blocking; NEITHER is mechanical — measured 2026-07-22):** an intra-engine
-dependency map found a **10-package SCC** (`etl, event, metrics, pipeline, job, acquire, signal, query,
-enrich, ops`) with a thin top layer (`inspector, ingester, notify, alert`, `catalog` under `alert`).
-- **§2.3 sub-split** (fp-core-etl / fp-ops / fp-catalog) is **impossible as specified** — those clusters
-  split packages that all live in the one SCC. Requires decomposing the SCC first.
-- **`fp-acquire`** (S5 ③) is **NOT trivially available** — `acquire` is *inside* the SCC
-  (`acquire→etl→pipeline→job→acquire`), so it cannot drop below the rest of the engine yet.
-- **The real unlock** is inverting `etl`'s thin up-edges into `event`/`pipeline`/`query`/`signal` (~7
-  symbols: `EventLog`/`EventType`, `PipelineTrigger`/`DecisionRules`, `ConditionSql`, `Signal`/`Severity`/
-  `Ref`) to make `etl` a foundation leaf — behavior-touching **design** work (deadlock-sensitive), its own
-  deliberate shift, only if finer granularity is wanted. Full map: `okf/backend/modules/reactor.md`.
+✅ **SHIPPED — increment 1: `etl` → foundation leaf (2026-07-22):** an intra-engine dependency map found
+a **10-package SCC** (`etl, event, metrics, pipeline, job, acquire, signal, query, enrich, ops`). Its
+main-code back-edges from `etl` lived in just two files, both cut without behavior change:
+`etl.DecisionRuleApplier` → relocated to `com.gamma.pipeline`; `etl.BatchAuditWriter`'s `pipeline.batch.*`
+Signal build+emit → new `com.gamma.signal.PipelineBatchSignal`, injected via `setTerminalBatchSink` wired
+in `CollectorProcessor`. **`etl` is now a foundation leaf** (out-degree 0 within engine); the SCC
+fragmented to **`{pipeline, job, query, enrich}`** + **`{event, metrics}`**, and **`acquire, signal, ops,
+catalog` dropped out** (simple downward deps now). Full reactor green (1884 tests, 0 failures). Map +
+before/after: [`okf/backend/modules/reactor.md`](okf/backend/modules/reactor.md).
+
+**Remaining follow-ons (none blocking; each is deliberate deadlock-sensitive design work, not mechanical):**
+- **`fp-etl` module** — `etl` main is now cleanly extractable below the rest of engine. Blocker before
+  that: etl *test* sources still import up (`enrich`/`job`/`acquire`/`inspector`/`event` integration
+  tests) — relocate those first.
+- **`fp-acquire`** (S5 ③) — `acquire` is no longer SCC-trapped (imports only `etl`+`event` now); a
+  candidate once `etl`/`event` layering is finalized.
+- **Further SCC fragmentation** — breaking `{pipeline, job, query, enrich}` or `{event, metrics}` for the
+  §2.3-style clusters; only if finer module granularity is actually wanted.
 
 **Deferred by design:** M2 `SourceService`/`CollectorService` decomposition — maintainability-only, not a split blocker (the old premise was corrected). The intra-module `ops↔ops.link/workflow` and `catalog↔catalog.spi` cycles are same-family, not reactor-split blockers. Trigger-gated: C2 store-pair generic base, C4 BOM, C6 DuckDB per-run connection reuse.
 
