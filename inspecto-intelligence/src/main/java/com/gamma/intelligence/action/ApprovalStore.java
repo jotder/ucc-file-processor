@@ -1,43 +1,30 @@
 package com.gamma.intelligence.action;
 
-import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import com.fasterxml.jackson.databind.SerializationFeature;
+import com.gamma.intelligence.store.DurableJsonlRing;
 
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
-import java.util.ArrayDeque;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Deque;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
 /**
- * Bounded ring of {@link Approval}s (AGT-5 P3) — mirrors {@code CaseStore}'s shape
- * (synchronized {@link ArrayDeque}, evict-oldest-on-overflow). It holds both pending and already-
- * decided approvals so the inbox can show recent history; the blocking bridge to the eoiagent gate is
+ * Bounded, durable ring of {@link Approval}s (AGT-5 P3). It holds both pending and already-decided
+ * approvals so the inbox can show recent history; the blocking bridge to the eoiagent gate is
  * {@link AgentApprovals}' concern, this owns only storage and the guarded, once-only state transition.
- *
- * <p>With a {@code file}, the ring is durable: loaded at construction and rewritten (one JSON object
- * per line, ≤ capacity lines) on every mutation, so pending approvals and undelivered operator
- * decisions survive a process restart — the substrate for the P3 resume-after-restart flow. All
- * persistence failures degrade to in-memory-only (log + continue); durability never blocks the gate.
+ * Ring mechanics + JSON-lines durability come from {@link DurableJsonlRing}.
  */
-public final class ApprovalStore {
+public final class ApprovalStore extends DurableJsonlRing<Approval> {
 
-    private static final Logger log = LoggerFactory.getLogger(ApprovalStore.class);
     private static final ObjectMapper JSON = new ObjectMapper();
     private static final int DEFAULT_CAPACITY = 256;
-
-    private final int capacity;
-    private final Path file; // null → in-memory only
-    private final Deque<Approval> ring = new ArrayDeque<>();
+    private static final Codec<Approval> CODEC = new Codec<>() {
+        @Override public Map<String, Object> toRecord(Approval a) { return a.toRecord(); }
+        @Override public Approval fromRecord(Map<String, Object> m) { return Approval.fromRecord(m); }
+    };
 
     public ApprovalStore() { this(DEFAULT_CAPACITY, null); }
 
@@ -45,24 +32,12 @@ public final class ApprovalStore {
 
     ApprovalStore(int capacity) { this(capacity, null); }
 
-    ApprovalStore(int capacity, Path file) {
-        this.capacity = capacity;
-        this.file = file;
-        load();
-    }
+    ApprovalStore(int capacity, Path file) { super(capacity, file, CODEC, "approval(s)"); }
 
-    public synchronized void add(Approval a) {
-        if (ring.size() >= capacity) ring.removeFirst();
-        ring.addLast(a);
-        persist();
-    }
+    public void add(Approval a) { append(a); }
 
     /** Newest-first, capped at {@code limit}. */
-    public synchronized List<Approval> recent(int limit) {
-        List<Approval> copy = new ArrayList<>(ring);
-        Collections.reverse(copy);
-        return copy.subList(0, Math.min(limit, copy.size()));
-    }
+    public synchronized List<Approval> recent(int limit) { return recentSnapshot(limit); }
 
     public synchronized Optional<Approval> byId(String id) {
         return ring.stream().filter(a -> a.id().equals(id)).findFirst();
@@ -110,45 +85,13 @@ public final class ApprovalStore {
         return Optional.empty();
     }
 
-    public synchronized int size() { return ring.size(); }
-
     /** Canonical JSON with sorted keys — stable across a persistence round-trip (Integer/Long etc.). */
     private static String canonical(Map<String, Object> m) {
         try {
-            return JSON.writer().with(com.fasterxml.jackson.databind.SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS)
+            return JSON.writer().with(SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS)
                     .writeValueAsString(m == null ? Map.of() : m);
         } catch (IOException e) {
             return String.valueOf(m);
-        }
-    }
-
-    private void load() {
-        if (file == null || !Files.exists(file)) return;
-        try {
-            for (String line : Files.readAllLines(file, StandardCharsets.UTF_8)) {
-                if (line.isBlank()) continue;
-                Map<String, Object> record = JSON.readValue(line, new TypeReference<Map<String, Object>>() {});
-                if (ring.size() >= capacity) ring.removeFirst();
-                ring.addLast(Approval.fromRecord(record));
-            }
-            log.info("Loaded {} persisted approval(s) from {}", ring.size(), file);
-        } catch (IOException | RuntimeException e) {
-            log.warn("Could not load persisted approvals from {}: {}", file, e.getMessage());
-            ring.clear();
-        }
-    }
-
-    private void persist() {
-        if (file == null) return;
-        try {
-            StringBuilder sb = new StringBuilder();
-            for (Approval a : ring) {
-                sb.append(JSON.writeValueAsString(a.toRecord())).append('\n');
-            }
-            if (file.getParent() != null) Files.createDirectories(file.getParent());
-            Files.writeString(file, sb.toString(), StandardCharsets.UTF_8);
-        } catch (IOException | RuntimeException e) {
-            log.warn("Could not persist approvals to {}: {}", file, e.getMessage());
         }
     }
 }

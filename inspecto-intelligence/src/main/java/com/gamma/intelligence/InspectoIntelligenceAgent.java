@@ -40,6 +40,7 @@ import com.gamma.intelligence.policy.AutonomyPolicyEngine;
 import com.gamma.intelligence.policy.AutonomyPolicyStore;
 import com.gamma.intelligence.policy.OpsMonitor;
 import com.gamma.intelligence.action.ControlPlaneClient;
+import com.gamma.intelligence.store.AgentWriteRoot;
 import com.gamma.intelligence.pack.InspectoPack;
 import com.gamma.intelligence.pack.Investigator;
 import com.gamma.pipeline.ComponentStore;
@@ -412,10 +413,7 @@ public final class InspectoIntelligenceAgent implements IntelligenceAgent {
      * in-memory only (dev/tests), which behaves exactly as before this slice.
      */
     private static ApprovalStore approvalStore() {
-        String wr = System.getProperty("assist.write.root");
-        return wr == null || wr.isBlank()
-                ? new ApprovalStore()
-                : new ApprovalStore(java.nio.file.Path.of(wr).resolve("agent").resolve("approvals.jsonl"));
+        return new ApprovalStore(AgentWriteRoot.resolve("approvals.jsonl"));
     }
 
     /**
@@ -424,10 +422,7 @@ public final class InspectoIntelligenceAgent implements IntelligenceAgent {
      * in-memory (dev/tests).
      */
     private static AutonomyPolicyStore autonomyPolicyStore() {
-        String wr = System.getProperty("assist.write.root");
-        return wr == null || wr.isBlank()
-                ? new AutonomyPolicyStore()
-                : new AutonomyPolicyStore(java.nio.file.Path.of(wr).resolve("agent").resolve("policy.json"));
+        return new AutonomyPolicyStore(AgentWriteRoot.resolve("policy.json"));
     }
 
     /**
@@ -436,10 +431,7 @@ public final class InspectoIntelligenceAgent implements IntelligenceAgent {
      * else in-memory (dev/tests).
      */
     private static FeedbackStore feedbackStore() {
-        String wr = System.getProperty("assist.write.root");
-        return wr == null || wr.isBlank()
-                ? new FeedbackStore()
-                : new FeedbackStore(java.nio.file.Path.of(wr).resolve("agent").resolve("feedback.jsonl"));
+        return new FeedbackStore(AgentWriteRoot.resolve("feedback.jsonl"));
     }
 
     /**
@@ -448,10 +440,7 @@ public final class InspectoIntelligenceAgent implements IntelligenceAgent {
      * in-memory (dev/tests), exactly as it was through P1–P4.
      */
     private static CaseStore durableCaseStore() {
-        String wr = System.getProperty("assist.write.root");
-        return wr == null || wr.isBlank()
-                ? new CaseStore()
-                : new CaseStore(java.nio.file.Path.of(wr).resolve("agent").resolve("cases.jsonl"));
+        return new CaseStore(AgentWriteRoot.resolve("cases.jsonl"));
     }
 
     /**
