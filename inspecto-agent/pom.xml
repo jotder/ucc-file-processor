@@ -30,19 +30,9 @@
         No hosted-model SDK ships in M3, so "local-only" is guaranteed by packaging.
     </description>
 
-    <properties>
-        <!-- All AI/LLM deps are pinned here, in the optional module only. CVE-scan this tree
-             (SBOM) — it never reaches the lean core fat-JAR. 1.16.3 matches the version
-             eoiagent-model compiles against (eoiagent BOM). -->
-        <langchain4j.version>1.16.3</langchain4j.version>
-        <!-- eoiagent: the agent platform replacing the DISCONTINUED agent-kernel (2026-07-07,
-             docs/superpower/agent-kernel-replacement-plan.md). The kernel's reasoning layer is
-             vendored in-tree (com.gamma.agent.kernel.*); eoiagent supplies the model transport
-             (LlmGateway/Lc4jChatGateway). EOI-7a (2026-07-08): pinned to the released 0.1.0 (tag
-             v0.1.0 in C:/sandbox/agent-brainstorm); CI reproduces it with
-             `git checkout v0.1.0 && mvn -o clean install` until a registry is chosen (EOI-7b). -->
-        <eoiagent.version>0.2.0-SNAPSHOT</eoiagent.version>
-    </properties>
+    <!-- langchain4j.version + eoiagent.version are managed by the parent (M1). All AI/LLM deps
+         are still confined to this optional module only — CVE-scan this tree (SBOM); they never
+         reach the lean core fat-JAR. -->
 
     <dependencies>
         <dependency>
@@ -58,12 +48,10 @@
         <dependency>
             <groupId>com.eoiagent</groupId>
             <artifactId>eoiagent-core</artifactId>
-            <version>${eoiagent.version}</version>
         </dependency>
         <dependency>
             <groupId>com.eoiagent</groupId>
             <artifactId>eoiagent-model</artifactId>
-            <version>${eoiagent.version}</version>
             <exclusions>
                 <exclusion>
                     <groupId>dev.langchain4j</groupId>
@@ -76,18 +64,15 @@
         <dependency>
             <groupId>dev.langchain4j</groupId>
             <artifactId>langchain4j-core</artifactId>
-            <version>${langchain4j.version}</version>
         </dependency>
         <dependency>
             <groupId>dev.langchain4j</groupId>
             <artifactId>langchain4j-ollama</artifactId>
-            <version>${langchain4j.version}</version>
         </dependency>
 
         <dependency>
             <groupId>org.junit.jupiter</groupId>
             <artifactId>junit-jupiter</artifactId>
-            <version>${junit.version}</version>
             <scope>test</scope>
         </dependency>
 

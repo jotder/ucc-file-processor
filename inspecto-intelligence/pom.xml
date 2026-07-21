@@ -26,14 +26,8 @@
         module, so the core fat-JAR stays lean — same air-gap discipline as inspecto-agent.
     </description>
 
-    <properties>
-        <!-- Same eoiagent line inspecto-agent pins; kept in lockstep deliberately (one version for
-             both optional agent modules). EOI-7a (2026-07-08): pinned to the released 0.1.0 (tag
-             v0.1.0 in C:/sandbox/agent-brainstorm); reproduce the artifact with
-             `git checkout v0.1.0 && mvn -o clean install` until a registry is chosen (EOI-7b). -->
-        <langchain4j.version>1.16.3</langchain4j.version>
-        <eoiagent.version>0.2.0-SNAPSHOT</eoiagent.version>
-    </properties>
+    <!-- langchain4j.version + eoiagent.version are managed by the parent (M1), one line for both
+         optional agent modules — they were previously kept in lockstep by hand. -->
 
     <dependencies>
         <dependency>
@@ -57,22 +51,18 @@
         <dependency>
             <groupId>com.eoiagent</groupId>
             <artifactId>eoiagent-core</artifactId>
-            <version>${eoiagent.version}</version>
         </dependency>
         <dependency>
             <groupId>com.eoiagent</groupId>
             <artifactId>eoiagent-app-api</artifactId>
-            <version>${eoiagent.version}</version>
         </dependency>
         <dependency>
             <groupId>com.eoiagent</groupId>
             <artifactId>eoiagent-platform</artifactId>
-            <version>${eoiagent.version}</version>
         </dependency>
         <dependency>
             <groupId>com.eoiagent</groupId>
             <artifactId>eoiagent-model</artifactId>
-            <version>${eoiagent.version}</version>
             <exclusions>
                 <exclusion>
                     <groupId>dev.langchain4j</groupId>
@@ -84,18 +74,15 @@
         <dependency>
             <groupId>dev.langchain4j</groupId>
             <artifactId>langchain4j-core</artifactId>
-            <version>${langchain4j.version}</version>
         </dependency>
         <dependency>
             <groupId>dev.langchain4j</groupId>
             <artifactId>langchain4j-ollama</artifactId>
-            <version>${langchain4j.version}</version>
         </dependency>
 
         <dependency>
             <groupId>org.junit.jupiter</groupId>
             <artifactId>junit-jupiter</artifactId>
-            <version>${junit.version}</version>
             <scope>test</scope>
         </dependency>
     </dependencies>

@@ -65,11 +65,86 @@
         <maven.compiler.release>24</maven.compiler.release>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <junit.version>5.10.2</junit.version>
+        <!-- Shared external versions hoisted here (M1) so the six poms cannot drift. Each was
+             previously pinned literally in every module that used it: langchain4j in 3 (agent,
+             agent-hosted, intelligence), eoiagent in 2 (agent, intelligence), postgresql in 2
+             (core test-scope, connectors). The version now lives once; modules declare the
+             artifacts version-free and inherit the managed version from <dependencyManagement>. -->
+        <langchain4j.version>1.16.3</langchain4j.version>
+        <eoiagent.version>0.2.0-SNAPSHOT</eoiagent.version>
+        <postgresql.version>42.7.4</postgresql.version>
         <!-- Default empty so surefire's @{argLine} resolves cleanly when JaCoCo is inactive
              (normal 'mvn test'). The core module's 'coverage' profile's prepare-agent goal
              overrides this. Both modules inherit it. -->
         <argLine></argLine>
     </properties>
+
+    <!-- M1: single source of truth for the versions of the deps that were duplicated across
+         modules. Modules declare these artifacts WITHOUT a <version>; the version resolves here.
+         Only the drift-prone shared deps are managed centrally — single-owner deps (duckdb, jtoon,
+         sshj, nimbus, …) stay pinned in their one module, where there is no drift to prevent. -->
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>org.junit.jupiter</groupId>
+                <artifactId>junit-jupiter</artifactId>
+                <version>${junit.version}</version>
+            </dependency>
+            <!-- langchain4j model access (agent, agent-hosted, intelligence). -->
+            <dependency>
+                <groupId>dev.langchain4j</groupId>
+                <artifactId>langchain4j-core</artifactId>
+                <version>${langchain4j.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>dev.langchain4j</groupId>
+                <artifactId>langchain4j-ollama</artifactId>
+                <version>${langchain4j.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>dev.langchain4j</groupId>
+                <artifactId>langchain4j-anthropic</artifactId>
+                <version>${langchain4j.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>dev.langchain4j</groupId>
+                <artifactId>langchain4j-open-ai</artifactId>
+                <version>${langchain4j.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>dev.langchain4j</groupId>
+                <artifactId>langchain4j-google-ai-gemini</artifactId>
+                <version>${langchain4j.version}</version>
+            </dependency>
+            <!-- eoiagent model substrate (agent, intelligence). -->
+            <dependency>
+                <groupId>com.eoiagent</groupId>
+                <artifactId>eoiagent-core</artifactId>
+                <version>${eoiagent.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.eoiagent</groupId>
+                <artifactId>eoiagent-model</artifactId>
+                <version>${eoiagent.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.eoiagent</groupId>
+                <artifactId>eoiagent-app-api</artifactId>
+                <version>${eoiagent.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.eoiagent</groupId>
+                <artifactId>eoiagent-platform</artifactId>
+                <version>${eoiagent.version}</version>
+            </dependency>
+            <!-- PostgreSQL JDBC (core test-scope + connectors runtime). -->
+            <dependency>
+                <groupId>org.postgresql</groupId>
+                <artifactId>postgresql</artifactId>
+                <version>${postgresql.version}</version>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
 
     <!-- Shared plugin versions + config for both modules. Children activate plugins by
          reference (surefire/compiler run in the default lifecycle); the managed version and
