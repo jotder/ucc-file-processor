@@ -127,9 +127,6 @@
                         <button mat-stroked-button class="min-w-0 px-3" (click)="copyCsv()" matTooltip="Copy as CSV" aria-label="Copy sample as CSV">
                             <mat-icon class="icon-size-4" svgIcon="heroicons_outline:clipboard-document"></mat-icon>
                         </button>
-                        <button mat-stroked-button class="min-w-0 px-3" (click)="downloadCsv()" matTooltip="Download CSV" aria-label="Download sample as CSV">
-                            <mat-icon class="icon-size-4" svgIcon="heroicons_outline:arrow-down-tray"></mat-icon>
-                        </button>
                     }
                     <span class="text-secondary text-xs">rows</span>
                     <mat-button-toggle-group [value]="sampleLimit()" (change)="setLimit($event.value)" aria-label="Sample size">
@@ -152,13 +149,14 @@
                             {{ s.detail }} — preview only, never persisted.
                         </inspecto-alert>
                     }
-                    <ag-grid-angular
-                        class="h-96 w-full"
-                        [theme]="themeSvc.theme()"
-                        [rowData]="s.rows"
-                        [columnDefs]="sampleCols()"
-                        [defaultColDef]="defaultColDef"
-                        [overlayNoRowsTemplate]="noRowsTpl"
+                    <inspecto-data-table
+                        tier="standard"
+                        height="24rem"
+                        [rows]="s.rows"
+                        [columns]="sampleCols()"
+                        [exportName]="exportName()"
+                        noRowsTitle="No preview yet"
+                        noRowsHint="Pick a file or table in Explore to sample its first rows."
                     />
                 } @else {
                     <inspecto-empty-state

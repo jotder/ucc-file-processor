@@ -62,9 +62,9 @@ reuse debt, and dead weight.
   424 lines, `app.http.service.ts`, …).
 - **UI god components**: `studio/link-analysis/link-analysis.component.ts` (841 lines, 54 signals),
   `studio/geo-map/geo-map.component.ts` (825 lines, 53 signals) — both mix fetch + state + render.
-- Three metric panes (`dashboard`, `jobs`, `sources`) hand-build Chart.js configs instead of using the
-  design-system `chart.component.ts`; `connections/connection-workbench.component.ts` uses raw
-  `AgGridAngular` instead of `<inspecto-data-table>`.
+- ~~Three metric panes hand-build Chart.js configs~~ **(S3, 2026-07-21: stale — dashboard/jobs/
+  collectors + case-analytics.dialog already use `<inspecto-chart>`);** ~~`connection-workbench`
+  uses raw `AgGridAngular`~~ **(S3: migrated onto `<inspecto-data-table tier="standard">`).**
 - `inspecto/grid/index.ts` registers `AllCommunityModule` — every one of ~30 lazy grid chunks carries
   all ag-Grid community modules.
 - Root clutter: `file-processor-deploy-old/` (stale Jun-20 bundle), `test-run.log` (410 KB), two
@@ -306,7 +306,7 @@ E3. Bring `inspecto-intelligence` (14/2) and `inspecto-agent-hosted` (2/1) to ba
 |---|---|---|
 | S1 | ~~`RouteModule` ServiceLoader registration (C2)~~ **SKIPPED 2026-07-21** | Scope map (all 38 impls package-private, intra-module, always-present, no-arg) showed conversion would force 39 types public — *widening* API surface, the opposite of M3's freeze — for **zero present benefit**: unlike the `Authenticator` precedent it mirrors, no `RouteModule` is edition-optional (all live in `inspecto` core, always present). Only payoff is the fp-control extraction (C1), which is not scheduled. Revisit as part of C1, not standalone. |
 | S2 | Split UI god components link-analysis + geo-map (B4) | 800+ lines / 50+ signals each; every studio feature added makes them worse. |
-| S3 | Chart + grid consolidation (B2, B3) | Three hand-rolled Chart.js panes and one raw ag-Grid pane are the only design-system violations left; closes the reuse gap while it's small. |
+| S3 | ~~Chart + grid consolidation (B2, B3)~~ **DONE 2026-07-21** | **B2 was already shipped** (all 4 Chart.js consumers — dashboard/jobs/collectors/case-analytics.dialog — already route through `<inspecto-chart>`; zero hand-rolled `new Chart()` panes remained). **B3 done**: migrated `connection-workbench`'s Sample preview from raw `<ag-grid-angular>` onto `<inspecto-data-table tier="standard">` (gains search / column-chooser / CSV export from the shared toolbar; dropped the now-duplicate hand-rolled Download-CSV button, kept Copy-CSV since the table has no clipboard action). lint:tokens + prod build + test:ci all green. |
 | S4 | Bound `SourceService` maps, `EventLog.SPACES` cleanup (E1) | Unbounded process-lifetime growth under space/pipeline churn; cheap fix. |
 | S5 | Extract `fp-acquire` + `fp-config` (D1, D2) | The two packages already clean enough to move; proves the split mechanics with low risk. |
 | S6 | Middleware/filter chain for `ControlApi.dispatch` | Six cross-cutting concerns inlined in one ~100-line method; the chain makes S1's route plugins composable and testable. |

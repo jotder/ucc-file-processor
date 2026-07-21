@@ -5,7 +5,6 @@ import { MatButtonToggleModule } from '@angular/material/button-toggle';
 import { MatIconModule } from '@angular/material/icon';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatTooltipModule } from '@angular/material/tooltip';
-import { AgGridAngular } from 'ag-grid-angular';
 import { ColDef } from 'ag-grid-community';
 import { ToastrService } from 'ngx-toastr';
 import {
@@ -18,7 +17,7 @@ import {
     ResourceNode,
     SampleResult,
 } from 'app/inspecto/api';
-import { INSPECTO_DEFAULT_COL_DEF, InspectoGridThemeService, noRowsOverlay } from 'app/inspecto/grid';
+import { DataTableComponent } from 'app/inspecto/data-table';
 import { InspectoAlertComponent } from 'app/inspecto/components/alert.component';
 import { InspectoEmptyStateComponent } from 'app/inspecto/components/empty-state.component';
 import { InspectoSkeletonComponent } from 'app/inspecto/components/skeleton.component';
@@ -41,7 +40,7 @@ import { ConnectionTreeComponent } from './connection-tree.component';
         MatIconModule,
         MatProgressSpinnerModule,
         MatTooltipModule,
-        AgGridAngular,
+        DataTableComponent,
         StatusBadgeComponent,
         InspectoAlertComponent,
         InspectoEmptyStateComponent,
@@ -57,7 +56,6 @@ export class ConnectionWorkbenchComponent {
     private connections = inject(ConnectionsService);
     private probeApi = inject(ConnectionProbeService);
     private toastr = inject(ToastrService);
-    readonly themeSvc = inject(InspectoGridThemeService);
 
     readonly id = this.route.snapshot.paramMap.get('id') ?? '';
     readonly connection = signal<ConnectionProfile | null>(null);
@@ -98,9 +96,12 @@ export class ConnectionWorkbenchComponent {
     readonly sampleLimit = signal(50);
     readonly limitOptions = [50, 100, 500];
 
-    readonly defaultColDef = INSPECTO_DEFAULT_COL_DEF;
-    readonly noRowsTpl = noRowsOverlay('No preview yet', 'Pick a file or table in Explore to sample its first rows.');
     readonly sampleCols = computed<ColDef[]>(() => (this.sample()?.columns ?? []).map((c) => ({ field: c })));
+    /** Descriptive CSV filename for the data-table's export action (mirrors the old hand-rolled download). */
+    readonly exportName = computed<string>(() => {
+        const s = this.sample();
+        return s ? `${this.id}_${s.path.replace(/[^\w.-]+/g, '_')}_sample` : `${this.id}_sample`;
+    });
 
     constructor() {
         if (this.id) {
@@ -202,17 +203,6 @@ export class ConnectionWorkbenchComponent {
         };
         const lines = [s.columns.map(esc).join(','), ...s.rows.map((r) => s.columns.map((c) => esc(r[c])).join(','))];
         return lines.join('\n');
-    }
-
-    downloadCsv(): void {
-        const s = this.sample();
-        if (!s) return;
-        const url = URL.createObjectURL(new Blob([this.sampleCsv()], { type: 'text/csv' }));
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `${this.id}_${s.path.replace(/[^\w.-]+/g, '_')}_sample.csv`;
-        a.click();
-        URL.revokeObjectURL(url);
     }
 
     copyCsv(): void {
