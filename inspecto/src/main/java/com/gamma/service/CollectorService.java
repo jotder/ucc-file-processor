@@ -14,9 +14,7 @@ import com.gamma.etl.PipelineConfig;
 import com.gamma.pipeline.DeletionFence;
 import com.gamma.pipeline.PipelineGraph;
 import com.gamma.pipeline.PipelineStore;
-import com.gamma.pipeline.PipelineTrigger;
 import com.gamma.pipeline.PipelineLift;
-import com.gamma.pipeline.exec.TriggerCoalescer;
 import com.gamma.event.Event;
 import com.gamma.event.EventLevel;
 import com.gamma.event.EventLog;
@@ -34,10 +32,7 @@ import org.slf4j.MDC;
 
 import java.io.IOException;
 import java.nio.file.Path;
-import java.time.Instant;
 import java.time.LocalDateTime;
-import java.time.ZoneId;
-import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
@@ -163,17 +158,10 @@ public final class CollectorService implements AutoCloseable {
      *  by which time the prior cycle has written its {@code .processed} markers — so
      *  already-ingested files are skipped rather than double-processed. */
     private final ReentrantLock ingestLock = new ReentrantLock();
-    /** T13 / §3.8 — entry-node trigger driving. Per-pipeline last-run epoch (ms), so the loop scheduler
-     *  gates a {@code schedule:{every}}/{@code cron} pipeline by its own cadence instead of running every
-     *  active flow each tick. A pipeline with no {@code trigger:} (every legacy/lifted config) is
-     *  {@code DEFAULT_POLL} and still runs every cycle, so behaviour is unchanged. */
-    private final Map<String, Long> lastRunAtMs = new ConcurrentHashMap<>();
-    /** Per-pipeline coalescer for {@code event}-triggered flows: an upstream-commit storm collapses to one
-     *  non-overlapping run (the in-process {@code ingestLock} debounce, lifted to the flow grain). */
-    private final Map<String, TriggerCoalescer> eventCoalescers = new ConcurrentHashMap<>();
     /** Off-bus worker for event-triggered runs. The bus delivers synchronously on the publishing (runner)
      *  thread while {@link #runAllOnce} holds {@link #ingestLock}; running a triggered pipeline inline would
-     *  deadlock, so — like {@link JobService} — the handler hands off here. */
+     *  deadlock, so — like {@link JobService} — the handler hands off here. Shared with {@link #pipelineScheduler}
+     *  (event-trigger hand-off) and used by {@link #triggerRunAsync} (async trigger). */
     private final ExecutorService triggerWorkers = Executors.newVirtualThreadPerTaskExecutor();
     /** Live + recently-finished manual pipeline runs by {@code runId}, so {@code GET /runs/runs/{runId}} can poll an
      *  async trigger (W5b). Registered {@code RUNNING} at submit, replaced with the terminal result on completion.
@@ -192,10 +180,6 @@ public final class CollectorService implements AutoCloseable {
      *  are the {@link MultiCollectorProcessor.RunResult} counts once terminal; {@code -1} while {@code RUNNING}. */
     public record PipelineRun(String runId, String pipeline, String trigger, String startedAt, String finishedAt,
                               String status, int total, int failed, String message) {}
-    /** Zone for evaluating {@code cron} triggers (mirrors {@link JobService}). */
-    private final ZoneId triggerZone = ZoneId.systemDefault();
-    /** Epoch the service started — the cron "last fire" baseline before a pipeline has ever run. */
-    private final long serviceStartMs = System.currentTimeMillis();
     /** Optional embedded assist agent (v3.0, M0): discovered via {@link ServiceLoader} at
      *  {@link #start()} or registered explicitly with {@link #registerAgent(AssistAgent)};
      *  {@code null} when the {@code file-processor-agent} module is absent. */
@@ -219,6 +203,11 @@ public final class CollectorService implements AutoCloseable {
      *  backs pathFor/configFor/activeRegistry/pipelines and the catalog's ConfigSource without the
      *  former per-call O(n) re-parse. Rebuilt at construction and at the top of every poll cycle. */
     private final ConfigRegistry configRegistry;
+    /** The scheduled + event-driven ingest driver (M2 step 2): owns the poll-cycle body, the T13 trigger
+     *  gating, and the event-trigger hand-off. Shares this service's {@link #ingestLock}, {@link #bus},
+     *  {@link #triggerWorkers}, {@link #registry}, {@link #configRegistry}, {@link #paused}/{@link #running}
+     *  by reference; the operator-trigger paths ({@link #runPipeline}) stay here and lock the same lock. */
+    private final PipelineScheduler pipelineScheduler;
 
     /** A pipeline's identity + current state, for the Control API's listing. */
     public record PipelineView(String name, String configPath, boolean paused, int committedBatches) {}
@@ -407,6 +396,13 @@ public final class CollectorService implements AutoCloseable {
         // Initial population so the read surface (catalog, pathFor, configFor, pipelines) is live
         // before the first poll cycle. Unloadable configs are warned and skipped.
         configRegistry.rebuild(this.registry);
+
+        // The loop/event-driven ingest driver (M2 step 2). Passed the SAME ingestLock/bus/triggerWorkers
+        // and the shared registry/config/paused/running state — never clones — plus the two callbacks for
+        // what stays here: the sync run-by-name (runPipeline, same ingestLock) and the DB status sync.
+        this.pipelineScheduler = new PipelineScheduler(this.registry, this.configRegistry, this.paused,
+                this.running, this.ingestLock, this.bus, this.triggerWorkers, this.maxConcurrentRuns,
+                this::runPipeline, this::syncStatus);
     }
 
     /** The operator's persisted {@link com.gamma.notify.ChannelConfig} channel destinations for this space
@@ -671,7 +667,7 @@ public final class CollectorService implements AutoCloseable {
         // T13 / §3.8 — drive event-triggered flows: an upstream batch-commit signals the downstream
         // flow's coalescer (off the publishing thread, see triggerWorkers). Subscribed before the first
         // poll cycle so no commit is missed; flows with no event trigger ignore every event.
-        bus.subscribe(this::onUpstreamCommit);
+        bus.subscribe(pipelineScheduler::onUpstreamCommit);
         scheduler.everySeconds("poll-all", 0, pollSeconds, this::runAllOnce);
         // ACQ-6 push discovery: filesystem events on local `source.discovery: watch` poll roots trigger an
         // immediate single-pipeline run (same ingestLock as the loop above, which stays on as the backstop).
@@ -704,130 +700,7 @@ public final class CollectorService implements AutoCloseable {
      * @return the run outcome (total / failed source counts)
      */
     public MultiCollectorProcessor.RunResult runAllOnce() {
-        return underSpace(this::runAllOnceInSpace);   // cycle + its parallel workers run under this space's MDC
-    }
-
-    private MultiCollectorProcessor.RunResult runAllOnceInSpace() {
-        ingestLock.lock();   // never overlap with another cycle / operator trigger (see field doc)
-        try {
-            // Re-index configs once per cycle — now an mtime-cached rebuild, so a steady-state cycle
-            // re-parses nothing (and re-reads no schema files); an edited pipeline/schema reloads on the
-            // next tick. Fires catalog invalidation via the registry callback.
-            configRegistry.rebuild(registry);
-            // Build the run set from the cached index: skip paused pipelines and any not yet activated
-            // (`active: true`). Each runnable config is re-stamped with a fresh run timestamp for this
-            // cycle (cheap copy; no re-parse), so every cycle still gets its own status/batch/lineage CSVs.
-            // Iterate the registered paths (not the id-keyed index) so two files are both run even if
-            // they declare the same name — matching the prior path-level run semantics.
-            long nowMs = System.currentTimeMillis();
-            List<PipelineConfig> toRun = new ArrayList<>();
-            List<String> activeNames  = new ArrayList<>();
-            for (Path p : registry) {
-                PipelineConfig cfg = configRegistry.configForPath(p).orElse(null);
-                if (cfg == null) continue;                                   // unloadable — already warned
-                String id = cfg.identity().pipelineName();
-                if (paused.contains(id) || !cfg.active()) continue;          // paused or not activated
-                if (!dueThisTick(cfg, id, nowMs)) continue;                  // T13: trigger gates the loop
-                toRun.add(cfg.forNewRun());                                  // fresh per-cycle timestamp
-                activeNames.add(id);
-            }
-            if (toRun.isEmpty()) return new MultiCollectorProcessor.RunResult(0, 0);
-            activeNames.forEach(id -> lastRunAtMs.put(id, nowMs));           // stamp cadence baseline (start-to-start)
-            com.gamma.metrics.MetricRegistry reg = com.gamma.metrics.MetricRegistry.global();
-            reg.inc("inspecto_poll_cycles_total", "Poll cycles run", Map.of());
-            reg.setGauge("inspecto_active_runs", "Source runs currently executing", Map.of(), toRun.size());
-            running.addAll(activeNames);
-            MultiCollectorProcessor.RunResult r;
-            try {
-                r = MultiCollectorProcessor.runConfigs(toRun, maxConcurrentRuns, bus.sink());
-                if (r.failed() > 0) {
-                    log.warn("Poll cycle: {} of {} source(s) failed", r.failed(), r.total());
-                    reg.inc("inspecto_source_run_failures_total", "Source-run failures", Map.of(), r.failed());
-                }
-            } finally {
-                running.removeAll(activeNames);
-                reg.setGauge("inspecto_active_runs", "Source runs currently executing", Map.of(), 0);
-            }
-            // Refresh the status DB (if DB-backed) so this cycle's commits are queryable.
-            syncStatus();
-            return r;
-        } finally {
-            // (Catalog invalidation already fired from configRegistry.rebuild at the top of the cycle.)
-            ingestLock.unlock();
-        }
-    }
-
-    /**
-     * Whether the loop scheduler should run {@code cfg} on this tick, per its entry-node trigger (T13 / §3.8):
-     * <ul>
-     *   <li><b>absent / {@code DEFAULT_POLL}</b> — every tick (unchanged from the pre-T13 poll-all behaviour);</li>
-     *   <li><b>{@code schedule:{every:N}}</b> — only once {@code N} has elapsed since the last run;</li>
-     *   <li><b>{@code schedule:{cron}}</b> — only when a cron fire is due since the last run;</li>
-     *   <li><b>{@code event} / {@code manual}</b> — never on the loop; driven by {@link #onUpstreamCommit}
-     *       and {@link #runPipeline} respectively.</li>
-     * </ul>
-     */
-    private boolean dueThisTick(PipelineConfig cfg, String id, long nowMs) {
-        PipelineTrigger t = PipelineTrigger.of(cfg.triggerConfig());
-        return switch (t.scheduler()) {
-            case EVENT, MANUAL -> false;                       // driven off the poll loop
-            case LOOP -> switch (t.kind()) {
-                case SCHEDULE_INTERVAL -> {
-                    Long last = lastRunAtMs.get(id);
-                    yield last == null || (nowMs - last) >= t.everyMs();
-                }
-                case SCHEDULE_CRON -> cronDue(id, t.cron(), nowMs);
-                default -> true;                               // DEFAULT_POLL — every tick (today's behaviour)
-            };
-        };
-    }
-
-    /** A cron trigger is due when its next fire after the last run (or service start) is at/​before now. */
-    private boolean cronDue(String id, String cron, long nowMs) {
-        try {
-            long lastMs = lastRunAtMs.getOrDefault(id, serviceStartMs);
-            ZonedDateTime from = Instant.ofEpochMilli(lastMs).atZone(triggerZone);
-            ZonedDateTime next = CronExpression.parse(cron).next(from);
-            return !next.isAfter(Instant.ofEpochMilli(nowMs).atZone(triggerZone));   // next <= now ⇒ fire due
-        } catch (Exception e) {
-            log.warn("Pipeline '{}' has an invalid cron trigger '{}' — skipping this cycle: {}",
-                    id, cron, e.getMessage());
-            return false;
-        }
-    }
-
-    /**
-     * Bus listener (T13 / §3.8): an upstream SUCCESS commit triggers every {@code event}-triggered flow whose
-     * {@code from} names that upstream. The run is handed to {@link #triggerWorkers} (the bus delivers on the
-     * publishing thread under {@link #ingestLock}; running inline would deadlock) and coalesced per flow so an
-     * upstream storm collapses to one non-overlapping run.
-     */
-    private void onUpstreamCommit(BatchEvent event) {
-        if (!"SUCCESS".equals(event.status())) return;
-        for (Path p : registry) {
-            PipelineConfig cfg = configRegistry.configForPath(p).orElse(null);
-            if (cfg == null) continue;
-            String id = cfg.identity().pipelineName();
-            if (paused.contains(id) || !cfg.active()) continue;
-            if (id.equals(event.pipeline())) continue;                       // self-loop guard
-            PipelineTrigger t = PipelineTrigger.of(cfg.triggerConfig());
-            if (t.scheduler() != PipelineTrigger.Scheduler.EVENT) continue;
-            if (!triggerMatches(t.from(), event.pipeline())) continue;
-            TriggerCoalescer coalescer = eventCoalescers.computeIfAbsent(id, k -> new TriggerCoalescer());
-            triggerWorkers.submit(() -> coalescer.signal(() -> runPipeline(id)));
-        }
-    }
-
-    /**
-     * Whether an event trigger's {@code from} names {@code upstream}. Matches case-insensitively against the
-     * emitted pipeline id (lowercased {@code pipelineName}) and tolerates a {@code flows/<id>} prefix, so an
-     * operator may write {@code from: orders}, {@code from: ORDERS}, or {@code from: flows/orders}.
-     */
-    private static boolean triggerMatches(String from, String upstream) {
-        if (from == null || from.isBlank() || upstream == null) return false;
-        String f = from.trim().toLowerCase();
-        String u = upstream.toLowerCase();
-        return f.equals(u) || f.endsWith("/" + u);
+        return underSpace(pipelineScheduler::runCycle);   // cycle + its parallel workers run under this space's MDC
     }
 
     /**
@@ -1220,7 +1093,7 @@ public final class CollectorService implements AutoCloseable {
             ingestLock.lock();   // serialize with the poll cycle / other triggers (see field doc)
             running.add(pipelineName);
             try {
-                lastRunAtMs.put(pipelineName, System.currentTimeMillis());   // T13: any run resets the cadence
+                pipelineScheduler.recordManualRun(pipelineName, System.currentTimeMillis());   // T13: any run resets the cadence
                 return MultiCollectorProcessor.runAll(List.of(p), 1, bus.sink());
             } finally {
                 running.remove(pipelineName);
