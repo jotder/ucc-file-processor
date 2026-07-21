@@ -125,17 +125,37 @@ is maintainability-only, **not** a split blocker.
   automatically. Verified in `file-processor-4.0.0-RC1.jar`: `Main-Class: com.gamma.inspector.CollectorProcessor`
   present, `logback.xml` at root, both service files present, engine + third-party classes bundled.
 
-## Remaining split work (BACKLOG §5)
+## Intra-engine structure (measured 2026-07-22) — why the sub-splits are NOT mechanical
 
-`fp-engine` is one coarse module holding the whole SCC. Optional future refinement (not blocking anything):
-- **§2.3 three-cluster sub-split** of fp-engine, if finer granularity is wanted: fp-core-etl
-  (`etl`/`inspector`/`pipeline`), fp-ops (`ops`/`event`/`alert`/`notify`), fp-catalog
-  (`catalog`/`query`/`metrics`). This requires breaking the intra-SCC cycles first and is pure
-  maintainability — the coarse `fp-engine` already delivers the acyclic core↔engine boundary.
+`fp-engine` is one coarse module. A follow-up analysis (inline-aware, comment-stripped import + FQN
+scan, both directions) mapped its internal shape. **The optimistic "trivially available" / "falls out
+naturally" claims for the sub-splits were WRONG — the third time this arc under-estimated coupling.**
+
+Layering (top = consumed only by core; bottom = the mutually-cyclic core):
+
+| Layer | Packages | Note |
+|---|---|---|
+| Top (in-degree 0 within engine) | `inspector`, `ingester`, `notify`, `alert` | `inspector` holds the fat-jar Main-Class |
+| Mid | `catalog` | imported only by `alert` |
+| **SCC (10 pkgs, mutually cyclic)** | `etl, event, metrics, pipeline, job, acquire, signal, query, enrich, ops` | inseparable without cycle-breaking |
+
+- **`fp-acquire` below engine is NOT available.** `acquire` is *inside* the SCC
+  (`acquire→etl→pipeline→job→acquire`). It cannot drop below the rest of the engine until the SCC is
+  decomposed. (The S5 ③ "falls out naturally" premise is retired.)
+- **The §2.3 three-cluster sub-split (fp-core-etl / fp-ops / fp-catalog) is impossible as specified.**
+  Those clusters split packages (`etl`, `event`, `pipeline`, `ops`, `query`) that all live in the *one*
+  10-package SCC, so they cannot occupy different modules.
+- **What the map does show is feasible (a future, deliberate effort).** The SCC is held together
+  substantially by `etl` importing *up* into `event`/`pipeline`/`query`/`signal`, and those back-edges
+  are **thin** — `event.EventLog`/`EventType`, `pipeline.PipelineTrigger`/`DecisionRules`,
+  `query.ConditionSql`, `signal.Signal`/`Severity`/`Ref` (~7 symbols). Inverting them (SPI/relocation)
+  would make `etl` a foundation leaf and fragment the SCC. This is behavior-touching **design** work
+  (SPI inversions in a codebase with known `ingestLock`+sync-bus deadlock sensitivity — see
+  `PROJECT_NOTES.md`), NOT a mechanical `git mv`; do it as its own shift only if finer module
+  granularity is actually wanted. The coarse `fp-engine` already delivers the acyclic core↔engine
+  boundary, which was the whole point of WS-D.
 - **M2 `CollectorService`/`SourceService` decomposition** remains open as maintainability work (it
   reorganizes classes *within* core's `service` package; it is NOT a split blocker).
-- **`fp-acquire`** as its own module (S5 ③) is now trivially available if desired — `acquire` rides
-  inside fp-engine today; pulling it into its own module below fp-engine is a follow-on, not a blocker.
 
 ## Related seams (shipped, documented elsewhere)
 

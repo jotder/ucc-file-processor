@@ -124,11 +124,17 @@ classes bundled). Two build-clean-only issues resolved: fp-engine publishes a **
 [`okf/backend/modules/reactor.md`](okf/backend/modules/reactor.md); plan archived. Prior tail (both `job`
 edges cut) shipped `ee3e618f..33fa51ca`.
 
-**Optional follow-ons (none blocking):**
-- **§2.3 sub-split** of `fp-engine` into fp-core-etl / fp-ops / fp-catalog — pure maintainability; requires
-  breaking intra-SCC cycles first. The coarse `fp-engine` already delivers the acyclic core↔engine boundary.
-- **`fp-acquire`** (S5 ③) — `acquire` now rides inside fp-engine; pulling it into its own module below
-  fp-engine is a trivially-available follow-on, not a blocker.
+**Optional follow-ons (none blocking; NEITHER is mechanical — measured 2026-07-22):** an intra-engine
+dependency map found a **10-package SCC** (`etl, event, metrics, pipeline, job, acquire, signal, query,
+enrich, ops`) with a thin top layer (`inspector, ingester, notify, alert`, `catalog` under `alert`).
+- **§2.3 sub-split** (fp-core-etl / fp-ops / fp-catalog) is **impossible as specified** — those clusters
+  split packages that all live in the one SCC. Requires decomposing the SCC first.
+- **`fp-acquire`** (S5 ③) is **NOT trivially available** — `acquire` is *inside* the SCC
+  (`acquire→etl→pipeline→job→acquire`), so it cannot drop below the rest of the engine yet.
+- **The real unlock** is inverting `etl`'s thin up-edges into `event`/`pipeline`/`query`/`signal` (~7
+  symbols: `EventLog`/`EventType`, `PipelineTrigger`/`DecisionRules`, `ConditionSql`, `Signal`/`Severity`/
+  `Ref`) to make `etl` a foundation leaf — behavior-touching **design** work (deadlock-sensitive), its own
+  deliberate shift, only if finer granularity is wanted. Full map: `okf/backend/modules/reactor.md`.
 
 **Deferred by design:** M2 `SourceService`/`CollectorService` decomposition — maintainability-only, not a split blocker (the old premise was corrected). The intra-module `ops↔ops.link/workflow` and `catalog↔catalog.spi` cycles are same-family, not reactor-split blockers. Trigger-gated: C2 store-pair generic base, C4 BOM, C6 DuckDB per-run connection reuse.
 
