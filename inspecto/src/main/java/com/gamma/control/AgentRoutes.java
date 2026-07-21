@@ -80,6 +80,42 @@ final class AgentRoutes implements RouteModule {
                     .orElseThrow(() -> new ApiException(404,
                             "unknown or already-decided approval: '" + ApiContext.name(m) + "'"));
         });
+
+        // AGT-5 P4 (autonomy L3): the bounded-autonomy policy — kill switch + per-action-class
+        // mode/budget that gate the ops_monitor loop. Absent when there is no autonomy tier (→ 503, a
+        // genuine "feature not present"). Writes are audited by ControlApi.dispatch; a secured edition
+        // prepends the agent.admin capability gate at the ApiContext/WriteGates seam (plan §1, §6, L3).
+        api.get("/agent/policy", (e, m) -> agentOr503(api).autonomyPolicy()
+                .orElseThrow(() -> new ApiException(503, "autonomy policy not available (no L3 tier)")));
+        api.put("/agent/policy", (e, m) -> {
+            String by = actorOrOperator(e);
+            return agentOr503(api).updateAutonomyPolicy(api.body(e), by)
+                    .orElseThrow(() -> new ApiException(503, "autonomy policy not available (no L3 tier)"));
+        });
+        api.post("/agent/policy/kill-switch", (e, m) -> {
+            Map<String, Object> body = api.body(e);
+            Boolean engaged = parseEngaged(body.get("engaged"));
+            if (engaged == null) throw new ApiException(400, "engaged is required and must be a boolean");
+            return agentOr503(api).setAutonomyKillSwitch(engaged, actorOrOperator(e))
+                    .orElseThrow(() -> new ApiException(503, "autonomy policy not available (no L3 tier)"));
+        });
+    }
+
+    /** The request's audited actor (agent/human) as the policy's {@code updatedBy}, defaulting to "operator". */
+    private static String actorOrOperator(HttpExchange e) {
+        String actor = ApiContext.actor(e);
+        return actor == null || actor.isBlank() ? "operator" : actor;
+    }
+
+    /** Parse a JSON boolean-ish {@code engaged} flag; {@code null} when unrecognized (→ 400). */
+    private static Boolean parseEngaged(Object v) {
+        if (v instanceof Boolean b) return b;
+        if (v == null) return null;
+        return switch (String.valueOf(v).trim().toLowerCase(java.util.Locale.ROOT)) {
+            case "true", "yes", "on", "engage", "engaged", "1" -> Boolean.TRUE;
+            case "false", "no", "off", "disengage", "disengaged", "0" -> Boolean.FALSE;
+            default -> null;
+        };
     }
 
     /** Parse the decision field → approve (true) / decline (false), or {@code null} when unrecognized (→ 400). */

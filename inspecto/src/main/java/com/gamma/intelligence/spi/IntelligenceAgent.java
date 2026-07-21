@@ -112,6 +112,36 @@ public interface IntelligenceAgent extends AutoCloseable {
         return Optional.empty();
     }
 
+    /**
+     * The bounded-autonomy policy (AGT-5 P4, autonomy L3) as a plain JSON-friendly map — the core stays
+     * free of the {@code AutonomyPolicy} type, which lives in the optional
+     * {@code file-processor-intelligence} module. Empty when the implementation has no autonomy tier (or
+     * the module is absent), which the control route maps to 503 — unlike the read-degrading
+     * {@link #recentApprovals}, an absent policy engine is a genuine "feature not present" rather than
+     * "nothing yet".
+     */
+    default Optional<Map<String, Object>> autonomyPolicy() {
+        return Optional.empty();
+    }
+
+    /**
+     * Replace the autonomy policy from an operator's {@code PUT /agent/policy} body (kill switch +
+     * per-action-class mode/budget). Returns the stored view, or empty when there is no autonomy tier.
+     * The write is audited by {@code ControlApi.dispatch} as any other governed mutation.
+     */
+    default Optional<Map<String, Object>> updateAutonomyPolicy(Map<String, Object> body, String updatedBy) {
+        return Optional.empty();
+    }
+
+    /**
+     * Engage or disengage the global kill switch (AGT-5 P4) — the one-call hard-off that denies every
+     * autonomous action class regardless of its mode. Returns the updated policy view, or empty when
+     * there is no autonomy tier.
+     */
+    default Optional<Map<String, Object>> setAutonomyKillSwitch(boolean engaged, String updatedBy) {
+        return Optional.empty();
+    }
+
     /** Released on service shutdown. Default no-op. */
     @Override default void close() {}
 }

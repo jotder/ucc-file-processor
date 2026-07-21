@@ -30,6 +30,8 @@ import com.gamma.intelligence.investigation.Case;
 import com.gamma.intelligence.investigation.CaseStore;
 import com.gamma.intelligence.investigation.Incident;
 import com.gamma.intelligence.investigation.TriageQueue;
+import com.gamma.intelligence.policy.AutonomyPolicyEngine;
+import com.gamma.intelligence.policy.AutonomyPolicyStore;
 import com.gamma.intelligence.pack.InspectoPack;
 import com.gamma.intelligence.pack.Investigator;
 import com.gamma.pipeline.ComponentStore;
@@ -67,6 +69,11 @@ public final class InspectoIntelligenceAgent implements IntelligenceAgent {
     // is ever raised then). When the tier is on, start() replaces this with a previewer-backed instance
     // and wires it as the platform's ApprovalHandler; SPI reads/decisions always go through this field.
     private AgentApprovals approvals = new AgentApprovals();
+    // P4 (L3): the bounded-autonomy policy engine (kill switch + per-action-class mode/budget). Always
+    // present when the module is loaded so operators can configure/read policy even before an
+    // autonomous driver exists; start() replaces this with a durable-store instance. Nothing acts on
+    // the policy until a driver (ops_monitor) consults authorize(...) — the engine alone is inert.
+    private AutonomyPolicyEngine autonomy = new AutonomyPolicyEngine(new AutonomyPolicyStore());
     private final LlmGateway gatewayOverride;
     private CollectorService service;
     private InspectoPack pack;
@@ -119,6 +126,10 @@ public final class InspectoIntelligenceAgent implements IntelligenceAgent {
         platform = builder.start();
         log.info("Intelligence platform assembled: {} v{}{}", platform.pack().name(), platform.pack().version(),
                 AgentApprovals.enabled() ? " (act tier ENABLED — mutating tools gated via approvals inbox)" : "");
+
+        // P4 (L3): the durable autonomy policy (kill switch + per-class mode/budget). Configurable via
+        // GET/PUT /agent/policy regardless of any driver; a driver added later gates on autonomy.authorize.
+        autonomy = new AutonomyPolicyEngine(autonomyPolicyStore());
 
         // Slice E: autonomous triage is opt-in. When enabled, subscribe to the canonical Signal bus
         // and run an RCA investigation (L1 — Case + draft only) on each error/critical breach.
@@ -217,6 +228,26 @@ public final class InspectoIntelligenceAgent implements IntelligenceAgent {
         return approvals.resolve(id, approve, decidedBy);
     }
 
+    @Override
+    public Optional<Map<String, Object>> autonomyPolicy() {
+        return Optional.of(autonomy.current().toView());
+    }
+
+    @Override
+    public Optional<Map<String, Object>> updateAutonomyPolicy(Map<String, Object> body, String updatedBy) {
+        return Optional.of(autonomy.update(body, updatedBy).toView());
+    }
+
+    @Override
+    public Optional<Map<String, Object>> setAutonomyKillSwitch(boolean engaged, String updatedBy) {
+        return Optional.of(autonomy.setKillSwitch(engaged, updatedBy).toView());
+    }
+
+    /** Test seam: the policy engine, for asserting authorize verdicts + budget behaviour directly. */
+    AutonomyPolicyEngine autonomy() {
+        return autonomy;
+    }
+
     /**
      * Run the root-cause playbook (slice C) for an incident and file the resulting {@link Case} in the
      * store (surfaced via {@link #recentCases}/{@link #caseById}). Slice E's triage layer calls this on
@@ -252,6 +283,18 @@ public final class InspectoIntelligenceAgent implements IntelligenceAgent {
         return wr == null || wr.isBlank()
                 ? new ApprovalStore()
                 : new ApprovalStore(java.nio.file.Path.of(wr).resolve("agent").resolve("approvals.jsonl"));
+    }
+
+    /**
+     * The autonomy policy store (AGT-5 P4). Durable at {@code <assist.write.root>/agent/policy.json}
+     * when a write root is set — so kill-switch state and per-class budgets survive a restart — else
+     * in-memory (dev/tests).
+     */
+    private static AutonomyPolicyStore autonomyPolicyStore() {
+        String wr = System.getProperty("assist.write.root");
+        return wr == null || wr.isBlank()
+                ? new AutonomyPolicyStore()
+                : new AutonomyPolicyStore(java.nio.file.Path.of(wr).resolve("agent").resolve("policy.json"));
     }
 
     /**

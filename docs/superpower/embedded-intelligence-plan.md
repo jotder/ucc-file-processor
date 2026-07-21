@@ -374,6 +374,18 @@ why, spend).
 *Exit: policy-bounded autonomous remediation on seeded failures with budget enforcement + undo,
 and a hard-off switch proven live.*
 
+*P4 slice 1 — policy substrate — SHIPPED 2026-07-21.* The autonomy policy engine, budgets, and kill
+switch (`inspecto-intelligence` `com.gamma.intelligence.policy`): an immutable `AutonomyPolicy`
+(global kill switch + per-action-class `{mode: OFF|SHADOW|AUTO, maxPerHour, maxPerDay}`), a durable
+`AutonomyPolicyStore` (`<assist.write.root>/agent/policy.json`), a rolling-window `ActionBudget`, and
+`AutonomyPolicyEngine.authorize(actionClass)` folding kill-switch → mode → budget in priority order
+(ALLOW consumes one budget unit atomically; SHADOW logs-but-suppresses; DENY on off/killed/exhausted).
+Surfaced via `GET/PUT /agent/policy` + one-call `POST /agent/policy/kill-switch` (SPI additions;
+absent tier → 503; writes audited by `ControlApi.dispatch`). The engine is inert until a driver calls
+`authorize` — that driver is slice 2 (`ops_monitor`). *Still open for P4:* the `ops_monitor` state-watch
+loop + pilot action classes (batch re-run, alert triage), the autonomy Dashboard, and mid-plan runbook
+resume (carried from P3).
+
 **P5 — Learning.** Feedback capture → eval growth; case-similarity recall; per-skill tuning
 dashboards; embedding retrieval upgrade if warranted.
 

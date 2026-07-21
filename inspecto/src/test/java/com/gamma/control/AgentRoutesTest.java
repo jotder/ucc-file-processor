@@ -286,6 +286,63 @@ class AgentRoutesTest {
         }
     }
 
+    // --- AGT-5 P4: autonomy policy routes ---------------------------------------------------------
+
+    @Test
+    void policyRoutesAre503WhenNoIntelligenceModuleIsPresent(@TempDir Path dir) throws Exception {
+        try (Ctx ctx = open(dir, null)) {
+            assertEquals(503, send(ctx.port(), "GET", "/agent/policy", null).statusCode());
+            assertEquals(503, send(ctx.port(), "PUT", "/agent/policy", "{}").statusCode());
+            assertEquals(503, send(ctx.port(), "POST", "/agent/policy/kill-switch",
+                    "{\"engaged\":true}").statusCode());
+        }
+    }
+
+    @Test
+    void getPolicyReturnsTheCurrentView(@TempDir Path dir) throws Exception {
+        try (Ctx ctx = open(dir, new FakeIntelligenceAgent())) {
+            HttpResponse<String> r = send(ctx.port(), "GET", "/agent/policy", null);
+            assertEquals(200, r.statusCode());
+            assertFalse(JSON.readTree(r.body()).get("killSwitch").asBoolean());
+        }
+    }
+
+    @Test
+    void putPolicyReplacesAndAttributesTheActor(@TempDir Path dir) throws Exception {
+        try (Ctx ctx = open(dir, new FakeIntelligenceAgent())) {
+            HttpResponse<String> r = send(ctx.port(), "PUT", "/agent/policy",
+                    "{\"classes\":{\"batch_rerun\":{\"mode\":\"auto\",\"maxPerHour\":3}}}");
+            assertEquals(200, r.statusCode());
+            JsonNode body = JSON.readTree(r.body());
+            assertEquals("auto", body.get("classes").get("batch_rerun").get("mode").asText());
+            // No X-Agent-Session header → attributed to the calling human actor, not "agent:*".
+            assertFalse(body.get("updatedBy").asText().startsWith("agent:"));
+        }
+    }
+
+    @Test
+    void killSwitchEngagesAndDisengages(@TempDir Path dir) throws Exception {
+        try (Ctx ctx = open(dir, new FakeIntelligenceAgent())) {
+            HttpResponse<String> on = send(ctx.port(), "POST", "/agent/policy/kill-switch",
+                    "{\"engaged\":true}");
+            assertEquals(200, on.statusCode());
+            assertTrue(JSON.readTree(on.body()).get("killSwitch").asBoolean());
+
+            HttpResponse<String> off = send(ctx.port(), "POST", "/agent/policy/kill-switch",
+                    "{\"engaged\":false}");
+            assertFalse(JSON.readTree(off.body()).get("killSwitch").asBoolean());
+        }
+    }
+
+    @Test
+    void killSwitchWithoutEngagedIs400(@TempDir Path dir) throws Exception {
+        try (Ctx ctx = open(dir, new FakeIntelligenceAgent())) {
+            assertEquals(400, send(ctx.port(), "POST", "/agent/policy/kill-switch", "{}").statusCode());
+            assertEquals(400, send(ctx.port(), "POST", "/agent/policy/kill-switch",
+                    "{\"engaged\":\"maybe\"}").statusCode());
+        }
+    }
+
     /** A deterministic in-memory agent — no eoiagent/model dependency needed in the core test tree. */
     private static final class FakeIntelligenceAgent implements IntelligenceAgent {
         // Stand-in for the eoiagent GoalKind enum (not on the core test classpath).
@@ -310,8 +367,33 @@ class AgentRoutesTest {
             approvals.put(id, view);
         }
 
+        // P4: a trivial in-memory policy the route tests exercise (echo-and-store, no real engine).
+        private Map<String, Object> policy = new java.util.LinkedHashMap<>(
+                Map.of("killSwitch", false, "classes", new java.util.LinkedHashMap<>()));
+
         @Override public String name() { return "fake-intelligence"; }
         @Override public void init(CollectorService service) {}
+
+        @Override
+        public java.util.Optional<Map<String, Object>> autonomyPolicy() {
+            return java.util.Optional.of(new java.util.LinkedHashMap<>(policy));
+        }
+
+        @Override
+        public java.util.Optional<Map<String, Object>> updateAutonomyPolicy(Map<String, Object> body, String by) {
+            Map<String, Object> next = new java.util.LinkedHashMap<>(body == null ? Map.of() : body);
+            next.putIfAbsent("killSwitch", false);
+            next.put("updatedBy", by);
+            this.policy = next;
+            return java.util.Optional.of(new java.util.LinkedHashMap<>(policy));
+        }
+
+        @Override
+        public java.util.Optional<Map<String, Object>> setAutonomyKillSwitch(boolean engaged, String by) {
+            policy.put("killSwitch", engaged);
+            policy.put("updatedBy", by);
+            return java.util.Optional.of(new java.util.LinkedHashMap<>(policy));
+        }
 
         @Override
         public List<Map<String, Object>> recentApprovals(int limit) {

@@ -174,6 +174,35 @@ governed from an operator inbox UI. Five slices shipped (`a30049a`, `b5069c1`, `
   auth-free core (no `Subject`), same as the S6 agent-invoke path — a secured edition gates it at the
   `ApiContext`/`WriteGates` seam.
 
+## P4 — bounded autonomy (L3), in progress
+
+Autonomous (un-prompted) action, gated by an operator-set policy. **Slice 1 (policy substrate)
+shipped 2026-07-21**; the `ops_monitor` loop + pilot action classes + autonomy dashboard are the
+remaining slices.
+
+- **Policy substrate (slice 1)** — package `com.gamma.intelligence.policy`. `AutonomyPolicy` is an
+  immutable doc: a global `killSwitch` + a map of action-class → `ClassPolicy {mode, maxPerHour,
+  maxPerDay}` where `mode ∈ {OFF, SHADOW, AUTO}` (an *unconfigured* class = `OFF`, so nothing acts
+  until opted in). `AutonomyPolicyStore` persists it as a single JSON doc at
+  `<assist.write.root>/agent/policy.json` (durable kill-switch/budget state across restart; in-memory
+  without a write root). `ActionBudget` is an in-memory rolling-window counter (trailing hour + day,
+  clock-injectable; a restart re-opens the window — conservative). `AutonomyPolicyEngine.authorize
+  (actionClass)` is the single decision point, folding **killSwitch → mode → budget** in priority:
+  `DENY` (killed / OFF / exhausted), `SHADOW` (evaluate + log, never execute, no budget spent), or
+  `ALLOW` (executes — one budget unit already consumed atomically, so concurrent callers can't exceed
+  the cap). The engine is **inert until a driver calls `authorize`** — building it wires no autonomous
+  behaviour by itself.
+- **Routes/SPI** — `GET /agent/policy`, `PUT /agent/policy` (replace), `POST /agent/policy/kill-switch`
+  `{engaged}` (the one-call hard-off). New `IntelligenceAgent` SPI methods `autonomyPolicy` /
+  `updateAutonomyPolicy` / `setAutonomyKillSwitch` (empty ⇒ 503, a genuine "no L3 tier", unlike the
+  read-degrading approvals/cases). Writes attribute the calling actor and are audited by
+  `ControlApi.dispatch`; a secured edition prepends the `agent.admin` capability gate. The engine is
+  wired into `InspectoIntelligenceAgent` (durable store when a write root is set), always present when
+  the module is loaded so operators can configure policy before any driver exists.
+- **Verified**: `AutonomyPolicyEngineTest` (10: mode/kill/budget precedence, daily-vs-hourly windows,
+  durable reload, malformed-mode tolerance, concurrent-authorize-never-exceeds-cap), `AgentRoutesTest`
+  +6 (policy 503/GET/PUT/kill-switch/400). Module 100→110.
+
 ## Gotchas / seams
 
 - **`ingestLock` deadlock rule** governs every `EventLog`/Signal-bus subscriber: subscribers run
