@@ -113,14 +113,20 @@ components split), ~~S3~~ (chart/grid consolidation), ~~S4~~ (PipelineScheduler 
 `aa87b2c3`) · ~~C5~~ was already shipped (`defb1281`, stale row) · ~~C7~~ `PipelineNodeType` documented
 as a reserved ServiceLoader seam (`1ec510d9`).
 
-**OPEN — reactor-split tail (the only engineering remainder; needs a dedicated shift):**
-**WS-D**: extract `etl` + `util` + `event` from core (prerequisite cycle-breaking moves in the archived
-plan §1.7: `BatchEventBus`+`CronExpression` out of `service`, `StatusStore` below `catalog`, `ops`/
-`catalog` shared-type relocations) → **then `fp-acquire`** (S5 ③; imports etl/util/event) → then the C1
-tail (fp-catalog / fp-ops / fp-core-etl / fp-control / fp-host). Playbook + gotchas:
-`okf/backend/modules/reactor.md`. Trigger-gated (do only when the trigger fires): C2 store-pair generic
-base (touching several store pairs), C4 BOM (external artifact consumers appear), C6 DuckDB per-run
-connection reuse (profiling shows open cost matters — NEVER pool the `SqlSandbox` HTTP path).
+**OPEN — reactor-split tail (WS-D; reactor now 9 modules). Progress 2026-07-21:**
+- ✅ **`fp-util`** (`b6758466`) + **`fp-sql`** (`a71829c0`) leaf modules extracted — the only two
+  genuinely leaf-extractable packages (each depends only on already-extracted modules).
+- ✅ **§1.7 cycle-breaking (part):** `CronExpression`→`util`, `StatusStore`→`etl` (`c681231f`) —
+  `StatusStore` was `catalog`'s only `service` edge, so this **broke the `service↔catalog` cycle**.
+- ⏳ **`BatchEventBus`→`etl`** — last useful §1.7 move (fan-in reduction only, ~17 files); deferred.
+- ❌ **`etl` / `event` are NOT leaf-extractable** (inline-aware recon): they point *up* into
+  `service`/`inspector`/`pipeline`/`alert`/`signal`. Getting them below core (and then **`fp-acquire`**,
+  S5 ③) is gated on the **M2 `SourceService`/`CollectorService` decomposition** (the flagged
+  deadlock-hazard refactor), then the C1 cluster split (fp-core-etl / fp-catalog / fp-ops / fp-control /
+  fp-host). NOTE: the `ops↔ops.link/workflow` and `catalog↔catalog.spi` §1.7 cycles are **intra-module-
+  family** (same target module) → **not reactor-split blockers**; skip. Playbook + full analysis:
+  `okf/backend/modules/reactor.md`. Trigger-gated: C2 store-pair generic base, C4 BOM, C6 DuckDB per-run
+  connection reuse (NEVER pool the `SqlSandbox` HTTP path).
 
 ## 6. Security-module scope (deferred wholesale — do not partially implement elsewhere)
 

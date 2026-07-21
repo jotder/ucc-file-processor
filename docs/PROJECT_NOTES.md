@@ -24,12 +24,21 @@ multi-module · embedded **DuckDB** · **TOON** config · OpenCSV. Mainline = `m
 
 Module dirs were renamed 2026-06-12; **artifactIds were NOT renamed** (hence dir ≠ artifactId):
 
+Reactor = **9 modules** (build order below). Authoritative shape, version management, and the
+module-extraction playbook: [`okf/backend/modules/reactor.md`](okf/backend/modules/reactor.md).
+
 | Dir | Role | artifactId / jar |
 |---|---|---|
-| `inspecto/` | engine + control plane (lean core) | `file-processor` / `file-processor.jar` |
+| `inspecto-api/` | dependency-free leaf: the `@PublicApi` annotation | `file-processor-api` |
+| `inspecto-util/` | leaf: DuckDB access + CSV/file/tar helpers + `CronExpression` | `file-processor-util` |
+| `inspecto-config/` | config spec / codec (TOON) / safety | `file-processor-config` |
+| `inspecto-sql/` | sandboxed DuckDB SQL (`SqlSandbox`/`SqlOracle`/`SqlGuard`/`SqlViews`) | `file-processor-sql` |
+| `inspecto/` | engine + control plane (lean core), ships the fat JAR | `file-processor` / `file-processor.jar` |
 | `inspecto-connectors/` | remote connectors (SFTP/FTP/FTPS/DB), all network deps | `file-processor-connectors` |
 | `inspecto-agent/` | optional AI assist skills (vendored kernel layer + eoiagent transport) | `file-processor-agent` |
 | `inspecto-agent-hosted/` | hosted model providers (omitted from air-gapped builds) | `file-processor-agent-hosted` |
+| `inspecto-intelligence/` | embedded-intelligence agent (eoiagent-backed) | `file-processor-intelligence` |
+| `inspecto-security/` | Standard/Enterprise OIDC auth, `-Pedition-standard` only (not in default `<modules>`) | `file-processor-security` |
 | `inspecto-ui/` | Angular SPA (gamma/Fuse template), serves from the engine | — (npm; dev :4204) |
 
 agent-kernel is GONE (discontinued upstream, replaced 2026-07-07): its reasoning layer is vendored at
