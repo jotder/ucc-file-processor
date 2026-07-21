@@ -79,7 +79,8 @@ src/app/
     auth.service.ts, confirm.service.ts, …
   modules/admin/<feature>/  # FEATURES: standalone component(s) + .html + <feature>.routes.ts
   layout/                   # app shell (connectivity-banner mounts here)
-  mock-api/common/navigation/data.ts   # nav items
+  core/navigation/navigation-data.ts   # nav items (served client-side by NavigationService; the Fuse
+                            # mock-api/ layer was removed in the M4 shell re-plumb)
 ```
 
 - A feature = `modules/admin/<feature>/`: `*.component.ts` (+ `.html`), optional `*.dialog.ts`, and
@@ -302,8 +303,10 @@ src/app/
 - Lazy `{ path, loadChildren: () => import('app/modules/admin/<f>/<f>.routes') }` in `app.routes.ts` (no auth
   guard — the app is auth-free). Each `<f>.routes.ts` is `export default [...] as Routes`. Default route → `dashboard`.
 - **Adding a page = two edits:** the lazy route in `app.routes.ts` **and** the nav item in
-  `mock-api/common/navigation/data.ts` (4 collapsable groups: Pipelines / Acquisition / Operations /
-  Settings, + Dashboard/Assistant basics). Detail routes carry breadcrumbs.
+  `core/navigation/navigation-data.ts` (4 collapsable groups: Pipelines / Acquisition / Operations /
+  Settings, + Dashboard/Assistant basics). `NavigationService` serves this const client-side (+ the
+  per-space Menu Builder merge); there is no longer a Fuse `api/common/navigation` mock. Detail routes
+  carry breadcrumbs.
 - Global search (`layout/common/search`) is a client-side jump-to-page palette over the nav — not a backend
   search. **Opened app-wide by Ctrl/Cmd+K** (a `document:keydown` HostListener in the classic layout calls
   `SearchComponent.open()`); with an empty query it shows recents (`inspecto.search.recents`) + shell

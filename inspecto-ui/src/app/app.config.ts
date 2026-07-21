@@ -1,4 +1,4 @@
-import { HttpBackend, HttpClient, provideHttpClient, withInterceptors } from '@angular/common/http';
+import { provideHttpClient, withInterceptors } from '@angular/common/http';
 import {
     ApplicationConfig,
     inject,
@@ -14,11 +14,9 @@ import { provideGamma } from '@gamma';
 import { TranslocoService, provideTransloco } from '@jsverse/transloco';
 import { appRoutes } from 'app/app.routes';
 import { provideIcons } from 'app/core/icons/icons.provider';
-import { MockApiService } from 'app/mock-api';
 import { provideToastr } from 'ngx-toastr';
 import { firstValueFrom } from 'rxjs';
 import { TranslocoHttpLoader } from './core/transloco/transloco.http-loader';
-import { AUTH_HTTP_CLIENT } from './modules/auth/auth-http-client.token';
 import { errorInterceptor as inspectoErrorInterceptor } from './inspecto/api/error.interceptor';
 import { spaceInterceptor } from './inspecto/api/space.interceptor';
 import { authInterceptor } from './inspecto/api/auth.interceptor';
@@ -43,14 +41,6 @@ export const appConfig: ApplicationConfig = {
             withInterceptors([v1Interceptor, mockApiInterceptor, spaceInterceptor, authInterceptor, inspectoErrorInterceptor])
         ),
 
-        // Interceptor-free HttpClient for the vendored template AuthService only.
-        // Uses HttpBackend directly, which skips the entire interceptor chain.
-        {
-            provide: AUTH_HTTP_CLIENT,
-            useFactory: (backend: HttpBackend) => new HttpClient(backend),
-            deps: [HttpBackend],
-        },
-        
         // Angular 21: use async animations provider for better performance
         provideAnimationsAsync(),
         provideToastr({ positionClass: 'toast-bottom-right' }),
@@ -116,10 +106,6 @@ export const appConfig: ApplicationConfig = {
         // provideAuth(),
         provideIcons(),
         provideGamma({
-            mockApi: {
-                delay: 0,
-                service: MockApiService,
-            },
             gamma: {
                 layout: 'classic',
                 scheme: 'dark',

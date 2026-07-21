@@ -16,7 +16,6 @@ import { MatMenuModule } from '@angular/material/menu';
 import { NavigationExtras, Router } from '@angular/router';
 import { UserService } from 'app/core/user/user.service';
 import { User } from 'app/core/user/user.types';
-import { SecurityPrincipal } from 'app/modules/commons/security-principal';
 import { environment } from 'environments/environment';
 import { Subject, takeUntil } from 'rxjs';
 
@@ -37,7 +36,6 @@ export class UserComponent implements OnInit, OnDestroy {
     /* eslint-disable @typescript-eslint/naming-convention */
     static ngAcceptInputType_showAvatar: BooleanInput;
     /* eslint-enable @typescript-eslint/naming-convention */
-    private readonly securityPrincipal = inject(SecurityPrincipal);
     private  router = inject(Router);
 
     @Input() showAvatar: boolean = true;
@@ -62,8 +60,9 @@ user_name: string;
      * On init
      */
     ngOnInit(): void {
-        // Subscribe to user changes
-        this.user_name = this.securityPrincipal.getPrincipalName();
+        // Auth-free shell: no principal to name. The user menu populates from user$ when a user
+        // is loaded (Standard/OIDC edition); Personal leaves it blank.
+        this.user_name = '';
 
         this._userService.user$
             .pipe(takeUntil(this._unsubscribeAll))
@@ -114,13 +113,9 @@ user_name: string;
 
 
     signOut(): void {
-        // this._router.navigate(['/sign-out']);
-        const userName = this.securityPrincipal.getPrincipalName();
-        this.securityPrincipal.clear();
         const navigationExtras: NavigationExtras = {
             queryParams: {
                 fromApp: environment.appName,
-                loggedUser: userName,
                 type: 'implicit'
             },
         };

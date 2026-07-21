@@ -28,7 +28,7 @@ import { MatInputModule } from '@angular/material/input';
 import { Router } from '@angular/router';
 import { gammaAnimations } from '@gamma/animations/public-api';
 import { GammaNavigationItem } from '@gamma/components/navigation';
-import { defaultNavigation } from 'app/mock-api/common/navigation/data';
+import { defaultNavigation } from 'app/core/navigation/navigation-data';
 import { Subject, debounceTime, takeUntil } from 'rxjs';
 
 /** A navigable destination derived from the app navigation. */

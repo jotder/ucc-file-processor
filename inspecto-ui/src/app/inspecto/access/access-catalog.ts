@@ -1,5 +1,5 @@
 import { GammaNavigationItem } from '@gamma/components/navigation';
-import { defaultNavigation } from 'app/mock-api/common/navigation/data';
+import { defaultNavigation } from 'app/core/navigation/navigation-data';
 import { AccessGrant, AccessNode } from '../api/access.service';
 
 /**
@@ -64,8 +64,8 @@ export function deriveAccessCatalog(nav: GammaNavigationItem[]): AccessNode[] {
     return nodes;
 }
 
-/** The catalog over the platform navigation (`mock-api/common/navigation/data.ts` — the canonical
- *  nav config, despite its historical location). */
+/** The catalog over the platform navigation (`core/navigation/navigation-data.ts` — the canonical
+ *  nav config, served client-side by NavigationService since the M4 Fuse-shell re-plumb). */
 export function deriveDefaultAccessCatalog(): AccessNode[] {
     return deriveAccessCatalog(defaultNavigation);
 }
