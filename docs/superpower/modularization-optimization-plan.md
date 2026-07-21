@@ -61,9 +61,10 @@ reuse debt, and dead weight.
   `modules/auth/` (real auth lives in `inspecto/api/`), `modules/commons/` (`security-principal.ts`
   424 lines, `app.http.service.ts`, …).
 - **UI god components**: ~~`link-analysis.component.ts`~~ **(S2, 2026-07-21: split into
-  Toolbox + QueryPanel children; component.ts 1124→774)**; `studio/geo-map/geo-map.component.ts`
-  (875 lines) — still mixes fetch + state + render (data services already exist; the analysis cluster +
-  templates are the remaining split).
+  Toolbox + QueryPanel children; component.ts 1124→774)**; ~~`studio/geo-map/geo-map.component.ts`~~
+  **(S2, 2026-07-21: geo-intelligence analysis cluster extracted into
+  `GeoAnalysisToolboxComponent`; host keeps the MapLibre camera + `emphasis` computed, child emits
+  `GeoAnalysisFocus`; mounted `[hidden]` so results survive the toggle). S2 COMPLETE — both studios split.**
 - ~~Three metric panes hand-build Chart.js configs~~ **(S3, 2026-07-21: stale — dashboard/jobs/
   collectors + case-analytics.dialog already use `<inspecto-chart>`);** ~~`connection-workbench`
   uses raw `AgGridAngular`~~ **(S3: migrated onto `<inspecto-data-table tier="standard">`).**
@@ -270,8 +271,8 @@ B1. Remove Fuse `mock-api/` (rewire `app.config.ts`, `app.component.ts`, layout 
     `inspecto/mock/`), then `modules/auth/`, then `modules/commons/` (~25.8k lines).
 B2. Route `dashboard`/`jobs`/`sources` chart panes through the design-system `chart.component.ts`.
 B3. Migrate `connection-workbench` onto `<inspecto-data-table>`.
-B4. Split `link-analysis.component.ts` and `geo-map.component.ts`: extract a data service + presentational
-    children each (per `angular-ui` skill rules).
+B4. ~~Split `link-analysis.component.ts` and `geo-map.component.ts`: extract presentational children each~~
+    **DONE 2026-07-21 (S2)** — link-analysis → Toolbox + QueryPanel; geo-map → GeoAnalysisToolbox.
 B5. Trim ag-Grid `AllCommunityModule` to the module set actually used.
 
 ### WS-C · Backend seams (prerequisites for the split)
@@ -307,7 +308,7 @@ E3. Bring `inspecto-intelligence` (14/2) and `inspecto-agent-hosted` (2/1) to ba
 | # | Item | Why should |
 |---|---|---|
 | S1 | ~~`RouteModule` ServiceLoader registration (C2)~~ **SKIPPED 2026-07-21** | Scope map (all 38 impls package-private, intra-module, always-present, no-arg) showed conversion would force 39 types public — *widening* API surface, the opposite of M3's freeze — for **zero present benefit**: unlike the `Authenticator` precedent it mirrors, no `RouteModule` is edition-optional (all live in `inspecto` core, always present). Only payoff is the fp-control extraction (C1), which is not scheduled. Revisit as part of C1, not standalone. |
-| S2 | Split UI god components (B4) — **link-analysis DONE 2026-07-21; geo-map OPEN** | **link-analysis** fully split into presentational children: `LinkAnalysisToolboxComponent` (`ab90d7c`) + `LinkAnalysisQueryPanelComponent` (`766360b`); component.ts 1124→774, template 806→369; each child independently spec'd. Bottom panel restructured to `[hidden]` gates so children keep state across tab switches. **geo-map** still to do — its Phase-3 geo-intelligence analysis cluster is the candidate child (watch `resultEmphasis`→parent `emphasis` computed coupling); see SESSION_STATUS "geo-map (2c)". |
+| S2 | Split UI god components (B4) — **DONE 2026-07-21 (both studios)** | **link-analysis** fully split into presentational children: `LinkAnalysisToolboxComponent` (`ab90d7c`) + `LinkAnalysisQueryPanelComponent` (`766360b`); component.ts 1124→774, template 806→369; each child independently spec'd. Bottom panel restructured to `[hidden]` gates so children keep state across tab switches. **geo-map** split (`57ab9696`): geo-intelligence analysis cluster (co-location / frequent locations / stay points + params + result state) extracted into `GeoAnalysisToolboxComponent`; the host keeps the MapLibre camera + the `emphasis` computed (`resultEmphasis`) and flies the map in `focusResult()`, the child emits a `GeoAnalysisFocus` on a result click; mounted `[hidden]` so results survive the toolbox toggle and `clearAnalysis()` reaches it via `@ViewChild`. lint:tokens + prod build + test:ci (1549) all green. |
 | S3 | ~~Chart + grid consolidation (B2, B3)~~ **DONE 2026-07-21** | **B2 was already shipped** (all 4 Chart.js consumers — dashboard/jobs/collectors/case-analytics.dialog — already route through `<inspecto-chart>`; zero hand-rolled `new Chart()` panes remained). **B3 done**: migrated `connection-workbench`'s Sample preview from raw `<ag-grid-angular>` onto `<inspecto-data-table tier="standard">` (gains search / column-chooser / CSV export from the shared toolbar; dropped the now-duplicate hand-rolled Download-CSV button, kept Copy-CSV since the table has no clipboard action). lint:tokens + prod build + test:ci all green. |
 | S4 | Bound `SourceService` maps, `EventLog.SPACES` cleanup (E1) | Unbounded process-lifetime growth under space/pipeline churn; cheap fix. |
 | S5 | Extract `fp-acquire` + `fp-config` (D1, D2) | The two packages already clean enough to move; proves the split mechanics with low risk. |
