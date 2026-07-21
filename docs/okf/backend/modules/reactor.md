@@ -5,7 +5,7 @@ How the reactor is shaped, why, and the rules for extracting further modules. Di
 `../../../archived-documents/plans-archive/`) — that plan's findings sections hold the full evidence
 base and the per-item history.
 
-## Reactor shape (2026-07-21, +WS-D util)
+## Reactor shape (2026-07-21, +WS-D util/sql)
 
 Build order (root `pom.xml`, parent `file-processor-parent`):
 
@@ -14,8 +14,9 @@ Build order (root `pom.xml`, parent `file-processor-parent`):
 | 1 | `inspecto-api/` | `file-processor-api` | **Leaf, dependency-free**: only `com.gamma.api.PublicApi`, the stability-contract annotation. Behavior code never lives here. |
 | 2 | `inspecto-util/` | `file-processor-util` | **Leaf w.r.t. `com.gamma`** (imports nothing from other core packages): `com.gamma.util` — the DuckDB access point (`DuckDbUtil` + JDBC/summarize/schema helpers), CSV/TOON I/O, file movers/walkers, tar/gzip, bounded history, `DottedPath`. Deps: duckdb_jdbc + opencsv + univocity + commons-compress + commons-lang3 + gson + jtoon + jackson. (The `ura` CLI `MainApp` — the one class in the old `com.gamma.util` that reached into core — was relocated to `com.gamma.inspector.MainApp` so this stays a clean leaf; see playbook rule 6.) |
 | 3 | `inspecto-config/` | `file-processor-config` | `com.gamma.config` — spec / io (TOON codec) / safety. Deps: fp-api + jtoon + jackson. |
-| 4 | `inspecto/` | `file-processor` | The core: engine + control plane, ships the shaded fat JAR. Depends on fp-api + fp-util + fp-config. |
-| 5–8 | `inspecto-agent/`, `-agent-hosted/`, `-connectors/`, `-intelligence/` | `file-processor-*` | Siblings; each depends on core (and resolves fp-api/fp-util/fp-config transitively). |
+| 4 | `inspecto-sql/` | `file-processor-sql` | **Foundational leaf**: `com.gamma.sql` — the read-only DuckDB SQL sandbox (`SqlSandbox`/`SqlSandboxPolicy`), `SqlOracle`, `SqlGuard`, `SqlViews`. Deps: fp-api + fp-config + fp-util only (no external deps; DuckDB via `util.DuckDbUtil`). Kept its own leaf, not folded into the (still-blocked) fp-catalog, because consumers span every layer. |
+| 5 | `inspecto/` | `file-processor` | The core: engine + control plane, ships the shaded fat JAR. Depends on fp-api + fp-util + fp-config + fp-sql. |
+| 6–9 | `inspecto-agent/`, `-agent-hosted/`, `-connectors/`, `-intelligence/` | `file-processor-*` | Siblings; each depends on core (and resolves the leaf modules transitively). |
 | (opt) | `inspecto-security/` | `file-processor-security` | Standard-edition only, behind `-Pedition-standard` — not in the default `<modules>`. |
 
 Binding constraints (unchanged by the split): framework-free (JDK HttpServer, manual DI,
@@ -80,24 +81,29 @@ resolves after a root `mvn install`**. Every entry point builds via the root rea
 
 ## Remaining split work (BACKLOG §5)
 
-`fp-acquire` is blocked until `etl` + `util` + `event` leave core (= WS-D).
+Shipped so far: **increment 1 `util`** (fp-util) and **increment 2 `sql`** (fp-sql) — the two
+genuinely leaf-extractable packages, each depending only on already-extracted modules.
 
-**WS-D increment 1 — `util` — SHIPPED** (fp-util, above). It was the one genuinely leaf-extractable
-member of the three: `com.gamma.util` imports nothing from other `com.gamma` packages.
+**`event` and `etl` are NOT leaf-extractable — and the blocker is bigger than BACKLOG implied.** The
+original `import`-only recon undersold it; the **inline-aware** full package-edge map (playbook rule 5)
+shows they point *up* into the god-object cluster, not just sideways at sql/metrics:
+- `com.gamma.event` → `service.CollectorService`, `alert.AlertService`, `signal.Signal`, plus
+  `sql`/`metrics`/`etl` — mutually cyclic with `etl`.
+- `com.gamma.etl` → `service.CollectorService`/`ConfigRegistry`, `inspector.*` (BatchProcessor,
+  FileChunker, QuarantineManager, StreamingPluginBatchStrategy, CollectorProcessor),
+  `pipeline.PipelineTrigger`/`DecisionRules`, `query`, `signal`, `acquire`, `ingester` — mutually
+  cyclic with `event`.
 
-**`event` and `etl` are NOT leaf-extractable — they are the C1 tail, not a util-style pull.** As of
-WS-D their outbound edges into core are:
-- `com.gamma.event` → `sql`, `metrics`, `etl` (+ `util`). `sql`/`metrics` stay in core; mutually
-  cyclic with `etl`.
-- `com.gamma.etl` → `signal`, `query`, `pipeline`, `event`, `api` (+ `util`). `signal`/`query`/
-  `pipeline` stay in core; mutually cyclic with `event`.
-
-So pulling `event`/`etl` below core drags `sql`/`metrics`/`signal`/`query`/`pipeline` with them and
-must break the `etl↔event` cycle — that is the fp-core-etl (`etl`/inspector/pipeline) + fp-catalog
-(`catalog`/`query`/`sql`) + fp-ops (`ops`/`event`/…) split of §2.3, done in dependency order with the
-§1.7 cycle-breaking moves first (`BatchEventBus` + `CronExpression` out of `service`; `StatusStore`
-below `catalog`). Only after that can `fp-acquire` (S5 ③) go below core, then fp-control / fp-host.
-Do the outbound-edge recon with the **inline-aware** grep from playbook rule 5, not `import`-only.
+So `etl`/`event` are **mid-layer**, woven into `service` (the composition-root hub every package
+points at and which points back at nearly everything), `inspector`, and `pipeline`. They cannot drop
+below core; the real prerequisite is the **M2 `SourceService`/`CollectorService` decomposition** (§2.2
+"the split is blocked until the god objects shrink") — `PipelineScheduler` is already out, more remains.
+Then the §2.3 clusters (fp-core-etl = `etl`/inspector/pipeline; fp-ops = `ops`/`event`/alert/notify;
+fp-catalog = `catalog`/`query`/`sql`) can be split in dependency order, with the §1.7 cycle-breaking
+moves first (`BatchEventBus` + `CronExpression` out of `service`; `StatusStore` below `catalog`), and
+only then can `fp-acquire` (S5 ③) go below core. **`fp-acquire` is gated on all of that, not on a quick
+etl/event pull.** Next cleanly-available leaf after sql: none without cycle-breaking (`expectation` →
+`query`; `metrics` → `event`; `signal` → `event`; every other package reaches `service`).
 
 ## Related seams (shipped, documented elsewhere)
 

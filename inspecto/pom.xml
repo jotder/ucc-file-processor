@@ -44,6 +44,14 @@
             <artifactId>file-processor-util</artifactId>
         </dependency>
 
+        <!-- com.gamma.sql — sandboxed SQL (SqlSandbox/SqlOracle/SqlGuard/SqlViews), extracted to
+             its own module (WS-D ②). Version managed by the parent. expectation/event/enrich/
+             pipeline/query/control keep importing com.gamma.sql through this dependency. -->
+        <dependency>
+            <groupId>com.gamma.inspector</groupId>
+            <artifactId>file-processor-sql</artifactId>
+        </dependency>
+
         <!-- CSV Parsing — etl.BoundaryScanner + etl.CsvIngester (version managed by the parent —
              shared with fp-util since WS-D). -->
         <dependency>

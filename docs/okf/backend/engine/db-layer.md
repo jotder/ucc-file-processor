@@ -43,7 +43,7 @@ business data (the file lake) and config (TOON) are documented in
 | DuckDB engine helpers (ETL path) | [`util/DuckDbUtil.java`](../../../../inspecto-util/src/main/java/com/gamma/util/DuckDbUtil.java) |
 | Composition root (reads `-D` toggles, opens stores) | [`service/ServiceStores.java`](../../../../inspecto/src/main/java/com/gamma/service/ServiceStores.java) |
 | Per-space file locations | [`service/SpaceRoot.java`](../../../../inspecto/src/main/java/com/gamma/service/SpaceRoot.java) |
-| Business-data read-relation builder | [`sql/SqlViews.java`](../../../../inspecto/src/main/java/com/gamma/sql/SqlViews.java) |
+| Business-data read-relation builder | [`sql/SqlViews.java`](../../../../inspecto-sql/src/main/java/com/gamma/sql/SqlViews.java) |
 | Dataset → physical store resolution | [`query/DatasetRelation.java`](../../../../inspecto/src/main/java/com/gamma/query/DatasetRelation.java) |
 
 ---

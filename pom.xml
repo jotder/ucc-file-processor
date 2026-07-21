@@ -35,6 +35,7 @@
         <module>inspecto-api</module>
         <module>inspecto-util</module>
         <module>inspecto-config</module>
+        <module>inspecto-sql</module>
         <module>inspecto</module>
         <module>inspecto-agent</module>
         <module>inspecto-agent-hosted</module>
@@ -144,6 +145,11 @@
             <dependency>
                 <groupId>com.gamma.inspector</groupId>
                 <artifactId>file-processor-util</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.gamma.inspector</groupId>
+                <artifactId>file-processor-sql</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <!-- TOON + Jackson (core + fp-config since S5; core + fp-util since WS-D). -->

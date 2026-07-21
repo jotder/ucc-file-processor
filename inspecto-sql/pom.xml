@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>com.gamma.inspector</groupId>
+        <artifactId>file-processor-parent</artifactId>
+        <version>4.0.0-RC1</version>
+        <relativePath>../pom.xml</relativePath>
+    </parent>
+
+    <!-- Sandboxed SQL layer (WS-D increment 2, modularization plan §2.3 "fp-catalog" seed):
+         com.gamma.sql — the read-only DuckDB SQL sandbox (SqlSandbox / SqlSandboxPolicy),
+         the SqlOracle capability check, SqlGuard statement validation, and SqlViews. A
+         foundational layer: it depends only on fp-api + fp-config + fp-util (all already below
+         the core) and reaches DuckDB through util.DuckDbUtil, so it carries no external deps of
+         its own. Extracted as its own leaf rather than bundled into the eventual fp-catalog
+         (catalog/query, still blocked on the god-object decomposition) because its consumers
+         span every layer — expectation, event, enrich, pipeline, query, control all import it —
+         making it foundational like fp-util. The core depends on this module, so those imports
+         resolve com.gamma.sql unchanged. -->
+    <artifactId>file-processor-sql</artifactId>
+    <name>Inspecto SQL (sandbox + oracle + guard)</name>
+
+    <dependencies>
+        <!-- @PublicApi stability annotation (version managed by the parent). -->
+        <dependency>
+            <groupId>com.gamma.inspector</groupId>
+            <artifactId>file-processor-api</artifactId>
+        </dependency>
+
+        <!-- com.gamma.config — spec/safety consumed by the sandbox policy (parent-managed). -->
+        <dependency>
+            <groupId>com.gamma.inspector</groupId>
+            <artifactId>file-processor-config</artifactId>
+        </dependency>
+
+        <!-- com.gamma.util — DuckDbUtil is the connection/query access point (parent-managed);
+             DuckDB itself resolves transitively through fp-util. -->
+        <dependency>
+            <groupId>com.gamma.inspector</groupId>
+            <artifactId>file-processor-util</artifactId>
+        </dependency>
+
+        <!-- JUnit 5 — unit tests (version managed by the parent, M1). -->
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+</project>

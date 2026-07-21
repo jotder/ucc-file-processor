@@ -11,6 +11,7 @@ modules. Reactor shape, version management, and the module-extraction playbook:
 * `inspecto-api/` — dependency-free leaf: the `@PublicApi` annotation (`file-processor-api`).
 * `inspecto-util/` — leaf (w.r.t. `com.gamma`): DuckDB access + CSV/file/tar helpers (`file-processor-util`).
 * `inspecto-config/` — config spec/codec/safety (`file-processor-config`); depends only on fp-api.
+* `inspecto-sql/` — sandboxed DuckDB SQL: `SqlSandbox`/`SqlOracle`/`SqlGuard`/`SqlViews` (`file-processor-sql`); depends on fp-api/config/util.
 * [Engine](engine.md) - `inspecto/` — the lean core: engine + control plane (`file-processor.jar`).
 * [Connectors](connectors.md) - `inspecto-connectors/` — SFTP/FTP/FTPS/DB connectors (all network deps).
 * [Agent](agent.md) - `inspecto-agent/` — optional AI assist skills (vendored kernel layer + eoiagent model transport).
