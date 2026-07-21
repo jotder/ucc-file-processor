@@ -1,4 +1,4 @@
-import { Component, inject, Injectable, signal } from '@angular/core';
+import { Component, inject, Injectable, isDevMode, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
@@ -6,18 +6,53 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { GammaConfigService } from '@gamma/services/config';
 import { ICellRendererAngularComp } from 'ag-grid-angular';
 import {
-    AllCommunityModule,
+    CellApiModule,
+    ClientSideRowModelModule,
     ColDef,
+    ColumnApiModule,
     colorSchemeDark,
     GridApi,
     ICellRendererParams,
     ModuleRegistry,
+    PaginationModule,
+    QuickFilterModule,
+    RenderApiModule,
+    RowApiModule,
+    RowAutoHeightModule,
+    RowSelectionModule,
+    ScrollApiModule,
+    TextFilterModule,
     Theme,
     themeQuartz,
+    TooltipModule,
+    ValidationModule,
 } from 'ag-grid-community';
 
 // One-time community-module registration for every Inspecto grid.
-ModuleRegistry.registerModules([AllCommunityModule]);
+// Trimmed from AllCommunityModule to the feature set the app actually uses (modularization plan
+// C3, audited 2026-07-21 — usage funnels through <inspecto-data-table>/<inspecto-tree-table> +
+// query-panel + /design): client-side rows, default text filter (`filter: true`), quick filter,
+// pagination, row selection, tooltips, autoHeight/wrapText, and the column-state / row / scroll /
+// render / cell API surfaces (applyColumnState, getDisplayedRowAtIndex, ensureIndexVisible,
+// refreshCells, focus). CSV export, editing, number/date filters, row drag, etc. are deliberately
+// absent (export + quick-filter-for-export are custom, framework-free `core/` code). In dev/test
+// builds ValidationModule is registered too, so a feature needing an unregistered module fails
+// LOUDLY with the module name (ag-Grid error 200) — add it here, don't reach for AllCommunityModule.
+ModuleRegistry.registerModules([
+    ClientSideRowModelModule,
+    TextFilterModule,
+    QuickFilterModule,
+    PaginationModule,
+    RowSelectionModule,
+    TooltipModule,
+    RowAutoHeightModule,
+    ColumnApiModule,
+    RowApiModule,
+    ScrollApiModule,
+    RenderApiModule,
+    CellApiModule,
+    ...(isDevMode() ? [ValidationModule] : []),
+]);
 
 /**
  * Quartz params wired to the gamma/Fuse design tokens (the `--gamma-*` custom properties the template
