@@ -73,10 +73,6 @@ former root reference docs** (each index lists them):
 
 ## In-flight plans (`superpower/` — plans live here ONLY while active)
 
-- [`superpower/engine-cluster-extraction-plan.md`](superpower/engine-cluster-extraction-plan.md) —
-  WS-D tail: the real reactor-split unblock. The 15-package engine SCC is tied to the composition root
-  by **two `job` edges**; `Scheduler`→`util` shipped (Step 1), `job→report` inversion pending (Step 2).
-  **Corrects** reactor.md's wrong "gated on M2" analysis.
 - [`superpower/embedded-intelligence-plan.md`](superpower/embedded-intelligence-plan.md) — AGT-5: P0
   spine + **P1 investigation tier SHIPPED** (2026-07-20, distilled into
   [`okf/backend/agent/embedded-intelligence.md`](okf/backend/agent/embedded-intelligence.md));

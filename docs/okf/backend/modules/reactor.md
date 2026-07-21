@@ -5,7 +5,7 @@ How the reactor is shaped, why, and the rules for extracting further modules. Di
 `../../../archived-documents/plans-archive/`) — that plan's findings sections hold the full evidence
 base and the per-item history.
 
-## Reactor shape (2026-07-21, +WS-D util/sql)
+## Reactor shape (2026-07-22, +WS-D engine)
 
 Build order (root `pom.xml`, parent `file-processor-parent`):
 
@@ -14,9 +14,10 @@ Build order (root `pom.xml`, parent `file-processor-parent`):
 | 1 | `inspecto-api/` | `file-processor-api` | **Leaf, dependency-free**: only `com.gamma.api.PublicApi`, the stability-contract annotation. Behavior code never lives here. |
 | 2 | `inspecto-util/` | `file-processor-util` | **Leaf w.r.t. `com.gamma`** (imports nothing from other core packages): `com.gamma.util` — the DuckDB access point (`DuckDbUtil` + JDBC/summarize/schema helpers), CSV/TOON I/O, file movers/walkers, tar/gzip, bounded history, `DottedPath`. Deps: duckdb_jdbc + opencsv + univocity + commons-compress + commons-lang3 + gson + jtoon + jackson. (The `ura` CLI `MainApp` — the one class in the old `com.gamma.util` that reached into core — was relocated to `com.gamma.inspector.MainApp` so this stays a clean leaf; see playbook rule 6.) |
 | 3 | `inspecto-config/` | `file-processor-config` | `com.gamma.config` — spec / io (TOON codec) / safety. Deps: fp-api + jtoon + jackson. |
-| 4 | `inspecto-sql/` | `file-processor-sql` | **Foundational leaf**: `com.gamma.sql` — the read-only DuckDB SQL sandbox (`SqlSandbox`/`SqlSandboxPolicy`), `SqlOracle`, `SqlGuard`, `SqlViews`. Deps: fp-api + fp-config + fp-util only (no external deps; DuckDB via `util.DuckDbUtil`). Kept its own leaf, not folded into the (still-blocked) fp-catalog, because consumers span every layer. |
-| 5 | `inspecto/` | `file-processor` | The core: engine + control plane, ships the shaded fat JAR. Depends on fp-api + fp-util + fp-config + fp-sql. |
-| 6–9 | `inspecto-agent/`, `-agent-hosted/`, `-connectors/`, `-intelligence/` | `file-processor-*` | Siblings; each depends on core (and resolves the leaf modules transitively). |
+| 4 | `inspecto-sql/` | `file-processor-sql` | **Foundational leaf**: `com.gamma.sql` — the read-only DuckDB SQL sandbox (`SqlSandbox`/`SqlSandboxPolicy`), `SqlOracle`, `SqlGuard`, `SqlViews`. Deps: fp-api + fp-config + fp-util only (no external deps; DuckDB via `util.DuckDbUtil`). |
+| 5 | `inspecto-engine/` | `file-processor-engine` | **The engine cluster (WS-D, 2026-07-22)**: the 15-package SCC below the composition root — `etl`, `event`, `signal`, `query`, `pipeline`, `inspector`, `acquire`, `ingester`, `ops`, `job`, `enrich`, `alert`, `metrics`, `notify`, `catalog` (858 tests). Deps: fp-api/util/config/sql + univocity, duckdb, jtoon, jackson, slf4j, **logback-classic**, commons-compress, gson. Owns `logback.xml` + the `event.EventStoreAppender` + both `META-INF/services` files (`catalog.spi.DescriptionProvider`, `notify.NotificationChannel`). Publishes a **test-jar** (the shared fixture `com.gamma.etl.TestConfigs`). |
+| 6 | `inspecto/` | `file-processor` | The core / composition root: `service`, `control`, `report`, `assist`, `exchange`, `expectation`, `intelligence`, `model`; ships the shaded fat JAR. Depends DOWN on fp-api/util/config/sql + **fp-engine** (+ its test-jar in test scope). |
+| 7–10 | `inspecto-agent/`, `-agent-hosted/`, `-connectors/`, `-intelligence/` | `file-processor-*` | Siblings; each depends on core (and resolves the leaf + engine modules transitively). |
 | (opt) | `inspecto-security/` | `file-processor-security` | Standard-edition only, behind `-Pedition-standard` — not in the default `<modules>`. |
 
 Binding constraints (unchanged by the split): framework-free (JDK HttpServer, manual DI,
@@ -27,11 +28,12 @@ ServiceLoader SPI); **one deployable** — modularization is reactor-internal, t
 
 Drift-prone shared external versions live ONCE in the parent `<dependencyManagement>`
 (`junit`, `langchain4j`, `eoiagent`, `postgresql`, since S5 `jtoon` + `jackson-databind`, and
-since WS-D `duckdb_jdbc` + `univocity-parsers` + `commons-compress` + `gson` — each now shared by
-core + fp-util); modules declare those artifacts version-free. `opencsv` stayed pinned in fp-util
-(single-owner after the split — no drift to prevent). Reactor-internal deps (`file-processor-api`,
-`file-processor-util`, `file-processor-config`) are also parent-managed at `${project.version}`. Single-owner deps stay
-pinned in their one module. JaCoCo's `coverage` profile lives in the parent (`mvn -Pcoverage test`
+since WS-D `duckdb_jdbc` + `univocity-parsers` + `commons-compress` + `gson`); modules declare those
+artifacts version-free. `opencsv` stayed pinned in fp-util (single-owner after the split — no drift to
+prevent). `logback-classic` is single-owner (fp-engine, pinned 1.5.18). Reactor-internal deps
+(`file-processor-api`, `file-processor-util`, `file-processor-config`, `file-processor-sql`,
+`file-processor-engine` — the last also managed as a `test-jar` entry) are parent-managed at
+`${project.version}`. Single-owner deps stay pinned in their one module. JaCoCo's `coverage` profile lives in the parent (`mvn -Pcoverage test`
 instruments every module).
 
 ## Build entry points — core is NOT standalone anymore
@@ -78,54 +80,62 @@ resolves after a root `mvn install`**. Every entry point builds via the root rea
    visibility widening. (A split package — keeping `MainApp` in core under `com.gamma.util` — is legal on
    the plain classpath and was the zero-churn alternative, but leaves a `util`-named class that isn't a
    utility and blurs the module boundary the split exists to sharpen.)
+7. **Over-counting is as wrong as under-counting (the inverse of rule 5).** An import/inline-FQN scan
+   that does **not** strip comment/javadoc lines FALSELY reports edges: the old `etl↔service` "blocker"
+   was pure `{@link}`/`{@code}` in javadoc, which `javac` ignores. Confirm a suspected edge is real code
+   (an `import`, or an FQN outside `//`, `/* */`, `{@link}`, `{@code}`) before treating it as a blocker.
+   The corrected scan strips comment lines: `grep -vE '^\s*\*' | grep -vE '\{@(link|code)' | grep -vE '//'`.
+8. **Import-clean ≠ build-clean — two things imports never reveal.** (a) **Shared test fixtures.** A test
+   helper class in a moved package that is `import`ed by tests that stay behind needs a **test-jar**
+   (maven-jar-plugin `test-jar` goal on the producer; `<type>test-jar><scope>test</scope>` on the
+   consumer) — Maven does not share test classes across modules. Find these by scanning stay-behind test
+   dirs for imports of the moved packages. (b) **Resource-wired classes.** A resource that names a moved
+   class by FQN (e.g. `logback.xml`'s `EventStoreAppender` appender) must travel WITH that class, or the
+   moved module's own tests that rely on the resource break. Always inventory `META-INF/services/*` and
+   `*.xml`/`*.properties` resources for FQNs of moved classes before the move.
+
+## The engine-cluster split (WS-D, shipped 2026-07-22)
+
+The 15-package strongly-connected engine — `etl, event, signal, query, pipeline, inspector, acquire,
+ingester, ops, job, enrich, alert, metrics, notify, catalog` — was extracted whole, in ONE move, into
+`fp-engine` below core. This corrected the earlier (now-deleted) analysis that had `etl`/`event` gated
+on the **M2 `CollectorService` decomposition**: that conclusion counted javadoc `{@link}` references as
+compile edges (playbook rule 7). Ground truth confirmed empirically: the SCC was tied to the composition
+root by exactly **two `job` edges** — `job→service.Scheduler` (cut by relocating `Scheduler`→`util`) and
+`job→report.ReportService` (cut by the `ReportRunner` SPI — `report` now depends **down** on `job`). M2
+is maintainability-only, **not** a split blocker.
+
+**§1.7 cycle-breaking prep that made the SCC coherent (all DONE, shipped before the split):**
+- ✅ `CronExpression` + `Scheduler` `service` → `util` (the two edges into `service` from scheduling).
+- ✅ `StatusStore` (interface) `service` → `etl` — broke the `service ↔ catalog` cycle (impls stay in `service`).
+- ✅ `BatchEventBus` `service` → `etl` (beside its `BatchEvent` payload).
+- ✅ `ReportRunner` SPI inverts `job→report` — `ReportService implements ReportRunner` (covariant `Object` returns).
+
+**As-built facts (verified by the full reactor build, not just import scans):**
+- **Import-clean = build-clean, but only after resolving two things import scans don't show.**
+  (1) `com.gamma.etl.TestConfigs` is a test fixture used by ~45 core `control`/`report`/`service` tests;
+  Maven does not share test classes across modules, so fp-engine publishes a **test-jar** (maven-jar-plugin
+  `test-jar` goal) that core consumes in test scope. (2) `logback.xml` wires the engine-owned
+  `event.EventStoreAppender`, so it moved to **engine** resources (co-located with the appender + on
+  engine's own test classpath for `EventLogAndAppenderTest`).
+- **Dependency repartition:** univocity/duckdb/commons-compress/gson/logback-classic are cluster-only —
+  they moved to fp-engine and reach the fat JAR **transitively** through core→fp-engine. Core kept only
+  the third-party it uses directly (jackson ×4, slf4j ×23, jtoon ×6) + the leaf modules.
+- **Fat JAR unchanged:** shade (in core) has no include-list, so fp-engine's classes/resources bundle
+  automatically. Verified in `file-processor-4.0.0-RC1.jar`: `Main-Class: com.gamma.inspector.CollectorProcessor`
+  present, `logback.xml` at root, both service files present, engine + third-party classes bundled.
 
 ## Remaining split work (BACKLOG §5)
 
-Shipped so far: **increment 1 `util`** (fp-util) and **increment 2 `sql`** (fp-sql) — the two
-genuinely leaf-extractable packages, each depending only on already-extracted modules.
-
-**§1.7 cycle-breaking prep (DONE — no new module, just relocations that shrink the `service`
-god-object's fan-in ahead of the cluster splits):**
-- ✅ `CronExpression` `service` → `util` (fp-util): a dependency-free cron primitive (needs only
-  `api.PublicApi`); removes the `job`/`pipeline` → `service` edge that existed only for scheduling.
-- ✅ `StatusStore` (interface) `service` → `etl`: it was the **sole `catalog` → `service` edge**
-  (`CatalogOverlay` → `service.StatusStore`), so relocating it (floor is `etl`, via
-  `etl.PipelineConfig`) **broke the `service ↔ catalog` cycle** outright. Its impls
-  (`DbStatusStore`/`FileStatusStore`) stay in `service`.
-- ✅ `BatchEventBus` `service` → `etl` (beside `etl.BatchEvent`, its payload type): fan-in reduction,
-  not a full cycle break. ~18 files repointed; the trigger bus now sits with its payload in `etl` and
-  the `service` package no longer owns it. **This drains the §1.7 cycle-breaking prep.**
-- ✅ `Scheduler` `service` → `util` (fp-util): depends only on `util.CronExpression`; not `@PublicApi`.
-  This removed one of the **two** real edges tying the engine cluster to the composition root (see the
-  superseding banner below).
-
-> ⚠️ **SUPERSEDED (2026-07-21).** The paragraph below concluded `etl`/`event` are gated on the **M2
-> `CollectorService` decomposition**. That was **wrong** — it counted javadoc `{@link}` references as
-> compile edges. Ground truth: `etl → service` has **zero** compile edges. The whole ~15-package engine
-> SCC is tied to the composition root by only **two `job` edges** (`job→service.Scheduler`, now
-> resolved, and `job→report.ReportService`, pending an inversion). M2 is maintainability-only, **not** a
-> split blocker. Full corrected analysis + plan: [`superpower/engine-cluster-extraction-plan.md`](../../../../superpower/engine-cluster-extraction-plan.md).
-
-**`event` and `etl` are NOT leaf-extractable — and the blocker is bigger than BACKLOG implied.** The
-original `import`-only recon undersold it; the **inline-aware** full package-edge map (playbook rule 5)
-shows they point *up* into the god-object cluster, not just sideways at sql/metrics:
-- `com.gamma.event` → `service.CollectorService`, `alert.AlertService`, `signal.Signal`, plus
-  `sql`/`metrics`/`etl` — mutually cyclic with `etl`.
-- `com.gamma.etl` → `service.CollectorService`/`ConfigRegistry`, `inspector.*` (BatchProcessor,
-  FileChunker, QuarantineManager, StreamingPluginBatchStrategy, CollectorProcessor),
-  `pipeline.PipelineTrigger`/`DecisionRules`, `query`, `signal`, `acquire`, `ingester` — mutually
-  cyclic with `event`.
-
-So `etl`/`event` are **mid-layer**, woven into `service` (the composition-root hub every package
-points at and which points back at nearly everything), `inspector`, and `pipeline`. They cannot drop
-below core; the real prerequisite is the **M2 `SourceService`/`CollectorService` decomposition** (§2.2
-"the split is blocked until the god objects shrink") — `PipelineScheduler` is already out, more remains.
-Then the §2.3 clusters (fp-core-etl = `etl`/inspector/pipeline; fp-ops = `ops`/`event`/alert/notify;
-fp-catalog = `catalog`/`query`/`sql`) can be split in dependency order, with the §1.7 cycle-breaking
-moves first (`BatchEventBus` + `CronExpression` out of `service`; `StatusStore` below `catalog`), and
-only then can `fp-acquire` (S5 ③) go below core. **`fp-acquire` is gated on all of that, not on a quick
-etl/event pull.** Next cleanly-available leaf after sql: none without cycle-breaking (`expectation` →
-`query`; `metrics` → `event`; `signal` → `event`; every other package reaches `service`).
+`fp-engine` is one coarse module holding the whole SCC. Optional future refinement (not blocking anything):
+- **§2.3 three-cluster sub-split** of fp-engine, if finer granularity is wanted: fp-core-etl
+  (`etl`/`inspector`/`pipeline`), fp-ops (`ops`/`event`/`alert`/`notify`), fp-catalog
+  (`catalog`/`query`/`metrics`). This requires breaking the intra-SCC cycles first and is pure
+  maintainability — the coarse `fp-engine` already delivers the acyclic core↔engine boundary.
+- **M2 `CollectorService`/`SourceService` decomposition** remains open as maintainability work (it
+  reorganizes classes *within* core's `service` package; it is NOT a split blocker).
+- **`fp-acquire`** as its own module (S5 ③) is now trivially available if desired — `acquire` rides
+  inside fp-engine today; pulling it into its own module below fp-engine is a follow-on, not a blocker.
 
 ## Related seams (shipped, documented elsewhere)
 

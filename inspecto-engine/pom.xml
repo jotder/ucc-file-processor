@@ -1,0 +1,162 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>com.gamma.inspector</groupId>
+        <artifactId>file-processor-parent</artifactId>
+        <version>4.0.0-RC1</version>
+        <relativePath>../pom.xml</relativePath>
+    </parent>
+
+    <!-- The engine cluster (WS-D): the 15-package strongly-connected component that sits BELOW the
+         composition root — etl, event, signal, query, pipeline, inspector, acquire, ingester, ops,
+         job, enrich, alert, metrics, notify, catalog. Extracted out of file-processor so the core
+         (service/control/report/assist/exchange/expectation/intelligence/model) depends DOWN onto a
+         cyclic-free engine layer. The cluster is import-clean of the composition root (both real
+         edges — job→Scheduler and job→ReportService — were cut in WS-D Steps 1–2 via the util move
+         and the ReportRunner SPI). Depends only on the extracted leaves (api/util/config/sql) plus
+         the third-party libs the cluster uses. -->
+    <artifactId>file-processor-engine</artifactId>
+
+    <dependencies>
+        <!-- Extracted reactor leaves — version managed by the parent. -->
+        <dependency>
+            <groupId>com.gamma.inspector</groupId>
+            <artifactId>file-processor-api</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.gamma.inspector</groupId>
+            <artifactId>file-processor-config</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.gamma.inspector</groupId>
+            <artifactId>file-processor-util</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.gamma.inspector</groupId>
+            <artifactId>file-processor-sql</artifactId>
+        </dependency>
+
+        <!-- CSV parsing — etl.BoundaryScanner + etl.CsvIngester (parent-managed since WS-D). -->
+        <dependency>
+            <groupId>com.univocity</groupId>
+            <artifactId>univocity-parsers</artifactId>
+        </dependency>
+
+        <!-- DuckDB for Parquet output and DuckLake registration (parent-managed since WS-D). -->
+        <dependency>
+            <groupId>org.duckdb</groupId>
+            <artifactId>duckdb_jdbc</artifactId>
+        </dependency>
+
+        <!-- JToon for configuration serialisation (parent-managed since S5). -->
+        <dependency>
+            <groupId>dev.toonformat</groupId>
+            <artifactId>jtoon</artifactId>
+        </dependency>
+
+        <!-- Jackson for Map conversion used by JToon patterns (parent-managed). -->
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-databind</artifactId>
+        </dependency>
+
+        <!-- Logging — slf4j-api facade (parent-managed). logback-classic is required at compile
+             scope because event.EventStoreAppender extends logback's AppenderBase; logback.xml (the
+             Operational-Intelligence capture wiring) ships in this module's resources alongside it. -->
+        <dependency>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-api</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>ch.qos.logback</groupId>
+            <artifactId>logback-classic</artifactId>
+            <version>1.5.18</version>
+        </dependency>
+
+        <!-- Apache Commons Compress — gz stream handling in etl.Compression (parent-managed since WS-D). -->
+        <dependency>
+            <groupId>org.apache.commons</groupId>
+            <artifactId>commons-compress</artifactId>
+        </dependency>
+
+        <!-- Gson — JSON manifest in etl.ManifestStore (parent-managed since WS-D). -->
+        <dependency>
+            <groupId>com.google.code.gson</groupId>
+            <artifactId>gson</artifactId>
+        </dependency>
+
+        <!-- JUnit 5 — unit/integration tests (parent-managed, M1). -->
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+        <!-- DAT-6: embedded PostgreSQL to prove the JDBC state stores really run on Postgres.
+             TEST SCOPE ONLY — must never leak into the shipped fat-JAR / SBOM. Cluster tests in
+             etl + pipeline (DataTransformer/PipelineExecutor/PipelineJobRunner/RowShaper) exercise
+             the JDBC path; the same pinned/excluded set as the core module keeps offline resolution
+             clean (windows-amd64 16.4.0 binary, commons-codec 1.18.0, postgresql 42.7.4). -->
+        <dependency>
+            <groupId>io.zonky.test</groupId>
+            <artifactId>embedded-postgres</artifactId>
+            <version>2.0.7</version>
+            <scope>test</scope>
+            <exclusions>
+                <exclusion><groupId>org.flywaydb</groupId><artifactId>flyway-core</artifactId></exclusion>
+                <exclusion><groupId>org.liquibase</groupId><artifactId>liquibase-core</artifactId></exclusion>
+                <exclusion><groupId>junit</groupId><artifactId>junit</artifactId></exclusion>
+                <exclusion><groupId>org.mockito</groupId><artifactId>mockito-core</artifactId></exclusion>
+                <exclusion><groupId>org.slf4j</groupId><artifactId>slf4j-simple</artifactId></exclusion>
+                <exclusion><groupId>commons-codec</groupId><artifactId>commons-codec</artifactId></exclusion>
+                <exclusion><groupId>org.postgresql</groupId><artifactId>postgresql</artifactId></exclusion>
+                <exclusion><groupId>io.zonky.test.postgres</groupId><artifactId>embedded-postgres-binaries-windows-amd64</artifactId></exclusion>
+                <exclusion><groupId>io.zonky.test.postgres</groupId><artifactId>embedded-postgres-binaries-darwin-amd64</artifactId></exclusion>
+                <exclusion><groupId>io.zonky.test.postgres</groupId><artifactId>embedded-postgres-binaries-linux-amd64</artifactId></exclusion>
+                <exclusion><groupId>io.zonky.test.postgres</groupId><artifactId>embedded-postgres-binaries-linux-amd64-alpine</artifactId></exclusion>
+            </exclusions>
+        </dependency>
+        <dependency>
+            <groupId>io.zonky.test.postgres</groupId>
+            <artifactId>embedded-postgres-binaries-windows-amd64</artifactId>
+            <version>16.4.0</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>commons-codec</groupId>
+            <artifactId>commons-codec</artifactId>
+            <version>1.18.0</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.postgresql</groupId>
+            <artifactId>postgresql</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <!-- Publish a test-jar so the core module's tests can reuse the shared fixture
+                 com.gamma.etl.TestConfigs (the PipelineConfig builder used by ~45 control/report/
+                 service tests). Maven does not share test classes across modules otherwise. -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-jar-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>test-jar</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+            <!-- Surefire (JUnit 5 runner + native-access flag) and the JaCoCo 'coverage' profile are
+                 inherited from the parent POM. -->
+        </plugins>
+    </build>
+</project>

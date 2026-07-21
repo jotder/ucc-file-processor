@@ -113,9 +113,22 @@ components split), ~~S3~~ (chart/grid consolidation), ~~S4~~ (PipelineScheduler 
 `aa87b2c3`) · ~~C5~~ was already shipped (`defb1281`, stale row) · ~~C7~~ `PipelineNodeType` documented
 as a reserved ServiceLoader seam (`1ec510d9`).
 
-✅ **SHIPPED — reactor-split tail (WS-D; 2026-07-22, commits `ee3e618f..33fa51ca`):** Reactor now **9 modules**, engine cluster is **import-clean of composition root** (both job edges cut). Plan + full analysis: `docs/superpower/engine-cluster-extraction-plan.md` (in-flight; will distill to `okf/backend/modules/reactor.md` + move to archive when next phase ships). Historical context: the old roadmap assumed `etl`/`event` were gated on M2's `CollectorService` decomposition, but that was **wrong** (javadoc `{@link}` miscounted as compile edges). Real blockers were two edges from `job` — both now cut, cluster de-tangled from root.
+✅ **SHIPPED — `fp-engine` extraction (WS-D COMPLETE; 2026-07-22):** the 15-package engine SCC (`etl,
+event, signal, query, pipeline, inspector, acquire, ingester, ops, job, enrich, alert, metrics, notify,
+catalog`) extracted whole into **`inspecto-engine`** (`file-processor-engine`) below core; reactor now
+**10 modules**. Full reactor `mvn -o clean test` green (**1884 tests**, build order proves acyclicity:
+engine at 5, core at 6); shaded fat JAR verified (Main-Class + logback.xml + both service files + engine
+classes bundled). Two build-clean-only issues resolved: fp-engine publishes a **test-jar** for the shared
+`com.gamma.etl.TestConfigs` fixture (~45 core tests); `logback.xml` moved to engine with its
+`EventStoreAppender`. As-built facts + the extended playbook (rules 7–8) distilled into
+[`okf/backend/modules/reactor.md`](okf/backend/modules/reactor.md); plan archived. Prior tail (both `job`
+edges cut) shipped `ee3e618f..33fa51ca`.
 
-**Next phase: `fp-engine` extraction** (next shift). The cluster can now drop below core as a module. Lowest-risk approach: extract the whole cluster as one `fp-engine` first, optionally sub-divide per §2.3 (fp-core-etl / fp-ops / fp-catalog / fp-control / fp-host) later. **Critical:** verify empirically (import-clean ≠ build-clean) — watch transitive test-scope deps, `META-INF/services`, resource files, and the shaded-jar assembly. Then **`fp-acquire`** (S5 ③) falls out naturally once the cluster is below core.
+**Optional follow-ons (none blocking):**
+- **§2.3 sub-split** of `fp-engine` into fp-core-etl / fp-ops / fp-catalog — pure maintainability; requires
+  breaking intra-SCC cycles first. The coarse `fp-engine` already delivers the acyclic core↔engine boundary.
+- **`fp-acquire`** (S5 ③) — `acquire` now rides inside fp-engine; pulling it into its own module below
+  fp-engine is a trivially-available follow-on, not a blocker.
 
 **Deferred by design:** M2 `SourceService`/`CollectorService` decomposition — maintainability-only, not a split blocker (the old premise was corrected). The intra-module `ops↔ops.link/workflow` and `catalog↔catalog.spi` cycles are same-family, not reactor-split blockers. Trigger-gated: C2 store-pair generic base, C4 BOM, C6 DuckDB per-run connection reuse.
 

@@ -1,8 +1,10 @@
 # Engine-cluster extraction — the real reactor-split unblock (WS-D tail)
 
-**Status:** IN FLIGHT (2026-07-21). Supersedes the `etl`/`event` blocker analysis in
-`docs/okf/backend/modules/reactor.md` §1.7 remaining-work, which was **wrong** (see below).
-When this ships: distill into `reactor.md`, move open items to `BACKLOG.md` §5, archive this file.
+**Status:** ✅ SHIPPED & ARCHIVED (2026-07-22). The `fp-engine` extraction landed — reactor is 10
+modules, full `mvn -o clean test` green (1884 tests), shaded fat JAR verified. As-built facts + the
+extended playbook (rules 7–8, incl. the test-jar + logback.xml build-clean lessons) are distilled into
+`docs/okf/backend/modules/reactor.md`; open follow-ons (§2.3 sub-split, fp-acquire) are in `BACKLOG.md`
+§5. This file is retained for provenance only — not maintained. (Historical banner below preserved.)
 
 ## TL;DR
 

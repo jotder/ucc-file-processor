@@ -16,6 +16,7 @@
 /inspecto-util/target/
 /inspecto-config/target/
 /inspecto-sql/target/
+/inspecto-engine/target/
 /inspecto-agent/target/
 /inbox/
 /markers/

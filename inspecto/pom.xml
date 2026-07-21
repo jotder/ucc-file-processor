@@ -45,25 +45,30 @@
         </dependency>
 
         <!-- com.gamma.sql — sandboxed SQL (SqlSandbox/SqlOracle/SqlGuard/SqlViews), extracted to
-             its own module (WS-D ②). Version managed by the parent. expectation/event/enrich/
-             pipeline/query/control keep importing com.gamma.sql through this dependency. -->
+             its own module (WS-D ②). Version managed by the parent. expectation/control keep
+             importing com.gamma.sql through this dependency. -->
         <dependency>
             <groupId>com.gamma.inspector</groupId>
             <artifactId>file-processor-sql</artifactId>
         </dependency>
 
-        <!-- CSV Parsing — etl.BoundaryScanner + etl.CsvIngester (version managed by the parent —
-             shared with fp-util since WS-D). -->
+        <!-- com.gamma.{etl,event,signal,query,pipeline,inspector,acquire,ingester,ops,job,enrich,
+             alert,metrics,notify,catalog} — the engine cluster, extracted BELOW core (WS-D). The
+             composition root (service/control/report/assist/exchange/expectation/intelligence/model)
+             compile-depends DOWN onto it. univocity/duckdb/commons-compress/gson/logback-classic are
+             now owned by fp-engine and reach the fat-JAR transitively through this dependency. -->
         <dependency>
-            <groupId>com.univocity</groupId>
-            <artifactId>univocity-parsers</artifactId>
+            <groupId>com.gamma.inspector</groupId>
+            <artifactId>file-processor-engine</artifactId>
         </dependency>
-
-        <!-- DuckDB for Parquet output and DuckLake registration (version managed by the parent —
-             shared with fp-util since WS-D). -->
+        <!-- fp-engine test-jar: reuses the shared fixture com.gamma.etl.TestConfigs (PipelineConfig
+             builder) in ~45 control/report/service tests. Test scope is not transitive, so this is
+             declared explicitly. -->
         <dependency>
-            <groupId>org.duckdb</groupId>
-            <artifactId>duckdb_jdbc</artifactId>
+            <groupId>com.gamma.inspector</groupId>
+            <artifactId>file-processor-engine</artifactId>
+            <type>test-jar</type>
+            <scope>test</scope>
         </dependency>
 
         <!-- JToon for configuration serialisation (version managed by the parent — shared
@@ -79,33 +84,13 @@
             <artifactId>jackson-databind</artifactId>
         </dependency>
 
-        <!-- Logging — logback-classic is the SLF4J binding (replaced slf4j-simple at 4.2.0 so the
-             Operational-Intelligence event engine can auto-capture INFO+ log records via a custom
-             appender; slf4j-simple has no appender SPI). Console output is preserved by logback's
-             ConsoleAppender (see src/main/resources/logback.xml). slf4j-api's version is parent-managed
-             (${slf4j.version}, pinned to what logback 1.5.x compiles against) since the WS-D Scheduler move. -->
+        <!-- Logging — slf4j-api facade, used directly by ~23 core-staying classes. logback-classic
+             (the SLF4J runtime binding) + logback.xml + the EventStoreAppender now live in fp-engine
+             and reach the fat-JAR transitively; core no longer compiles against logback. slf4j-api's
+             version is parent-managed (${slf4j.version}, pinned to what logback 1.5.x compiles against). -->
         <dependency>
             <groupId>org.slf4j</groupId>
             <artifactId>slf4j-api</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>ch.qos.logback</groupId>
-            <artifactId>logback-classic</artifactId>
-            <version>1.5.18</version>
-        </dependency>
-
-        <!-- Apache Commons Compress — gz stream handling in etl.Compression (version managed by
-             the parent — shared with fp-util since WS-D). -->
-        <dependency>
-            <groupId>org.apache.commons</groupId>
-            <artifactId>commons-compress</artifactId>
-        </dependency>
-
-        <!-- Gson — JSON manifest in etl.ManifestStore (version managed by the parent — shared
-             with fp-util since WS-D). -->
-        <dependency>
-            <groupId>com.google.code.gson</groupId>
-            <artifactId>gson</artifactId>
         </dependency>
 
         <!-- JUnit 5 — unit/integration tests (version managed by the parent, M1). -->
