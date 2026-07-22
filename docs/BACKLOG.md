@@ -28,7 +28,7 @@ _(none open — the `package.ps1` bundle smoke-test row closed 2026-07-20, see �
 | ID | Item | Status / blocker |
 |---|---|---|
 | ACQ-4 | Object-storage connectors — S3/MinIO/GCS-interop + SDK-free Azure Blob + **GCS-native (JSON API, service-account OAuth2) all shipped** (2026-07-22) | **DONE.** The "offline-blocked (no SDK jars)" tag was stale — OAuth2 JWT signing is the same JDK-crypto category as SigV4/SharedKey, no SDK needed. `okf/backend/acquisition/connectors.md` |
-| OPS-5 | Provenance conservation on live data (built, off by default) | Needs a live deployment to verify |
+| OPS-5 | Provenance conservation on live data (built, off by default) | Needs a live deployment to verify. **Offline de-risk done 2026-07-22:** feature integrity re-confirmed post engine-refactor + synthetic tests added for the imbalance→ALERT promotion and the run→check→emit bridge; `docs/ops/provenance-conservation-verification.md` corrected (alerting path = ALERT object via `EventObjectBridge`, Sankey via `JobRoutes`). ⚠ **Open product Q noted in that doc:** should an imbalance also fire a `NotificationRule` (toast/email), or stay an ALERT object only? |
 | NFR-7 | Compliance certifications | PARTIAL (not started) |
 | API-5 | Legacy route **physical deletion** — sunset mechanism + `inspecto_legacy_api_requests_total` meter shipped (W8); delete after the signed **30-days-at-zero soak** | Soak-gated policy call |
 | EOI-7b | Publish eoiagent `0.1.0` artifacts to a registry (v0.1.0 cut + pinned 2026-07-08; CI rebuilds from tag meanwhile) | Infra/product call |

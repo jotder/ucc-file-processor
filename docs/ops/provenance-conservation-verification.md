@@ -13,8 +13,17 @@ here.
   must equal records that left. A violation emits `EventType.FLOW_CONSERVATION_IMBALANCE` with
   `node`/`recordsIn`/`recordsOut`/`kind` (`LOSS` or `AMPLIFICATION`) attributes, correlated to the
   run's `batchId`.
-- Downstream consequences already wired: the event flows into Alerts (`NotificationRules`) and the
-  Lineage/Sankey overlay (`LineageRoutes`) for visual inspection.
+- Downstream consequences already wired: the event is promoted to a managed **ALERT object** by
+  `EventObjectBridge` (de-duplicated per `(pipeline, node)`), so an imbalance surfaces in the
+  Alerts/Incidents view; and the run's per-node counts drive the Lineage/Sankey overlay served by
+  `JobRoutes` — `GET /provenance` and `GET /provenance/batches` (not `LineageRoutes`, which is the
+  separate file→store→flow ingest-lineage endpoint).
+  - ⚠ **No toast/email notification fires for a conservation imbalance today** —
+    `NotificationRules`/`NotificationService` carry no rule matching `FLOW_CONSERVATION_IMBALANCE`
+    (nor the `OBJECT_OPENED` that opening the ALERT emits). So during the soak, watch the **ALERT
+    object list and the event ledger**, not a notification (this is exactly why step 3 says "not
+    just 'no alert fired'"). Whether an imbalance *should* also raise a notification is an open
+    product call (BACKLOG) — decide it before recommending provenance as a standing default.
 
 ## The protocol
 
