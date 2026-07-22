@@ -209,10 +209,60 @@ their natural homes (`job`, `query`), which also dropped `enrich` out of the SCC
   shares it across all ops in that run (`PipelineJobRunner.run`, `EnrichmentEngine.runResult`). The
   proposal is cross-RUN reuse — a real re-architecture that is actively risky (per-run scratch DBs are
   deliberately ephemeral/isolated, JDBC connections aren't thread-safe, jobs run concurrently). Build
-  only after profiling shows open cost matters.
+  only after profiling shows open cost matters. **Read-only connection/instance sharing investigated
+  2026-07-22 and does NOT apply:** the query/measure/recon/enrichment read paths are ephemeral-instance
+  over immutable Parquet globs (`read_parquet`, e.g. `DatasetRelation`/`SqlViews`/`SqlSandbox`) with NO
+  persistent catalog to amortize, and each connection issues `CREATE VIEW`/`CREATE TABLE` scratch DDL
+  (opened deliberately *unsealed*), so `access_mode=READ_ONLY` can't be used as-is. Sharing would save
+  only cheap instance-init, not the scan; concurrent reads over immutable Parquet are already safe/
+  isolated for free. If read-path open cost ever shows up (measure-heavy dashboards / recon boards open
+  one temp DuckDB per measure/call), the cheap fix is switching `SqlSandbox` from a temp *file* to
+  `:memory:` — not connection sharing.
 
 The intra-module `ops↔ops.link/workflow` and `catalog↔catalog.spi` cycles are same-family, not
 reactor-split blockers.
+
+**⚠️ ISSUE — DuckDB large-file responsiveness / resource-capping (raised 2026-07-22, not yet built).**
+Investigated after a "will a GB file choke responsiveness?" concern. JVM-heap axis is safe (ingest
+streams through DuckDB — `read_csv` lazy VIEW → `COPY … PARTITION_BY`, no Java-side row
+materialization; generation-mode flushes every `flush_records`). The exposure is **aggregate memory/CPU
+under concurrency**, because the caps that prevent it are off-by-default and two paths bypass them:
+- **`memory_limit`/`temp_directory` are opt-in.** `DuckDbUtil.applyDuckDbSettings` only sets them when
+  config is non-blank; unset → DuckDB default ≈ **80% RAM per instance**. `Semaphore(maxConcurrentRuns)`
+  runs each grabbing 80% → overcommit → OS thrash/OOM → whole box (incl. HTTP API) unresponsive. **#1
+  risk.** Fix is a config value (`processing.duckdb.memory_limit` ≈ `RAM×0.7 / maxConcurrentRuns` +
+  `temp_directory` for spill) — plumbing already exists.
+- **`PipelineJobRunner` and `EnrichmentEngine` run fully uncapped** — they open raw connections
+  (`PipelineJobRunner.java:145`, `EnrichmentEngine.java:113`) and never call `BatchIngestStrategy.configure`/
+  `applyDuckDbSettings`/`applyWorkerThreads` (the batch-ingest path DOES cap; these two don't). Wire the
+  caps in if these touch large data.
+- **Legacy (pre-v1) trigger routes run ingest INLINE on the HTTP request thread** (`RunRoutes.java:96`,
+  `AcquisitionRoutes.java:50` → `CollectorService.runPipeline` synchronously); v1 routes are async
+  (`202`+runId via `triggerRunAsync`). Standardize on v1 / deprecate the inline path.
+- **Single GB file isn't auto-chunked** — `processing.chunking.max_file_bytes = 0` (disabled +
+  undocumented in `okf/backend/engine/*`). Enable as a safety net for pathological single files.
+Order of value: memory_limit/temp_directory config → cap the two uncapped paths → v1-only triggers →
+chunking. Read-path is NOT the risk here (see C6 note). Cheap open-cost instrumentation is the gate.
+
+**Postgres multi-user transactional backend (raised 2026-07-22 — DIRECTION captured, deferred by
+operator).** Idea: move the transactional surface (`event→alert→incident/Case` + objects/links/notes/
+job-runs/status/provenance) onto PostgreSQL to serve many concurrent users, keeping bulk ingestion +
+analytical reads on DuckDB/Parquet. **Most of it already exists:** the stores are interface-seamed
+(`ObjectStore`/`LinkStore`/`NoteStore`/`StatusStore`/`EventStore`) with a `-D*.backend` toggle in
+`ServiceStores` and dialect-aware JDBC (`JdbcDrivers` duckdb-vs-postgresql); alerts/incidents/cases are
+`ObjectType.*` rows through `ObjectStore` (already swappable); **`PostgresStateStoreTest` already
+round-trips all 7 JDBC stores against embedded Postgres**; as-built in `okf/backend/engine/db-layer.md`
+("essentially a configuration change"). **The real gap for multi-user is NOT the engine — it's
+connection pooling:** every `Db*Store` holds ONE `synchronized` connection, so PG gives concurrency only
+once the store layer is pool-backed (HikariCP/PgBouncer). Remaining build items: pool the stores;
+**schema-per-space** URL wiring (NOT db-per-space — a PG conn binds to one DB, fragmenting pools);
+`CaseStore` interface + PG impl (it's a JSONL ring today, no seam); keep events on Parquet (no PG impl,
+right fit). **Don't route all reads through the postgres-duckdb plugin** (wire-protocol scans compete
+with OLTP; bundling concern) — read PG directly for OLTP, reserve the plugin (or a materialize-to-Parquet
+CQRS split) for cross-engine analytical joins. **Editions:** keep DuckDB-file the Personal default (zero
+external deps / jlink), Postgres for Standard/Enterprise — via the existing toggle, editions-as-build-
+flavor. Full options analysis in this session's transcript; write up as a `docs/superpower/` plan before
+building.
 
 ## 6. Security-module scope (deferred wholesale — do not partially implement elsewhere)
 
