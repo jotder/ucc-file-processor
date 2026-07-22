@@ -158,6 +158,43 @@ public final class DuckDbUtil {
         }
     }
 
+    // ── global (JVM-property) fallback caps ──────────────────────────────────────────────────
+
+    /** JVM-property names for the global DuckDB caps — mirror the {@code processing.duckdb.*} config keys. */
+    public static final String PROP_MEMORY_LIMIT = "processing.duckdb.memory_limit";
+    public static final String PROP_TEMP_DIRECTORY = "processing.duckdb.temp_directory";
+    public static final String PROP_MAX_TEMP_DIRECTORY_SIZE = "processing.duckdb.max_temp_directory_size";
+    public static final String PROP_THREADS = "processing.duckdb.threads";
+
+    /**
+     * The global fallback for a DuckDB setting: the per-config {@code configured} value wins; when it is
+     * blank, the {@code -D<property>} value applies; when neither is set, {@code null} ⇒
+     * {@link #applyDuckDbSettings} leaves DuckDB's own default. Lets a single {@code -Dprocessing.duckdb.*}
+     * flag cap every scratch connection uniformly, with no behaviour change when the flag is unset.
+     */
+    public static String globalOr(String configured, String property) {
+        if (notBlank(configured)) return configured;
+        String p = System.getProperty(property);
+        return notBlank(p) ? p : null;
+    }
+
+    /**
+     * Apply the global {@code -Dprocessing.duckdb.*} caps (memory_limit, spill {@code temp_directory},
+     * spill-size cap, and worker {@code threads}) to a scratch connection that has no per-pipeline
+     * {@code processing.duckdb} config to read from — the flow-job ({@code PipelineJobRunner}) and
+     * enrichment ({@code EnrichmentEngine}) scratch DBs, which would otherwise open fully uncapped while
+     * the batch-ingest path caps its own connections. Every property is opt-in: unset ⇒ no {@code SET}/
+     * {@code PRAGMA} is issued ⇒ DuckDB keeps its own defaults, so behaviour is unchanged unless an
+     * operator sets the flags (one knob then caps all three paths).
+     */
+    public static void applyGlobalDuckDbSettings(Connection conn) throws SQLException {
+        applyDuckDbSettings(conn,
+                System.getProperty(PROP_MEMORY_LIMIT),
+                System.getProperty(PROP_TEMP_DIRECTORY),
+                System.getProperty(PROP_MAX_TEMP_DIRECTORY_SIZE));
+        applyWorkerThreads(conn, Integer.getInteger(PROP_THREADS, 0));
+    }
+
     /**
      * Resolve the effective per-connection DuckDB thread count for a batch worker, given the
      * configured value, the batch concurrency, and the machine's core count.

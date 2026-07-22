@@ -165,7 +165,11 @@ interface BatchIngestStrategy {
                 cfg.processing().threads(),
                 Runtime.getRuntime().availableProcessors());
         DuckDbUtil.applyWorkerThreads(conn, effectiveThreads);
+        // Per-config value wins; else the global -Dprocessing.duckdb.* fallback, so one operator knob
+        // caps this path uniformly with the (config-less) flow-job and enrichment scratch connections.
         DuckDbUtil.applyDuckDbSettings(conn,
-                cfg.duckdb().memoryLimit(), scratchDir(cfg), cfg.duckdb().maxTempDirectorySize());
+                DuckDbUtil.globalOr(cfg.duckdb().memoryLimit(), DuckDbUtil.PROP_MEMORY_LIMIT),
+                scratchDir(cfg),
+                DuckDbUtil.globalOr(cfg.duckdb().maxTempDirectorySize(), DuckDbUtil.PROP_MAX_TEMP_DIRECTORY_SIZE));
     }
 }

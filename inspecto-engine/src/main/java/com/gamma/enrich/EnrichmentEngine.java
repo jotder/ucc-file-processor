@@ -112,6 +112,9 @@ public final class EnrichmentEngine {
                                    String runId) throws Exception {
         File db = DuckDbUtil.tempDbFile("enrich_");
         try (Connection conn = DuckDbUtil.openConnection(db); Statement st = conn.createStatement()) {
+            // Enrichment has no per-config processing.duckdb section; honour the global -D caps so this
+            // scratch connection isn't uncapped (defaults ≈ 80% RAM) while the batch path is capped.
+            DuckDbUtil.applyGlobalDuckDbSettings(conn);
 
             // 1. reference views
             for (EnrichmentConfig.Reference r : cfg.references()) {

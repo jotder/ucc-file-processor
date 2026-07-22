@@ -222,27 +222,35 @@ their natural homes (`job`, `query`), which also dropped `enrich` out of the SCC
 The intra-module `ops↔ops.link/workflow` and `catalog↔catalog.spi` cycles are same-family, not
 reactor-split blockers.
 
-**⚠️ ISSUE — DuckDB large-file responsiveness / resource-capping (raised 2026-07-22, not yet built).**
+**⚠️ ISSUE — DuckDB large-file responsiveness / resource-capping (raised 2026-07-22; the two uncapped paths
++ a global `-D` knob SHIPPED 2026-07-22, remainder open).**
 Investigated after a "will a GB file choke responsiveness?" concern. JVM-heap axis is safe (ingest
 streams through DuckDB — `read_csv` lazy VIEW → `COPY … PARTITION_BY`, no Java-side row
 materialization; generation-mode flushes every `flush_records`). The exposure is **aggregate memory/CPU
-under concurrency**, because the caps that prevent it are off-by-default and two paths bypass them:
-- **`memory_limit`/`temp_directory` are opt-in.** `DuckDbUtil.applyDuckDbSettings` only sets them when
-  config is non-blank; unset → DuckDB default ≈ **80% RAM per instance**. `Semaphore(maxConcurrentRuns)`
-  runs each grabbing 80% → overcommit → OS thrash/OOM → whole box (incl. HTTP API) unresponsive. **#1
-  risk.** Fix is a config value (`processing.duckdb.memory_limit` ≈ `RAM×0.7 / maxConcurrentRuns` +
-  `temp_directory` for spill) — plumbing already exists.
-- **`PipelineJobRunner` and `EnrichmentEngine` run fully uncapped** — they open raw connections
-  (`PipelineJobRunner.java:145`, `EnrichmentEngine.java:113`) and never call `BatchIngestStrategy.configure`/
-  `applyDuckDbSettings`/`applyWorkerThreads` (the batch-ingest path DOES cap; these two don't). Wire the
-  caps in if these touch large data.
+under concurrency**, because the caps that prevent it are off-by-default:
+- ~~**`PipelineJobRunner` and `EnrichmentEngine` run fully uncapped**~~ **SHIPPED 2026-07-22** — both run
+  scratch connections now call `DuckDbUtil.applyGlobalDuckDbSettings(conn)` (which the batch path already
+  did via `configure`), and a global JVM fallback (`DuckDbUtil.globalOr` + `-Dprocessing.duckdb.memory_limit`/
+  `.temp_directory`/`.max_temp_directory_size`/`.threads`) now lets **one operator knob cap every DuckDB
+  scratch connection** — batch, flow-job, enrichment. As-built in `okf/backend/engine/duckdb.md`.
+- **`memory_limit`/`temp_directory` remain opt-in (no on-by-default value yet).** Unset → DuckDB default ≈
+  **80% RAM per instance** → concurrent runs overcommit → OS thrash/OOM → whole box (incl. HTTP API)
+  unresponsive. Operators can now cap all paths with `-Dprocessing.duckdb.memory_limit` (+ `.temp_directory`
+  for spill), but there is **no computed default** — deliberately, because the backlog's suggested
+  `RAM×0.7 / maxConcurrentRuns` premise is **wrong for the job path**: `maxConcurrentRuns` only bounds the
+  batch-ingest semaphore; flow-jobs run on `JobService`'s **unbounded** virtual-thread pool (only same-job
+  mutual exclusion), so `RAM/N` wouldn't bound their aggregate memory. Shipping an on-by-default value
+  therefore needs either (a) bounding job concurrency (a semaphore on the `JobService` executor — throughput/
+  deadlock considerations) or (b) a conservative fixed per-instance cap + spill. Deferred by the "consistency
+  only, no new defaults" scope decision (2026-07-22).
 - **Legacy (pre-v1) trigger routes run ingest INLINE on the HTTP request thread** (`RunRoutes.java:96`,
   `AcquisitionRoutes.java:50` → `CollectorService.runPipeline` synchronously); v1 routes are async
-  (`202`+runId via `triggerRunAsync`). Standardize on v1 / deprecate the inline path.
+  (`202`+runId via `triggerRunAsync`). Standardize on v1 / deprecate the inline path. **[open]**
 - **Single GB file isn't auto-chunked** — `processing.chunking.max_file_bytes = 0` (disabled +
-  undocumented in `okf/backend/engine/*`). Enable as a safety net for pathological single files.
-Order of value: memory_limit/temp_directory config → cap the two uncapped paths → v1-only triggers →
-chunking. Read-path is NOT the risk here (see C6 note). Cheap open-cost instrumentation is the gate.
+  undocumented in `okf/backend/engine/*`). Enable as a safety net for pathological single files. **[open]**
+Order of value: ~~cap the two uncapped paths~~ (done) → on-by-default memory value + bound job concurrency
+→ v1-only triggers → chunking. Read-path is NOT the risk here (see C6 note). Cheap open-cost instrumentation
+is the gate.
 
 **Postgres multi-user transactional backend (raised 2026-07-22 — DIRECTION captured, deferred by
 operator).** Idea: move the transactional surface (`event→alert→incident/Case` + objects/links/notes/

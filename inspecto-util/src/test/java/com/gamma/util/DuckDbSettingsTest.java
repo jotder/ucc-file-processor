@@ -66,6 +66,87 @@ class DuckDbSettingsTest {
         }
     }
 
+    // ── global (-Dprocessing.duckdb.*) fallback caps ─────────────────────────────────────────
+
+    @Test
+    void globalOrPrefersConfiguredThenPropertyThenNull() {
+        String prior = System.getProperty(DuckDbUtil.PROP_MEMORY_LIMIT);
+        try {
+            System.clearProperty(DuckDbUtil.PROP_MEMORY_LIMIT);
+            // neither a config value nor a property → null (⇒ DuckDB keeps its own default)
+            assertNull(DuckDbUtil.globalOr(null, DuckDbUtil.PROP_MEMORY_LIMIT));
+            assertNull(DuckDbUtil.globalOr("  ", DuckDbUtil.PROP_MEMORY_LIMIT));
+            // the property is the fallback when the config value is blank
+            System.setProperty(DuckDbUtil.PROP_MEMORY_LIMIT, "2GB");
+            assertEquals("2GB", DuckDbUtil.globalOr(null, DuckDbUtil.PROP_MEMORY_LIMIT));
+            assertEquals("2GB", DuckDbUtil.globalOr("", DuckDbUtil.PROP_MEMORY_LIMIT));
+            // a per-config value always wins over the global property
+            assertEquals("512MB", DuckDbUtil.globalOr("512MB", DuckDbUtil.PROP_MEMORY_LIMIT));
+        } finally {
+            restore(DuckDbUtil.PROP_MEMORY_LIMIT, prior);
+        }
+    }
+
+    @Test
+    void applyGlobalDuckDbSettingsHonoursJvmProperties(@TempDir Path dir) throws Exception {
+        DuckDbUtil.loadDriver();
+        File db = DuckDbUtil.tempDbFile("duckdb_test_", dir);
+        Path spill = dir.resolve("global_spill");
+        String priorMem = System.getProperty(DuckDbUtil.PROP_MEMORY_LIMIT);
+        String priorTmp = System.getProperty(DuckDbUtil.PROP_TEMP_DIRECTORY);
+        try {
+            System.setProperty(DuckDbUtil.PROP_MEMORY_LIMIT, "512MB");
+            System.setProperty(DuckDbUtil.PROP_TEMP_DIRECTORY, spill.toAbsolutePath().toString());
+            try (Connection conn = DuckDbUtil.openConnection(db)) {
+                String defaultMem = currentSetting(conn, "memory_limit");
+                DuckDbUtil.applyGlobalDuckDbSettings(conn);
+                assertNotEquals(defaultMem, currentSetting(conn, "memory_limit"),
+                        "the -D memory_limit caps an otherwise config-less scratch connection");
+                assertTrue(currentSetting(conn, "temp_directory").replace('\\', '/').endsWith("global_spill"),
+                        "the -D temp_directory routes this connection's spill");
+            }
+        } finally {
+            restore(DuckDbUtil.PROP_MEMORY_LIMIT, priorMem);
+            restore(DuckDbUtil.PROP_TEMP_DIRECTORY, priorTmp);
+            DuckDbUtil.deleteTempDb(db);
+        }
+    }
+
+    @Test
+    void applyGlobalDuckDbSettingsIsNoOpWhenNoPropertiesSet(@TempDir Path dir) throws Exception {
+        DuckDbUtil.loadDriver();
+        File db = DuckDbUtil.tempDbFile("duckdb_test_", dir);
+        String priorMem = System.getProperty(DuckDbUtil.PROP_MEMORY_LIMIT);
+        String priorTmp = System.getProperty(DuckDbUtil.PROP_TEMP_DIRECTORY);
+        String priorMax = System.getProperty(DuckDbUtil.PROP_MAX_TEMP_DIRECTORY_SIZE);
+        String priorThreads = System.getProperty(DuckDbUtil.PROP_THREADS);
+        try {
+            System.clearProperty(DuckDbUtil.PROP_MEMORY_LIMIT);
+            System.clearProperty(DuckDbUtil.PROP_TEMP_DIRECTORY);
+            System.clearProperty(DuckDbUtil.PROP_MAX_TEMP_DIRECTORY_SIZE);
+            System.clearProperty(DuckDbUtil.PROP_THREADS);
+            try (Connection conn = DuckDbUtil.openConnection(db)) {
+                String defaultMem = currentSetting(conn, "memory_limit");
+                // The "zero behaviour change when unset" guarantee: nothing is SET, DuckDB keeps its default.
+                assertDoesNotThrow(() -> DuckDbUtil.applyGlobalDuckDbSettings(conn));
+                assertEquals(defaultMem, currentSetting(conn, "memory_limit"),
+                        "no -D properties → DuckDB's own default (~80% RAM) is left untouched");
+            }
+        } finally {
+            restore(DuckDbUtil.PROP_MEMORY_LIMIT, priorMem);
+            restore(DuckDbUtil.PROP_TEMP_DIRECTORY, priorTmp);
+            restore(DuckDbUtil.PROP_MAX_TEMP_DIRECTORY_SIZE, priorMax);
+            restore(DuckDbUtil.PROP_THREADS, priorThreads);
+            DuckDbUtil.deleteTempDb(db);
+        }
+    }
+
+    /** Restore a system property to its prior value (or clear it when it had none). */
+    private static void restore(String key, String prior) {
+        if (prior != null) System.setProperty(key, prior);
+        else System.clearProperty(key);
+    }
+
     // ── effectiveWorkerThreads: the anti-oversubscription policy ─────────────────────────────
 
     @Test

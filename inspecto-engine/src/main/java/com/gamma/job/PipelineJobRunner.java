@@ -144,6 +144,9 @@ public final class PipelineJobRunner implements Job {
         long t0 = System.nanoTime();
         File db = DuckDbUtil.tempDbFile("flowjob_");
         try (Connection conn = DuckDbUtil.openConnection(db)) {
+            // Flow-jobs have no per-pipeline processing.duckdb config; honour the global -D caps so this
+            // scratch connection isn't uncapped (defaults ≈ 80% RAM) while the batch path is capped.
+            DuckDbUtil.applyGlobalDuckDbSettings(conn);
             Map<String, String> seedViews = new LinkedHashMap<>();
             for (Seed seed : seeds) {                              // one view per source_store (multi-source, Phase C)
                 String view = SEED_VIEW_PREFIX + "_" + safe(seed.node());
