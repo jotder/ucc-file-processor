@@ -88,6 +88,13 @@
             <artifactId>file-processor-event</artifactId>
         </dependency>
 
+        <!-- com.gamma.acquire (WS-D increment 4) — extracted below fp-event once acquire was no
+             longer SCC-trapped. Declared directly since ~6 core main-code files import it directly. -->
+        <dependency>
+            <groupId>com.gamma.inspector</groupId>
+            <artifactId>file-processor-acquire</artifactId>
+        </dependency>
+
         <!-- JToon for configuration serialisation (version managed by the parent — shared
              with fp-config since S5) -->
         <dependency>

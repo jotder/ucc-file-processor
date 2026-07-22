@@ -1,8 +1,14 @@
-package com.gamma.acquire;
+package com.gamma.inspector;
 
+import com.gamma.acquire.AcquisitionLedgers;
+import com.gamma.acquire.Checksums;
+import com.gamma.acquire.InMemoryAcquisitionLedger;
+import com.gamma.acquire.LedgerEntry;
+import com.gamma.acquire.LocalFileSystemConnector;
+import com.gamma.acquire.CollectorConnector;
+import com.gamma.acquire.CollectorConnectors;
 import com.gamma.etl.PipelineConfig;
 import com.gamma.etl.PipelineConfigBatchTest;
-import com.gamma.inspector.CollectorProcessor;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -13,8 +19,14 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-/** Phase-A config: the additive {@code source:} block + connector resolution (and legacy default). */
-class SourceConfigTest {
+/**
+ * Phase-A config: the additive {@code source:} block + connector resolution (and legacy default).
+ * Lives in {@code inspector} (not {@code acquire}) because it's a genuine acquire+etl+event+
+ * inspector integration suite ({@link CollectorProcessor#run}/{@code #collectCandidates}) — moved
+ * here (twice now: first out of {@code etl} in WS-D increment 2, then out of {@code acquire} in
+ * increment 4 when {@code acquire} became its own module) rather than split, per operator call.
+ */
+class SourceConfigIntegrationTest {
 
     /** Minimal pipeline with an optional top-level {@code source:} block injected at {@code sourceBlock}. */
     private static Path writePipeline(Path dir, String sourceBlock) throws Exception {

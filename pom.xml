@@ -38,6 +38,7 @@
         <module>inspecto-sql</module>
         <module>inspecto-etl</module>
         <module>inspecto-event</module>
+        <module>inspecto-acquire</module>
         <module>inspecto-engine</module>
         <module>inspecto</module>
         <module>inspecto-agent</module>
@@ -172,6 +173,11 @@
             <dependency>
                 <groupId>com.gamma.inspector</groupId>
                 <artifactId>file-processor-event</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.gamma.inspector</groupId>
+                <artifactId>file-processor-acquire</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>

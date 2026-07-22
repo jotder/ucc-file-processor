@@ -18,6 +18,7 @@
 /inspecto-sql/target/
 /inspecto-etl/target/
 /inspecto-event/target/
+/inspecto-acquire/target/
 /inspecto-engine/target/
 /inspecto-agent/target/
 /inbox/

@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>com.gamma.inspector</groupId>
+        <artifactId>file-processor-parent</artifactId>
+        <version>4.0.0-RC1</version>
+        <relativePath>../pom.xml</relativePath>
+    </parent>
+
+    <!-- com.gamma.acquire (WS-D increment 4): file/remote acquisition — connectors, connection
+         profiles/registry/workbench, the fingerprint ledger (metadata/checksum dedup), stability
+         gate, gap detection, retry/circuit-breaker/rate-limit policies. No longer SCC-trapped once
+         etl became a foundation leaf (increment 1): acquire imports only api/config/etl/event/util,
+         and nothing in the remaining engine cluster imports back into it, so it sits below fp-event
+         as a clean one-way leaf. -->
+    <artifactId>file-processor-acquire</artifactId>
+    <name>Inspecto acquire (file/remote acquisition)</name>
+
+    <dependencies>
+        <dependency>
+            <groupId>com.gamma.inspector</groupId>
+            <artifactId>file-processor-api</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.gamma.inspector</groupId>
+            <artifactId>file-processor-config</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.gamma.inspector</groupId>
+            <artifactId>file-processor-util</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.gamma.inspector</groupId>
+            <artifactId>file-processor-etl</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.gamma.inspector</groupId>
+            <artifactId>file-processor-event</artifactId>
+        </dependency>
+
+        <!-- Logging — slf4j-api facade (parent-managed). -->
+        <dependency>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-api</artifactId>
+        </dependency>
+
+        <!-- JUnit 5 — unit tests (parent-managed, M1). -->
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+</project>
