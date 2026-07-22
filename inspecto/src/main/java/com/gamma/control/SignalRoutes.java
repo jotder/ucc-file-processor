@@ -20,8 +20,9 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
 /**
- * The signal-ledger read view ({@code GET /signals}, job-framework §8.1 / §14) and its live-push
- * counterpart ({@code GET /signals/stream}, event-signal-backbone-plan §S3). Signals persist as
+ * The signal-ledger read view ({@code GET /signals}, job-framework §8.1 / §14), its live-push
+ * counterpart ({@code GET /signals/stream}, event-signal-backbone-plan §S3) and the causation-tree view
+ * ({@code GET /signals/tree}, which assembles one correlation chain into a parent→child forest). Signals persist as
  * {@code EventType.SIGNAL} events on the one ledger (§19.2); {@code GET /signals} reconstructs them and
  * filters by {@code type} (exact or {@code prefix.*} glob), the {@code since}/{@code until} epoch-milli
  * bounds, {@code severity} (a minimum floor), {@code source} (the emitter Ref, by {@code kind} or
@@ -38,6 +39,7 @@ final class SignalRoutes implements RouteModule {
     @Override
     public void register(ApiContext api) {
         api.get("/signals", (e, m) -> signals(api, e));
+        api.get("/signals/tree", (e, m) -> signalTree(api, e));
         api.get("/signals/stream", (e, m) -> stream(api, e));
     }
 
@@ -54,6 +56,32 @@ final class SignalRoutes implements RouteModule {
         return found.stream()
                 .filter(s -> Signals.matchesSource(s, source))   // source has no in-store filter — apply over the page
                 .map(Signal::toMap).toList();
+    }
+
+    /**
+     * {@code GET /signals/tree?correlationId=&limit=} — the same ledger, assembled server-side into the
+     * causation forest for one correlation chain (§8.1 causation model). Returns a bare array of root nodes;
+     * each node is the full {@code /signals} signal view plus a {@code children} array of the signals it
+     * caused ({@code causationId == the node's signalId}), recursively. Roots and children read oldest-first
+     * (the run start is the root, the facts it caused nest beneath). {@code correlationId} is required — a
+     * tree is scoped to one chain; without an anchor the ledger is an unbounded forest.
+     */
+    private Object signalTree(ApiContext api, HttpExchange e) {
+        String correlationId = ApiContext.query(e, "correlationId");
+        if (correlationId == null || correlationId.isBlank())
+            throw new ApiException(400, "'correlationId' is required for /signals/tree (a tree is scoped to one correlation chain)");
+        int limit = ApiContext.parseIntOr(ApiContext.query(e, "limit"), 200);
+        List<Signal> found = Signals.query(api.service().events(),
+                null, null, null, null, correlationId, limit);
+        return Signals.assembleTree(found).stream().map(SignalRoutes::toNode).toList();
+    }
+
+    /** Project a {@link Signals.SignalNode} to the nested JSON view: the flat signal map plus a recursive
+     *  {@code children} array ({@link Signal#toMap()} returns a fresh mutable map, so putting into it is safe). */
+    private static Map<String, Object> toNode(Signals.SignalNode n) {
+        Map<String, Object> m = n.signal().toMap();
+        m.put("children", n.children().stream().map(SignalRoutes::toNode).toList());
+        return m;
     }
 
     private static Long parseEpochMs(String s, String field) {

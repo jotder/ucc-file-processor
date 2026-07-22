@@ -55,8 +55,18 @@ diagnostic context, AG-UI streaming, A2UI inline artifacts — and finally to a 
 
 * **`GET /signals/stream`** (`control/SignalRoutes.java`) — SSE, mirrors `NotificationRoutes.stream()`
   exactly (`BlockingQueue` + `EventLog.addSubscriber` registered before headers commit, heartbeat
-  poll, `finally`-deregister). Filters: `type`, `severity`, `correlationId` via the shared
-  `Signals.matches`.
+  poll, `finally`-deregister). Filters: `type`, `severity`, `source`, `correlationId` via the shared
+  `Signals.matches` (`source` added 2026-07-22 — matches the emitter `Ref` by `kind` or `kind:id`).
+* **`GET /signals/tree?correlationId=`** (`control/SignalRoutes.java`, 2026-07-22) — server-side
+  causation-tree assembly: the flat correlation chain arranged into a parent→child forest (child =
+  `causationId == parent.signalId`). Bare array of root nodes, each = the full `/signals` signal view +
+  a recursive `children[]`; roots and children read oldest-first, orphans (cause outside the set) are
+  surfaced as roots, cycles are broken (never loops). `correlationId` is **required** (400 otherwise —
+  a tree without an anchor is an unbounded forest). Pure logic in `Signals.assembleTree` (engine);
+  the route just projects `SignalNode` → nested map. ⚠ No producer threads `causationId` yet, so trees
+  are flat (all roots) today — this is the HTTP peer of `signal_timeline` below, which does the same
+  causation assembly as a flat list; **`InspectoTools.causationOrder` is a candidate to fold onto
+  `Signals.assembleTree`** (noted dedup follow-on, `BACKLOG.md` §5).
 * **`AgUiProjection`** (`inspecto/src/main/java/com/gamma/signal/AgUiProjection.java`) — pure mapping
   from a domain Signal type to an AG-UI event type (`agent.run.started`→`RUN_STARTED`, etc.,
   `CUSTOM` for anything uncatalogued). Domain type names stay dotted/canonical internally; AG-UI is

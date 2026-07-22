@@ -23,7 +23,8 @@ import static org.junit.jupiter.api.Assertions.*;
  * {@code GET /signals} over real HTTP: a failing Job run emits {@code job.run.started} (INFO) and
  * {@code job.run.failed} (CRITICAL) signals; the route reconstructs them from the event ledger and filters
  * by type glob, exact type, the {@code severity} floor and the {@code source} Ref (kind or {@code kind:id})
- * — plus the 400 gate on an unrecognised severity.
+ * — plus the 400 gate on an unrecognised severity. A companion test drives {@code GET /signals/tree}, which
+ * assembles one correlation chain into a parent→child forest (and 400s without a {@code correlationId}).
  */
 class ControlApiSignalsTest {
 
@@ -92,6 +93,36 @@ class ControlApiSignalsTest {
 
             // an unrecognised severity is a 400 (not a silent "everything")
             assertEquals(400, send(c.port, "GET", base + "/signals?severity=NOPE", null).statusCode());
+        }
+    }
+
+    @Test
+    void assemblesTheCausationTreeForACorrelationChain(@TempDir Path root) throws Exception {
+        try (Ctx c = open(root)) {
+            assertEquals(200, send(c.port, "POST", "/spaces", "{\"id\":\"acme\"}").statusCode());
+            String base = "/spaces/acme";
+            assertEquals(200, send(c.port, "POST", base + "/jobs",
+                    "{\"name\":\"broken\",\"type\":\"maintenance\",\"task\":\"cleanup\",\"cron\":\"0 3 * * *\"}").statusCode());
+            send(c.port, "POST", base + "/jobs/broken/trigger", null);
+
+            List<JsonNode> runSignals = pollForTerminalRunSignal(c.port, base);
+            String correlationId = runSignals.get(0).get("correlationId").asText();
+            assertFalse(correlationId.isBlank(), "a manual run stamps its runId as the correlationId");
+
+            // the tree view returns the chain's signals as nodes, each carrying a children array
+            JsonNode tree = json(send(c.port, "GET", base + "/signals/tree?correlationId=" + correlationId, null));
+            assertTrue(tree.isArray() && !tree.isEmpty(), "the correlation chain's signals come back as a tree");
+            List<String> rootTypes = new ArrayList<>();
+            for (JsonNode node : tree) {
+                assertTrue(node.has("children") && node.get("children").isArray(), "every node carries a children array");
+                assertTrue(node.has("signalId") && node.has("type"), "a node is the full signal view");
+                rootTypes.add(node.get("type").asText());
+            }
+            // run-lifecycle signals carry no causationId today, so they are sibling roots under the runId
+            assertTrue(rootTypes.contains("job.run.started") && rootTypes.contains("job.run.failed"), rootTypes.toString());
+
+            // correlationId is required — a tree without an anchor is an unbounded forest
+            assertEquals(400, send(c.port, "GET", base + "/signals/tree", null).statusCode());
         }
     }
 

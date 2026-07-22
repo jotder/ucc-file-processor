@@ -104,6 +104,48 @@ class SignalsTest {
                 "a non-matching source excludes even when type/severity/correlationId all match");
     }
 
+    /** A causation-tree node builder: explicit id + causation + timestamp, everything else fixed. */
+    private static Signal tnode(String id, String causationId, long ms) {
+        return new Signal(id, "job.run.step", Instant.ofEpochMilli(ms), Severity.INFO,
+                Ref.of("job", "x"), null, "corr1", causationId, null, null, "m", Map.of(), 1);
+    }
+
+    private static List<String> ids(List<Signals.SignalNode> nodes) {
+        return nodes.stream().map(n -> n.signal().signalId()).toList();
+    }
+
+    @Test
+    void assembleTreeNestsChildrenUnderTheirCause() {
+        Signal a = tnode("A", null, 1000);
+        Signal b = tnode("B", "A", 2000);
+        Signal c = tnode("C", "B", 3000);
+        List<Signals.SignalNode> roots = Signals.assembleTree(List.of(c, a, b));   // input order is irrelevant
+        assertEquals(List.of("A"), ids(roots), "the only causeless signal is the single root");
+        assertEquals(List.of("B"), ids(roots.get(0).children()), "B nests under its cause A");
+        assertEquals(List.of("C"), ids(roots.get(0).children().get(0).children()), "C nests under its cause B");
+    }
+
+    @Test
+    void assembleTreeBranchesAndSurfacesOrphansAsRoots() {
+        Signal a = tnode("A", null, 1000);
+        Signal b = tnode("B", "A", 2000);
+        Signal c = tnode("C", "A", 3000);
+        Signal orphan = tnode("D", "gone", 4000);          // cause points outside the set
+        List<Signals.SignalNode> roots = Signals.assembleTree(List.of(a, b, c, orphan));
+        assertEquals(List.of("A", "D"), ids(roots), "roots are oldest-first: real root A, then the orphan D");
+        assertEquals(List.of("B", "C"), ids(roots.get(0).children()), "both children nest under A, oldest-first");
+        assertTrue(roots.get(1).children().isEmpty(), "the orphan is a childless root, never dropped");
+    }
+
+    @Test
+    void assembleTreeIsFiniteUnderAnInjectedCycle() {
+        Signal x = tnode("X", "Y", 1000);
+        Signal y = tnode("Y", "X", 2000);
+        List<Signals.SignalNode> roots = Signals.assembleTree(List.of(x, y));   // must not loop
+        assertEquals(List.of("X", "Y"), ids(roots), "a cycle is broken — both members surface as roots");
+        assertTrue(roots.get(0).children().isEmpty() && roots.get(1).children().isEmpty());
+    }
+
     /** S0 DoD: a nested payload round-trips through {@code toEvent()}/{@code fromEvent()} with zero
      *  JSON-in-attribute (the {@link Signal#payload()} stays a real, nested {@code Map<String,Object>}
      *  end to end), and the API view's {@code source} is a nested {@link Ref} object, not a flat string. */

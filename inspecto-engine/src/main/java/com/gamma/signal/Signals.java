@@ -6,7 +6,12 @@ import com.gamma.event.EventStore;
 import com.gamma.event.EventType;
 
 import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 /**
  * Read side of the signal ledger (job-framework §8.1, R6): query the shared {@link EventStore} for
@@ -85,6 +90,55 @@ public final class Signals {
     private static String compact(Ref r) {
         if (r.kind() == null) return r.id();
         return r.id() == null ? r.kind() : r.kind() + ":" + r.id();
+    }
+
+    /**
+     * A node in the causation tree: a {@link Signal} plus the signals it directly caused (its
+     * {@code children} carry {@code causationId == this.signalId}). A forest of these is what
+     * {@link #assembleTree} returns.
+     */
+    public record SignalNode(Signal signal, List<SignalNode> children) {}
+
+    /**
+     * Assemble a flat list of signals into a causation forest. A signal is a child of the signal its
+     * {@link Signal#causationId()} names; a signal whose causation names nothing in the set (a {@code null}
+     * causation, or a parent outside this window/correlation) becomes a root, so nothing is ever dropped.
+     * Roots and each node's children are ordered oldest-first (a chain reads top-down: the run start is the
+     * root, the facts it caused nest beneath). Input order is irrelevant. Causation is a DAG by construction
+     * (a signal's cause always already exists), but a self-cause or an injected cycle is defensively broken —
+     * such a node is surfaced as a root rather than looping — so the result is always a finite forest.
+     */
+    public static List<SignalNode> assembleTree(List<Signal> signals) {
+        List<Signal> ordered = new ArrayList<>(signals);
+        ordered.sort(Comparator.comparingLong((Signal s) -> s.at().toEpochMilli())
+                .thenComparing(Signal::signalId));
+
+        Map<String, Signal> byId = new LinkedHashMap<>();
+        Map<String, SignalNode> nodes = new LinkedHashMap<>();
+        for (Signal s : ordered) {
+            byId.put(s.signalId(), s);
+            nodes.put(s.signalId(), new SignalNode(s, new ArrayList<>()));
+        }
+
+        List<SignalNode> roots = new ArrayList<>();
+        for (Signal s : ordered) {
+            SignalNode node = nodes.get(s.signalId());
+            SignalNode parent = s.causationId() == null ? null : nodes.get(s.causationId());
+            if (parent != null && parent != node && !formsCycle(byId, s)) parent.children().add(node);
+            else roots.add(node);   // no in-set parent, self-cause, or a would-be cycle → a root
+        }
+        return roots;
+    }
+
+    /** Walk the causation chain up from {@code start}; a revisited id means the {@code causationId}
+     *  pointers form a cycle (impossible for real data, defensive against injected ledgers). */
+    private static boolean formsCycle(Map<String, Signal> byId, Signal start) {
+        Set<String> seen = new HashSet<>();
+        for (Signal s = start; s != null; s = byId.get(s.causationId())) {
+            if (!seen.add(s.signalId())) return true;
+            if (s.causationId() == null) return false;
+        }
+        return false;
     }
 
     private static String blankToNull(String s) {
