@@ -268,6 +268,15 @@ public final class JobService implements AutoCloseable {
                 List.of(ParameterDecl.required("reconciliation", ParamType.STRING, "Saved reconciliation component id")),
                 List.of("recon.run.completed"), List.of()),
                 c -> new ReconRunJob(c, dataDir, () -> this.objects)));
+        // caserule.evaluate (C5 Ops): schedule the auto-grouping tail of the Alert → Incident → Case chain —
+        // evaluates a saved Case Rule, grouping matching in-window Incidents under a Case, and emits
+        // caserule.evaluate.completed. Idempotent (dedupe via attributes.raisedByRule), so a cron re-fire only
+        // attaches new matches. Requires the space Object Engine (wired via objects()); fails closed otherwise.
+        registry.register(JobTypeProvider.of(new JobTypeDescriptor("caserule.evaluate", "Case Rule Evaluation",
+                "Evaluates a saved Case Rule, grouping matching Incidents into a Case; emits a completion signal.",
+                List.of(ParameterDecl.required("rule", ParamType.STRING, "Saved case rule name")),
+                List.of("caserule.evaluate.completed"), List.of()),
+                c -> new CaseRuleEvalJob(c, () -> this.objects)));
         // Classpath providers (optional Maven modules — the "classpath way", §12.4). ServiceLoader finds
         // none in the base build; a provider whose id collides with a built-in (registered first) is
         // rejected, fail-closed. Hot-deployable Job Packs (isolated classloaders) arrive in P2c.

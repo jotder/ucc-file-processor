@@ -85,6 +85,15 @@ Design of record (all phases + resolved decisions + TOON config gallery):
   so a reloaded pack's fresh Job runs normally again.
 * **`sql.template`** — the built-in templated-SQL Job Type and first real artifact producer; its
   parameters are scanned from the SQL itself.
+* **`caserule.evaluate`** — schedules the auto-grouping tail of the Alert → Incident → Case chain (C5):
+  evaluates a saved Case Rule, grouping matching in-window Incidents under a Case via
+  `ObjectService.evaluateCaseRule` — the same step `POST /cases/rules/{name}/evaluate` drives — and emits
+  `caserule.evaluate.completed`. Required param `rule`. Evaluation is idempotent (already-grouped Incidents
+  are skipped; later matches attach to the same still-open rule-raised Case), so a cron re-fire attaches new
+  matches instead of cloning a Case. Requires the space Object Engine (wired via `JobService.objects()`) — a
+  Run fails closed if it is not wired (unlike `recon.run`, where the Object Engine only adds an optional
+  Incident promotion). Mirrors the `recon.run` built-in's shape (a schedulable wrapper over a
+  manual-trigger-only service call).
 
 ## Maintenance jobs (MNT, shipped 2026-07-12)
 
