@@ -5,7 +5,7 @@ How the reactor is shaped, why, and the rules for extracting further modules. Di
 `../../../archived-documents/plans-archive/`) — that plan's findings sections hold the full evidence
 base and the per-item history.
 
-## Reactor shape (2026-07-22, +WS-D increment 2: fp-etl)
+## Reactor shape (2026-07-22, +WS-D increments 2–4: fp-etl, fp-event, fp-acquire)
 
 Build order (root `pom.xml`, parent `file-processor-parent`):
 
@@ -16,9 +16,11 @@ Build order (root `pom.xml`, parent `file-processor-parent`):
 | 3 | `inspecto-config/` | `file-processor-config` | `com.gamma.config` — spec / io (TOON codec) / safety. Deps: fp-api + jtoon + jackson. |
 | 4 | `inspecto-sql/` | `file-processor-sql` | **Foundational leaf**: `com.gamma.sql` — the read-only DuckDB SQL sandbox (`SqlSandbox`/`SqlSandboxPolicy`), `SqlOracle`, `SqlGuard`, `SqlViews`. Deps: fp-api + fp-config + fp-util only (no external deps; DuckDB via `util.DuckDbUtil`). |
 | 5 | `inspecto-etl/` | `file-processor-etl` | **Foundation leaf (WS-D increment 2, 2026-07-22)**: `com.gamma.etl` — `PipelineConfig`, the CSV/fixed-width ingesters, batch planning/commit/manifest, quarantine, lineage, partitioned Parquet output. Deps: fp-api + fp-util + univocity, duckdb, jtoon, jackson, slf4j, commons-compress, gson (no logback — etl doesn't own an appender). Publishes a **test-jar** (`com.gamma.etl.TestConfigs` + `PipelineConfigBatchTest`, the shared `PipelineConfig` builders). |
-| 6 | `inspecto-engine/` | `file-processor-engine` | **The remaining engine cluster**: `event`, `signal`, `query`, `pipeline`, `inspector`, `acquire`, `ingester`, `ops`, `job`, `enrich`, `alert`, `metrics`, `notify`, `catalog`. Deps: fp-api/util/config/sql/**etl** (+ etl's test-jar in test scope) + duckdb, jtoon, jackson, slf4j, **logback-classic**. Owns `logback.xml` + the `event.EventStoreAppender` + both `META-INF/services` files (`catalog.spi.DescriptionProvider`, `notify.NotificationChannel`). Publishes its own **test-jar** too (consumed by core for engine-side fixtures, if any arise). |
-| 7 | `inspecto/` | `file-processor` | The core / composition root: `service`, `control`, `report`, `assist`, `exchange`, `expectation`, `intelligence`, `model`; ships the shaded fat JAR. Depends DOWN on fp-api/util/config/sql/**etl**(+test-jar)/**engine**(+test-jar). |
-| 8–11 | `inspecto-agent/`, `-agent-hosted/`, `-connectors/`, `-intelligence/` | `file-processor-*` | Siblings; each depends on core (and resolves the leaf + etl + engine modules transitively). |
+| 6 | `inspecto-event/` | `file-processor-event` | **Leaf-pair (WS-D increment 3, 2026-07-22)**: `com.gamma.event` + `com.gamma.metrics` — the Operational-Intelligence event store (`EventLog`/`EventStore`/`EventStoreAppender`, `ParquetEventStore`, saved views, secret scrubbing) and the metric registry it depends on; mutually cyclic with each other, not with anything else. Deps: fp-api/util/sql/**etl** + duckdb, jackson, slf4j, **logback-classic**. Owns `logback.xml` + `EventStoreAppender`. |
+| 7 | `inspecto-acquire/` | `file-processor-acquire` | **Leaf (WS-D increment 4, 2026-07-22)**: `com.gamma.acquire` — connectors, connection profiles/registry/workbench, the fingerprint ledger, stability gate, gap detection, retry/circuit-breaker/rate-limit policies. No longer SCC-trapped once `etl` became a foundation leaf. Deps: fp-api/config/util/**etl**/**event**. |
+| 8 | `inspecto-engine/` | `file-processor-engine` | **The remaining engine cluster**: `signal`, `query`, `pipeline`, `inspector`, `ingester`, `ops`, `job`, `enrich`, `alert`, `notify`, `catalog`. Deps: fp-api/util/config/sql/**etl**(+test-jar)/**event**/**acquire** + duckdb, jtoon, jackson, slf4j. Owns both `META-INF/services` files (`catalog.spi.DescriptionProvider`, `notify.NotificationChannel`). No longer owns logback-classic or a test-jar publish (both moved with event/etl). |
+| 9 | `inspecto/` | `file-processor` | The core / composition root: `service`, `control`, `report`, `assist`, `exchange`, `expectation`, `intelligence`, `model`; ships the shaded fat JAR. Depends DOWN on fp-api/util/config/sql/**etl**(+test-jar)/**event**/**acquire**/**engine**. |
+| 10–13 | `inspecto-agent/`, `-agent-hosted/`, `-connectors/`, `-intelligence/` | `file-processor-*` | Siblings; each depends on core (and resolves the leaf/etl/event/acquire/engine modules transitively). |
 | (opt) | `inspecto-security/` | `file-processor-security` | Standard-edition only, behind `-Pedition-standard` — not in the default `<modules>`. |
 
 Binding constraints (unchanged by the split): framework-free (JDK HttpServer, manual DI,
@@ -166,11 +168,12 @@ increment 1 below then reshaped the bottom row:
   |---|---|
   | `etl, event, metrics, pipeline, job, acquire, signal, query, enrich, ops` | `etl` = **foundation leaf** (out-degree 0 in engine) · SCC → **`{pipeline, job, query, enrich}`** + **`{event, metrics}`** · `acquire`, `signal`, `ops`, `catalog` dropped OUT (now simple downward deps on `etl`/`event`) |
 
-  So `acquire` is no longer SCC-trapped (it now imports only `etl`+`event`), and `etl` was cleanly
-  extractable as an `fp-etl` module below the rest. Further fragmentation (breaking
-  `{pipeline,job,query,enrich}` or `{event,metrics}`) is the same class of deliberate,
-  deadlock-sensitive design work — do it only if finer module granularity is wanted. The coarse
-  `fp-engine` already delivers the acyclic core↔engine boundary, which was the whole point of WS-D.
+  So `acquire` was no longer SCC-trapped (it imported only `etl`+`event`), and `etl` was cleanly
+  extractable as an `fp-etl` module below the rest. Both `event`/`metrics` and `acquire` were
+  subsequently extracted as their own modules (increments 3–4, below). Further fragmentation of the
+  remaining `{pipeline,job,query,enrich}` SCC is the same class of deliberate, deadlock-sensitive
+  design work — do it only if finer module granularity is wanted. The coarse `fp-engine` already
+  delivers the acyclic core↔engine boundary, which was the whole point of WS-D.
 - **M2 `CollectorService`/`SourceService` decomposition** remains open as maintainability work (it
   reorganizes classes *within* core's `service` package; it is NOT a split blocker).
 
@@ -198,11 +201,51 @@ that increment 1 made `etl` a foundation leaf. Plan: `docs/archived-documents/pl
   jackson/slf4j are shared with fp-engine (declared in both, parent-managed so no drift). logback-classic
   stayed engine-only (etl owns no appender).
 - **Test-jar chain:** fp-etl publishes a test-jar for `TestConfigs`/`PipelineConfigBatchTest`; fp-engine
-  now consumes it (its own ~20 test files use those fixtures) AND still publishes its own test-jar (core
-  depends on both fp-etl's and fp-engine's test-jars now — core's `PipelineConfigBatchTest` usage comes
-  from fp-etl's).
+  consumes it (its own ~20 test files use those fixtures) and core depends on it directly too (core's
+  `PipelineConfigBatchTest` usage). fp-engine's own `maven-jar-plugin` test-jar publish was found unused
+  by any consumer and dropped in increment 3 (see below) — don't re-add it speculatively; add it back
+  only when a real cross-module fixture need shows up.
 - **Verified:** full reactor `mvn -o clean test` — **12 modules, 1884 tests, 0 failures, 0 errors, 3
   skipped** — exact match to the pre-extraction baseline (no tests lost or gained, only relocated).
+
+## `fp-event` module extraction (WS-D increment 3, shipped 2026-07-22)
+
+Extracted `com.gamma.event` + `com.gamma.metrics` (main + tests) out of `fp-engine` into one leaf
+module below `fp-etl` — they're mutually cyclic with each other (`event`→`metrics` for gauge/counter
+emission, `metrics`→`event` for its own audit trail) but nothing else in the engine imports back into
+either, confirmed by a comment-stripped inline-FQN scan of both packages (not just an import-line
+grep, learning increment 2's lesson upfront this time — no leaks found).
+
+- `logback.xml` (root logging config, wires `EVENT_STORE` → `event.EventStoreAppender`) moved with the
+  appender class into fp-event's resources, per playbook rule 8.
+- `fp-engine`'s own `logback-classic` dependency and unused `maven-jar-plugin` test-jar publish were
+  dropped in the same commit — the appender was the only thing in fp-engine needing logback-classic,
+  and no consumer anywhere in the reactor declared a dependency on fp-engine's test-jar (checked before
+  removing, per the "no speculative dependencies" rule — it had been added defensively in increment 2
+  and never used).
+- **Verified:** full reactor `mvn -o clean test` — **13 modules, 1884 tests, 0 failures, 0 errors, 3
+  skipped** — exact match to baseline.
+
+## `fp-acquire` module extraction (WS-D increment 4, shipped 2026-07-22)
+
+Extracted `com.gamma.acquire` (main + tests) out of `fp-engine` into its own leaf module below
+`fp-event`, now that increment 1 made `etl` a foundation leaf (which is what pulled `acquire` out of
+the SCC in the first place — acquire imports only `api`/`config`/`etl`/`event`/`util`, confirmed clean
+by the same inline-FQN scan, both main and test trees).
+
+- **This was originally scoped as "just extract fp-acquire" and turned out to require fp-event first** —
+  `acquire`'s only up-dependency is `event`, which was still mutually cyclic with `metrics` until
+  increment 3 shipped. Recorded here as another instance of this arc's recurring lesson: the "next"
+  item on a follow-on list is rarely as small as it looks until you trace its actual transitive deps.
+- **`SourceConfigTest` moved a second time.** It had already been relocated into the `acquire` test
+  package in increment 2 (because it's a genuine acquire+etl+event+inspector integration suite, not an
+  etl unit test). With `acquire` itself now extracted, and `inspector` staying behind in `fp-engine`,
+  the test moved again — this time into `inspecto-engine/src/test/java/com/gamma/inspector/` as
+  `SourceConfigIntegrationTest`. Same test, same operator call (don't split it), second address — a
+  concrete illustration of why an integration test that spans multiple packages should be named for
+  what it tests, not for whichever package happens to house it at the time.
+- **Verified:** full reactor `mvn -o clean test` — **14 modules, 1884 tests, 0 failures, 0 errors, 3
+  skipped**; new `fp-acquire` module runs 101 tests standalone.
 
 ## Related seams (shipped, documented elsewhere)
 

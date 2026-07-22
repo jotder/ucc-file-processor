@@ -143,11 +143,24 @@ methods reached up via fully-qualified inline calls with no import line (playboo
 split into new `inspector.CommitLogIntegrationTest`/`acquire.PostActionTest`. Full reactor green — 1884
 tests, 0 failures, exact match to baseline. Detail: [`okf/backend/modules/reactor.md`](okf/backend/modules/reactor.md#fp-etl-module-extraction-ws-d-increment-2-shipped-2026-07-22).
 
+✅ **SHIPPED — increment 3: `fp-event` module extraction (2026-07-22):** `com.gamma.event`+`metrics`
+(mutually cyclic with each other only) extracted into `inspecto-event`/`file-processor-event` below
+`fp-etl`; reactor now **13 modules**. `logback.xml`+`EventStoreAppender` moved together; dropped
+`fp-engine`'s now-unused `logback-classic` dep and unused test-jar publish (verified no consumer
+before removing). Full reactor green — 1884 tests, 0 failures.
+
+✅ **SHIPPED — increment 4: `fp-acquire` module extraction (2026-07-22):** `com.gamma.acquire`
+extracted into `inspecto-acquire`/`file-processor-acquire` below `fp-event`, now no longer SCC-trapped;
+reactor now **14 modules** (101 tests standalone). Turned out to require increment 3 first (acquire's
+only up-dep is `event`) — scoped as "just fp-acquire", corrected mid-session once the transitive dep
+was traced. `SourceConfigTest` (moved into `acquire`'s package in increment 2) moved a second time,
+into `fp-engine`'s `inspector` package as `SourceConfigIntegrationTest` — same test, same "don't split
+it" call, second address since `inspector` stays behind while `acquire` moved out. Full reactor green
+— 1884 tests, 0 failures. Detail: [`okf/backend/modules/reactor.md`](okf/backend/modules/reactor.md).
+
 **Remaining follow-ons (none blocking; each is deliberate deadlock-sensitive design work, not mechanical):**
-- **`fp-acquire`** (S5 ③) — `acquire` is no longer SCC-trapped (imports only `etl`+`event` now); a
-  candidate once `etl`/`event` layering is finalized.
-- **Further SCC fragmentation** — breaking `{pipeline, job, query, enrich}` or `{event, metrics}` for the
-  §2.3-style clusters; only if finer module granularity is actually wanted.
+- **Further SCC fragmentation** — breaking `{pipeline, job, query, enrich}` for the §2.3-style
+  clusters; only if finer module granularity is actually wanted.
 
 **Deferred by design:** M2 `SourceService`/`CollectorService` decomposition — maintainability-only, not a split blocker (the old premise was corrected). The intra-module `ops↔ops.link/workflow` and `catalog↔catalog.spi` cycles are same-family, not reactor-split blockers. Trigger-gated: C2 store-pair generic base, C4 BOM, C6 DuckDB per-run connection reuse.
 

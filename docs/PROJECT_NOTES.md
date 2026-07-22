@@ -24,9 +24,10 @@ multi-module · embedded **DuckDB** · **TOON** config · OpenCSV. Mainline = `m
 
 Module dirs were renamed 2026-06-12; **artifactIds were NOT renamed** (hence dir ≠ artifactId):
 
-Reactor = **11 modules** (build order below; WS-D 2026-07-22 added `inspecto-engine`, then split
-`inspecto-etl` out of it the same day). Authoritative shape, version management, and the
-module-extraction playbook: [`okf/backend/modules/reactor.md`](okf/backend/modules/reactor.md).
+Reactor = **13 modules** (build order below; WS-D 2026-07-22 added `inspecto-engine`, then split
+`inspecto-etl`, `inspecto-event`, and `inspecto-acquire` out of it the same day, increments 2–4).
+Authoritative shape, version management, and the module-extraction playbook:
+[`okf/backend/modules/reactor.md`](okf/backend/modules/reactor.md).
 
 | Dir | Role | artifactId / jar |
 |---|---|---|
@@ -35,7 +36,9 @@ module-extraction playbook: [`okf/backend/modules/reactor.md`](okf/backend/modul
 | `inspecto-config/` | config spec / codec (TOON) / safety | `file-processor-config` |
 | `inspecto-sql/` | sandboxed DuckDB SQL (`SqlSandbox`/`SqlOracle`/`SqlGuard`/`SqlViews`) | `file-processor-sql` |
 | `inspecto-etl/` | `com.gamma.etl` — pipeline config + batch ingest (foundation leaf below engine) | `file-processor-etl` |
-| `inspecto-engine/` | the remaining engine cluster (`event`/`pipeline`/`job`/`acquire`/… ) below core | `file-processor-engine` |
+| `inspecto-event/` | `com.gamma.event`+`metrics` — Operational-Intelligence event store + metrics | `file-processor-event` |
+| `inspecto-acquire/` | `com.gamma.acquire` — file/remote acquisition, ledger, stability/gap/retry | `file-processor-acquire` |
+| `inspecto-engine/` | the remaining engine cluster (`pipeline`/`job`/`inspector`/… ) below core | `file-processor-engine` |
 | `inspecto/` | control plane + composition root (lean core), ships the fat JAR | `file-processor` / `file-processor.jar` |
 | `inspecto-connectors/` | remote connectors (SFTP/FTP/FTPS/DB), all network deps | `file-processor-connectors` |
 | `inspecto-agent/` | optional AI assist skills (vendored kernel layer + eoiagent transport) | `file-processor-agent` |
