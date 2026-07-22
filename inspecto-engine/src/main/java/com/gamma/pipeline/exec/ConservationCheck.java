@@ -23,7 +23,7 @@ import java.util.Set;
  * (multi-input). For a conserving node, {@code recordsIn} (the sum over its inbound edges of what the upstream
  * emitted on that relationship) must equal {@code recordsOut} (the sum of everything the node itself emitted).
  *
- * <p>Pure and side-effect-free so it is unit-testable directly; {@link PipelineJobRunner} feeds it the run's
+ * <p>Pure and side-effect-free so it is unit-testable directly; {@link com.gamma.job.PipelineJobRunner} feeds it the run's
  * counts and promotes each {@link Imbalance} to an event/alert.
  */
 @PublicApi(since = "4.3.0")

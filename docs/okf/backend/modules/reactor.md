@@ -177,6 +177,29 @@ increment 1 below then reshaped the bottom row:
 - **M2 `CollectorService`/`SourceService` decomposition** remains open as maintainability work (it
   reorganizes classes *within* core's `service` package; it is NOT a split blocker).
 
+**The `{pipeline, job, query, enrich}` SCC was itself decomposed (2026-07-22, same-day follow-up).**
+An empirical edge scan (comment-stripped import + inline-FQN, both directions) found the whole
+4-package cycle was held together by exactly **two back-edges out of `pipeline`**, with `job` and
+`query` otherwise legitimately consuming `pipeline` one-way:
+- `pipeline.exec.PipelineJobRunner implements job.Job` (an SPI-implementing class living in the
+  wrong package) — relocated to `com.gamma.job` (package-only move; all its `pipeline`/`pipeline.exec`
+  dependents are public, no split-package issue). Cuts `pipeline→job`.
+- `pipeline.DecisionRuleApplier` importing `query.ConditionSql` for one predicate-compile call —
+  relocated to `com.gamma.query` (its only real `pipeline` dependency, `DecisionRules.forTarget`,
+  is public). Cuts `pipeline→query`.
+
+Relocating `DecisionRuleApplier` had a bonus effect: it was `enrich`'s *only* import of `pipeline`
+(`EnrichmentEngine`) — so `enrich` dropped out of the SCC entirely as a side effect, not a separate cut.
+
+Result: `pipeline` is now a clean base (no more up-imports within this cluster); `query` and `enrich`
+sit above it one-way; `job` sits above all three. Verified by the full reactor `mvn -o clean test`:
+**1884 tests, 0 failures, 0 errors, 3 skipped** — exact match to baseline (relocations only, callers'
+imports updated in `EnrichmentEngine`/`BatchIngestStrategy`/`SqlTemplateJob`/`JobService`/
+`DecisionRoutes`/`DecisionRuleWiringTest`, javadoc `@link`s fixed in `ConservationCheck`/`ViewQuery`/
+`PartitionSinkWriter`/`ViewStore`). This is package-level layering only (all four packages are still
+one `fp-engine` module) — a prerequisite for ever extracting `fp-query`/`fp-job`/`fp-enrich` as
+separate modules below `fp-engine`, not an extraction itself.
+
 ## `fp-etl` module extraction (WS-D increment 2, shipped 2026-07-22)
 
 Extracted `com.gamma.etl` (main + tests) out of `fp-engine` into its own leaf module below it, now

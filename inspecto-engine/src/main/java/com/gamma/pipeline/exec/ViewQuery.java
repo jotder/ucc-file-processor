@@ -20,7 +20,7 @@ import java.util.Map;
  * producing flow.
  *
  * <h3>Why the sandbox is opened but not sealed</h3>
- * The derived SQL is <em>engine-generated</em> (built by {@link PipelineJobRunner#deriveViewSql} from an authored,
+ * The derived SQL is <em>engine-generated</em> (built by {@link com.gamma.job.PipelineJobRunner#deriveViewSql} from an authored,
  * validated flow) and embeds an absolute {@code read_parquet('<dataDir>/<store>/**')} glob over the
  * source store's at-rest data. It therefore needs file access, so {@link SqlSandbox#seal()} (which blocks all
  * file reads) is deliberately <em>not</em> applied. {@link SqlSandbox#open} still gives the protections that

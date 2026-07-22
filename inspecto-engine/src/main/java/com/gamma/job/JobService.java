@@ -4,7 +4,6 @@ import com.gamma.api.PublicApi;
 import com.gamma.etl.BatchEvent;
 import com.gamma.pipeline.DeletionFence;
 import com.gamma.pipeline.PipelineStore;
-import com.gamma.pipeline.exec.PipelineJobRunner;
 import com.gamma.pipeline.exec.TriggerCoalescer;
 import com.gamma.event.Event;
 import com.gamma.event.EventLog;

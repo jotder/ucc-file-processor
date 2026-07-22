@@ -158,9 +158,19 @@ into `fp-engine`'s `inspector` package as `SourceConfigIntegrationTest` — same
 it" call, second address since `inspector` stays behind while `acquire` moved out. Full reactor green
 — 1884 tests, 0 failures. Detail: [`okf/backend/modules/reactor.md`](okf/backend/modules/reactor.md).
 
-**Remaining follow-ons (none blocking; each is deliberate deadlock-sensitive design work, not mechanical):**
-- **Further SCC fragmentation** — breaking `{pipeline, job, query, enrich}` for the §2.3-style
-  clusters; only if finer module granularity is actually wanted.
+**`{pipeline, job, query, enrich}` SCC fragmentation SHIPPED (2026-07-22, same-day follow-up)** — empirical
+scan found the whole cycle held together by exactly 2 back-edges out of `pipeline`
+(`PipelineJobRunner implements job.Job`, `DecisionRuleApplier`→`query.ConditionSql`); relocated both to
+their natural homes (`job`, `query`), which also dropped `enrich` out of the SCC as a side effect
+(it only touched `pipeline` via the relocated `DecisionRuleApplier`). `pipeline` is now a clean base;
+`query`/`enrich` sit above it; `job` sits above all three — no more cross-cycle. Full reactor green,
+1884/0/0/3. Package-level layering only (still one `fp-engine` module) — prerequisite for a future
+`fp-query`/`fp-job`/`fp-enrich` module split, not the split itself. Detail:
+[`okf/backend/modules/reactor.md`](okf/backend/modules/reactor.md).
+
+**Remaining follow-ons (none blocking):**
+- **Actual module extraction of `fp-query`/`fp-job`/`fp-enrich`** below `fp-engine`, now that the
+  package layering is acyclic — only if finer module granularity is actually wanted.
 
 **Deferred by design:** M2 `SourceService`/`CollectorService` decomposition — maintainability-only, not a split blocker (the old premise was corrected). The intra-module `ops↔ops.link/workflow` and `catalog↔catalog.spi` cycles are same-family, not reactor-split blockers. Trigger-gated: C2 store-pair generic base, C4 BOM, C6 DuckDB per-run connection reuse.
 

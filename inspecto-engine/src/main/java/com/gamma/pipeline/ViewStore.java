@@ -20,7 +20,7 @@ import java.util.stream.Stream;
 
 /**
  * <b>T32 Phase C — persistence for logical {@code sink.view} definitions.</b> When a flow job produces a
- * {@code sink.view} store (no bytes, §3.1), {@link com.gamma.pipeline.exec.PipelineJobRunner} records a
+ * {@code sink.view} store (no bytes, §3.1), {@link com.gamma.job.PipelineJobRunner} records a
  * {@link ViewDefinition} here as {@code <root>/<store>_view.toon}. Mirrors {@link PipelineStore} — store name
  * sanitised, path-jailed, written atomically (temp + atomic move) — so the binding side (a KPI / report /
  * alert API) can discover a view and the flow that concretises it. Pure file I/O over a root; unit-tests directly.

@@ -1,4 +1,4 @@
-package com.gamma.pipeline;
+package com.gamma.query;
 
 import com.gamma.etl.LineageCollector;
 import com.gamma.etl.LineageRow;
@@ -6,7 +6,7 @@ import com.gamma.etl.PartitionOutput;
 import com.gamma.etl.PartitionWriter;
 import com.gamma.etl.PipelineConfig;
 import com.gamma.event.EventLog;
-import com.gamma.query.ConditionSql;
+import com.gamma.pipeline.DecisionRules;
 import com.gamma.signal.Ref;
 import com.gamma.signal.Severity;
 import com.gamma.signal.Signal;

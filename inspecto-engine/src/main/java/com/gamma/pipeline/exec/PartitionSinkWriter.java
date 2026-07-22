@@ -33,7 +33,7 @@ import java.util.Map;
  *
  * <p>{@code sink.view} subtypes ({@link PipelineStores.Produced#restsOnDisk() non-resting}) write no bytes —
  * this writer skips the byte write; the flow job registers the view's durable definition instead
- * ({@code PipelineJobRunner.registerViews} → {@link com.gamma.pipeline.ViewStore}, T32 Phase C).
+ * ({@code com.gamma.job.PipelineJobRunner.registerViews} → {@link com.gamma.pipeline.ViewStore}, T32 Phase C).
  */
 @PublicApi(since = "4.3.0")
 public final class PartitionSinkWriter implements PipelineExecutor.SinkWriter {

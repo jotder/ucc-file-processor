@@ -1,4 +1,4 @@
-package com.gamma.pipeline.exec;
+package com.gamma.job;
 
 import com.gamma.api.PublicApi;
 import com.gamma.etl.BatchEvent;
@@ -15,10 +15,16 @@ import com.gamma.pipeline.PipelineStore;
 import com.gamma.pipeline.PipelineStores;
 import com.gamma.pipeline.ViewDefinition;
 import com.gamma.pipeline.ViewStore;
-import com.gamma.job.Job;
-import com.gamma.job.JobConfig;
-import com.gamma.job.JobResult;
-import com.gamma.job.JobType;
+import com.gamma.pipeline.exec.BranchCommitCoordinator;
+import com.gamma.pipeline.exec.BranchCommitLog;
+import com.gamma.pipeline.exec.ConservationCheck;
+import com.gamma.pipeline.exec.DbProvenanceStore;
+import com.gamma.pipeline.exec.PartitionSinkWriter;
+import com.gamma.pipeline.exec.PipelineExecutor;
+import com.gamma.pipeline.exec.PipelineWatermarkStore;
+import com.gamma.pipeline.exec.ProvenanceRow;
+import com.gamma.pipeline.exec.RowShaper;
+import com.gamma.pipeline.exec.SourceStoreReader;
 import com.gamma.etl.BatchEventBus;
 import com.gamma.sql.SqlViews;
 import com.gamma.util.DuckDbUtil;

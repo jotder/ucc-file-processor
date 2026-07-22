@@ -2,7 +2,7 @@ package com.gamma.inspector;
 
 import com.gamma.etl.Batch;
 import com.gamma.etl.CsvIngester;
-import com.gamma.pipeline.DecisionRuleApplier;
+import com.gamma.query.DecisionRuleApplier;
 import com.gamma.etl.LineageCollector;
 import com.gamma.etl.LineageRow;
 import com.gamma.etl.PartitionDef;
