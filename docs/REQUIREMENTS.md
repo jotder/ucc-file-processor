@@ -282,10 +282,11 @@ Studio persistence · component metamodel + R1–R6 rework · multi-space · `/a
 
 ### MUST (remaining — the release-gating set, each scoped)
 
-1. **ACQ-4** — *CLOSED 2026-07-08* (`connector: azure` shipped: SDK-free SharedKey, stub-tested
-   offline, Azurite-compatible; joins s3/MinIO/GCS-interop + the mounted-share pattern). The one
-   residual is **GCS-native** (OAuth2/service-account beyond the covered interop mode) — **defer
-   until a customer needs non-interop GCS**. Owner: product (demand call only).
+1. **ACQ-4** — *FULLY CLOSED 2026-07-22*. `connector: azure` (SDK-free SharedKey) closed the tier on
+   2026-07-08; the last residual, **GCS-native** (`connector: gcs`: the GCS JSON API + service-account
+   OAuth2, beyond the S3-interop mode), shipped 2026-07-22 — SDK-free (RS256 JWT→bearer on JDK crypto),
+   stub-tested offline. The prior "defer, offline-blocked" note was based on a stale assumption that
+   native GCS needed a Google SDK jar; it does not. See `okf/backend/acquisition/connectors.md`.
 2. **SEC-7** — *CLOSED 2026-07-08* (SEC-7d data-scoped grants shipped: attribute-scope model signed by
    product in-session; `caseType` visibility enforced server-side across list/read/mutate/graph on the
    Objects surface; scopes resolved by the security module). Boundary noted: the event/audit streams

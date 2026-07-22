@@ -84,6 +84,14 @@
             <version>${javax-mail.version}</version>
         </dependency>
 
+        <!-- JSON parsing (Apache 2.0) for the native GCS JSON API + OAuth2 token responses (GcsConnector).
+             Version is parent-managed (M1); already on the classpath transitively via the core, declared
+             directly here for compile honesty. No new jar reaches the fat JAR. -->
+        <dependency>
+            <groupId>com.google.code.gson</groupId>
+            <artifactId>gson</artifactId>
+        </dependency>
+
         <!-- ── test: embedded servers so the real clients are exercised end-to-end ── -->
         <!-- In-process SFTP server (Apache MINA SSHD) — the server side; the client under test is sshj. -->
         <dependency>

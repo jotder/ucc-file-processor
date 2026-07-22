@@ -60,8 +60,11 @@
 > listing **Etags feed `RemoteFile.etag`** (ACQ-7 pre-fetch skip); blobs are atomic ⇒ readiness READY;
 > Range-resume fetch; MOVE/RENAME = Copy Blob + Delete guarded on `x-ms-copy-status: success` (a pending
 > copy never deletes the source); TAG = Set Blob Tags.
-> **Still future** (this SPI makes each non-disruptive): GCS (native API — interop mode covers it today,
-> demand-gated), and a presigned-URL / STS credential mode for s3.
+> **GCS native** — `connector: gcs` (SDK-free, shipped 2026-07-22): the GCS JSON API + service-account
+> OAuth2 (RS256 JWT→bearer on JDK crypto, token cached per scan); Objects:list pagination, `generation` →
+> `RemoteFile.version`, TAG = custom object metadata PATCH. Distinct from the S3-interop path above (which
+> reaches GCS via HMAC keys). See `connectors.md`.
+> **Still future** (this SPI makes each non-disruptive): a presigned-URL / STS credential mode for s3.
 
 **GOAL:**
 * **The system guarantees that every eligible data source file is collected exactly once (or according to policy), safely, efficiently, and recoverable regardless of where the file resides**
@@ -87,7 +90,8 @@ The system shall support collecting files from multiple source types through a p
 * **Object Storage**
   * Amazon S3 — `connector: s3` (SDK-free, SigV4 in-tree)
   * MinIO — `connector: s3` (`options.protocol: http` for a LAN endpoint)
-  * Google Cloud Storage — `connector: s3` in GCS interoperability (HMAC) mode; native API demand-gated
+  * Google Cloud Storage — `connector: gcs` (SDK-free native JSON API + service-account OAuth2); or
+    `connector: s3` in GCS interoperability (HMAC) mode
   * Azure Blob Storage — `connector: azure` (SDK-free, SharedKey in-tree; Azurite-compatible)
 * **Streaming**
   * Apache Kafka topic — `connector: kafka` (drained per cycle into slice files; offsets in the ledger, no consumer group)

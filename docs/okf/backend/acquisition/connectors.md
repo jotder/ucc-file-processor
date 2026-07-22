@@ -28,12 +28,45 @@ timestamp: 2026-06-28T00:00:00Z
 | `SftpConnector` | `sftp` | sshj + BouncyCastle |
 | `FtpConnector` | `ftp` / `ftps` | Apache commons-net |
 | `DbExportConnector` | `db` | JDBC (Postgres driver) |
+| `S3Connector` | `s3` | **SDK-free** — raw REST + hand-rolled `AwsSigV4` |
+| `AzureBlobConnector` | `azure` | **SDK-free** — raw REST + hand-rolled `AzureSharedKey` |
+| `GcsConnector` | `gcs` | **SDK-free** — raw REST + `GcpServiceAccountToken` (OAuth2) |
+| `KafkaConnector` | `kafka` | kafka-clients |
 
 * **SFTP** — sshj session; SSH host-key pinning (`host_key` / `known_hosts` / `strict_host_key`); bastion via `SshTunnel`.
 * **FTP/FTPS** — passive/binary; FTPS `tls: explicit|implicit` (`PBSZ 0` + `PROT P`); tunnelling needs `options.passive_ports`.
 * **DB export** — runs a date-templated JDBC query, materialises CSV; row-level watermark mode binds
   `:watermark` (injection-safe) and advances only after batch commit (at-least-once on crash).
-* **`SshTunnel`** (`…/connectors/SshTunnel.java`) — an `AutoCloseable` SSH TCP-forward used by all three remote connectors.
+* **`SshTunnel`** (`…/connectors/SshTunnel.java`) — an `AutoCloseable` SSH TCP-forward used by the three remote connectors above.
+
+### Object storage — deliberately SDK-free (ACQ-4)
+
+All three object-storage connectors hand-roll their cloud's auth on plain JDK crypto (`javax.crypto.Mac`,
+`MessageDigest`, `java.security.Signature`) and talk raw REST over `java.net.http.HttpClient` — **no cloud SDK
+jar anywhere**, keeping the module's SBOM small and the build air-gappable. Each maps a `*_connection.toon`
+profile the same way: `base_path` = `bucket-or-container[/prefix]`; `password` = a `SecretResolver` reference
+resolved per use, never logged; `host`/`port`/`options.protocol` override the endpoint (for MinIO/Azurite/tests).
+All advertise `STREAM, RANDOM_ACCESS, RESUMABLE, DELETE, MOVE, RENAME, TAG, ETAG`; MOVE/RENAME are copy+delete
+(object stores have no rename); listings carry each object's ETag onto `RemoteFile.etag()` for ACQ-7 etag dedup;
+a listed object is atomic ⇒ `readiness` is always `READY`.
+
+* **S3** (`S3Connector` + `AwsSigV4`) — S3 REST + SigV4 header signing, path-style addressing. Covers AWS S3,
+  MinIO, and **GCS in interoperability mode** (S3-compatible XML API + HMAC keys). `username`/`password` =
+  access-key-id / secret-key; `options.region` (default `us-east-1`).
+* **Azure Blob** (`AzureBlobConnector` + `AzureSharedKey`) — Blob REST + Shared Key signing. `username` = storage
+  account; `password` = account key (base64). Covers real Azure + the Azurite emulator.
+* **GCS native** (`GcsConnector` + `GcpServiceAccountToken`, shipped 2026-07-22) — the GCS **JSON API**
+  (`/storage/v1/…`) authenticated by a **service-account OAuth 2.0 bearer token**. This is the distinct
+  *native* path vs. the S3-interop route above: a native GCS deployment issues a service-account JSON key, not
+  interop HMAC credentials. `password` = the service-account key file *content* (typically
+  `${FILE:/secure/gcs-sa.json}`); `options.scope` (default `devstorage.read_write`). The auth helper builds an
+  RS256-signed JWT assertion (`SHA256withRSA` over a PKCS#8 key parsed from the SA JSON), exchanges it at the
+  SA's `token_uri` for a bearer token, and caches that token until ~60s before expiry (one mint per scan cycle).
+  Listings come from Objects:list (paginated via `nextPageToken`), the object `generation` → `RemoteFile.version`,
+  and TAG maps to GCS custom object metadata (a metadata PATCH), the native equivalent of S3 object tags. JSON is
+  parsed with gson (parent-managed; already transitively on the classpath — no new fat-JAR jar). The
+  **"offline-blocked (no SDK jars)" label ACQ-4 carried for GCS-native was stale**: OAuth2 JWT signing is the
+  same category of hand-rollable JDK crypto as SigV4/SharedKey, needs no SDK.
 
 ## Profiles, secrets, registry
 

@@ -7,3 +7,4 @@ com.gamma.acquire.connectors.DbExportConnectorFactory
 com.gamma.acquire.connectors.S3ConnectorFactory
 com.gamma.acquire.connectors.KafkaConnectorFactory
 com.gamma.acquire.connectors.AzureBlobConnectorFactory
+com.gamma.acquire.connectors.GcsConnectorFactory
