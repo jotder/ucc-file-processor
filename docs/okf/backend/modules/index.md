@@ -12,7 +12,7 @@ modules. Reactor shape, version management, and the module-extraction playbook:
 * `inspecto-util/` — leaf (w.r.t. `com.gamma`): DuckDB access + CSV/file/tar helpers (`file-processor-util`).
 * `inspecto-config/` — config spec/codec/safety (`file-processor-config`); depends only on fp-api.
 * `inspecto-sql/` — sandboxed DuckDB SQL: `SqlSandbox`/`SqlOracle`/`SqlGuard`/`SqlViews` (`file-processor-sql`); depends on fp-api/config/util.
-* [Engine](engine.md) - `inspecto/` — the lean core: engine + control plane (`file-processor.jar`).
+* [Core](engine.md) - `inspecto/` — the composition root: control plane + application packages, ships `file-processor.jar`. The engine was extracted to sibling modules `inspecto-engine`/`-etl`/`-event`/`-acquire` in WS-D (see [reactor.md](reactor.md)).
 * [Connectors](connectors.md) - `inspecto-connectors/` — SFTP/FTP/FTPS/DB connectors (all network deps).
 * [Agent](agent.md) - `inspecto-agent/` — optional AI assist skills (vendored kernel layer + eoiagent model transport).
 * [Agent (hosted)](agent-hosted.md) - `inspecto-agent-hosted/` — hosted model providers (omitted from air-gapped builds).
