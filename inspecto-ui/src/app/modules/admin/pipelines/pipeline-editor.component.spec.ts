@@ -4,7 +4,7 @@ import { of, throwError } from 'rxjs';
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { MatDialog } from '@angular/material/dialog';
 import { PipelineEditorComponent } from './pipeline-editor.component';
-import { AuthoredPipeline, ComponentsService, LensService, PipelineDryRunResult, PipelinesService } from 'app/inspecto/api';
+import { AuthoredPipeline, ComponentsService, LensService, PipelinesService } from 'app/inspecto/api';
 import { InspectoConfirmService } from 'app/inspecto/confirm.service';
 import { ToastrService } from 'ngx-toastr';
 import { expectNoA11yViolations } from 'app/inspecto/testing/a11y';
@@ -39,7 +39,6 @@ describe('PipelineEditorComponent', () => {
         createAuthored: ReturnType<typeof vi.fn>;
         replaceAuthored: ReturnType<typeof vi.fn>;
         deleteAuthored: ReturnType<typeof vi.fn>;
-        dryRunAuthored: ReturnType<typeof vi.fn>;
         provenanceBatches: ReturnType<typeof vi.fn>;
         provenance: ReturnType<typeof vi.fn>;
     };
@@ -58,7 +57,6 @@ describe('PipelineEditorComponent', () => {
             createAuthored: vi.fn().mockReturnValue(of({})),
             replaceAuthored: vi.fn().mockReturnValue(of({})),
             deleteAuthored: vi.fn().mockReturnValue(of({})),
-            dryRunAuthored: vi.fn().mockReturnValue(of({ seedNode: 'src', nodes: [], sinks: [] } as PipelineDryRunResult)),
             provenanceBatches: vi.fn().mockReturnValue(of([])),
             provenance: vi.fn().mockReturnValue(of([])),
         };
@@ -130,24 +128,6 @@ describe('PipelineEditorComponent', () => {
         expect(m.nodes.find((n) => n.id === 'src')).toBeUndefined();
         expect(m.edges).toHaveLength(0);
         expect(canvasOf(c).removeElement).toHaveBeenCalledWith('src');
-    });
-
-    it('dry-run parses the sample and maps the result', () => {
-        const c = make();
-        c.selectedId.set('demo');
-        c.sampleText.setValue('[{"amt":"150"}]');
-        c.runDryRun();
-        expect(api.dryRunAuthored).toHaveBeenCalledWith('demo', [{ amt: '150' }]);
-        expect(c.dryRunResult()?.seedNode).toBe('src');
-    });
-
-    it('dry-run rejects invalid JSON without calling the API', () => {
-        const c = make();
-        c.selectedId.set('demo');
-        c.sampleText.setValue('not json');
-        c.runDryRun();
-        expect(api.dryRunAuthored).not.toHaveBeenCalled();
-        expect(c.dryRunError()).toBeTruthy();
     });
 
     it('save PUTs the model and clears the dirty flag', () => {

@@ -155,48 +155,7 @@
 
         <!-- dry-run drawer -->
         @if (dryRunOpen()) {
-            <div class="rounded p-3" style="background: var(--gamma-bg-card)">
-                <div class="mb-2 flex items-center gap-2">
-                    <h3 class="text-sm font-semibold">Dry-run</h3>
-                    <span class="text-xs opacity-70">a bounded sample through the transform→sink subgraph (no write)</span>
-                </div>
-                <mat-form-field class="w-full" subscriptSizing="dynamic">
-                    <mat-label>Sample rows (JSON array)</mat-label>
-                    <textarea matInput rows="3" [formControl]="sampleText"></textarea>
-                </mat-form-field>
-                <button class="mt-2" mat-flat-button color="primary" [disabled]="!selectedId()" (click)="runDryRun()">
-                    Run dry-run
-                </button>
-                @if (dryRunError()) {
-                    <p class="mt-2 text-sm" role="alert" style="color: var(--gamma-warn)">{{ dryRunError() }}</p>
-                }
-                @if (dryRunResult(); as r) {
-                    <div class="mt-3 grid grid-cols-2 gap-4 text-sm">
-                        <div>
-                            <div class="mb-1 font-semibold">Nodes (seed: {{ r.seedNode }})</div>
-                            @for (n of r.nodes; track n.node) {
-                                <div class="flex justify-between">
-                                    <span>{{ n.node }}</span>
-                                    <span class="opacity-70">
-                                        @for (rel of n.relations; track rel.rel) {
-                                            {{ rel.rel }}={{ rel.rowCount }}&nbsp;
-                                        }
-                                    </span>
-                                </div>
-                            }
-                        </div>
-                        <div>
-                            <div class="mb-1 font-semibold">Sinks</div>
-                            @for (s of r.sinks; track s.node) {
-                                <div class="flex justify-between">
-                                    <span>{{ s.node }} → {{ s.store }}</span>
-                                    <span class="opacity-70">{{ s.rowCount }} row(s)</span>
-                                </div>
-                            }
-                        </div>
-                    </div>
-                }
-            </div>
+            <app-pipeline-dry-run-panel [pipelineId]="selectedId()"></app-pipeline-dry-run-panel>
         }
 
         <!-- validation findings (Stage 4) -->

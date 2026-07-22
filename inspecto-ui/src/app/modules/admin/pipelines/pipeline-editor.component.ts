@@ -23,7 +23,6 @@ import {
     AuthoredPipeline,
     AuthoredNode,
     ComponentsService,
-    PipelineDryRunResult,
     PipelineRunResult,
     PipelinesService,
     PipelineSummary,
@@ -37,6 +36,7 @@ import { InspectoConfirmService } from 'app/inspecto/confirm.service';
 import { InspectoEmptyStateComponent } from 'app/inspecto/components/empty-state.component';
 import { TransferMenuComponent } from 'app/inspecto/transfer';
 import { G6GraphData } from 'app/modules/admin/catalog/catalog-graph';
+import { PipelineDryRunPanelComponent } from './pipeline-dry-run-panel.component';
 import { PipelineEditorGraphComponent } from './pipeline-editor-graph.component';
 import { PipelineInspectorComponent } from './pipeline-inspector.component';
 import { PipelinePaletteComponent } from './pipeline-palette.component';
@@ -100,6 +100,7 @@ import {
         MatSelectModule,
         MatSidenavModule,
         MatTooltipModule,
+        PipelineDryRunPanelComponent,
         PipelineEditorGraphComponent,
         PipelineInspectorComponent,
         PipelinePaletteComponent,
@@ -149,8 +150,6 @@ export class PipelineEditorComponent implements OnInit {
     readonly unavailable = signal(false);
 
     readonly dryRunOpen = signal(false);
-    readonly dryRunResult = signal<PipelineDryRunResult | null>(null);
-    readonly dryRunError = signal<string | null>(null);
 
     // ── canvas status (Stage 2) + validation/activation (Stage 4) ──
     /** Known registry refs (`grammar/x`, `transform/y`, …) — drives dangling detection once loaded. */
@@ -174,7 +173,6 @@ export class PipelineEditorComponent implements OnInit {
 
     readonly creating = signal(false);
     readonly newName = this.fb.control('', { nonNullable: true, validators: [Validators.required] });
-    readonly sampleText = this.fb.control('[\n  {}\n]', { nonNullable: true });
 
     /** The property panel is collapsible (the editor body is just canvas + an optional inspector drawer). */
     readonly inspectorOpen = signal(true);
@@ -596,28 +594,6 @@ export class PipelineEditorComponent implements OnInit {
     }
 
     // ── dry-run ──
-
-    runDryRun(): void {
-        const id = this.selectedId();
-        if (!id) return;
-        let rows: Record<string, unknown>[];
-        try {
-            const parsed = JSON.parse(this.sampleText.value);
-            rows = Array.isArray(parsed) ? parsed : [parsed];
-        } catch {
-            this.dryRunError.set('Sample must be valid JSON (an array of row objects)');
-            this.dryRunResult.set(null);
-            return;
-        }
-        this.dryRunError.set(null);
-        this.api.dryRunAuthored(id, rows).subscribe({
-            next: (r) => this.dryRunResult.set(r),
-            error: (err) => {
-                this.dryRunResult.set(null);
-                this.dryRunError.set(apiErrorMessage(err, 'Dry-run failed'));
-            },
-        });
-    }
 
     toggleDryRun(): void {
         this.dryRunOpen.update((o) => !o);
