@@ -12,15 +12,16 @@
     </parent>
 
     <!-- The engine cluster (WS-D): the strongly-connected component that sits BELOW the
-         composition root — event, signal, query, pipeline, inspector, acquire, ingester, ops,
-         job, enrich, alert, metrics, notify, catalog. Extracted out of file-processor so the core
+         composition root — signal, query, pipeline, inspector, acquire, ingester, ops, job, enrich,
+         alert, notify, catalog. Extracted out of file-processor so the core
          (service/control/report/assist/exchange/expectation/intelligence/model) depends DOWN onto a
          cyclic-free engine layer. The cluster is import-clean of the composition root (both real
          edges — job→Scheduler and job→ReportService — were cut in WS-D Steps 1–2 via the util move
-         and the ReportRunner SPI). Depends only on the extracted leaves (api/util/config/sql/etl)
-         plus the third-party libs the cluster uses. (WS-D increment 2: etl, having become a
-         foundation leaf in increment 1, was extracted into its own module file-processor-etl below
-         this one — see fp-etl's pom for the rationale.) -->
+         and the ReportRunner SPI). Depends only on the extracted leaves (api/util/config/sql/etl/event)
+         plus the third-party libs the cluster uses. (WS-D increment 2: etl was extracted below this
+         one; increment 3: event+metrics — the Operational-Intelligence event store, mutually cyclic
+         with each other but not with anything left in this module — were extracted below THAT. See
+         fp-etl's and fp-event's poms for the rationale.) -->
     <artifactId>file-processor-engine</artifactId>
 
     <dependencies>
@@ -54,6 +55,10 @@
             <type>test-jar</type>
             <scope>test</scope>
         </dependency>
+        <dependency>
+            <groupId>com.gamma.inspector</groupId>
+            <artifactId>file-processor-event</artifactId>
+        </dependency>
 
         <!-- DuckDB (parent-managed since WS-D). -->
         <dependency>
@@ -73,17 +78,11 @@
             <artifactId>jackson-databind</artifactId>
         </dependency>
 
-        <!-- Logging — slf4j-api facade (parent-managed). logback-classic is required at compile
-             scope because event.EventStoreAppender extends logback's AppenderBase; logback.xml (the
-             Operational-Intelligence capture wiring) ships in this module's resources alongside it. -->
+        <!-- Logging — slf4j-api facade (parent-managed). logback-classic moved to fp-event with
+             EventStoreAppender/logback.xml — this module no longer owns an appender. -->
         <dependency>
             <groupId>org.slf4j</groupId>
             <artifactId>slf4j-api</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>ch.qos.logback</groupId>
-            <artifactId>logback-classic</artifactId>
-            <version>1.5.18</version>
         </dependency>
 
         <!-- JUnit 5 — unit/integration tests (parent-managed, M1). -->
@@ -136,24 +135,8 @@
         </dependency>
     </dependencies>
 
-    <build>
-        <plugins>
-            <!-- Publish a test-jar so the core module's tests can reuse the shared fixture
-                 com.gamma.etl.TestConfigs (the PipelineConfig builder used by ~45 control/report/
-                 service tests). Maven does not share test classes across modules otherwise. -->
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-jar-plugin</artifactId>
-                <executions>
-                    <execution>
-                        <goals>
-                            <goal>test-jar</goal>
-                        </goals>
-                    </execution>
-                </executions>
-            </plugin>
-            <!-- Surefire (JUnit 5 runner + native-access flag) and the JaCoCo 'coverage' profile are
-                 inherited from the parent POM. -->
-        </plugins>
-    </build>
+    <!-- No test-jar goal: the shared fixture com.gamma.etl.TestConfigs/PipelineConfigBatchTest moved
+         to fp-etl with etl (increment 2) and core consumes THAT test-jar now. This module's own
+         tests currently have no cross-module consumers. Surefire (JUnit 5 runner + native-access
+         flag) and the JaCoCo 'coverage' profile are inherited from the parent POM. -->
 </project>

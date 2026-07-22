@@ -52,11 +52,10 @@
             <artifactId>file-processor-sql</artifactId>
         </dependency>
 
-        <!-- com.gamma.{event,signal,query,pipeline,inspector,acquire,ingester,ops,job,enrich,
-             alert,metrics,notify,catalog} — the engine cluster, extracted BELOW core (WS-D). The
-             composition root (service/control/report/assist/exchange/expectation/intelligence/model)
-             compile-depends DOWN onto it. duckdb/logback-classic are owned by fp-engine and reach
-             the fat-JAR transitively through this dependency. -->
+        <!-- com.gamma.{signal,query,pipeline,inspector,acquire,ingester,ops,job,enrich,alert,notify,
+             catalog} — the engine cluster, extracted BELOW core (WS-D). The composition root
+             (service/control/report/assist/exchange/expectation/intelligence/model) compile-depends
+             DOWN onto it. duckdb reaches the fat-JAR transitively through this dependency. -->
         <dependency>
             <groupId>com.gamma.inspector</groupId>
             <artifactId>file-processor-engine</artifactId>
@@ -78,6 +77,15 @@
             <artifactId>file-processor-etl</artifactId>
             <type>test-jar</type>
             <scope>test</scope>
+        </dependency>
+
+        <!-- com.gamma.{event,metrics} (WS-D increment 3) — the Operational-Intelligence event store,
+             extracted below fp-engine (mutually cyclic with each other, not with anything else).
+             Declared directly since ~18 core main-code files import event/metrics directly.
+             logback-classic reaches the fat-JAR transitively through this dependency. -->
+        <dependency>
+            <groupId>com.gamma.inspector</groupId>
+            <artifactId>file-processor-event</artifactId>
         </dependency>
 
         <!-- JToon for configuration serialisation (version managed by the parent — shared

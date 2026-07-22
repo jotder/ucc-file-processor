@@ -37,6 +37,7 @@
         <module>inspecto-config</module>
         <module>inspecto-sql</module>
         <module>inspecto-etl</module>
+        <module>inspecto-event</module>
         <module>inspecto-engine</module>
         <module>inspecto</module>
         <module>inspecto-agent</module>
@@ -170,14 +171,13 @@
             </dependency>
             <dependency>
                 <groupId>com.gamma.inspector</groupId>
-                <artifactId>file-processor-engine</artifactId>
+                <artifactId>file-processor-event</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>
                 <groupId>com.gamma.inspector</groupId>
                 <artifactId>file-processor-engine</artifactId>
                 <version>${project.version}</version>
-                <type>test-jar</type>
             </dependency>
             <!-- TOON + Jackson (core + fp-config since S5; core + fp-util since WS-D). -->
             <dependency>

@@ -17,6 +17,7 @@
 /inspecto-config/target/
 /inspecto-sql/target/
 /inspecto-etl/target/
+/inspecto-event/target/
 /inspecto-engine/target/
 /inspecto-agent/target/
 /inbox/

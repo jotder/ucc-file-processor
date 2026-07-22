@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>com.gamma.inspector</groupId>
+        <artifactId>file-processor-parent</artifactId>
+        <version>4.0.0-RC1</version>
+        <relativePath>../pom.xml</relativePath>
+    </parent>
+
+    <!-- com.gamma.{event,metrics} (WS-D increment 3): the Operational-Intelligence event store
+         (EventLog/EventStore/EventStoreAppender, the ParquetEventStore + saved views, the secret
+         scrubber) and the metric registry it depends on. `event` and `metrics` are mutually cyclic
+         (event -> metrics for gauge/counter emission, metrics -> event for its own audit trail), so
+         they ship as one module — inseparable without cycle-breaking, same class of work as the
+         etl increment. Sits directly on etl/util/sql/api/config; nothing in the remaining engine
+         cluster (acquire/signal/query/pipeline/job/enrich/ops/inspector/ingester/alert/notify/
+         catalog) is imported back, so this is a clean one-way leaf below the rest of the engine.
+         Owns logback.xml (the root logging config wiring EVENT_STORE -> EventStoreAppender) — it
+         travels with the appender class per playbook rule 8. -->
+    <artifactId>file-processor-event</artifactId>
+    <name>Inspecto event (Operational-Intelligence event store + metrics)</name>
+
+    <dependencies>
+        <dependency>
+            <groupId>com.gamma.inspector</groupId>
+            <artifactId>file-processor-api</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.gamma.inspector</groupId>
+            <artifactId>file-processor-util</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.gamma.inspector</groupId>
+            <artifactId>file-processor-sql</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.gamma.inspector</groupId>
+            <artifactId>file-processor-etl</artifactId>
+        </dependency>
+
+        <!-- DuckDB for ParquetEventStore (parent-managed since WS-D, via util.DuckDbUtil). -->
+        <dependency>
+            <groupId>org.duckdb</groupId>
+            <artifactId>duckdb_jdbc</artifactId>
+        </dependency>
+
+        <!-- Jackson for Event/AuditAttrs (de)serialisation (parent-managed). -->
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-databind</artifactId>
+        </dependency>
+
+        <!-- Logging — slf4j-api facade (parent-managed). logback-classic is required at compile
+             scope because event.EventStoreAppender extends logback's AppenderBase; logback.xml (the
+             root logging config, EVENT_STORE appender wiring) ships in this module's resources
+             alongside it. -->
+        <dependency>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-api</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>ch.qos.logback</groupId>
+            <artifactId>logback-classic</artifactId>
+            <version>1.5.18</version>
+        </dependency>
+
+        <!-- JUnit 5 — unit tests (parent-managed, M1). -->
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+</project>
