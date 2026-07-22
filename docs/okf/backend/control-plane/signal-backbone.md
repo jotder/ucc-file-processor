@@ -2,7 +2,7 @@
 type: Concept
 title: Signal Backbone (canonical envelope, agent context fabric, gated agentic write)
 description: The one canonical Signal envelope + type catalog + addressing grammar, projected to notification templating, agent diagnostic context, AG-UI streaming, A2UI artifacts, and the gated agentic write path.
-resource: inspecto/src/main/java/com/gamma/signal/Signal.java
+resource: inspecto-engine/src/main/java/com/gamma/signal/Signal.java
 tags: [control-plane, signal, agent, a2ui, ag-ui, agentic-write, deadlock]
 timestamp: 2026-07-19T00:00:00Z
 ---

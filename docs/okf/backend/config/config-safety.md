@@ -2,7 +2,7 @@
 type: Concept
 title: Config Safety Validator
 description: The hard-fail gate that path-jails writes, bounds numeric config, and allow-lists output formats.
-resource: inspecto/src/main/java/com/gamma/config/safety/ConfigSafetyValidator.java
+resource: inspecto-config/src/main/java/com/gamma/config/safety/ConfigSafetyValidator.java
 tags: [config, safety, validation, path-jail, security]
 timestamp: 2026-06-28T00:00:00Z
 ---

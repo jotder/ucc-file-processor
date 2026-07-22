@@ -2,7 +2,7 @@
 type: Concept
 title: Ingestion (StreamingFileIngester + batch coordination)
 description: The single emit-based ingestion SPI, its union/generation modes, and the batch coordinators.
-resource: inspecto/src/main/java/com/gamma/etl/StreamingFileIngester.java
+resource: inspecto-etl/src/main/java/com/gamma/etl/StreamingFileIngester.java
 tags: [engine, ingestion, spi, streaming, batch]
 timestamp: 2026-06-28T00:00:00Z
 ---

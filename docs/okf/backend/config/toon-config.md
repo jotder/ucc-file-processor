@@ -2,7 +2,7 @@
 type: Concept
 title: TOON Configuration
 description: ConfigCodec (JToon), the three config file types, PipelineConfigParser, and the tabular-array serialization gotcha.
-resource: inspecto/src/main/java/com/gamma/config/io/ConfigCodec.java
+resource: inspecto-config/src/main/java/com/gamma/config/io/ConfigCodec.java
 tags: [config, toon, jtoon, parser, gotcha]
 timestamp: 2026-06-28T00:00:00Z
 ---

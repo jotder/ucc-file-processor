@@ -2,7 +2,7 @@
 type: Concept
 title: Parsing & Grammar
 description: Three parse frontends over one DuckDB backend; CSV knobs, delimited grammar files, plugin ingesters.
-resource: inspecto/src/main/java/com/gamma/etl/DuckDbCsvIngester.java
+resource: inspecto-etl/src/main/java/com/gamma/etl/DuckDbCsvIngester.java
 tags: [engine, parsing, grammar, csv, plugin]
 timestamp: 2026-06-28T00:00:00Z
 ---

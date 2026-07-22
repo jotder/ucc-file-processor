@@ -2,7 +2,7 @@
 type: Concept
 title: Component Registry
 description: Reusable grammar/schema/transform/sink components (now + dataset/widget/dashboard/query), the /components + /pipelines routes, ETag optimistic concurrency, preview and safe-delete.
-resource: inspecto/src/main/java/com/gamma/pipeline/ComponentStore.java
+resource: inspecto-engine/src/main/java/com/gamma/pipeline/ComponentStore.java
 tags: [components, registry, grammar, schema, transform, sink, etag, routes]
 timestamp: 2026-07-07T00:00:00Z
 ---

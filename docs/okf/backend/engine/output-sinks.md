@@ -2,7 +2,7 @@
 type: Concept
 title: Output & Sinks
 description: The OutputFormat strategy, partitioned vs single-file writers, and quarantine outcomes.
-resource: inspecto/src/main/java/com/gamma/etl/PartitionWriter.java
+resource: inspecto-etl/src/main/java/com/gamma/etl/PartitionWriter.java
 tags: [engine, output, sink, partition, quarantine]
 timestamp: 2026-06-28T00:00:00Z
 ---

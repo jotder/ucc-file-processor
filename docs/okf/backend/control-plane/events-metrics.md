@@ -2,7 +2,7 @@
 type: Concept
 title: Events & Metrics
 description: EventLog (synchronous bus + the ingestLock deadlock seam), MetricRegistry, the StabilityGate, notifications + audit trail, and alert-rule authoring.
-resource: inspecto/src/main/java/com/gamma/event/EventLog.java
+resource: inspecto-event/src/main/java/com/gamma/event/EventLog.java
 tags: [control-plane, events, metrics, observability, deadlock]
 timestamp: 2026-07-16T00:00:00Z
 ---

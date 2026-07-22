@@ -2,7 +2,7 @@
 type: Concept
 title: Jobs & Scheduling
 description: JobService — cron, event-triggered, and manual jobs, with an off-bus virtual-thread handoff.
-resource: inspecto/src/main/java/com/gamma/job/JobService.java
+resource: inspecto-engine/src/main/java/com/gamma/job/JobService.java
 tags: [control-plane, jobs, scheduling, cron, triggers, async-runs]
 timestamp: 2026-07-07T00:00:00Z
 ---

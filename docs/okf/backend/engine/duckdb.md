@@ -2,7 +2,7 @@
 type: Concept
 title: DuckDB Integration
 description: Appender-based bulk ingest (~75× vs JDBC), thread auto-derivation, and reserved-word quoting.
-resource: inspecto/src/main/java/com/gamma/inspector/DuckDbRecordSink.java
+resource: inspecto-engine/src/main/java/com/gamma/inspector/DuckDbRecordSink.java
 tags: [engine, duckdb, performance, appender, threads]
 timestamp: 2026-06-28T00:00:00Z
 ---

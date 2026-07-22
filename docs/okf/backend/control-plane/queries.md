@@ -2,7 +2,7 @@
 type: Concept
 title: Query catalog & execution
 description: Query as a first-class Component — the Query Library store, $-Parameters, the Result Set descriptor, and POST /queries/{id}/run on DuckDB.
-resource: inspecto/src/main/java/com/gamma/query/
+resource: inspecto-engine/src/main/java/com/gamma/query/
 tags: [control-plane, query, parameter, result-set, duckdb, studio]
 timestamp: 2026-07-16T00:00:00Z
 ---

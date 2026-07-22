@@ -2,7 +2,7 @@
 type: Concept
 title: Pipeline Live Execution
 description: Running an authored Pipeline as a JobType.PIPELINE job — source_store seeds, sink writing, conservation checks.
-resource: inspecto/src/main/java/com/gamma/pipeline/exec/PipelineJobRunner.java
+resource: inspecto-engine/src/main/java/com/gamma/job/PipelineJobRunner.java
 tags: [pipeline-graph, execution, job, source-store, conservation]
 timestamp: 2026-07-07T00:00:00Z
 ---

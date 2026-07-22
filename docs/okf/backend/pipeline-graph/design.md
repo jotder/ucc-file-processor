@@ -2,7 +2,7 @@
 type: Concept
 title: Pipeline Graph Design
 description: The PipelineGraph IR, PipelineLift, PipelineValidator, PipelineExecutor, and the PipelineNodeType registry.
-resource: inspecto/src/main/java/com/gamma/pipeline/PipelineGraph.java
+resource: inspecto-engine/src/main/java/com/gamma/pipeline/PipelineGraph.java
 tags: [pipeline-graph, ir, validator, executor, registry]
 timestamp: 2026-07-07T00:00:00Z
 ---

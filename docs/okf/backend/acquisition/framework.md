@@ -2,7 +2,7 @@
 type: Concept
 title: Data Acquisition Framework
 description: The poll cycle and phases A–F — discovery, stability, dedup/watermark ledgers, gap detection, retry/circuit-breaker.
-resource: inspecto/src/main/java/com/gamma/acquire
+resource: inspecto-acquire/src/main/java/com/gamma/acquire
 tags: [acquisition, phases, dedup, watermark, stability, ledger]
 timestamp: 2026-06-28T00:00:00Z
 ---
