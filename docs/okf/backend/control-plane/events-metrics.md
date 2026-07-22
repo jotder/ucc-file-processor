@@ -12,7 +12,7 @@ timestamp: 2026-07-16T00:00:00Z
 * **`EventLog`** (`inspecto-event/src/main/java/com/gamma/event/EventLog.java`) — the event bus. `global()` +
   per-space instances; `current()` routes by the calling thread's `space` MDC, falling back to global.
   **Emission is synchronous on the publishing thread** (`emit()` calls each subscriber inline). This is the
-  deadlock seam: `SourceProcessor` holds `ingestLock` through a poll cycle, so a subscriber that triggered a
+  deadlock seam: `CollectorProcessor` holds `ingestLock` through a poll cycle, so a subscriber that triggered a
   new ingest **inline** would re-enter `ingestLock` and deadlock — hence event-triggered work is handed to an
   off-bus virtual-thread pool (see [jobs](jobs.md)). `emit()` uses no SLF4J (avoids re-entrant capture) and
   swallows subscriber errors. A startup store-swap (`InMemoryEventStore` → configured backend) drains the old

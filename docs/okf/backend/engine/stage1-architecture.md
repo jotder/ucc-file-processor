@@ -127,7 +127,7 @@ formats use a plugin `ingester` plus `ingester_config`. See
 ┌──────────────── STEP 2: ETL Processing (continuous) ──────────────────────────┐
 │                                                                               │
 │   <source>_pipeline.toon ─┐                                                   │
-│   <source>_schema.toon ───┼──► SourceProcessor ├──►  Parquet / CSV            │
+│   <source>_schema.toon ───┼──► CollectorProcessor ├──►  Parquet / CSV            │
 │   inbox/<date>/*.csv.gz ──┘                    └──►  DuckLake (optional)      │
 │                                                                               │
 └───────────────────────────────────────────────────────────────────────────────┘
@@ -144,19 +144,19 @@ formats use a plugin `ingester` plus `ingester_config`. See
 └───────────────────────────────────────────────────────────────────────────────┘
 ```
 
-The **Pre ETL utilities** (`MainApp`) handle the movement and unpacking of raw deliveries into the inbox layout that `SourceProcessor` expects.
+The **Pre ETL utilities** (`MainApp`) handle the movement and unpacking of raw deliveries into the inbox layout that `CollectorProcessor` expects.
 
 **SchemaExtractor** (`create-schema` command) is a one-time bootstrap tool — it reads a generation profile and a sample file and produces the schema and pipeline configs.
 
-**SourceProcessor** is the runtime engine — it reads the generated configs, polls the inbox directory, and processes every file it finds.
+**CollectorProcessor** is the runtime engine — it reads the generated configs, polls the inbox directory, and processes every file it finds.
 
 ### Package Structure
 
 ```
 com.gamma
   inspector/
-    SourceProcessor          — single-source ETL runner; virtual-thread + semaphore batch fan-out
-    MultiSourceProcessor     — runs many sources concurrently in one JVM (outer M..N orchestrator)
+    CollectorProcessor          — single-source ETL runner; virtual-thread + semaphore batch fan-out
+    MultiCollectorProcessor     — runs many sources concurrently in one JVM (outer M..N orchestrator)
     BatchProcessor           — thin per-batch coordinator: selects a BatchIngestStrategy, then drives the shared commit → audit tail
     BatchIngestStrategy      — ingest+transform+write seam (delimited-text vs plugin); returns a typed IngestOutcome (+ shared dropTable/msg helpers)
     CsvBatchStrategy         — built-in delimited-text path → transform → write → lineage. Native (read_csv) batches stream with
@@ -216,7 +216,7 @@ com.gamma
     FileMoverByDate          — date-partition files from a flat directory into year/month/day tree
 ```
 
-**Design principle:** `SourceProcessor` is a pure orchestrator — it creates the thread pool and drives the per-batch lifecycle, but contains zero business logic itself.  Every concern is owned by a focused single-responsibility class: batch planning (`BatchPlanner`), parsing (`CsvIngester`), transformation (`DataTransformer`), deduplication (`MarkerManager`), quarantine (`QuarantineManager`), registration (`DuckLakeRegistrar`), and auditing (`BatchAuditWriter`, `ManifestStore`, `LineageCollector`).  All shared low-level helpers live in `com.gamma.util` and are reused by both the ETL and the pre-ETL utilities.
+**Design principle:** `CollectorProcessor` is a pure orchestrator — it creates the thread pool and drives the per-batch lifecycle, but contains zero business logic itself.  Every concern is owned by a focused single-responsibility class: batch planning (`BatchPlanner`), parsing (`CsvIngester`), transformation (`DataTransformer`), deduplication (`MarkerManager`), quarantine (`QuarantineManager`), registration (`DuckLakeRegistrar`), and auditing (`BatchAuditWriter`, `ManifestStore`, `LineageCollector`).  All shared low-level helpers live in `com.gamma.util` and are reused by both the ETL and the pre-ETL utilities.
 
 **Behavior-injection seams.** Variant behavior is injected into the engine rather than branched inline, so the orchestration code stays thin and a new variant is a closed-set edit:
 
@@ -300,7 +300,7 @@ These generated files are committed to version control and edited as needed. **S
 ### Step 2 — ETL processing (continuous)
 
 ```
-SourceProcessor  <pipeline_config.toon>
+CollectorProcessor  <pipeline_config.toon>
 ```
 
 Reads both generated config files, polls the inbox directory, and for each unprocessed file:

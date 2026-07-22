@@ -239,16 +239,16 @@ Each concurrent batch opens its own DuckDB connection, and DuckDB defaults to on
 
 ### Multiple sources in one process
 
-`MultiSourceProcessor` runs several sources (each its own `pipeline.toon`) concurrently in a single JVM — the outer layer of the M..N model, composing the per-source batch runner above.
+`MultiCollectorProcessor` runs several sources (each its own `pipeline.toon`) concurrently in a single JVM — the outer layer of the M..N model, composing the per-source batch runner above.
 
 ```bash
 # one or more pipeline toons and/or directories (searched for *_pipeline.toon)
-java -cp file-processor.jar com.gamma.inspector.MultiSourceProcessor \
+java -cp file-processor.jar com.gamma.inspector.MultiCollectorProcessor \
      -Dsources.max=4 \
      spaces/default/config/subscriber/subscriber_pipeline.toon \
      spaces/ucc/config/voucher/voucher_pipeline.toon
 # or point it at a directory tree of configs:
-java -cp file-processor.jar com.gamma.inspector.MultiSourceProcessor spaces/ucc/config
+java -cp file-processor.jar com.gamma.inspector.MultiCollectorProcessor spaces/ucc/config
 ```
 
 Sources run on a virtual-thread executor bounded by `-Dsources.max` (default: all resolved sources in parallel). Each source is isolated — one source failing (bad config or batch failures) is logged and counted but never aborts the others; the process exits non-zero if any source failed. A failed source does not stop the rest.
@@ -266,7 +266,7 @@ java -cp file-processor.jar com.gamma.service.SourceService \
      -Dservice.poll.seconds=60 -Dservice.max.runs=4 config/
 ```
 
-Each poll cycle reloads configs (so edits are picked up without a restart) and runs the registry via the same bounded virtual-thread executor as `MultiSourceProcessor`. On startup it reports each pipeline's previously committed batches (from the commit log) for recovery visibility; batch atomicity + marker dedup already make an interrupted batch safe to reprocess next cycle.
+Each poll cycle reloads configs (so edits are picked up without a restart) and runs the registry via the same bounded virtual-thread executor as `MultiCollectorProcessor`. On startup it reports each pipeline's previously committed batches (from the commit log) for recovery visibility; batch atomicity + marker dedup already make an interrupted batch safe to reprocess next cycle.
 
 ### Stage-2 enrichment (`EnrichmentProcessor`)
 
@@ -761,7 +761,7 @@ A crash at any point before step 4 leaves the input file in the inbox without a 
 
 ### Exit codes
 
-`SourceProcessor.main` returns:
+`CollectorProcessor.main` returns:
 
 | Exit code | Meaning |
 |---|---|

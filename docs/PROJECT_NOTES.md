@@ -132,7 +132,7 @@ local `.m2` from `C:/sandbox/agent-brainstorm`) — see `docs/superpower/agent-k
 - **Per-space `space` MDC must reach EVERY worker thread on the execution path.** Singleton routing reads the
   MDC on the *current* thread, and MDC does NOT cross thread-pool boundaries. Each executor running ingest/commit
   work must `MDC.getCopyOfContextMap()` on the caller + `setContextMap` on the worker + `clear()` in finally —
-  `MultiSourceProcessor.runAll`/`runConfigs` **and** `SourceProcessor`'s per-batch executor (the batch commit,
+  `MultiCollectorProcessor.runAll`/`runConfigs` **and** `CollectorProcessor`'s per-batch executor (the batch commit,
   per-batch metrics and event log fire there, not on the poll thread). Miss one and that space's metrics/events
   silently fall back to `"default"`. The `default` space sets NO MDC, so single-space output stays label-free.
 - **Hand-authored `.toon` rules (verified live 2026-07-10, `spaces/demo` shakeout):** (1) **No `#` comments

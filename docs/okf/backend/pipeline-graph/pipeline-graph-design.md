@@ -12,8 +12,8 @@
 >
 > **Decisions locked (2026-06-16):**
 > 1. **Runtime = topology over the existing batch engine.** The graph is an authoring + routing + visualisation
->    layer; the poll-cycle/batch runtime ([`MultiSourceProcessor`](../../../../inspecto-engine/src/main/java/com/gamma/inspector/MultiCollectorProcessor.java),
->    [`SourceProcessor`](../../../../inspecto-engine/src/main/java/com/gamma/inspector/CollectorProcessor.java)) is reused, not replaced.
+>    layer; the poll-cycle/batch runtime ([`MultiCollectorProcessor`](../../../../inspecto-engine/src/main/java/com/gamma/inspector/MultiCollectorProcessor.java),
+>    [`CollectorProcessor`](../../../../inspecto-engine/src/main/java/com/gamma/inspector/CollectorProcessor.java)) is reused, not replaced.
 >    No inter-node queues, no streaming runtime in v1. A "FlowFile" = a batch / record-set.
 > 2. **Source of truth = TOON files + a referenced component registry** (`use:` references). Git-friendly,
 >    human-editable, program-editable. The API is designed so a DB-backed store *could* back it later without
@@ -145,7 +145,7 @@ explicitly defaulted).
 - A node with **no inbound `data` edge** is a **trigger** (typically `acquisition`); a poll cycle starts there.
 - Per cycle, the executor performs a **topological walk** of `data` edges, handing each node its upstream
   batch(es), and routes outcomes along control edges. **This is new scheduling code.** Today's
-  [`MultiSourceProcessor.runConfigs`](../../../../inspecto-engine/src/main/java/com/gamma/inspector/MultiCollectorProcessor.java)
+  [`MultiCollectorProcessor.runConfigs`](../../../../inspecto-engine/src/main/java/com/gamma/inspector/MultiCollectorProcessor.java)
   fan-out is **per source/config** — one virtual thread per `PipelineConfig`, each fully isolated — so it
   parallelises *sources*, not *branches*; there is no intra-pipeline branch concept to reuse. The intra-flow
   topological walk (and any branch-level parallelism) is built fresh; only the virtual-thread-pool + permit
@@ -536,7 +536,7 @@ A large installed base of `*_pipeline.toon` (and ~80 test fixtures) must keep ru
   lift must either (a) join pipeline + enrichment configs that reference each other into one `PipelineGraph`, or (b)
   represent them as two flows linked by an `on_commit` edge — decide this in Phase 1 ([§13 R4](#13-open-risks--corrections-2026-06-16-review)).
 - **Compile-back** — the executor compiles a `PipelineGraph` (lifted or authored) back to the *exact* primitives
-  `SourceProcessor` runs today, so old configs are byte-for-byte equivalent in behaviour. Parity is proven by
+  `CollectorProcessor` runs today, so old configs are byte-for-byte equivalent in behaviour. Parity is proven by
   running the existing suite against the lifted path.
 - **Coexistence** — [`ConfigRegistry`](../../../../inspecto/src/main/java/com/gamma/service/ConfigRegistry.java) (now
   mtime-cached) indexes both `*_pipeline.toon` and `*_flow.toon`; `MetadataGraphService` projects both.
@@ -738,10 +738,10 @@ above.
 |---|-----|------------------|---------------------------|---------------------|
 | R1 | High | A new `transform.*` operator is "a registry addition, not engine surgery" (§3.4). | [`TransformCompiler`](../../../../inspecto-etl/src/main/java/com/gamma/etl/TransformCompiler.java) is **column-scalar only** (`DIRECT`/`EXPR`/`CONCAT_DT`/`FILENAME_DATE`); [`DataTransformer`](../../../../inspecto-etl/src/main/java/com/gamma/etl/DataTransformer.java) emits one fixed `SELECT … FROM <one source>` and returns **one** table. No `WHERE`/`CASE`-route/`QUALIFY`/`UNNEST`/multi-input exist. | Only `derive`/`select` are registry additions. `filter`/`route`/`validate`/`dedup`/`split`/`merge` need new SQL-assembly + a **multi-named-relation node-output contract** + chain-fusion. Re-scoped in §3.4 + §8 Phase 3. |
 | R2 | High | `(batch, branch)` commit is "today's commit-log / ledger key extended" (§3.7). | [`CommitLog`](../../../../inspecto-etl/src/main/java/com/gamma/etl/CommitLog.java) keyed on `batch_id` only; ledger on `(sourceId, relPath)`; [`BatchProcessor.commit`](../../../../inspecto-engine/src/main/java/com/gamma/inspector/BatchProcessor.java) writes one output set and finalises the file in one crash-ordered sequence ("markers LAST"). No branch dimension, no partial-commit state. | New branch dimension across commit-log/ledger/markers/manifest **+** a partial-commit state **+** a `commit()` split (per-branch vs source-finalisation) preserving the ordering invariant. Re-scoped in §3.7 + §8 Phase 3. |
-| R3 | Med | The topological walk "reuses `MultiSourceProcessor`'s virtual-thread fan-out for independent branches" (§3.3). | [`runConfigs`](../../../../inspecto-engine/src/main/java/com/gamma/inspector/MultiCollectorProcessor.java) fans out **per `PipelineConfig`** (one isolated vthread per source). No intra-pipeline branch concept. | Branch scheduling is new; only the pool/permit pattern is reused. Corrected in §3.3. |
+| R3 | Med | The topological walk "reuses `MultiCollectorProcessor`'s virtual-thread fan-out for independent branches" (§3.3). | [`runConfigs`](../../../../inspecto-engine/src/main/java/com/gamma/inspector/MultiCollectorProcessor.java) fans out **per `PipelineConfig`** (one isolated vthread per source). No intra-pipeline branch concept. | Branch scheduling is new; only the pool/permit pattern is reused. Corrected in §3.3. |
 | R4 | Med-High | A `*_pipeline.toon` "auto-lifts into a 4-node linear `PipelineGraph`" (§5). | A pipeline already fans into N schemas via `segments`/`selector` ([`rebuildStructural`](../../../../inspecto-engine/src/main/java/com/gamma/catalog/MetadataGraphService.java)); plugin ingesters emit multiple segment tables; **enrichment is a separate config file** ([`EnrichmentConfig`](../../../../inspecto-engine/src/main/java/com/gamma/enrich/EnrichmentConfig.java)). | Lift is a fan-out for multi-schema configs; decide pipeline↔enrichment join vs two-flows-linked-by-`on_commit`. Corrected in §5; gates Phase 1 (§8). |
 | R5 | Low | "DAG over `data` edges; control edges excluded from the cycle walk" (D10) vs. `on_commit` feeding a downstream flow (§3.6). | An `on_commit` edge re-entering the same graph is a cycle the data-edge-only check won't catch. | `on_commit` is **cross-flow only**; validator rejects same-graph targets. Clarified in §3.2. |
-| R6 | Med | The `ingest` job type is "what runs when" over a pipeline (§3.6) — implying a job can drive a pipeline. | `IngestJob.run` (since deleted) called `MultiSourceProcessor.runAll(List.of(config),…)` — a **full pipeline re-run incl. acquisition**, over the *same inbox* the poll loop works, on a separate scheduler with no shared lock. This violates the §3.8 clean model (the pipeline *is* the ETL and owns ingest, poll-driven only). | **Decided 2026-06-17: remove the `ingest` job type.** Ingest/acquisition is pipeline-exclusive (loop scheduler); jobs are custom functions over stored data (custom-function scheduler), never a re-acquisition. Delete `IngestJob` + `JobType.INGEST`; migrate any `ingest` job to an `active:true` pipeline. See T23. |
+| R6 | Med | The `ingest` job type is "what runs when" over a pipeline (§3.6) — implying a job can drive a pipeline. | `IngestJob.run` (since deleted) called `MultiCollectorProcessor.runAll(List.of(config),…)` — a **full pipeline re-run incl. acquisition**, over the *same inbox* the poll loop works, on a separate scheduler with no shared lock. This violates the §3.8 clean model (the pipeline *is* the ETL and owns ingest, poll-driven only). | **Decided 2026-06-17: remove the `ingest` job type.** Ingest/acquisition is pipeline-exclusive (loop scheduler); jobs are custom functions over stored data (custom-function scheduler), never a re-acquisition. Delete `IngestJob` + `JobType.INGEST`; migrate any `ingest` job to an `active:true` pipeline. See T23. |
 
 **Credit (genuinely de-risked, no action):** the `MetadataGraphService` projection seam already iterates
 `pipelines()` + `enrichments()` and understands multi-schema, so the §6 flow projection is additive; the

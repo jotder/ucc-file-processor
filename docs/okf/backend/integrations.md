@@ -215,7 +215,7 @@ DuckLake is a lakehouse format that uses a SQL database (PostgreSQL) as the cata
        table: <data_source>_data
    ```
 
-3. **Run the ETL.** After each file is written, SourceProcessor will:
+3. **Run the ETL.** After each file is written, CollectorProcessor will:
    - `INSTALL ducklake FROM core` (downloads on first run; cached thereafter)
    - `ATTACH` the PostgreSQL catalog
    - Create the schema and table if they do not exist

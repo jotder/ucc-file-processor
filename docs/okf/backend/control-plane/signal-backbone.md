@@ -157,7 +157,7 @@ diagnostic context, AG-UI streaming, A2UI inline artifacts — and finally to a 
 ## Gotchas
 
 * **The `ingestLock` deadlock seam is load-bearing for every piece above that subscribes to
-  `EventLog`.** `CollectorService`/`SourceProcessor` hold `ingestLock` across a poll cycle; any
+  `EventLog`.** `CollectorService`/`CollectorProcessor` hold `ingestLock` across a poll cycle; any
   subscriber (`SignalIngress`, `BatchAuditWriter`, a future triage consumer) that starts new
   synchronous work inline risks deadlock — hand off to a bounded queue + its own virtual-thread
   executor, exactly `FailureReactor`'s and `SignalIngress`'s pattern. Never "simplify" a subscriber to

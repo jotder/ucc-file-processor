@@ -55,7 +55,7 @@ SPI; editions are build flavors, never branches (see [`EDITIONS.md`](EDITIONS.md
 ### Processes / entry points
 - **`com.gamma.service.SourceService`** — the long-running host: poll loop + Control API + (optional) UI on
   **`:8080`** (`-Dcontrol.port`). This is "the server" in production.
-- **`com.gamma.inspector.SourceProcessor`** — one-shot ETL of a single config (CLI / embedded use).
+- **`com.gamma.inspector.CollectorProcessor`** — one-shot ETL of a single config (CLI / embedded use).
 - **Every JVM launch needs `--enable-native-access=ALL-UNNAMED`** (DuckDB JNI) — including tests.
 
 ### Editions
@@ -78,8 +78,8 @@ One cycle, under a single **`ingestLock` (`ReentrantLock`)** held for the whole 
    `cfg.forNewRun()` (cheap timestamp re-stamp, no re-parse).
 3. **Mark running** — add names to the `running` set (`ConcurrentHashMap.newKeySet()`), backing the "under
    processing" signal of `/pipelines/{name}/pending`.
-4. **Fan out** — `MultiSourceProcessor.runConfigs(...)`: a **virtual-thread pool** + `Semaphore(maxConcurrentRuns)`
-   runs each config's `SourceProcessor.run`.
+4. **Fan out** — `MultiCollectorProcessor.runConfigs(...)`: a **virtual-thread pool** + `Semaphore(maxConcurrentRuns)`
+   runs each config's `CollectorProcessor.run`.
 5. **Unmark running**, **sync status DB** (`syncStatus()` → `DbStatusStore` if enabled), **release `ingestLock`**.
 
 Two more counters: `inspecto_poll_cycles_total`, `inspecto_active_runs`.
@@ -102,8 +102,8 @@ If you add a bus subscriber that does real work, **hand off to an executor**; ne
 ### Thread pools at a glance
 | Pool | Owner | Bound | Purpose |
 |---|---|---|---|
-| outer fan-out | `MultiSourceProcessor` | `Semaphore(maxConcurrentRuns)` | concurrent sources per cycle |
-| inner fan-out | `SourceProcessor` | `Semaphore(processing.threads)` | concurrent batches per source |
+| outer fan-out | `MultiCollectorProcessor` | `Semaphore(maxConcurrentRuns)` | concurrent sources per cycle |
+| inner fan-out | `CollectorProcessor` | `Semaphore(processing.threads)` | concurrent batches per source |
 | `triggerWorkers` | `SourceService` | vthread-per-task | event-triggered downstream flows (off-bus) |
 | `workers` | `JobService` | vthread-per-task | job executions (off-bus); per-job non-overlap via `LockingRunner` |
 
@@ -111,7 +111,7 @@ If you add a bus subscriber that does real work, **hand off to an executor**; ne
 
 ## 4. Lifecycle of a file (end-to-end) + the commit ordering invariant
 
-`SourceProcessor.run(cfg, onCommit)` → `collect()`:
+`CollectorProcessor.run(cfg, onCommit)` → `collect()`:
 1. **Stale-marker cleanup** — `MarkerManager.cleanupStaleMarkers`.
 2. **Discover** — `connector.discover(ctx)` wrapped in `RetryPolicy`; remote sources gated by
    `CircuitBreaker.shared()` (trip → skip + `SOURCE_CIRCUIT_OPEN`).
@@ -286,15 +286,15 @@ Each sub-section: **Responsibility · Process · Events · Metrics · State · C
 | `PIPELINE_PAUSED` / `PIPELINE_RESUMED` | via API | — | SourceService |
 | `BATCH_COMMITTED` | batch success | batchId, outputRows, durationMs, rejectedCount, partitions | SourceService/bus |
 | `BATCH_FAILED` | batch failure | + error, offendingFile, errorRows | SourceService/bus |
-| `FILE_DISCOVERED` | connector listed a candidate | file | SourceProcessor |
-| `FILE_STABLE` | passed readiness gate | file | SourceProcessor |
-| `FILE_FETCHED` | bytes retrieved | file, bytes | SourceProcessor |
-| `FILE_VALIDATED` | integrity ok | file | SourceProcessor |
-| `FILE_FETCH_FAILED` | fetch/integrity failed | file | SourceProcessor |
-| `FILE_CHANGED` | known path, changed content | file | SourceProcessor |
-| `FILE_ARCHIVED` | source post-action done | file, action | SourceProcessor |
-| `SEQUENCE_GAP` | expected file missing | expected, sequence, unit | SourceProcessor → also `EventObjectBridge` → ALERT object |
-| `SOURCE_CIRCUIT_OPEN` | breaker tripped | source | SourceProcessor |
+| `FILE_DISCOVERED` | connector listed a candidate | file | CollectorProcessor |
+| `FILE_STABLE` | passed readiness gate | file | CollectorProcessor |
+| `FILE_FETCHED` | bytes retrieved | file, bytes | CollectorProcessor |
+| `FILE_VALIDATED` | integrity ok | file | CollectorProcessor |
+| `FILE_FETCH_FAILED` | fetch/integrity failed | file | CollectorProcessor |
+| `FILE_CHANGED` | known path, changed content | file | CollectorProcessor |
+| `FILE_ARCHIVED` | source post-action done | file, action | CollectorProcessor |
+| `SEQUENCE_GAP` | expected file missing | expected, sequence, unit | CollectorProcessor → also `EventObjectBridge` → ALERT object |
+| `SOURCE_CIRCUIT_OPEN` | breaker tripped | source | CollectorProcessor |
 | `STORE_DELETE_CONFLICT` | delete races active flow | store, activeProducers, activeConsumers | SourceService |
 | `ALERT_FIRED` | alert-rule breach | rule, metric, value, severity | AlertService |
 | `OBJECT_OPENED` | managed object created | objectId, objectType, status, severity | ObjectService |
@@ -346,7 +346,7 @@ Each sub-section: **Responsibility · Process · Events · Metrics · State · C
 | `inspecto_events_total` | counter | level, type | events appended to the log |
 
 **Gaps (not instrumented):** the **flow engine** (dry-run, registry, flow-job internals beyond the generic job
-metrics), **connectors** (counters are pushed through `SourceProcessor`, not the connector), and **HTTP** (no
+metrics), **connectors** (counters are pushed through `CollectorProcessor`, not the connector), and **HTTP** (no
 per-route latency/count). Add metrics here when you instrument these — and update this table.
 
 ---
@@ -375,7 +375,7 @@ per-route latency/count). Add metrics here when you instrument these — and upd
 ### Per-pipeline on-disk layout (`PipelineConfig.Dirs`)
 | Dir | Holds | Owner |
 |---|---|---|
-| `poll` | input drop zone / remote materialisation | SourceProcessor |
+| `poll` | input drop zone / remote materialisation | CollectorProcessor |
 | `database` | partitioned Parquet/CSV output (`year=/month=/day=`) | PartitionWriter |
 | `backup` | copies of originals after commit | FileBackup |
 | `temp` | streaming scratch + DuckDB temp | CsvBatchStrategy |

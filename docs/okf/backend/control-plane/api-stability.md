@@ -43,8 +43,8 @@ Two audiences depend on the framework from outside:
 
 | Type | Since | Role |
 |---|---|---|
-| `com.gamma.inspector.SourceProcessor` | 1.0.0 | Run one source (`run(cfg)` / `main`) |
-| `com.gamma.inspector.MultiSourceProcessor` | 1.6.0 | Run many sources concurrently (`runAll` / `main`) |
+| `com.gamma.inspector.CollectorProcessor` | 1.0.0 | Run one source (`run(cfg)` / `main`) |
+| `com.gamma.inspector.MultiCollectorProcessor` | 1.6.0 | Run many sources concurrently (`runAll` / `main`) |
 | `com.gamma.etl.PipelineConfig.load(String)` | 1.0.0 | Parse a pipeline `.toon` into a config |
 
 **Service & control line** (long-running host, Stage-2 enrichment, REST control plane):

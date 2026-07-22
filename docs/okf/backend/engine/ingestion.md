@@ -34,7 +34,7 @@ Selectors (parsed in `PipelineConfigParser`): `processing.streaming.large_file_b
 
 ## Batch coordination
 
-* `SourceProcessor` (`inspecto/src/main/java/com/gamma/inspector/SourceProcessor.java`) — the per-source ETL
+* `CollectorProcessor` (`inspecto-engine/src/main/java/com/gamma/inspector/CollectorProcessor.java`) — the per-source ETL
   entry point and one poll cycle: scan inbox → group into `Batch`es (bounded by `processing.batch.max_files`/
   `max_bytes`) → submit to a virtual-thread executor bounded by `Semaphore(processing.threads)`. Also the
   single-pipeline CLI `main`. Drives all the [acquisition](../acquisition/framework.md) phases.
@@ -43,6 +43,6 @@ Selectors (parsed in `PipelineConfigParser`): `processing.streaming.large_file_b
   `IngestOutcome`, then the path-agnostic tail `commit()` (DuckLake register → manifest → backup originals →
   markers → ledger, in that crash-safe order) and `writeAudit()`. Never throws for a batch failure — audit is
   always written (see [quarantine](output-sinks.md)).
-* `MultiSourceProcessor` (`inspecto/src/main/java/com/gamma/inspector/MultiSourceProcessor.java`) — the outer
+* `MultiCollectorProcessor` (`inspecto-engine/src/main/java/com/gamma/inspector/MultiCollectorProcessor.java`) — the outer
   orchestrator running many `.toon` sources concurrently in one JVM, bounded by `Semaphore(sources.max)`.
   Total worker pressure = `sources.max × processing.threads × duckdb_threads`.

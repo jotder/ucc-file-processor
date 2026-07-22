@@ -296,7 +296,7 @@ Use `<scope>provided</scope>` because the deployment server already has the fat 
 **5. Package and deploy.**
 
 - `mvn package` produces `your-ingester-x.y.z.jar`
-- On the server, put your JAR on the classpath alongside the file-processor JAR. The `run.sh` / `run.bat` wrappers shipped by `package.ps1` use `-jar file-processor.jar`; switch them to `-cp "file-processor.jar:your-ingester-*.jar" com.gamma.inspector.SourceProcessor <pipeline.toon>` (use `;` instead of `:` on Windows).
+- On the server, put your JAR on the classpath alongside the file-processor JAR. The `run.sh` / `run.bat` wrappers shipped by `package.ps1` use `-jar file-processor.jar`; switch them to `-cp "file-processor.jar:your-ingester-*.jar" com.gamma.inspector.CollectorProcessor <pipeline.toon>` (use `;` instead of `:` on Windows).
 - Reference your class by FQCN in the pipeline toon: `processing.ingester: com.acme.events.MyIngester`. The framework loads it via `Class.forName(...).getDeclaredConstructor().newInstance()` — the class must be public with a no-arg constructor.
 
 **6. Production health checks.** The framework reports plugin loading at startup:

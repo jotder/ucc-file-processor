@@ -92,7 +92,7 @@ Three costs in `CsvIngester`'s per-row loop, in rough order of impact:
 
 Ingest is single-threaded *within* a file (sequential read; cannot be
 parallelized for one input). Aggregate throughput comes from batch-level
-parallelism: `SourceProcessor` submits every batch to a virtual-thread executor
+parallelism: `CollectorProcessor` submits every batch to a virtual-thread executor
 bounded by `Semaphore(cfg.processing().threads())`, so up to `processing.threads` batches ingest
 simultaneously while blocked batches park cheaply instead of pinning platform
 threads. Per-file latency is still fixed by single-threaded ingest (now ~4–5×
@@ -125,7 +125,7 @@ count; the `0` default is self-managing and never trips it.
 
 ### Inbox discovery — parallel duplicate check (v3.12.0)
 
-Before any batch runs, `SourceProcessor` scans `dirs.poll` for matching files and drops the
+Before any batch runs, `CollectorProcessor` scans `dirs.poll` for matching files and drops the
 ones already processed in a prior run. The directory walk is one tree traversal, but the
 per-file duplicate check is a **filesystem stat** (`Files.exists` on the marker mirror under
 `dirs.markers`). On an inbox of tens of thousands of files that stat *latency* — not CPU —
@@ -166,7 +166,7 @@ byte-identical table contents between the two engines on clean input. Short
 rows, footers, and blank lines are rejected identically via
 `ignore_errors=true, null_padding=false`; rejected rows are captured from
 DuckDB's `reject_errors` table into the same `errors/<base>_errors.csv` the Java
-path writes. The existing `BatchProcessorTest` / `SourceProcessorPollTest`
+path writes. The existing `BatchProcessorTest` / `CollectorProcessorPollTest`
 configs are clean, so `auto` already runs them through the native engine and
 they pass unchanged.
 

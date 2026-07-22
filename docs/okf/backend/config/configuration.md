@@ -120,7 +120,7 @@ type_patterns:
   timestamps[4]: PRE_APPLY_TIME, PRE_EXPIRE_TIME, CUR_EXPIRE_TIME, STARTTIMEOFBILLCYCLE
 ```
 
-**`skip_junk_lines`** is a *cap*, not a fixed count. SourceProcessor uses adaptive detection — it scans forward until it finds a line with enough columns that does not echo the header. Use `-1` to scan without limit (for sources like Oracle <data_source>s with variable-length preambles).
+**`skip_junk_lines`** is a *cap*, not a fixed count. CollectorProcessor uses adaptive detection — it scans forward until it finds a line with enough columns that does not echo the header. Use `-1` to scan without limit (for sources like Oracle <data_source>s with variable-length preambles).
 
 **`engine`** (default `auto`) selects the CSV parse engine. This is a pure
 performance lever — output is identical for clean files (proven by parity test).
@@ -317,9 +317,9 @@ backup:
   log_available: available_files.csv
 ```
 
-The `dirs`, `output`, and `processing` sections are used by `SourceProcessor` (the ETL runtime). The `search`, `copy_tars`, and `backup` sections are used exclusively by the pre-ETL utility commands in `MainApp`. All sections coexist in a single file — the one file configures everything for a source.
+The `dirs`, `output`, and `processing` sections are used by `CollectorProcessor` (the ETL runtime). The `search`, `copy_tars`, and `backup` sections are used exclusively by the pre-ETL utility commands in `MainApp`. All sections coexist in a single file — the one file configures everything for a source.
 
-All seven core `dirs.*` entries are required for SourceProcessor (`poll`, `database`, `backup`, `temp`, `errors`, `quarantine`, `markers`). The optional `status_dir` and `log_dir` entries enable per-run audit and log files. Startup validation confirms that all managed directories are not nested inside the `poll` directory.
+All seven core `dirs.*` entries are required for CollectorProcessor (`poll`, `database`, `backup`, `temp`, `errors`, `quarantine`, `markers`). The optional `status_dir` and `log_dir` entries enable per-run audit and log files. Startup validation confirms that all managed directories are not nested inside the `poll` directory.
 
 **`dirs.markers`** — dedicated directory for `.processed` sentinel files. Mirrors the poll directory tree: a file at `inbox/<data_source>/20200403/feed.csv.gz` produces a marker at `markers/<data_source>/20200403/feed.csv.gz.processed`. Markers are pruned automatically at each poll start; any marker file older than `processing.duplicate_check.retention_days` days is deleted and empty subdirectories are removed. This keeps the markers directory bounded in size without manual intervention.
 
@@ -389,7 +389,7 @@ processing:
 
 | `active` | Behaviour |
 |---|---|
-| `true` | The pipeline runs on every poll cycle (and via the `MultiSourceProcessor` CLI). |
+| `true` | The pipeline runs on every poll cycle (and via the `MultiCollectorProcessor` CLI). |
 | `false` *(default — key absent ⇒ `false`)* | The pipeline is still parsed, indexed and visible in `GET /pipelines`, but **never executed**. |
 
 The default is **off** so a freshly-dropped or half-edited config never runs until you explicitly arm it

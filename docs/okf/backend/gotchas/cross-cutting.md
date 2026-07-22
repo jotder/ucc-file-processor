@@ -25,7 +25,7 @@ timestamp: 2026-07-16T00:00:00Z
 * **The per-space `space` MDC must reach EVERY worker thread on the execution path.** Singleton routing reads
   the MDC on the *current* thread, and MDC does **not** cross thread-pool boundaries. Each executor running
   ingest/commit work must `MDC.getCopyOfContextMap()` on the caller + `setContextMap` on the worker +
-  `clear()` in `finally` — `MultiSourceProcessor.runAll`/`runConfigs` **and** `SourceProcessor`'s per-batch
+  `clear()` in `finally` — `MultiCollectorProcessor.runAll`/`runConfigs` **and** `CollectorProcessor`'s per-batch
   executor. Miss one and that space's metrics/events silently fall back to `"default"`. See
   [multi-space](../control-plane/multi-space.md).
 * **Pipeline-internal paths resolve against the JVM CWD, not the space root.** A pipeline's `schema_file`,
