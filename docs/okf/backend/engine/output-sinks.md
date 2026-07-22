@@ -9,14 +9,14 @@ timestamp: 2026-06-28T00:00:00Z
 
 # Output & Sinks
 
-* **`OutputFormat`** (`inspecto/src/main/java/com/gamma/etl/OutputFormat.java`) — an enum-as-strategy with
+* **`OutputFormat`** (`inspecto-etl/src/main/java/com/gamma/etl/OutputFormat.java`) — an enum-as-strategy with
   `PARQUET` (compressible) and `CSV`. Each constant carries its own `copyToken()`/`extension()`/
   `supportsCompression()`; `resolve(token)` maps the config token (anything but `"PARQUET"` → `CSV`).
-* **`PartitionWriter`** (`inspecto/src/main/java/com/gamma/etl/PartitionWriter.java`) — writes a materialized
+* **`PartitionWriter`** (`inspecto-etl/src/main/java/com/gamma/etl/PartitionWriter.java`) — writes a materialized
   table to Hive-partitioned output via DuckDB `COPY … PARTITION_BY`. **Requires non-empty partition columns**
   (default `["year","month","day"]`), excludes the internal `__src_id` column, uses a two-step atomic rename,
   and parallelises rename fan-out above 16 partitions.
-* **`PartitionSinkWriter`** (`inspecto/src/main/java/com/gamma/pipeline/exec/PartitionSinkWriter.java`) — the
+* **`PartitionSinkWriter`** (`inspecto-engine/src/main/java/com/gamma/pipeline/exec/PartitionSinkWriter.java`) — the
   [pipeline-engine](../pipeline-graph/live-execution.md) sink writer: delegates to `PartitionWriter` when partitions are
   declared, else writes a **single unpartitioned file**. (`sink.view` subtypes write no bytes — they register
   a view definition instead.)

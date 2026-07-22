@@ -16,7 +16,7 @@ writes to a sink store. It is hosted as a [`JobType.PIPELINE`](../control-plane/
 
 ## `PipelineJobRunner.run()`
 
-`PipelineJobRunner` (`inspecto/src/main/java/com/gamma/pipeline/exec/PipelineJobRunner.java`):
+`PipelineJobRunner` (`inspecto-engine/src/main/java/com/gamma/job/PipelineJobRunner.java`):
 
 1. Load the `PipelineGraph` from `PipelineStore`.
 2. `seedsOf(g)` — find every node with a non-blank `source_store` cfg key; **throws if none** (zero seeds is

@@ -23,7 +23,7 @@ live in `inspecto/src/main/java/com/gamma/control/DecisionRoutes.java`. A rule i
 `{kind:'condition', field, operator, value?, value2?}`. Operators: `= != < <= > >= contains
 startsWith endsWith in between isNull isNotNull`.
 
-`com.gamma.query.ConditionTree` (`inspecto/src/main/java/com/gamma/query/ConditionTree.java`) is a
+`com.gamma.query.ConditionTree` (`inspecto-engine/src/main/java/com/gamma/query/ConditionTree.java`) is a
 **pure, dependency-free port of the browser evaluator** (`inspecto-ui/.../query/query-eval.ts`) plus
 its type inference (`query-columns.ts`). It exists so the backend counts row matches with *exactly*
 the semantics the authoring UI previews offline — same case-insensitive substring ops, same

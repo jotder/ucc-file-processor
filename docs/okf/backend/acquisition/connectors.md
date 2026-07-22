@@ -11,7 +11,7 @@ timestamp: 2026-06-28T00:00:00Z
 
 ## The SPI (in the core; implemented in [connectors](../modules/connectors.md))
 
-* `CollectorConnector` (`inspecto/src/main/java/com/gamma/acquire/CollectorConnector.java`) — `discover`,
+* `CollectorConnector` (`inspecto-acquire/src/main/java/com/gamma/acquire/CollectorConnector.java`) — `discover`,
   `readiness`, `open` (stream bytes), `fetchTo` (materialise straight to the backup dir, never temp-then-move),
   `post` (RETAIN/DELETE/MOVE/RENAME/TAG), and a `Capability` enum. *(Renamed from `SourceConnector` per the
   Source→Collector glossary flip.)*

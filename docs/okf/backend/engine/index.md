@@ -1,7 +1,9 @@
 # Engine
 
-The per-batch ETL pipeline inside [`inspecto/`](../modules/engine.md): acquire → ingest → transform → write,
-all backed by embedded DuckDB.
+The per-batch ETL pipeline: acquire → ingest → transform → write, all backed by embedded DuckDB. Its code
+lives in the engine modules extracted below the [core](../modules/engine.md) in the WS-D split —
+`inspecto-etl` / `inspecto-engine` / `inspecto-event` / `inspecto-acquire` (see the
+[reactor map](../modules/reactor.md)).
 
 # Concepts
 

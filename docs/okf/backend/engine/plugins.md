@@ -58,7 +58,7 @@ public class MyCdrIngester implements StreamingFileIngester {
 
 ### Execution modes — the framework picks by file size
 
-The same ingester serves both ingestion shapes; the [`StreamingPluginBatchStrategy`](../../../../inspecto/src/main/java/com/gamma/inspector/StreamingPluginBatchStrategy.java) chooses one **per batch** with zero extra I/O (member sizes are already known):
+The same ingester serves both ingestion shapes; the [`StreamingPluginBatchStrategy`](../../../../inspecto-engine/src/main/java/com/gamma/inspector/StreamingPluginBatchStrategy.java) chooses one **per batch** with zero extra I/O (member sizes are already known):
 
 | Mode | When | What it does | Output |
 |---|---|---|---|

@@ -44,7 +44,7 @@ business data (the file lake) and config (TOON) are documented in
 | Composition root (reads `-D` toggles, opens stores) | [`service/ServiceStores.java`](../../../../inspecto/src/main/java/com/gamma/service/ServiceStores.java) |
 | Per-space file locations | [`service/SpaceRoot.java`](../../../../inspecto/src/main/java/com/gamma/service/SpaceRoot.java) |
 | Business-data read-relation builder | [`sql/SqlViews.java`](../../../../inspecto-sql/src/main/java/com/gamma/sql/SqlViews.java) |
-| Dataset → physical store resolution | [`query/DatasetRelation.java`](../../../../inspecto/src/main/java/com/gamma/query/DatasetRelation.java) |
+| Dataset → physical store resolution | [`query/DatasetRelation.java`](../../../../inspecto-engine/src/main/java/com/gamma/query/DatasetRelation.java) |
 
 ---
 
@@ -56,20 +56,20 @@ implementations are **plain JDBC over a single shared `Connection`**, with hand-
 
 | Domain | Interface | DB impl | Backend toggle (`-D…`) | Default |
 |---|---|---|---|---|
-| Operational objects (ALERT / INCIDENT / CASE / TASK) | `ops/ObjectStore` | [`DbObjectStore`](../../../../inspecto/src/main/java/com/gamma/ops/DbObjectStore.java) | `objects.backend=memory\|db` | `memory` |
-| Correlation links | `ops/link/LinkStore` | [`DbLinkStore`](../../../../inspecto/src/main/java/com/gamma/ops/link/DbLinkStore.java) | `objects.backend` (shared) | `memory` |
-| Notes / evidence | `ops/note/NoteStore` | [`DbNoteStore`](../../../../inspecto/src/main/java/com/gamma/ops/note/DbNoteStore.java) | `objects.backend` (shared) | `memory` |
-| Events (append-only facts) | `event/EventStore` | [`ParquetEventStore`](../../../../inspecto/src/main/java/com/gamma/event/ParquetEventStore.java) *(Parquet, not JDBC)* | `events.backend=memory\|parquet` | `memory` |
+| Operational objects (ALERT / INCIDENT / CASE / TASK) | `ops/ObjectStore` | [`DbObjectStore`](../../../../inspecto-engine/src/main/java/com/gamma/ops/DbObjectStore.java) | `objects.backend=memory\|db` | `memory` |
+| Correlation links | `ops/link/LinkStore` | [`DbLinkStore`](../../../../inspecto-engine/src/main/java/com/gamma/ops/link/DbLinkStore.java) | `objects.backend` (shared) | `memory` |
+| Notes / evidence | `ops/note/NoteStore` | [`DbNoteStore`](../../../../inspecto-engine/src/main/java/com/gamma/ops/note/DbNoteStore.java) | `objects.backend` (shared) | `memory` |
+| Events (append-only facts) | `event/EventStore` | [`ParquetEventStore`](../../../../inspecto-event/src/main/java/com/gamma/event/ParquetEventStore.java) *(Parquet, not JDBC)* | `events.backend=memory\|parquet` | `memory` |
 | Ingest status / audit projection | `etl/StatusStore` | [`DbStatusStore`](../../../../inspecto/src/main/java/com/gamma/service/DbStatusStore.java) | `status.backend=file\|db` | `file` |
-| Job-run reporting | *(class is the API)* | [`DbJobRunStore`](../../../../inspecto/src/main/java/com/gamma/job/DbJobRunStore.java) | `jobs.backend=none\|duckdb\|postgres` | `none` |
-| Flow-run provenance (per-edge counts) | *(class is the API)* | [`DbProvenanceStore`](../../../../inspecto/src/main/java/com/gamma/pipeline/exec/DbProvenanceStore.java) | `provenance.backend=none\|duckdb\|postgres` | `none` |
-| Acquisition / dedup ledger + export watermark | `acquire/AcquisitionLedger` | [`DbAcquisitionLedger`](../../../../inspecto/src/main/java/com/gamma/acquire/DbAcquisitionLedger.java) | `acquire.ledger.backend=memory\|db` *(via `AcquisitionLedgers`, not `ServiceStores`)* | `memory` |
+| Job-run reporting | *(class is the API)* | [`DbJobRunStore`](../../../../inspecto-engine/src/main/java/com/gamma/job/DbJobRunStore.java) | `jobs.backend=none\|duckdb\|postgres` | `none` |
+| Flow-run provenance (per-edge counts) | *(class is the API)* | [`DbProvenanceStore`](../../../../inspecto-engine/src/main/java/com/gamma/pipeline/exec/DbProvenanceStore.java) | `provenance.backend=none\|duckdb\|postgres` | `none` |
+| Acquisition / dedup ledger + export watermark | `acquire/AcquisitionLedger` | [`DbAcquisitionLedger`](../../../../inspecto-acquire/src/main/java/com/gamma/acquire/DbAcquisitionLedger.java) | `acquire.ledger.backend=memory\|db` *(via `AcquisitionLedgers`, not `ServiceStores`)* | `memory` |
 | Ops escalation queues | `ops/queue/QueueStore` | **none** — in-memory only | — | — |
 | Pipeline execution watermarks | `pipeline/exec/PipelineWatermarkStore` | **none** — in-memory/file only | — | — |
 
 > **`ALERT`s are not their own table.** Alerts, incidents, cases and tasks are all rows in
 > `inspecto_ops_objects`, discriminated by the `object_type` column
-> ([`ObjectType`](../../../../inspecto/src/main/java/com/gamma/ops/ObjectType.java): `ALERT, INCIDENT, CASE, TASK`).
+> ([`ObjectType`](../../../../inspecto-engine/src/main/java/com/gamma/ops/ObjectType.java): `ALERT, INCIDENT, CASE, TASK`).
 
 Every backend **degrades gracefully**: a failed DB open falls back to in-memory/file and logs a
 warning rather than blocking startup.
@@ -216,7 +216,7 @@ event_id, ts_ms (BIGINT), type, source, pipeline, correlation_id,
 message, attributes (JSON), payload (JSON), level  -- + partition cols year, month, day (VARCHAR)
 ```
 
-`level` ∈ [`EventLevel`](../../../../inspecto/src/main/java/com/gamma/event/EventLevel.java). There is **no
+`level` ∈ [`EventLevel`](../../../../inspecto-event/src/main/java/com/gamma/event/EventLevel.java). There is **no
 JDBC/Postgres event table** — events are Parquet-only.
 
 ---
@@ -259,7 +259,7 @@ covering 6 of the 7 DB-backed stores.
 | Status | `-Dstatus.backend=db` | `-Dstatus.db.url` | `-Dstatus.db.user` / `.password` |
 | Jobs | `-Djobs.backend=postgres` | `-Djobs.db.url` | (in URL) |
 | Provenance | `-Dprovenance.backend=postgres` | `-Dprovenance.db.url` | (in URL) |
-| Acquisition ledger | `-Dacquire.ledger.backend=db` | (property in [`AcquisitionLedgers`](../../../../inspecto/src/main/java/com/gamma/acquire/AcquisitionLedgers.java)) | — |
+| Acquisition ledger | `-Dacquire.ledger.backend=db` | (property in [`AcquisitionLedgers`](../../../../inspecto-acquire/src/main/java/com/gamma/acquire/AcquisitionLedgers.java)) | — |
 | Events | `-Devents.backend=parquet` | — | **No Postgres path** |
 
 Point each URL at `jdbc:postgresql://…`; the three ops URLs may share one database/schema (table names

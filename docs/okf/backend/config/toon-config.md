@@ -11,13 +11,13 @@ timestamp: 2026-06-28T00:00:00Z
 
 All configuration is **TOON** (`.toon`), parsed via JToon. Authoritative key reference: [`configuration.md`](configuration.md).
 
-* **`ConfigCodec`** (`inspecto/src/main/java/com/gamma/config/io/ConfigCodec.java`) — thin JToon wrapper:
+* **`ConfigCodec`** (`inspecto-config/src/main/java/com/gamma/config/io/ConfigCodec.java`) — thin JToon wrapper:
   `toMap` (lenient, tolerates `#` comments), `toMapStrict` (canonical assertion), `toToon` (canonical encode).
   **Gotcha**: `toToon` does **not** emit tabular-array format — a Java-constructed schema whose `fields`/
   `rules` are `List<Map>` round-trips as nested maps and the parser then throws *"Array length mismatch:
   declared N, found 0"*. Write test schemas as inline TOON strings, not via `toToon(schemaMap)`; round-trip is
   only safe when the map was originally `JToon.decode`-d. See [gotchas](../gotchas/cross-cutting.md).
-* **`PipelineConfigParser`** (`inspecto/src/main/java/com/gamma/etl/PipelineConfigParser.java`,
+* **`PipelineConfigParser`** (`inspecto-etl/src/main/java/com/gamma/etl/PipelineConfigParser.java`,
   package-private) — parses a decoded map into an immutable `PipelineConfig` (entry points
   `PipelineConfig.load(path)` / `fromMap(map)`). Pure parse, no filesystem side-effects (`prepare()` does
   those). Resolves `schema_file`/`grammar`/`dirs.*` against the **JVM CWD** (not the space root — see

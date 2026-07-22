@@ -9,7 +9,7 @@ timestamp: 2026-06-28T00:00:00Z
 
 # Config Safety Validator
 
-`ConfigSafetyValidator` (`inspecto/src/main/java/com/gamma/config/safety/ConfigSafetyValidator.java`) is a
+`ConfigSafetyValidator` (`inspecto-config/src/main/java/com/gamma/config/safety/ConfigSafetyValidator.java`) is a
 purely-static, zero-dependency hard-fail gate (since v3.5.0). `check(configType, rawMap, policy)` returns
 `ERROR`-severity `Finding`s for any violation. It enforces three things:
 

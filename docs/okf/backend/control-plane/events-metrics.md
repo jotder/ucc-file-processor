@@ -9,7 +9,7 @@ timestamp: 2026-07-16T00:00:00Z
 
 # Events & Metrics
 
-* **`EventLog`** (`inspecto/src/main/java/com/gamma/event/EventLog.java`) — the event bus. `global()` +
+* **`EventLog`** (`inspecto-event/src/main/java/com/gamma/event/EventLog.java`) — the event bus. `global()` +
   per-space instances; `current()` routes by the calling thread's `space` MDC, falling back to global.
   **Emission is synchronous on the publishing thread** (`emit()` calls each subscriber inline). This is the
   deadlock seam: `SourceProcessor` holds `ingestLock` through a poll cycle, so a subscriber that triggered a
@@ -17,13 +17,13 @@ timestamp: 2026-07-16T00:00:00Z
   off-bus virtual-thread pool (see [jobs](jobs.md)). `emit()` uses no SLF4J (avoids re-entrant capture) and
   swallows subscriber errors. A startup store-swap (`InMemoryEventStore` → configured backend) drains the old
   store oldest-first so nothing is lost.
-* **`MetricRegistry`** (`inspecto/src/main/java/com/gamma/metrics/MetricRegistry.java`) — counters/gauges/
+* **`MetricRegistry`** (`inspecto-event/src/main/java/com/gamma/metrics/MetricRegistry.java`) — counters/gauges/
   histograms keyed by name + sorted labels; `scrape()` runs registered collectors then renders Prometheus
   text. The per-space `space` label is supplied by callers as a label (no registry-level space awareness).
   Notable counter: **`inspecto_legacy_api_requests_total{route}`** — incremented by
   `ControlApi.recordLegacyUsage` on every hit to a legacy *unversioned* route that also exists under
   [`/api/v1`](control-api.md); it is the sunset signal for retiring the legacy surface.
-* **`StabilityGate`** (`inspecto/src/main/java/com/gamma/acquire/StabilityGate.java`) — the acquisition
+* **`StabilityGate`** (`inspecto-acquire/src/main/java/com/gamma/acquire/StabilityGate.java`) — the acquisition
   file-readiness gate (not a health gate); one shared instance per space (see [acquisition](../acquisition/framework.md)).
 
 ## Notifications & audit trail (shipped 2026-06-29, `ddfa288`)

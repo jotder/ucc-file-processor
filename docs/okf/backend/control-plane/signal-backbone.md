@@ -17,7 +17,7 @@ diagnostic context, AG-UI streaming, A2UI inline artifacts — and finally to a 
 
 ## The canonical envelope (S0)
 
-* **`Signal`** (`inspecto/src/main/java/com/gamma/signal/Signal.java`) — 13-field record: `signalId,
+* **`Signal`** (`inspecto-engine/src/main/java/com/gamma/signal/Signal.java`) — 13-field record: `signalId,
   type (dotted string), at:Instant, severity, source:Ref, subject:Ref, correlationId, causationId,
   space, actor:Ref, message, payload:Map<String,Object>, schemaVersion`. `toEvent()`/`fromEvent()` are
   a true, lossless round-trip onto the `Event` ledger (`EventType.SIGNAL`) — payload rides as a real
@@ -29,7 +29,7 @@ diagnostic context, AG-UI streaming, A2UI inline artifacts — and finally to a 
   direction, by design — documented precedent, not a bug).
 * No `@PublicApi` version bump was required (decided explicitly: 4.x unreleased) — `Signal`'s and
   `Event`'s shapes were free to change within this major.
-* **`Signals`** (`inspecto/src/main/java/com/gamma/signal/Signals.java`) — the static, stateless read
+* **`Signals`** (`inspecto-engine/src/main/java/com/gamma/signal/Signals.java`) — the static, stateless read
   side: `query(EventStore, type, sinceMs, untilMs, minSeverity, correlationId, limit)` (type is exact
   or a `prefix.*` glob; severity floor and correlationId filter in-store) and `matches(...)` (the
   shared predicate reused by both the in-store query page and a live push subscriber).
@@ -68,7 +68,7 @@ diagnostic context, AG-UI streaming, A2UI inline artifacts — and finally to a 
   causation assembly as a flat list. **Both share one engine primitive**: `signal_timeline` calls
   `Signals.causationOrder`, a depth-first (pre-order) flatten of the same `assembleTree` forest (dedup
   done 2026-07-22, `BACKLOG.md` §5).
-* **`AgUiProjection`** (`inspecto/src/main/java/com/gamma/signal/AgUiProjection.java`) — pure mapping
+* **`AgUiProjection`** (`inspecto-engine/src/main/java/com/gamma/signal/AgUiProjection.java`) — pure mapping
   from a domain Signal type to an AG-UI event type (`agent.run.started`→`RUN_STARTED`, etc.,
   `CUSTOM` for anything uncatalogued). Domain type names stay dotted/canonical internally; AG-UI is
   a thin edge adapter, never adopted wholesale (decision D3: "AG-UI-shaped, domain-named").

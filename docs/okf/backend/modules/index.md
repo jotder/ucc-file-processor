@@ -12,6 +12,10 @@ modules. Reactor shape, version management, and the module-extraction playbook:
 * `inspecto-util/` — leaf (w.r.t. `com.gamma`): DuckDB access + CSV/file/tar helpers (`file-processor-util`).
 * `inspecto-config/` — config spec/codec/safety (`file-processor-config`); depends only on fp-api.
 * `inspecto-sql/` — sandboxed DuckDB SQL: `SqlSandbox`/`SqlOracle`/`SqlGuard`/`SqlViews` (`file-processor-sql`); depends on fp-api/config/util.
+* `inspecto-etl/` — `com.gamma.etl`: ingest/transform/output core — `PipelineConfig`, ingesters, batch planning, quarantine, partitioned Parquet (`file-processor-etl`).
+* `inspecto-event/` — `com.gamma.event` + `metrics`: the Operational-Intelligence event store + metric registry; owns `logback.xml` (`file-processor-event`).
+* `inspecto-acquire/` — `com.gamma.acquire`: connectors, connection profiles/registry/workbench, fingerprint ledger, stability gate, retry/circuit-breaker (`file-processor-acquire`).
+* `inspecto-engine/` — the engine cluster: `signal`/`query`/`pipeline`/`inspector`/`ingester`/`ops`/`job`/`enrich`/`alert`/`notify`/`catalog`; holds the fat-jar entry points (`file-processor-engine`).
 * [Core](engine.md) - `inspecto/` — the composition root: control plane + application packages, ships `file-processor.jar`. The engine was extracted to sibling modules `inspecto-engine`/`-etl`/`-event`/`-acquire` in WS-D (see [reactor.md](reactor.md)).
 * [Connectors](connectors.md) - `inspecto-connectors/` — SFTP/FTP/FTPS/DB connectors (all network deps).
 * [Agent](agent.md) - `inspecto-agent/` — optional AI assist skills (vendored kernel layer + eoiagent model transport).

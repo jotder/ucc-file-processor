@@ -9,7 +9,7 @@ timestamp: 2026-07-07T00:00:00Z
 
 # Jobs & Scheduling
 
-`JobService` (`inspecto/src/main/java/com/gamma/job/JobService.java`) hosts a registry of jobs and a
+`JobService` (`inspecto-engine/src/main/java/com/gamma/job/JobService.java`) hosts a registry of jobs and a
 virtual-thread `workers` executor. Three trigger modes:
 
 * **Cron** — jobs with a `cron` field are armed on the shared `Scheduler`. **2026-07-20**: `Scheduler.cron()`

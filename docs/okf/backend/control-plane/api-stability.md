@@ -4,7 +4,7 @@
 > Part of the [Inspecto](../../../../inspecto/README.md) documentation.
 
 The framework distinguishes its **stable public API** from internal implementation.
-Types, methods, and constructors marked [`@com.gamma.api.PublicApi`](../../../../inspecto/src/main/java/com/gamma/api/PublicApi.java)
+Types, methods, and constructors marked [`@com.gamma.api.PublicApi`](../../../../inspecto-api/src/main/java/com/gamma/api/PublicApi.java)
 are the surface external code may depend on; everything else is internal and may
 change in any release.
 

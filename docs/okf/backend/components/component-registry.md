@@ -16,7 +16,7 @@ live under `<write-root>/registry/<type>/` as TOON files, addressed by `<type>/<
   was **widened in W3** to also persist `dataset`, `widget`, `dashboard`, and `query` — the seam that lets the
   UI's Studio kinds store for real instead of mock-only. (The UI also persists a `rule` type, used by the
   data-table rule save — see the UI bundle.)
-* **Storage**: `ComponentStore` (`inspecto/src/main/java/com/gamma/pipeline/ComponentStore.java`) — CRUD over the
+* **Storage**: `ComponentStore` (`inspecto-engine/src/main/java/com/gamma/pipeline/ComponentStore.java`) — CRUD over the
   registry dir; `ComponentRegistry` holds the `Component` record (`type`, `name`, `ref`, `content`).
 * **Optimistic concurrency** (W3): `ContentHash` (mirrors the UI's `content-hash.ts`, parity-pinned by test)
   hashes each component's content; `/components` responses carry an **`ETag`**, reads honour

@@ -46,7 +46,13 @@ Inspecto is deliberately **framework-free**: no Spring, no web framework, no IoC
 
 ## Code geography
 
-Engine + control plane live under `inspecto/src/main/java/com/gamma/` — chiefly `etl/` (ingest/transform/
-output), `inspector/` (batch coordination), `acquire/` (acquisition), `control/` (HTTP API), `pipeline/`
-(pipeline graph + components), `query/` (the query catalog), `job/`, `event/`, `metrics/`, `service/`
-(spaces), `config/`, `assist/spi/`, and `util/` (the CLI tool cluster).
+Since the WS-D reactor split the code spans several Maven modules (authoritative map:
+[reactor.md](./modules/reactor.md)). The **core / composition root** [`inspecto/`](./modules/engine.md)
+holds `control/` (HTTP API), `service/` (spaces + host), `assist/spi/`, `report/`, `exchange/`,
+`expectation/`, `intelligence/`, `model/` and ships the fat JAR. The **engine** was extracted below it:
+`etl/` (ingest/transform/output) → `inspecto-etl`; `event/` + `metrics/` → `inspecto-event`; `acquire/`
+(acquisition) → `inspecto-acquire`; and `inspector/` (batch coordination), `pipeline/` (pipeline graph +
+components), `query/` (query catalog), `job/`, `signal/`, `enrich/`, `ops/`, `catalog/`, `alert/`,
+`notify/`, `ingester/` → `inspecto-engine`. Foundation leaves: `api/` → `inspecto-api`, `util/` (DuckDB
+access + I/O helpers) → `inspecto-util`, `config/` → `inspecto-config`, the SQL sandbox → `inspecto-sql`.
+(The `ura` CLI `MainApp` moved out of `util/` to `inspector/`, so it now ships in `inspecto-engine`.)
