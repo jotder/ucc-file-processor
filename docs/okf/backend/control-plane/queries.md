@@ -29,10 +29,14 @@ renderings (Widgets, Dashboards, exports). Vocabulary: [`GLOSSARY.md`](../../../
   The panel gained an `@Input initialModel` so re-opening a saved structured query seeds its builder
   state (backward-compatible — other reused call-sites don't bind it, unaffected). `$`-parameters stay
   SQL-only (detected by scanning `text`; a structured query has no text to scan) — deliberate cut.
-* **Current limits** — `structured` (non-SQL) queries are still compiled/evaluated client-side; the
-  server returns `422` for them explicitly (widgets don't execute *any* bound query server-side yet —
-  a separate, pre-existing follow-on). Pagination is offset-based in this slice. `graph`/`spatial`/
-  `search`/`api` query types are deliberately not built (geo/link views keep their own query shapes).
+* **`structured` queries are client-compiled by design** (R6, product sign-off 2026-07-22 — an
+  *accepted design*, not a risk). The builder UI emits valid SQL text that `QueryExecutor` runs, so
+  a server-side structured compiler would duplicate that logic for no functional gain; the server
+  therefore returns `422` for a non-SQL body **deliberately** (an explicit contract, never silent).
+  Revisit only if an external `/api/v1` consumer must submit structured (non-SQL) bodies directly.
+  (Widgets don't execute *any* bound query server-side yet — a separate, pre-existing follow-on.)
+  Pagination is offset-based in this slice. `graph`/`spatial`/`search`/`api` query types are
+  deliberately not built (geo/link views keep their own query shapes).
 * **Contract** — part of the versioned [`/api/v1`](api-v1.md) surface; envelope + error codes apply.
 
 ## Calculated columns (DAT-5, shipped 2026-07-08; authoring UI 2026-07-10)

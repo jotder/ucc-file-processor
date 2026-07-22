@@ -62,9 +62,17 @@ export class LensService {
         return this.actionGrants()?.[actionNodeId]?.[this.currentLens()] ?? true;
     }
 
-    /** May author in the Workbench (Connections / Pipelines / Jobs create-edit-delete). RBAC: Pipeline
-     *  Developer, Power user, Super user. */
+    /** May author in the Workbench (Pipelines / Jobs / Components create-edit-delete). RBAC: Pipeline
+     *  Developer, Power user, Super user. (Connection onboarding split out to {@link canOnboardConnections}
+     *  2026-07-22 — the credential/egress surface is Admin-owned, not Builder.) */
     readonly canAuthorWorkbench = computed(() => !this.readOnly() && this.allows('workbench.author'));
+
+    /** May onboard/configure Connections (create / edit / delete a connection profile) — its own
+     *  authorization question because Connections are the credential + network-egress surface, a worse
+     *  blast radius than authoring a pipeline (rbac-groundwork §3/§4.1 Q1, product sign-off 2026-07-22).
+     *  RBAC: Admin, Super. In the lens honor-system preview it defaults allowed for the non-Business
+     *  lenses, exactly as Workbench authoring did before the split. */
+    readonly canOnboardConnections = computed(() => !this.readOnly() && this.allows('connections.onboard'));
 
     /** May operate runs (trigger / pause / resume / reprocess) — the plan's "read-only observe"
      *  exception for Business on the Runs pane. RBAC: Operations, Pipeline Developer, Power/Super. */

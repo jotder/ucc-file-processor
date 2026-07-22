@@ -16,6 +16,11 @@ distinct from the analytical **Dashboards** authored in the [Studio](studio.md);
 **Measure**, never a "metric".
 
 * KPI tiles bind to Datasets/Result Sets like any Widget; the gallery lists and previews them.
+* **Target ownership (product sign-off 2026-07-22):** a KPI **target/threshold is a business acceptance
+  criterion, authored by Business ON the Requirement** — not by the Builder inside the Component/dashboard
+  that implements it (mirrors the "Business submits a Requirement, Builder delivers against it" pattern).
+  A `kind: 'kpi'` Requirement (`POST /requirements`) carries optional `target` (+ `comparator`/`unit`)
+  fields alongside title/description; the KPI Widget that satisfies it renders against that agreed bar.
 * **Scheduled exports** (C6, 2026-07-04): a schedule IS a [Job](jobs.md) — `type: 'report'` with
   `params: {reportKind, dashboardId, format, recipients}`; no separate entity. Dispatch keys on
   `params.dashboardId` presence, *not* on `type === 'report'` (that type predates C6 and covers other

@@ -24,6 +24,13 @@ route data (`incidents.routes.ts` / `cases.routes.ts`), the canonical
   instead of hardcoding transitions, so TOON-overridden workflows drive the same panes. Resolve requires
   a resolution comment; a soft resolution-readiness warn checks timeline/cause-analysis/corrective
   actions (backend workflow guard is a documented follow-up).
+* **Create contract (product sign-off 2026-07-22)** — assignment is **direct**: an `assignee`, optional at
+  creation, settable at triage; queue-based routing is deferred (no multi-analyst consumer yet). Mandatory
+  at creation: **title** (already enforced, 400) **+ at least one linked entity/incident-source** (a
+  case/incident with nothing linked isn't useful). The ≥1-link requirement is the agreed *target* contract:
+  today creation is title-only (`POST /objects`, linking is the separate `POST /objects/{id}/links` step —
+  create-then-link), so enforcing link-at-create is a tracked change across the route + `object-create.dialog`
+  + mock + tests ([`BACKLOG.md`](../../../BACKLOG.md) §7), not yet enforced.
 * **Triage is optimistic** — every bulk verb (accept / resolve / archive / reopen / escalate /
   prioritize / tag / case actions) patches the loaded rows + open detail to the expected post-state,
   then reconciles each row with the authoritative server object; failures reload

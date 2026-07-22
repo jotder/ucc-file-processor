@@ -66,11 +66,16 @@ class ControlApiRequirementTest {
     @Test
     void submitDecideDeliverLifecycleAndGates(@TempDir Path cfg, @TempDir Path wr) throws Exception {
         try (Ctx c = open(cfg, wr)) {
-            String submit = "{\"id\":\"churn_kpi\",\"title\":\"Churn KPI\",\"kind\":\"kpi\",\"description\":\"monthly churn\"}";
+            String submit = "{\"id\":\"churn_kpi\",\"title\":\"Churn KPI\",\"kind\":\"kpi\",\"description\":\"monthly churn\","
+                    + "\"target\":5,\"comparator\":\"<=\",\"unit\":\"%\"}";
             JsonNode created = json(send(c.port, "POST", "/requirements", submit));
             assertEquals("churn_kpi", created.get("id").asText());
             assertEquals("submitted", created.get("status").asText());
             assertFalse(created.has("name"), "the component name is surfaced as id, not leaked");
+            // KPI target authored ON the Requirement (Business acceptance criterion, product sign-off 2026-07-22)
+            assertEquals(5, created.get("target").asInt());
+            assertEquals("<=", created.get("comparator").asText());
+            assertEquals("%", created.get("unit").asText());
 
             assertEquals(1, json(send(c.port, "GET", "/requirements", null)).size());
 

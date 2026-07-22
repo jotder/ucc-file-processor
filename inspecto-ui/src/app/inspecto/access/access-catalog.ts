@@ -20,6 +20,10 @@ export const ACCESS_ACTION_NODES: Record<string, AccessNode[]> = {
         id: 'workbench.author', kind: 'action', capability: 'canAuthorWorkbench',
         label: 'Author Workbench content (create / edit / delete)',
     }],
+    connections: [{
+        id: 'connections.onboard', kind: 'action', capability: 'canOnboardConnections',
+        label: 'Onboard connections (create / edit / delete)',
+    }],
     runs: [{
         id: 'runs.operate', kind: 'action', capability: 'canOperateRuns',
         label: 'Operate runs (trigger / pause / resume / reprocess)',

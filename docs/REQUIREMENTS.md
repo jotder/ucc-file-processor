@@ -381,9 +381,9 @@ template gallery + apply).*
 | R3 | ~~Standard jlink runtime unverified vs Nimbus~~ **RESOLVED 2026-07-07** — module set verified sufficient (PKG-4) | — |
 | R4 | Per-resource permissions & X-Actor rejection incomplete on Standard | SEC-7 before first Standard customer |
 | R5 | Provenance conservation checks unproven on live data | OPS-5 live verification alongside R1's seeded run |
-| R6 | Structured (non-SQL) Queries still client-compiled | DAT-3 follow-on; server 422 today is explicit, not silent |
+| R6 | ~~Structured (non-SQL) Queries still client-compiled~~ **ACCEPTED AS DESIGN 2026-07-22** (product sign-off) — not a risk. The builder UI emits valid SQL that `QueryExecutor` runs; a server-side structured compiler would duplicate that for no functional gain. Server 422 on non-SQL bodies stays the explicit, deliberate contract. Revisit only if an external API consumer must submit structured bodies directly. | Closed — `okf/backend/control-plane/queries.md` |
 | R7 | Prompt injection / data egress once intelligence deepens | AGT-5 design: context-as-data, privacy classes P0–P3, approval gates, kill switch |
-| R8 | Open product questions: case-type data-scoped grants, `canOnboardConnections` split, sunset timing | Product owner; tracked in `archived-documents/plans-archive/api-contract-design.md` §10 + `archived-documents/plans-archive/rbac-groundwork.md` |
+| R8 | ~~Open product questions: case-type data-scoped grants, `canOnboardConnections` split, sunset timing~~ **RESOLVED 2026-07-22** (product sign-off): case-type grants = SEC-7d attribute-scope model (shipped, no further per-type role UI); `canOnboardConnections` = split out + implemented (Admin-only grant on the connection write routes); sunset timing = **per-deployment** (no global soak number, W8 mechanism stands). | Closed — `okf/backend/editions/auth-security.md` |
 | R9 | Feature matrix (2026-07-02) drifting from reality | This document is the reconciled view; update **both** on the next planning pass |
 
 ---

@@ -83,8 +83,6 @@ former root reference docs** (each index lists them):
   case-study pack (spec-pinned demo seeds) — reference.
 - [`superpower/pipeline-case-studies.md`](superpower/pipeline-case-studies.md) — Pipelines CS1–CS5
   case-study pack (spec-pinned demo seeds) — reference.
-- [`superpower/product-decisions-recommendations.md`](superpower/product-decisions-recommendations.md) —
-  DRAFT recs for `BACKLOG.md` §7's open product questions, awaiting sign-off.
 
 ---
 

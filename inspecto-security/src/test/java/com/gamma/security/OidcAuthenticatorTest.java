@@ -102,6 +102,15 @@ class OidcAuthenticatorTest {
     }
 
     @Test
+    void adminRoleGrantsOnboardConnectionsAndNotWorkbench() throws Exception {
+        // rbac-groundwork §3/§4.1 Q1 (product sign-off 2026-07-22): Connection onboarding is its own
+        // Admin-owned grant — Admin gets canOnboardConnections and NOT canAuthorWorkbench (Builder-only).
+        String jwt = token(Instant.now().plusSeconds(60), List.of("admin"), RSA_KEY, ISSUER, AUDIENCE, "root");
+        Subject admin = authenticateWithHeader(authenticator(ISSUER, AUDIENCE), "Bearer " + jwt).orElseThrow();
+        assertEquals(Set.of(RoleMapper.CAN_ONBOARD_CONNECTIONS), admin.capabilities());
+    }
+
+    @Test
     void caseRolesResolveDataScopesAndPlainRolesStayUnscoped() throws Exception {
         // SEC-7d: case:<scope> role names → dataScopes (lower-cased); plain roles → unscoped (null)
         String scoped = token(Instant.now().plusSeconds(60), List.of("operations", "case:Fraud"),
@@ -178,10 +187,11 @@ class OidcAuthenticatorTest {
     }
 
     @Test
-    void superRoleGrantsAllThreeCapabilities() throws Exception {
+    void superRoleGrantsAllCapabilities() throws Exception {
         String jwt = token(Instant.now().plusSeconds(60), List.of("super"), RSA_KEY, ISSUER, AUDIENCE, "root");
         Optional<Subject> subject = authenticateWithHeader(authenticator(ISSUER, AUDIENCE), "Bearer " + jwt);
-        assertEquals(Set.of(RoleMapper.CAN_AUTHOR_WORKBENCH, RoleMapper.CAN_OPERATE_RUNS, RoleMapper.CAN_TRIAGE_REQUIREMENTS),
+        assertEquals(Set.of(RoleMapper.CAN_AUTHOR_WORKBENCH, RoleMapper.CAN_OPERATE_RUNS,
+                        RoleMapper.CAN_TRIAGE_REQUIREMENTS, RoleMapper.CAN_ONBOARD_CONNECTIONS),
                 subject.get().capabilities());
     }
 }

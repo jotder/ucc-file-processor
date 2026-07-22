@@ -84,7 +84,23 @@ final class RequirementRoutes implements RouteModule {
         content.put("description", ApiContext.str(body, "description") == null ? "" : body.get("description"));
         content.put("status", "submitted");
         content.put("submittedAt", Instant.now().toString());
+        // A KPI target/threshold is a business acceptance criterion, authored by Business ON the
+        // Requirement — not buried in the Component/dashboard that implements it (product sign-off
+        // 2026-07-22, mirrors the "Business submits a Requirement, Builder delivers" pattern). Persist
+        // the optional target (+ comparator/unit) for a kpi requirement so it rides on the object the
+        // Builder is asked to satisfy. Optional, so an in-flight kpi requirement without one still submits.
+        if ("kpi".equals(kind.toLowerCase())) {
+            putIfPresent(content, body, "target");
+            putIfPresent(content, body, "comparator");
+            putIfPresent(content, body, "unit");
+        }
         return write(store, id, content);
+    }
+
+    /** Copy {@code key} from the request body into {@code content} only when the caller supplied it. */
+    private static void putIfPresent(Map<String, Object> content, Map<String, Object> body, String key) {
+        Object v = body.get(key);
+        if (v != null) content.put(key, v);
     }
 
     private Object decide(ApiContext api, String id, Map<String, Object> body) throws IOException {

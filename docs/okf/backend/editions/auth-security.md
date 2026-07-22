@@ -29,18 +29,23 @@ discovers the mode via `GET /bootstrap` → `features.authMode` and its OIDC flo
 
 **The Capability seam (RBAC groundwork, 2026-07-03; seam proven by Lens Access config 2026-07-14).**
 Authorization questions are always asked as **named capabilities** (`canAuthorWorkbench`, `canOperateRuns`,
-`canTriageRequirements`, …) — never "which lens is active?". A **Lens** is a self-selected *view* (UX shaping,
-honor system); a **Role** is an admin-*assigned* authorization enforced server-side (GLOSSARY §1-A, binding).
-On Standard, `RoleMapper` resolves IAM claims → roles → capabilities per the planned taxonomy (Business /
-Pipeline Developer / Operations / Power / Admin / Super); the UI re-derives its capability signals from the
-subject's grants in one file — no pane changes. Rules for extending: one new named capability per distinct
-authorization question; never reuse one because its current value happens to match. **Data-scoped grants
-(SEC-7d, shipped 2026-07-08):** an object's `caseType` attribute vs `Subject.dataScopes` (null = unscoped;
-resolved from a `data_scopes` claim ∪ `case:<scope>` role names), enforced in `ObjectRoutes` — filtered
-lists, 404 on out-of-scope access, pruned correlation graphs; event/audit streams stay capability-gated by
-design. Open questions recorded for the security module: does Connection onboarding move to Admin (its own
-`canOnboardConnections`)? what is the RBAC grant set for `canTriageRequirements`? Per-object ACLs/ownership
-are deferred to Enterprise ABAC.
+`canTriageRequirements`, `canOnboardConnections`, …) — never "which lens is active?". A **Lens** is a
+self-selected *view* (UX shaping, honor system); a **Role** is an admin-*assigned* authorization enforced
+server-side (GLOSSARY §1-A, binding). On Standard, `RoleMapper` resolves IAM claims → roles → capabilities
+per the planned taxonomy (Business / Pipeline Developer / Operations / Power / Admin / Super); the UI
+re-derives its capability signals from the subject's grants in one file — no pane changes. Rules for
+extending: one new named capability per distinct authorization question; never reuse one because its current
+value happens to match. **Data-scoped grants (SEC-7d, shipped 2026-07-08):** an object's `caseType` attribute
+vs `Subject.dataScopes` (null = unscoped; resolved from a `data_scopes` claim ∪ `case:<scope>` role names),
+enforced in `ObjectRoutes` — filtered lists, 404 on out-of-scope access, pruned correlation graphs;
+event/audit streams stay capability-gated by design. **`canOnboardConnections` (rbac-groundwork §3/§4.1 Q1,
+product sign-off 2026-07-22, IMPLEMENTED):** Connection onboarding is its own Admin-owned grant — the write
+routes (`POST`/`PUT`/`DELETE /connections`) gate on `canOnboardConnections`, **not** `canAuthorWorkbench`,
+because Connections are the credential + network-egress surface (worse blast radius than authoring a pipeline;
+a Pipeline Developer builds against *existing* connections but can't mint new ones). `RoleMapper` maps
+`admin → canOnboardConnections` and `super → {all}`; the UI mirrors it as `LensService.canOnboardConnections`
+(the connections pane's create/edit/delete gate). Still-open security-module questions: RBAC grant set for
+`canTriageRequirements`; per-object ACLs/ownership are deferred to Enterprise ABAC.
 
 **The write-gate is separate from auth and stays in all editions.** `-Dassist.write.root` is a path-jailed
 filesystem gate on mutation routes (config writes, connection writes, authored-Pipeline CRUD): absent →

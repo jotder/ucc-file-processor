@@ -32,8 +32,11 @@ final class ConnectionRoutes implements RouteModule {
     @Override
     public void register(ApiContext api) {
         api.get("/connections", (e, m) -> connectionList(api));
-        // Writes require canAuthorWorkbench (W6; a no-op on Personal — no Subject is ever attached there).
-        api.post("/connections", ApiContext.withCapability("canAuthorWorkbench", (e, m) -> createConnection(api, api.body(e))));
+        // Writes require canOnboardConnections — its own Admin-only grant (rbac-groundwork §3/§4.1 Q1,
+        // product sign-off 2026-07-22), NOT canAuthorWorkbench: Connections are the credential/egress
+        // surface, so onboarding them is distinct from authoring pipelines/components. A no-op on
+        // Personal — no Subject is ever attached there.
+        api.post("/connections", ApiContext.withCapability("canOnboardConnections", (e, m) -> createConnection(api, api.body(e))));
         api.post("/connections/([^/]+)/test", (e, m) -> testConnection(api, ApiContext.name(m)));
         // The connection-workbench verbs (graded probe · explore · sample) — read-only network probes with
         // no persistence, so no capability gate, same as /test. Backed by ConnectionWorkbench implementations;
@@ -46,8 +49,8 @@ final class ConnectionRoutes implements RouteModule {
         // (a read-only network probe, same as the saved-profile test above). ?target= connection|tunnel|proxy
         // selects which hop to probe.
         api.post("/connections/test", (e, m) -> testUnsavedProfile(api.body(e), ApiContext.query(e, "target")));
-        api.put("/connections/([^/]+)", ApiContext.withCapability("canAuthorWorkbench", (e, m) -> updateConnection(api, ApiContext.name(m), api.body(e))));
-        api.delete("/connections/([^/]+)", ApiContext.withCapability("canAuthorWorkbench", (e, m) -> deleteConnection(api, ApiContext.name(m))));
+        api.put("/connections/([^/]+)", ApiContext.withCapability("canOnboardConnections", (e, m) -> updateConnection(api, ApiContext.name(m), api.body(e))));
+        api.delete("/connections/([^/]+)", ApiContext.withCapability("canOnboardConnections", (e, m) -> deleteConnection(api, ApiContext.name(m))));
         api.get("/connections/([^/]+)", (e, m) -> connectionById(api, ApiContext.name(m)));
     }
 

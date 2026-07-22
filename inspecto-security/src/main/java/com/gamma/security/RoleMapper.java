@@ -27,9 +27,15 @@ import java.util.Set;
 final class RoleMapper {
     private RoleMapper() {}
 
-    static final String CAN_AUTHOR_WORKBENCH    = "canAuthorWorkbench";
-    static final String CAN_OPERATE_RUNS        = "canOperateRuns";
-    static final String CAN_TRIAGE_REQUIREMENTS = "canTriageRequirements";
+    static final String CAN_AUTHOR_WORKBENCH     = "canAuthorWorkbench";
+    static final String CAN_OPERATE_RUNS         = "canOperateRuns";
+    static final String CAN_TRIAGE_REQUIREMENTS  = "canTriageRequirements";
+    // canOnboardConnections (rbac-groundwork §3/§4.1 Q1, product sign-off 2026-07-22) — Connection
+    // onboarding/config is the credential + network-egress surface, so it is its own Admin-only grant,
+    // NOT folded into canAuthorWorkbench: a Pipeline Developer builds pipelines against EXISTING
+    // connections but can't mint new ones. Admin projects onto the Settings/Admin surface (§3), so it
+    // holds this rather than canAuthorWorkbench (which stays Builder-only).
+    static final String CAN_ONBOARD_CONNECTIONS  = "canOnboardConnections";
 
     static Set<String> capabilitiesFor(JWTClaimsSet claims, String rolesClaim) {
         Set<String> caps = new LinkedHashSet<>();
@@ -37,13 +43,15 @@ final class RoleMapper {
             switch (role.toLowerCase(Locale.ROOT)) {
                 case "pipeline-developer", "app-developer", "developer" -> caps.add(CAN_AUTHOR_WORKBENCH);
                 case "operations", "support" -> caps.add(CAN_OPERATE_RUNS);
+                case "admin" -> caps.add(CAN_ONBOARD_CONNECTIONS);
                 case "power" -> { caps.add(CAN_AUTHOR_WORKBENCH); caps.add(CAN_OPERATE_RUNS); }
                 case "super" -> {
                     caps.add(CAN_AUTHOR_WORKBENCH);
                     caps.add(CAN_OPERATE_RUNS);
                     caps.add(CAN_TRIAGE_REQUIREMENTS);
+                    caps.add(CAN_ONBOARD_CONNECTIONS);
                 }
-                default -> { /* "business", "admin", or unrecognised — no additional grant */ }
+                default -> { /* "business" or unrecognised — no additional grant */ }
             }
         }
         return caps;
