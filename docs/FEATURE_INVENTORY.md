@@ -116,10 +116,10 @@ Types: `enrich`, `report`, `maintenance`, `pipeline` (`JobConfig.load()` — enu
 
 ### G — Authored flows (`*_flow.toon`)
 
-Node types from `PipelineNodeTypes.catalog()`. (No `*_flow.toon` file exists in the repo yet — the
-authored-flow TOON shape lives only in test Java strings: `ControlApiFlowCrudTest`,
-`PipelineJobRunnerTest`. `PipelineCodec` round-trips `nodes[id,type,name?,description?,use?,config?]` +
-`edges[from,rel,to]` + `name` + `active`.)
+Node types from `PipelineNodeTypes.catalog()`. (The `demo` space now ships a real authored-flow example —
+`spaces/demo/config/flows/orders_rollup_flow.toon` — and the shape also appears in test Java strings
+(`ControlApiFlowCrudTest`, `PipelineJobRunnerTest`). `PipelineCodec` round-trips
+`nodes[id,type,name?,description?,use?,config?]` + `edges[from,rel,to]` + `name` + `active`.)
 
 | Node | Fragment | Doc |
 |---|---|---|
@@ -282,8 +282,11 @@ the rest are planned in subsequent phases. Features that can't run offline (remo
 
 ## 6. Known gaps
 
-- No `*_flow.toon` or `*_rca.toon` example exists in the repo — the shapes live only in tests
-  (`ControlApiFlowCrudTest`, `PipelineJobRunnerTest`) or are consumed by APIs without a file fixture.
+- ~~No `*_flow.toon` or `*_rca.toon` example exists in the repo — the shapes live only in tests.~~
+  **Stale, corrected 2026-07-22**: the `demo` sample catalog now ships both — a flow
+  (`spaces/demo/config/flows/orders_rollup_flow.toon`) and an RCA template
+  (`spaces/demo/config/ops/orders_rca.toon`), each also mirrored under `spaces/uat/config/`. The TOON
+  shapes are additionally exercised in tests (`ControlApiFlowCrudTest`, `PipelineJobRunnerTest`).
 - ~~`json` / `text_regex` frontends are `[LIVE]` — runnable examples can now be added to the suite.~~
   **SHIPPED 2026-07-20**: `examples/02-parsing/json-frontend` and `examples/02-parsing/text-regex-frontend`
   added (NDJSON + named-capture-group regex, each with `samples/` and a README catalog row).
@@ -296,9 +299,12 @@ the rest are planned in subsequent phases. Features that can't run offline (remo
   delimiter via `str_split`, and matches `pattern` (auto-prefixed `(?s)`) against each trimmed
   record's full text, so a capture group may span what were previously separate physical lines.
   `ComponentPreview.textRegexSelect` mirrors the same block-mode SQL for UI previews. Default
-  (line-per-record) behavior is unchanged. See `inspecto/src/test/java/com/gamma/etl/TextRegexTest.java`
+  (line-per-record) behavior is unchanged. See `inspecto-etl/src/test/java/com/gamma/etl/TextRegexTest.java`
   (`blankLineRecordSplitSpansMultipleLines`, `literalDelimiterRecordSplitIsAccepted`).
-- No subscriber `.dat` / plugin-binary sample data in the repo — synthesize for those examples.
+- ~~No subscriber `.dat` / plugin-binary sample data in the repo — synthesize for those examples.~~
+  **Partly stale, corrected 2026-07-22**: subscriber `.dat` samples now ship
+  (`spaces/default/data/samples/subscriber/SUBSCRIBER_*.dat`, per §2). Only the plugin/CALL **binary**
+  samples remain unsynthesized.
 - ~~`package.ps1` pre-creates inbox/database dirs only for `adjustment` + `voucher`~~ **stale, corrected
   2026-07-20**: `package.ps1` does not pre-create any adapter inbox/database dirs — the bundle's own
   comment (line 21) tells the operator to create `file-processor-deploy/inbox/<adapter>/` manually;
