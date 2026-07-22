@@ -200,13 +200,14 @@ their natural homes (`job`, `query`), which also dropped `enrich` out of the SCC
   (`DbObjectStore`/`DbLinkStore`/`DbNoteStore`/`DbJobRunStore`/`DbProvenanceStore` + `DbStatusStore`),
   which repeats the same `browseConnection()`/`initSchema()`/`open(...)` shape. Convention is consistent
   and correct today — no bug forcing dedup.
-- **Signal causation-assembly dedup — new, trigger-gated (2026-07-22).** `Signals.assembleTree` (nested,
-  new for `GET /signals/tree`) and `InspectoTools.causationOrder` (flat DFS, feeds the agent's
-  `signal_timeline` tool) implement the same roots/orphans/cycle-safe causation assembly. `causationOrder`
-  could delegate to a flatten-of-`assembleTree`, but the two differ subtly on cycle handling (`assembleTree`
-  surfaces cycle members as roots; `causationOrder` appends them as timestamp-ordered remnants) and it lives
-  in `inspecto-intelligence` with its own `InspectoToolsTest` coverage — so fold only when next touching that
-  module. No bug today; pure dedup.
+- **Signal causation-assembly dedup — DONE (2026-07-22).** Folded `InspectoTools.causationOrder` onto a new
+  shared engine primitive `Signals.causationOrder(List<Signal>)`, a depth-first (pre-order) flatten of the
+  same `assembleTree` forest that backs `GET /signals/tree`; the private flat DFS in `inspecto-intelligence`
+  is gone and `signal_timeline` delegates. Canonical cycle behavior is now `assembleTree`'s (members surface
+  as roots at their oldest-first position) — the one deliberate divergence from the retired impl, which
+  appended cycle remnants at the end; cycles never occur in real data, and the happy-path output is
+  byte-identical. Locked with two engine-level tests (`SignalsTest.causationOrder*`); the existing
+  `InspectoToolsTest` `signal_timeline` cases stay green. Pure dedup, no behavior change.
 - **C4 BOM — CLOSED (moot).** The precondition (artifacts consumed OUTSIDE this reactor) does not exist —
   the project ships as a fat-JAR deployable, not a published library, and M1 (`73ea9a1`) already gave the
   reactor modules shared version hygiene via parent `dependencyManagement`. Reopen only if an external

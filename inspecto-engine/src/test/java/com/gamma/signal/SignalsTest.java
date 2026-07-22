@@ -146,6 +146,32 @@ class SignalsTest {
         assertTrue(roots.get(0).children().isEmpty() && roots.get(1).children().isEmpty());
     }
 
+    private static List<String> signalIds(List<Signal> signals) {
+        return signals.stream().map(Signal::signalId).toList();
+    }
+
+    @Test
+    void causationOrderFlattensTheForestDepthFirstOldestFirst() {
+        Signal a = tnode("A", null, 1000);
+        Signal b = tnode("B", "A", 2000);
+        Signal c = tnode("C", "A", 3000);
+        Signal orphan = tnode("D", "gone", 4000);          // cause points outside the set → a root
+        // pre-order flatten of assembleTree: root A, then A's children oldest-first (B, C), then the
+        // orphan root D — nothing dropped, each signal exactly once. Input order is irrelevant.
+        assertEquals(List.of("A", "B", "C", "D"),
+                signalIds(Signals.causationOrder(List.of(c, orphan, a, b))));
+    }
+
+    @Test
+    void causationOrderIsFiniteUnderAnInjectedCycle() {
+        Signal x = tnode("X", "Y", 1000);
+        Signal y = tnode("Y", "X", 2000);
+        // Canonical cycle handling: assembleTree surfaces cycle members as roots, so the flatten lists
+        // them at their oldest-first root position (never looping, never dropping) — this is the one
+        // deliberate divergence from the retired flat impl, which appended cycle remnants at the end.
+        assertEquals(List.of("X", "Y"), signalIds(Signals.causationOrder(List.of(y, x))));
+    }
+
     /** S0 DoD: a nested payload round-trips through {@code toEvent()}/{@code fromEvent()} with zero
      *  JSON-in-attribute (the {@link Signal#payload()} stays a real, nested {@code Map<String,Object>}
      *  end to end), and the API view's {@code source} is a nested {@link Ref} object, not a flat string. */

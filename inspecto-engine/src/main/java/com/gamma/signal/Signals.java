@@ -5,8 +5,10 @@ import com.gamma.event.EventQuery;
 import com.gamma.event.EventStore;
 import com.gamma.event.EventType;
 
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.Deque;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -128,6 +130,28 @@ public final class Signals {
             else roots.add(node);   // no in-set parent, self-cause, or a would-be cycle → a root
         }
         return roots;
+    }
+
+    /**
+     * The {@link #assembleTree} causation forest flattened depth-first (pre-order): each root in turn —
+     * oldest first — immediately followed by the signals it caused, recursively, each level in the same
+     * oldest-first order. Nothing is dropped (an orphan whose causation names nothing in the set is a
+     * root) and every signal appears exactly once. This is the flat read of the same tree the
+     * {@code /signals/tree} route returns, for callers that want a single ordered stream (e.g. the
+     * agent's {@code signal_timeline} tool).
+     */
+    public static List<Signal> causationOrder(List<Signal> signals) {
+        List<Signal> out = new ArrayList<>(signals.size());
+        Deque<SignalNode> stack = new ArrayDeque<>();
+        List<SignalNode> roots = assembleTree(signals);
+        for (int i = roots.size() - 1; i >= 0; i--) stack.push(roots.get(i));
+        while (!stack.isEmpty()) {
+            SignalNode node = stack.pop();
+            out.add(node.signal());
+            List<SignalNode> kids = node.children();
+            for (int i = kids.size() - 1; i >= 0; i--) stack.push(kids.get(i));  // preserve sort order
+        }
+        return out;
     }
 
     /** Walk the causation chain up from {@code start}; a revisited id means the {@code causationId}

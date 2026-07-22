@@ -231,7 +231,7 @@ final class InspectoTools {
                     correlationId, TIMELINE_FETCH_LIMIT);
             if (matched.isEmpty()) return error("no signals for correlationId '" + correlationId + "'");
             List<Map<String, Object>> timeline = new ArrayList<>();
-            for (Signal s : causationOrder(matched)) {
+            for (Signal s : Signals.causationOrder(matched)) {
                 Map<String, Object> entry = new LinkedHashMap<>();
                 entry.put("signalId", s.signalId());
                 entry.put("at", s.at().toString());
@@ -245,47 +245,6 @@ final class InspectoTools {
             return ok(Map.of("correlationId", correlationId, "count", timeline.size(),
                     "timeline", timeline));
         });
-    }
-
-    /**
-     * Causation-aware order: roots (no {@code causationId}, or one pointing outside the set —
-     * "orphans" included, never dropped) sorted oldest-first by timestamp then signalId, each
-     * followed depth-first by its causal children in the same sort. Any cycle remnants are appended
-     * timestamp-ordered so nothing is ever lost.
-     */
-    private static List<Signal> causationOrder(List<Signal> signals) {
-        List<Signal> sorted = new ArrayList<>(signals);
-        sorted.sort(java.util.Comparator.comparing(Signal::at)
-                .thenComparing(Signal::signalId, java.util.Comparator.nullsFirst(java.util.Comparator.naturalOrder())));
-        java.util.Set<String> ids = new java.util.HashSet<>();
-        for (Signal s : sorted) ids.add(s.signalId());
-        Map<String, List<Signal>> children = new LinkedHashMap<>();
-        List<Signal> roots = new ArrayList<>();
-        for (Signal s : sorted) {
-            String cause = s.causationId();
-            if (cause != null && ids.contains(cause) && !cause.equals(s.signalId())) {
-                children.computeIfAbsent(cause, k -> new ArrayList<>()).add(s);
-            } else {
-                roots.add(s);
-            }
-        }
-        List<Signal> out = new ArrayList<>(sorted.size());
-        java.util.Set<String> visited = new java.util.HashSet<>();
-        java.util.Deque<Signal> stack = new java.util.ArrayDeque<>();
-        for (Signal root : roots) {
-            stack.push(root);
-            while (!stack.isEmpty()) {
-                Signal s = stack.pop();
-                if (!visited.add(s.signalId())) continue;
-                out.add(s);
-                List<Signal> kids = children.getOrDefault(s.signalId(), List.of());
-                for (int i = kids.size() - 1; i >= 0; i--) stack.push(kids.get(i)); // preserve sort order
-            }
-        }
-        for (Signal s : sorted) {
-            if (!visited.contains(s.signalId())) out.add(s); // cycle remnants, timestamp-ordered
-        }
-        return out;
     }
 
     // ── AGT-5 P1 slice A: investigation analysis tools ──────────────────────────

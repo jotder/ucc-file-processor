@@ -65,8 +65,9 @@ diagnostic context, AG-UI streaming, A2UI inline artifacts — and finally to a 
   a tree without an anchor is an unbounded forest). Pure logic in `Signals.assembleTree` (engine);
   the route just projects `SignalNode` → nested map. ⚠ No producer threads `causationId` yet, so trees
   are flat (all roots) today — this is the HTTP peer of `signal_timeline` below, which does the same
-  causation assembly as a flat list; **`InspectoTools.causationOrder` is a candidate to fold onto
-  `Signals.assembleTree`** (noted dedup follow-on, `BACKLOG.md` §5).
+  causation assembly as a flat list. **Both share one engine primitive**: `signal_timeline` calls
+  `Signals.causationOrder`, a depth-first (pre-order) flatten of the same `assembleTree` forest (dedup
+  done 2026-07-22, `BACKLOG.md` §5).
 * **`AgUiProjection`** (`inspecto/src/main/java/com/gamma/signal/AgUiProjection.java`) — pure mapping
   from a domain Signal type to an AG-UI event type (`agent.run.started`→`RUN_STARTED`, etc.,
   `CUSTOM` for anything uncatalogued). Domain type names stay dotted/canonical internally; AG-UI is
@@ -93,10 +94,11 @@ diagnostic context, AG-UI streaming, A2UI inline artifacts — and finally to a 
 * Two new tools on the agent's read-only belt (`inspecto-intelligence/.../pack/InspectoTools.java`,
   same `FunctionTool` pattern as `status_get`): **`signals_query`** (filtered ledger slice — type
   glob, time window, severity floor, correlationId) and **`signal_timeline`** (causation-ordered
-  reconstruction for one correlationId: roots — no/absent `causationId` — oldest-first, each followed
-  depth-first by its causal children; orphans and cycle remnants are appended timestamp-ordered,
-  never dropped). Every entry carries a citable `signalId`. This is what makes "why did pipeline X
-  fail?" and "narrate your own last run" (from the `agent.*` facts above) answerable.
+  reconstruction for one correlationId, via the shared `Signals.causationOrder` flatten of `assembleTree`:
+  roots — no/absent `causationId`, plus orphans whose cause is outside the set — oldest-first, each
+  followed depth-first by its causal children; cycle members surface as roots, never dropped). Every
+  entry carries a citable `signalId`. This is what makes "why did pipeline X fail?" and "narrate your
+  own last run" (from the `agent.*` facts above) answerable.
 * **`ContextBroker`** (`inspecto-intelligence/.../context/ContextBroker.java`) — the first real
   implementation of `embedded-intelligence-plan.md` §2's situation frame: deterministic, budget-bound
   (`FRAME_BUDGET_CHARS`, overlay evicted oldest-first) composition of identity (role) + focus (page
