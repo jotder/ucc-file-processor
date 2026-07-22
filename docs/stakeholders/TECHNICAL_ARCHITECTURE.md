@@ -17,7 +17,7 @@ Three cooperating applications, one product:
                                │ HTTPS (Standard) / HTTP (Personal)
 ┌─ Java backend (single JVM) ──▼───────────────────────────────────────────┐
 │  ControlApi (JDK HttpServer) → /api/v1 versioned contract               │
-│  SourceService: acquisition → Stage-1 M..N ingest → Parquet lakehouse   │
+│  CollectorService: acquisition → Stage-1 M..N ingest → Parquet lakehouse   │
 │  Stage-2 enrichment · authored Pipelines (DAG) · Jobs/Scheduler         │
 │  Component store + metadata graphs · Signal ledger · embedded DuckDB    │
 │  Modules: core │ connectors │ agent │ agent-hosted │ security(Standard) │

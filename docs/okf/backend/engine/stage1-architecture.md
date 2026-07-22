@@ -9,7 +9,7 @@
 > engine (`com.gamma.etl` + `com.gamma.inspector`) — still the heart of the data plane, and still
 > accurate below. Around it the platform has since grown, in order: the **Stage-2 enrichment engine**
 > (`com.gamma.enrich`, 2.x) which deliberately *does* the joins/aggregations listed below as Stage-1
-> non-goals; the **service + control plane** (`SourceService` + `ControlApi` — Jobs, Signals/events,
+> non-goals; the **service + control plane** (`CollectorService` + `ControlApi` — Jobs, Signals/events,
 > Metrics, audit, and since 4.8 the versioned **`/api/v1`** contract); **authored Pipelines**
 > (`com.gamma.pipeline` — DAGs of Steps run as `type: pipeline` Jobs); **multi-space tenancy**
 > (`spaces/<id>/…`); the **Component metamodel** + derived registry; **editions** as build flavors

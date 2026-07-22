@@ -7,7 +7,7 @@
 > and the operator-facing config/runbook are in
 > [`configuration.md`](../config/configuration.md#data-acquisition--the-source-block) and
 > [`integrations.md`](../integrations.md#remote-source-connectors-sftp--ftp).
-> **Delivered:** the `SourceConnector` SPI (`com.gamma.acquire`) + local parity (A); readiness/stability gate (B);
+> **Delivered:** the `CollectorConnector` SPI (`com.gamma.acquire`) + local parity (A); readiness/stability gate (B);
 > fingerprint ledger + content dedup (C); collection-guarantee knob + sequence-gap→alert (D); **SFTP + FTP**
 > connectors in the optional `inspecto-connectors` module + connection profiles + integrity + `.bz2`/`.zip` (E);
 > retry/circuit-breaker/dead-letter + source-side post-actions + parallel fetch + rate limit (F).

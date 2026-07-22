@@ -34,10 +34,10 @@
 
 | Feature | TOON skeleton | Doc / code |
 |---|---|---|
-| `active:` gate (default false = never runs) | `name: X` / `active: true` | `configuration.md` · `SourceService` poll filter |
+| `active:` gate (default false = never runs) | `name: X` / `active: true` | `configuration.md` · `CollectorService` poll filter |
 | M..N parallelism (sources × batches) | `processing:` / `  threads: 4` | `configuration.md` · `MultiCollectorProcessor` + `Semaphore(maxConcurrentRuns)` |
 | `batch.max_files` / `batch.max_bytes` | `processing:` / `  batch:` / `    max_files: 500` | `BatchPlanner` |
-| Multi-source (many `active: true` pipelines in one service) | one `*_pipeline.toon` per source under `config/` | `ADVANCED_GUIDE §3` · `SourceService.runAllOnce` |
+| Multi-source (many `active: true` pipelines in one service) | one `*_pipeline.toon` per source under `config/` | `ADVANCED_GUIDE §3` · `CollectorService.runAllOnce` |
 | File-pattern glob | `processing:` / `  file_pattern: "glob:**/*.{csv,csv.gz}"` | `configuration.md` |
 
 ### B — Parsing frontends

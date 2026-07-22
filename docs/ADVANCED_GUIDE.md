@@ -53,7 +53,7 @@ SPI; editions are build flavors, never branches (see [`EDITIONS.md`](EDITIONS.md
 | `inspecto-ui/` | (npm) | Angular SPA (served as static files by the engine when `-Dui.dir` is set). |
 
 ### Processes / entry points
-- **`com.gamma.service.SourceService`** — the long-running host: poll loop + Control API + (optional) UI on
+- **`com.gamma.service.CollectorService`** — the long-running host: poll loop + Control API + (optional) UI on
   **`:8080`** (`-Dcontrol.port`). This is "the server" in production.
 - **`com.gamma.inspector.CollectorProcessor`** — one-shot ETL of a single config (CLI / embedded use).
 - **Every JVM launch needs `--enable-native-access=ALL-UNNAMED`** (DuckDB JNI) — including tests.
@@ -69,7 +69,7 @@ One SemVer version spans all editions; artifacts differ by classifier/build prof
 This is the single most important section for diagnosing "stuck", "deadlock", "duplicate run", and "why didn't
 my downstream fire" problems.
 
-### The poll loop (`SourceService.runAllOnce`)
+### The poll loop (`CollectorService.runAllOnce`)
 One cycle, under a single **`ingestLock` (`ReentrantLock`)** held for the whole cycle:
 1. **Config rebuild** — `ConfigRegistry.rebuild(registry)`: mtime-cached re-index of `*_pipeline.toon`. Re-parses
    only changed files (+ their referenced schema/grammar/segment files). Steady-state cycles do no parse I/O.
@@ -95,7 +95,7 @@ Two more counters: `inspecto_poll_cycles_total`, `inspecto_active_runs`.
 virtual thread publishes a `BatchEvent` *while `ingestLock` may be held*. Therefore **a subscriber must be fast
 and must never run another ingest inline** — that would deadlock on `ingestLock`. Both real subscribers hand off:
 - `JobService.onBatchEvent` → submits to its own vthread executor.
-- `SourceService.onUpstreamCommit` (event-triggered flows) → hands off to **`triggerWorkers`** (a third vthread
+- `CollectorService.onUpstreamCommit` (event-triggered flows) → hands off to **`triggerWorkers`** (a third vthread
   pool) via `TriggerCoalescer.signal()`.
 If you add a bus subscriber that does real work, **hand off to an executor**; never block, never re-enter ingest.
 
@@ -104,7 +104,7 @@ If you add a bus subscriber that does real work, **hand off to an executor**; ne
 |---|---|---|---|
 | outer fan-out | `MultiCollectorProcessor` | `Semaphore(maxConcurrentRuns)` | concurrent sources per cycle |
 | inner fan-out | `CollectorProcessor` | `Semaphore(processing.threads)` | concurrent batches per source |
-| `triggerWorkers` | `SourceService` | vthread-per-task | event-triggered downstream flows (off-bus) |
+| `triggerWorkers` | `CollectorService` | vthread-per-task | event-triggered downstream flows (off-bus) |
 | `workers` | `JobService` | vthread-per-task | job executions (off-bus); per-job non-overlap via `LockingRunner` |
 
 ---
@@ -148,7 +148,7 @@ Each sub-section: **Responsibility · Process · Events · Metrics · State · C
 
 ### 5.1 Acquisition (`com.gamma.acquire`, `com.gamma.inspector`, `inspecto-connectors`)
 - **Responsibility:** discover + fetch + validate + dedup source files into the poll staging tree.
-- **Process:** §4 steps 2–7. Connectors are `SourceConnector` SPI (`local`, `sftp`, `ftp`, `ftps`, `db`),
+- **Process:** §4 steps 2–7. Connectors are `CollectorConnector` SPI (`local`, `sftp`, `ftp`, `ftps`, `db`),
   ServiceLoader-discovered; remote ones live in `inspecto-connectors`. Reusable `*_connection.toon` profiles
   resolved via `ConnectionRegistry`/`SecretResolver` (secret schemes incl. `SYS:<key>`).
 - **Events:** `FILE_DISCOVERED`, `FILE_STABLE`, `FILE_FETCHED`, `FILE_VALIDATED`, `FILE_FETCH_FAILED`,
@@ -230,7 +230,7 @@ Each sub-section: **Responsibility · Process · Events · Metrics · State · C
   chain off it. **Guidance:** when a flow reads a store a pipeline writes, trigger it with `on_pipeline: <producer>`
   rather than a time cron, so it runs only after the producer's commit is durable (avoids a half-written read).
 - **Deletion fence (T25 × T32):** before a `MAINTENANCE` job that declares `store:` deletes, `fenceDelete`
-  consults the guard. `SourceService.checkDeletion` reports a conflict when a target store has an **active**
+  consults the guard. `CollectorService.checkDeletion` reports a conflict when a target store has an **active**
   producer/consumer — built from lifted pipelines **and** authored flows, with the active set = running pipelines
   **∪ in-flight FLOW jobs** (`JobService.runningFlows()`). Emits `STORE_DELETE_CONFLICT`. *Note:* the fence is made
   *aware of* flow jobs; a flow job does **not** call `guard.check` itself (that would false-positive on normal
@@ -281,11 +281,11 @@ Each sub-section: **Responsibility · Process · Events · Metrics · State · C
 
 | Type | When | Key attributes | Emitter |
 |---|---|---|---|
-| `SERVICE_STARTED` | host fully started | pipelines, pollSeconds, maxConcurrentRuns | SourceService |
-| `PIPELINE_REGISTERED` | config loaded+activated | configPath, activePipelines | SourceService |
-| `PIPELINE_PAUSED` / `PIPELINE_RESUMED` | via API | — | SourceService |
-| `BATCH_COMMITTED` | batch success | batchId, outputRows, durationMs, rejectedCount, partitions | SourceService/bus |
-| `BATCH_FAILED` | batch failure | + error, offendingFile, errorRows | SourceService/bus |
+| `SERVICE_STARTED` | host fully started | pipelines, pollSeconds, maxConcurrentRuns | CollectorService |
+| `PIPELINE_REGISTERED` | config loaded+activated | configPath, activePipelines | CollectorService |
+| `PIPELINE_PAUSED` / `PIPELINE_RESUMED` | via API | — | CollectorService |
+| `BATCH_COMMITTED` | batch success | batchId, outputRows, durationMs, rejectedCount, partitions | CollectorService/bus |
+| `BATCH_FAILED` | batch failure | + error, offendingFile, errorRows | CollectorService/bus |
 | `FILE_DISCOVERED` | connector listed a candidate | file | CollectorProcessor |
 | `FILE_STABLE` | passed readiness gate | file | CollectorProcessor |
 | `FILE_FETCHED` | bytes retrieved | file, bytes | CollectorProcessor |
@@ -295,7 +295,7 @@ Each sub-section: **Responsibility · Process · Events · Metrics · State · C
 | `FILE_ARCHIVED` | source post-action done | file, action | CollectorProcessor |
 | `SEQUENCE_GAP` | expected file missing | expected, sequence, unit | CollectorProcessor → also `EventObjectBridge` → ALERT object |
 | `SOURCE_CIRCUIT_OPEN` | breaker tripped | source | CollectorProcessor |
-| `STORE_DELETE_CONFLICT` | delete races active flow | store, activeProducers, activeConsumers | SourceService |
+| `STORE_DELETE_CONFLICT` | delete races active flow | store, activeProducers, activeConsumers | CollectorService |
 | `ALERT_FIRED` | alert-rule breach | rule, metric, value, severity | AlertService |
 | `OBJECT_OPENED` | managed object created | objectId, objectType, status, severity | ObjectService |
 | `OBJECT_ACTIVITY` | workflow transition | objectId, objectType, from, to, action, actor | ObjectService |

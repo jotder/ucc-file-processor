@@ -15,9 +15,9 @@ call = one poll cycle). Authoritative doc: [`data-acquisition-framework.md`](dat
 
 ## Phases
 
-* **A — Discovery.** `SourceConnectors.forConfig(cfg)` resolves the [connector](connectors.md): scheme
-  `local` → built-in `LocalFileSystemConnector`; otherwise a `ServiceLoader<SourceConnectorFactory>` lookup.
-  `SourceConnector.discover(ctx)` lists candidates (never dedups — that's an engine concern).
+* **A — Discovery.** `CollectorConnectors.forConfig(cfg)` resolves the [connector](connectors.md): scheme
+  `local` → built-in `LocalFileSystemConnector`; otherwise a `ServiceLoader<CollectorConnectorFactory>` lookup.
+  `CollectorConnector.discover(ctx)` lists candidates (never dedups — that's an engine concern).
 * **B — Stability gate.** `StabilityGate` (`com/gamma/acquire/StabilityGate.java`) holds back half-written
   files: it first asks `connector.readiness()`; if `UNKNOWN`, applies size/mtime quiescence (unchanged for
   `stability.window` across `stability.sizeChecks` cycles). One shared instance per [space](../control-plane/multi-space.md).

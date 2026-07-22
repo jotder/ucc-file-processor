@@ -25,7 +25,7 @@ is a **layered monolith** with satellite plug-in modules discovered via ServiceL
 ├─ L4 · HTTP / CONTROL PLANE ───────────────────────────────────────────────────────────────┤
 │  control  (ControlApi dispatcher, ~50 route classes, ApiContext facade, auth gate)        │
 ├─ L3 · ORCHESTRATION / HOST ───────────────────────────────────────────────────────────────┤
-│  service  (SourceService host, SpaceManager, Scheduler, BatchEventBus)   report           │
+│  service  (CollectorService host, SpaceManager, Scheduler, BatchEventBus)   report           │
 ├─ L2 · DOMAIN ENGINES ─────────────────────────────────────────────────────────────────────┤
 │  etl · inspector · acquire(+retry) · enrich · pipeline · pipeline.exec · job · query      │
 │  catalog(+spi) · ops(+link/note/rca/workflow) · alert · notify(+channel) · expectation    │
@@ -74,13 +74,13 @@ Direct files / lines, role, and outbound `com.gamma` dependencies (import counts
 | L2 | `assist` (+`spi`) | 4/327 | Assist value types + `AssistAgent` SPI | api:4, service:1 |
 | L2 | `intelligence.spi` | 1/71 | `IntelligenceAgent` SPI | intelligence:5, service:1 |
 | L2 | `ingester` | 2/259 | Reference `StreamingFileIngester` implementations | etl:6 |
-| L3 | `service` | 23/4360 | `SourceService` host (1,178 lines), `SpaceManager`, `Scheduler`, `BatchEventBus`, `DbStatusStore` | etl:15, event:10, pipeline:6, enrich:6, util:6, job:5, catalog:5, inspector:3, acquire:3, +6 more |
+| L3 | `service` | 23/4360 | `CollectorService` host (1,178 lines), `SpaceManager`, `Scheduler`, `BatchEventBus`, `DbStatusStore` | etl:15, event:10, pipeline:6, enrich:6, util:6, job:5, catalog:5, inspector:3, acquire:3, +6 more |
 | L3 | `report` | 1/300 | Report generation service | service:3, etl:1, api:1 |
 | L4 | `control` | 49/6190 | `ControlApi` dispatcher + ~24 `RouteModule`s + `ApiContext` + auth SPI | pipeline:36, service:18, event:14, config.spec:14, query:13, +15 more |
 
 ### Known dependency cycles (module-extraction blockers)
 
-- **`service` ↔ `job` ↔ `pipeline.exec`** (3-way): `SourceService` → `JobService`; `job` →
+- **`service` ↔ `job` ↔ `pipeline.exec`** (3-way): `CollectorService` → `JobService`; `job` →
   `service.BatchEventBus` and → `pipeline.exec.PipelineJobRunner`; `pipeline.exec` → `job.Job*`
   types and → `service.BatchEventBus`. Break by moving `BatchEventBus` down a layer and extracting
   job contract types. **Partially done (WS-D §1.7):** `CronExpression` moved `service` → `util`;
@@ -93,17 +93,17 @@ Direct files / lines, role, and outbound `com.gamma` dependencies (import counts
 
 ## 3. Composition & lifecycle
 
-- **Composition root:** `SourceService`'s full constructor (`service/SourceService.java:293-399`)
+- **Composition root:** `CollectorService`'s full constructor (`service/CollectorService.java:293-399`)
   assembles the domain graph (stores, event log, catalog, alerting, notifications) *and* performs
   runtime event wiring — subscriptions must happen **before `start()`** (temporal contract noted in
   inline comments at 348-378). `ControlApi.main` → `SpaceManager.startAll()` → per-space
-  `SourceService.start()`; a JVM shutdown hook closes `ControlApi` then `SpaceManager`.
+  `CollectorService.start()`; a JVM shutdown hook closes `ControlApi` then `SpaceManager`.
 - **Threading model:** a 2-thread daemon `Scheduler` (`service/Scheduler.java:38`) only *triggers*
   work (poll-all, sla-sweep, cron); real work hands off to per-purpose virtual-thread executors —
-  `SourceService.triggerWorkers`, `ControlApi`'s HTTP executor (one virtual thread per request),
+  `CollectorService.triggerWorkers`, `ControlApi`'s HTTP executor (one virtual thread per request),
   `NotificationService`'s own executor. `ingestLock` serializes the three ingest entry paths
   (poll cycle, manual run, event trigger).
-- **Shutdown:** `SourceService.close()` (`SourceService.java:1122-1151`) is a hand-ordered
+- **Shutdown:** `CollectorService.close()` (`CollectorService.java:1122-1151`) is a hand-ordered
   sequence (watcher → agents → jobs → workers → enrichment → subscribers → scheduler → stores →
   events last) with per-step try/catch but **no overall deadline**; `ControlApi.close()` uses
   `http.stop(0)` (no in-flight drain). These are documented gaps in the improvement plan.
@@ -114,11 +114,11 @@ Eight ServiceLoader SPIs, all loaded by core:
 
 | SPI interface | Loader | Implementations (module) | `@PublicApi` |
 |---|---|---|---|
-| `acquire.SourceConnectorFactory` | `acquire/SourceConnectors.java:38` | Sftp/Ftp/Ftps/DbExport/S3/Kafka (connectors) | no |
+| `acquire.CollectorConnectorFactory` | `acquire/CollectorConnectors.java:38` | Sftp/Ftp/Ftps/DbExport/S3/Kafka (connectors) | no |
 | `control.Authenticator` | `control/Authenticators.java:21` | `OidcAuthenticator` (security) | no |
 | `control.TokenRelay` | `control/TokenRelays.java:19` | `KeycloakTokenRelay` (security) | no |
-| `assist.spi.AssistAgent` | `service/SourceService.java:604` | `UccAssistAgent` (agent) | **yes** (3.0.0) |
-| `intelligence.spi.IntelligenceAgent` | `service/SourceService.java:609` | `InspectoIntelligenceAgent` (intelligence) | no |
+| `assist.spi.AssistAgent` | `service/CollectorService.java:604` | `UccAssistAgent` (agent) | **yes** (3.0.0) |
+| `intelligence.spi.IntelligenceAgent` | `service/CollectorService.java:609` | `InspectoIntelligenceAgent` (intelligence) | no |
 | `catalog.spi.DescriptionProvider` | `catalog/MetadataGraphService.java:62` | `Noop` (core), `AiDescriptionProvider` (agent) | no |
 | `notify.NotificationChannel` | `notify/NotificationService.java:69` | `WebhookChannel` (core), `SmtpEmailChannel` (connectors) | no |
 | `pipeline.PipelineNodeType` | `pipeline/PipelineNodeTypes.java:31` | **none** — SPI defined, zero implementors/services files | **yes** (4.3.0) |
@@ -142,12 +142,12 @@ core at all.
 1. **`event.EventLog`** — the platform event log: per-space-routed append log + pub/sub
    (`CopyOnWriteArrayList` subscribers). *Writers:* `AlertService`, `control.AuditTrail`,
    `ExpectationRoutes`, `EventStoreAppender` (SLF4J bridge), `inspector.AcquisitionTelemetry`,
-   `ReportJob`, `ObjectService`, `PipelineJobRunner`, `SourceService`. *Subscribers* (wired only in
-   `SourceService.java:347,384`): `ops.EventObjectBridge` — promotes `SEQUENCE_GAP` /
+   `ReportJob`, `ObjectService`, `PipelineJobRunner`, `CollectorService`. *Subscribers* (wired only in
+   `CollectorService.java:347,384`): `ops.EventObjectBridge` — promotes `SEQUENCE_GAP` /
    `FLOW_CONSERVATION_IMBALANCE` events into managed ALERT objects — and the notification
    subscriber.
 2. **`service.BatchEventBus`** — the batch-commit fan-out (`Consumer<BatchEvent>`), subscribed by
-   `JobService`, `EnrichmentService`, `MetricsService`, `SourceService.onUpstreamCommit` (event
+   `JobService`, `EnrichmentService`, `MetricsService`, `CollectorService.onUpstreamCommit` (event
    triggers). **Do not conflate the two.**
 
 ## 6. Configuration layer
@@ -175,7 +175,7 @@ core at all.
 ## 8. Design-pattern inventory
 
 **In use, working:**
-- *Composition Root* — `SourceService` ctor (overloaded: also does event wiring at construction).
+- *Composition Root* — `CollectorService` ctor (overloaded: also does event wiring at construction).
 - *Facade + Service Locator* — `control.ApiContext` over host/spaces; routes pull deps at call
   time, no constructor injection; route instances are stateless.
 - *Strategy* — `BatchIngestStrategy` (Csv vs StreamingPlugin), `OutputFormat` (enum-as-strategy),
@@ -193,9 +193,9 @@ core at all.
   correlation-id, v1 versioning, CORS, idempotency, space routing, auth, audit, and legacy-usage
   metrics in one ~100-line method.
 - **Missing template method**: assist-agent vs intelligence-agent register/lookup/close blocks in
-  `SourceService` (559-596, 603-610, 1125-1132) are copy-pasted; a generic `OptionalAgentSlot<T>`
+  `CollectorService` (559-596, 603-610, 1125-1132) are copy-pasted; a generic `OptionalAgentSlot<T>`
   collapses them.
-- **God object**: `SourceService` — ~10 responsibility clusters, 25+ fields (decomposition plan in
+- **God object**: `CollectorService` — ~10 responsibility clusters, 25+ fields (decomposition plan in
   the improvement plan §2.2).
 - Linear O(n) regex route dispatch — fine at ~200 routes, not indexed; noted, not urgent.
 

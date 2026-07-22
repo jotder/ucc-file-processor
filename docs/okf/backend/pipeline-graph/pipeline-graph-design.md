@@ -73,8 +73,8 @@ current engine, not new engine code:
 
 | Node `type` | Category | NiFi analogy | Backed by today |
 |---|---|---|---|
-| `acquisition` | `SOURCE` | source processor (**file collector**) | `source:` block, `SourceConnector` SPI (`com.gamma.acquire`), connection profiles, stability / dedup / watermark / fetch / retry / circuit-breaker / post-action |
-| `adapter` | `SOURCE` | streaming/push source → micro-batch (**stream collector**) | **new** — extends `SourceConnector` SPI; **windows a stream into intermediate files by time/count/size** and **lands them** (§3.6). The single bridge for non-file/event sources |
+| `acquisition` | `SOURCE` | source processor (**file collector**) | `source:` block, `CollectorConnector` SPI (`com.gamma.acquire`), connection profiles, stability / dedup / watermark / fetch / retry / circuit-breaker / post-action |
+| `adapter` | `SOURCE` | streaming/push source → micro-batch (**stream collector**) | **new** — extends `CollectorConnector` SPI; **windows a stream into intermediate files by time/count/size** and **lands them** (§3.6). The single bridge for non-file/event sources |
 | `parser` | `PARSE` | record reader | `csv_settings` / external grammar, `SchemaSelector`, fixed-width frontend, plugin ingesters (segments) |
 | `transform.*` | `TRANSFORM` | update / route / split processors — **a chainable family, see §3.4** | [`DataTransformer`](../../../../inspecto-etl/src/main/java/com/gamma/etl/DataTransformer.java) + [`TransformCompiler`](../../../../inspecto-etl/src/main/java/com/gamma/etl/TransformCompiler.java) (SQL-expr registry), `CsvSettings` row-filters |
 | `transform.merge` | `TRANSFORM` | join/union (fan-in) processor | **new** — SQL over predecessor outputs as relations (§3.4); generalises `EnrichmentConfig` join-against-reference |
@@ -87,7 +87,7 @@ current engine, not new engine code:
 | `event` | `CONTROL` | notification | `EventLog` / `EventStore` |
 
 New node types are added by registering a `PipelineNodeType` provider (ServiceLoader), mirroring how
-`SourceConnector` and `DescriptionProvider` are discovered — so editions/plugins can contribute nodes.
+`CollectorConnector` and `DescriptionProvider` are discovered — so editions/plugins can contribute nodes.
 
 **Sink is a family, not one node (decided 2026-06-17).** A sink's *materialisation behaviour* is a
 **node-level** concern (orthogonal to the pipeline, which stays pure topology): `sink.persistent` rests
@@ -365,14 +365,14 @@ and are run by **different schedulers**. Conflating them is the confusion this s
 |---|---|---|
 | Is | the **ETL itself** — the flow graph: acquire → parse → **enrich / filter / route** → sync → store | a **downstream hop over the output** — often **ad-hoc / bespoke plugin** logic consuming pipeline-produced data (`enrich` / `report` / derive) |
 | Operates on | source / sync feeds — data **in motion** (lands it in the store) | the store the pipeline already landed — data **at rest** |
-| Driven by | the **poll loop only** ([`SourceService.runAllOnce`](../../../../inspecto/src/main/java/com/gamma/service/CollectorService.java), `Scheduler.everySeconds`), gated by `active:` — NiFi-style, its own schedule | the **job scheduler only** (cron / event / manual via [`JobService`](../../../../inspecto-engine/src/main/java/com/gamma/job/JobService.java)) |
+| Driven by | the **poll loop only** ([`CollectorService.runAllOnce`](../../../../inspecto/src/main/java/com/gamma/service/CollectorService.java), `Scheduler.everySeconds`), gated by `active:` — NiFi-style, its own schedule | the **job scheduler only** (cron / event / manual via [`JobService`](../../../../inspecto-engine/src/main/java/com/gamma/job/JobService.java)) |
 | Schedule grain | all `active` pipelines share the one global poll interval | per-job `cron`, or fires on an upstream `on_commit` |
 | Role | **producer** | **consumer** — *"a job works on the data the pipeline provides"* |
 
 **Clean rules (decided 2026-06-17):**
 1. **A pipeline is the ETL and is poll-driven, period.** The whole acquire → parse → enrich/filter/route → sync →
    store chain (the flow graph itself) runs on the loop schedule when `active: true`; it is **not** driven by the job
-   scheduler. (This is why `active:` gates only the poll path, [SourceService.java:487](../../../../inspecto/src/main/java/com/gamma/service/CollectorService.java#L487).)
+   scheduler. (This is why `active:` gates only the poll path, [CollectorService.java:487](../../../../inspecto/src/main/java/com/gamma/service/CollectorService.java#L487).)
 2. **A job is job-driven, period**, and operates on **stored data at rest, not the inbox** — a downstream consumer of
    pipeline output, and the natural home for **ad-hoc / bespoke plugin** logic (`enrich`/`report`/derive via the
    plugin SPI, §12 B6), never a re-acquisition.
@@ -404,7 +404,7 @@ responsibility** (loop scheduler); jobs are strictly downstream custom functions
 is the resolution of [§13 R6](#13-open-risks--corrections-2026-06-16-review) / [T23](#14-things-to-do-implementation-checklist) —
 **done 2026-06-17: `JobType.INGEST` + `IngestJob` deleted** (an `ingest` job is now a config error). In the flow-graph
 model (§3.6) the two schedulers are simply which trigger an entry node carries: `schedule:{every|cron}` → loop
-scheduler (the pipeline's own cadence, gated in `SourceService.runAllOnce` by [`PipelineTrigger`](../../../../inspecto-engine/src/main/java/com/gamma/pipeline/PipelineTrigger.java));
+scheduler (the pipeline's own cadence, gated in `CollectorService.runAllOnce` by [`PipelineTrigger`](../../../../inspecto-engine/src/main/java/com/gamma/pipeline/PipelineTrigger.java));
 `event` → upstream-commit-driven (coalesced); `manual` → the trigger endpoint.
 
 **Scheduler implementation = the existing `Scheduler` + `JobService`, not Quartz (decided 2026-06-17).** Both
@@ -865,13 +865,13 @@ Actionable, phase-aligned, derived from §8 + the §13 corrections. `[ ]` = not 
   (temp→fsync→atomic rename→ack-LAST = at-least-once). **Per-node `enabled:`**: `PipelineNode.enabled()` + `PipelineExecutor`
   bypasses a disabled node. **Live wiring (done 2026-06-17, the follow-up):** an optional top-level `trigger:` block on
   `*_pipeline.toon` (`PipelineConfig.triggerConfig()`, carried onto the lifted acquisition node + round-tripped by
-  `PipelineCompiler.toConfigMap`) + `PipelineTrigger.of(Map)`; `SourceService.runAllOnce` now **gates each pipeline by its
+  `PipelineCompiler.toConfigMap`) + `PipelineTrigger.of(Map)`; `CollectorService.runAllOnce` now **gates each pipeline by its
   trigger** — `DEFAULT_POLL` every tick (unchanged for every legacy/lifted config = zero regression),
   `SCHEDULE_INTERVAL` by elapsed `everyMs`, `SCHEDULE_CRON` by `CronExpression.next` since last run; `EVENT`/`MANUAL`
   are excluded from the loop. `EVENT` flows fire from a bus subscriber (`onUpstreamCommit`) that signals a per-flow
   `TriggerCoalescer` **off the publishing thread** (a vthread `triggerWorkers` pool — the bus is synchronous and
   `ingestLock` is held during a cycle, so an inline run would deadlock); `MANUAL` runs only via `runPipeline`/the
-  trigger endpoint. 21 tests (16 prior + `SourceServiceTriggerTest` 5: default-poll/interval-gate/manual/cron/event).
+  trigger endpoint. 21 tests (16 prior + `CollectorServiceTriggerTest` 5: default-poll/interval-gate/manual/cron/event).
   **Only remaining:** the `adapter` stream-consumer runtime (Kafka/webhook/WatchService) — a separate seam, no v1
   streaming.
 - [x] **T14 (R5) — structural checks done; emit/accept-rel wiring → T9.** `com.gamma.pipeline.PipelineValidator.validate(g)`
@@ -968,7 +968,7 @@ Actionable, phase-aligned, derived from §8 + the §13 corrections. `[ ]` = not 
   (a `PipelineExecutor.SinkWriter` over `PartitionWriter`; unpartitioned single-file `COPY` when a sink declares no
   `partitions`, since the legacy writer always partitions; `sink.view` writes no bytes — Phase C), `SourceStoreReader`
   (`SqlViews.reader` over `<dataDir>/<store>/**`), `JobType.PIPELINE` + `JobService.build()` case (fail-closed without an
-  authored-flow store), `SourceService` wiring (`openFlowStore()` = `<assist.write.root>/flows`; data root from
+  authored-flow store), `CollectorService` wiring (`openFlowStore()` = `<assist.write.root>/flows`; data root from
   `-Ddata.dir`, default `database`; per-job `data_dir`/`batch_id` overrides). Reuses
   `PipelineExecutor`/`BranchCommitCoordinator`/`BranchCommitLog`/`EnrichmentEngine` read pattern. Tests:
   `PipelineJobRunnerTest`(4: filter→sink, idempotent same-`batch_id` skip, route→2 stores, no-source_store reject)
@@ -977,7 +977,7 @@ Actionable, phase-aligned, derived from §8 + the §13 corrections. `[ ]` = not 
   the jobs audit dir; idempotency via a fixed `batch_id` param (default per-run timestamp); single `source_store` only.
   *(2026-07-18: `data_dir` is now constrained by the store-layout contract — sinks must be top-level under the space
   data root, and seed reads prefer a store's `database/` subtree; see `okf/backend/engine/output-sinks.md`.)*
-  **Deletion fence wired (T25×T32, 2026-06-18):** `SourceService.checkDeletion` now folds authored flows
+  **Deletion fence wired (T25×T32, 2026-06-18):** `CollectorService.checkDeletion` now folds authored flows
   (`PipelineStore.list()`) into the producer/consumer topology and unions in-flight `FLOW` runs
   (`JobService.runningFlows()`) into the active set, so deleting a store an active flow job reads/writes raises a
   `STORE_DELETE_CONFLICT` (idle authored flows never conflict). The fence is made *aware of* flow jobs — a flow job
@@ -1039,7 +1039,7 @@ Actionable, phase-aligned, derived from §8 + the §13 corrections. `[ ]` = not 
   dropped the `INGEST` case from `JobService.build`, and removed `ingest` from the `job.type` enum/cross-field rule in
   `ConfigSpecs` (so an `ingest` job is now a config error directing the operator to an `active:true` pipeline). The
   **two-scheduler split** (§3.8) is realised by the entry-node trigger (T13 live wiring): the **loop scheduler**
-  (`SourceService` poll cycle) drives pipeline flows — `DEFAULT_POLL`/`SCHEDULE_*` — and **owns ingest exclusively**;
+  (`CollectorService` poll cycle) drives pipeline flows — `DEFAULT_POLL`/`SCHEDULE_*` — and **owns ingest exclusively**;
   the **custom-function scheduler** ([`JobService`](../../../../inspecto-engine/src/main/java/com/gamma/job/JobService.java)) drives
   `enrich`/`report`/`maintenance` jobs over data at rest, never re-acquiring. No shipped `*_job.toon` used `ingest`;
   3 test fixtures migrated to `enrich`.
@@ -1054,7 +1054,7 @@ Actionable, phase-aligned, derived from §8 + the §13 corrections. `[ ]` = not 
 - [x] **T25 (backend done 2026-06-17).** **Deletion fence on the shared store** (§3.8 rule 4): `DeletionFence.check`
   (pure over the IR + a running-set) reports a conflict only when a delete targets a **resting** store
   (`producedStores().restsOnDisk()` — a `sink.view` is never a hazard) that has an **active** producer or consumer;
-  an idle store is the safe "quiet window". `SourceService.checkDeletion(stores)` lifts the configured flows,
+  an idle store is the safe "quiet window". `CollectorService.checkDeletion(stores)` lifts the configured flows,
   intersects with the live `running` set, and surfaces each as a `STORE_DELETE_CONFLICT` event/alert (non-blocking
   warn). Wired via a `DeletionFence.Guard` the service installs on `JobService`: a `maintenance` job declaring
   `store:` is fence-checked before it deletes. `DeletionFenceTest` + a `JobServiceTest` wiring case.

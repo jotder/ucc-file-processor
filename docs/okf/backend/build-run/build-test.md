@@ -16,7 +16,7 @@ mvn -o clean test          # full reactor; "verified" = this passes
 mvn -o clean package -q    # → inspecto/target/file-processor-*.jar (fat JAR)
 ```
 
-Always offline (`-o`). Tests spin up a real `SourceService`/[`ControlApi`](../control-plane/control-api.md) on
+Always offline (`-o`). Tests spin up a real `CollectorService`/[`ControlApi`](../control-plane/control-api.md) on
 an ephemeral port. (Java 26 toolchain + Maven; see the `build-verify` skill for exact local paths.)
 
 ## Mandatory DuckDB native-access flag

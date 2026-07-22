@@ -17,12 +17,12 @@ Inspecto is deliberately **framework-free**: no Spring, no web framework, no IoC
 * **JDK `HttpServer`** — the control plane is `com.sun.net.httpserver.HttpServer` with a single catch-all
   dispatch context. Each request runs on a fresh **virtual thread**
   (`Executors.newVirtualThreadPerTaskExecutor()`). See [Control API](./control-plane/control-api.md).
-* **Manual dependency injection** — collaborators (`SpaceManager`, `SourceService`, `JobService`,
+* **Manual dependency injection** — collaborators (`SpaceManager`, `CollectorService`, `JobService`,
   `EventLog`, `MetricRegistry`) are constructed directly and passed as constructor args or reached via
   `static global()` singletons. No annotations, no container.
 * **`ServiceLoader` SPIs** — extension points are plain `META-INF/services` SPIs: the ingestion SPI
   ([`StreamingFileIngester`](./engine/ingestion.md)), source [connectors](./acquisition/connectors.md)
-  (`SourceConnectorFactory`), pipeline [node types](./pipeline-graph/design.md) (`PipelineNodeType`), the
+  (`CollectorConnectorFactory`), pipeline [node types](./pipeline-graph/design.md) (`PipelineNodeType`), the
   [assist agent](./agent/assist-agent.md) (`AssistAgent`), and the `Authenticator` / `Subject` / `TokenRelay`
   trio implemented by `inspecto-security` on Standard ([auth](./editions/auth-security.md)). An absent module
   simply isn't discovered — the no-op path wins. This is what makes

@@ -92,8 +92,8 @@ local `.m2` from `C:/sandbox/agent-brainstorm`) — see `docs/superpower/agent-k
 - **Flow-graph track is `master`-only** (`feat:` → master; empty merge-forward set; retired lines untouched).
 - **Multi-space (multi-project), `master`-only `feat:` track.** One server hosts many isolated **spaces**
   (`-Dspaces.root`, default `./spaces`); each = `spaces/<id>/{config,data,audit,duckdb,flows}` + `space.toon`.
-  The ~40-method `@PublicApi` per-instance `SourceService` is **wrapped, not rewritten**: `SpaceManager` →
-  `SpaceContext` → unchanged `SourceService`. Isolation of the five process-wide singletons (EventLog /
+  The ~40-method `@PublicApi` per-instance `CollectorService` is **wrapped, not rewritten**: `SpaceManager` →
+  `SpaceContext` → unchanged `CollectorService`. Isolation of the five process-wide singletons (EventLog /
   MetricRegistry `space` label / ConnectionRegistry / StabilityGate / AcquisitionLedgers) is by the **`space`
   SLF4J MDC** (`EventLog.currentSpaceId()`; fallback `"default"` = no MDC = byte-identical single-space). API
   seam: `/spaces/{id}/…` (`ControlApi.dispatch` strips + MDC-binds; un-prefixed → current/default). Space CRUD

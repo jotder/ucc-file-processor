@@ -1,7 +1,7 @@
 ---
 type: Concept
 title: Source Connectors
-description: The SourceConnector SPI and the SFTP/FTP/FTPS/DB connectors, SSH tunnelling, profiles, and secret resolution.
+description: The CollectorConnector SPI and the SFTP/FTP/FTPS/DB connectors, SSH tunnelling, profiles, and secret resolution.
 resource: inspecto-connectors/src/main/java/com/gamma/acquire/connectors
 tags: [acquisition, connectors, sftp, ftp, jdbc, ssh-tunnel, secrets]
 timestamp: 2026-06-28T00:00:00Z
@@ -13,7 +13,7 @@ timestamp: 2026-06-28T00:00:00Z
 
 * `CollectorConnector` (`inspecto-acquire/src/main/java/com/gamma/acquire/CollectorConnector.java`) — `discover`,
   `readiness`, `open` (stream bytes), `fetchTo` (materialise straight to the backup dir, never temp-then-move),
-  `post` (RETAIN/DELETE/MOVE/RENAME/TAG), and a `Capability` enum. *(Renamed from `SourceConnector` per the
+  `post` (RETAIN/DELETE/MOVE/RENAME/TAG), and a `Capability` enum. *(Renamed from `CollectorConnector` per the
   Source→Collector glossary flip.)*
 * `CollectorConnectorFactory` (`…/acquire/CollectorConnectorFactory.java`) — `scheme()` + `create(cfg, profile)`
   + the optional `workbench(profile)` hook (below), registered via `META-INF/services`.

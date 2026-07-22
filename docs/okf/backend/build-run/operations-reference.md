@@ -255,14 +255,14 @@ Sources run on a virtual-thread executor bounded by `-Dsources.max` (default: al
 
 **Three multiplying caps.** Total worker pressure ≈ `sources.max × processing.threads × processing.duckdb_threads`. The auto-derive for `duckdb_threads=0` only divides cores among one source's `threads` — it does **not** know about `sources.max`. When running many sources in one JVM, set `duckdb_threads` explicitly (or lower `sources.max`/`threads`) so the three-way product ≈ cores — e.g. on 16 cores: `sources.max=4`, `threads=2`, `duckdb_threads=2`. When `-Dsources.max > 1` is set, the config validator surfaces this at startup: it factors `sources.max` into the explicit-oversubscription check, and for the auto default (`duckdb_threads=0`) it warns that the auto cap ignores `sources.max` and suggests a concrete value (`cores ÷ (sources.max × threads)`).
 
-### Service mode — always-on host (`SourceService`)
+### Service mode — always-on host (`CollectorService`)
 
-For continuous operation, `SourceService` keeps the JVM up and runs the registry on a poll schedule instead of one-shot. It also emits a **batch-commit event** on every `SUCCESS` flush (carrying the partitions that batch wrote, from lineage) — the trigger backbone the Stage-2 enrichment and Control API build on.
+For continuous operation, `CollectorService` keeps the JVM up and runs the registry on a poll schedule instead of one-shot. It also emits a **batch-commit event** on every `SUCCESS` flush (carrying the partitions that batch wrote, from lineage) — the trigger backbone the Stage-2 enrichment and Control API build on.
 
 ```bash
 # Scan paths for *_pipeline.toon (sources), *_enrich.toon (Stage-2 jobs)
 # and *_job.toon (config-driven cron/event jobs, v2.8.0)
-java -cp file-processor.jar com.gamma.service.SourceService \
+java -cp file-processor.jar com.gamma.service.CollectorService \
      -Dservice.poll.seconds=60 -Dservice.max.runs=4 config/
 ```
 
@@ -280,7 +280,7 @@ java -cp file-processor.jar com.gamma.enrich.EnrichmentProcessor spaces/default/
      --partitions "event_type=CALL/year=2020/month=04/day=03"
 ```
 
-When hosted by `SourceService`, an enrichment's optional `triggers` section drives it automatically:
+When hosted by `CollectorService`, an enrichment's optional `triggers` section drives it automatically:
 
 ```
 triggers:

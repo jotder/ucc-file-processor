@@ -1,7 +1,7 @@
 ---
 type: Concept
 title: Multi-Space Hosting
-description: SpaceManager → SpaceContext → SourceService (wrapped, not rewritten); MDC-based singleton isolation; the /spaces seam.
+description: SpaceManager → SpaceContext → CollectorService (wrapped, not rewritten); MDC-based singleton isolation; the /spaces seam.
 resource: inspecto/src/main/java/com/gamma/service/SpaceManager.java
 tags: [control-plane, multi-space, isolation, mdc, spaces]
 timestamp: 2026-07-07T00:00:00Z
@@ -9,15 +9,15 @@ timestamp: 2026-07-07T00:00:00Z
 
 # Multi-Space Hosting
 
-One server hosts many isolated **spaces** (projects). The ~40-method per-instance `SourceService` is
+One server hosts many isolated **spaces** (projects). The ~40-method per-instance `CollectorService` is
 **wrapped, not rewritten**.
 
-* `SpaceManager` (`inspecto/src/main/java/com/gamma/service/SpaceManager.java`) — `single(SourceService)`
+* `SpaceManager` (`inspecto/src/main/java/com/gamma/service/SpaceManager.java`) — `single(CollectorService)`
   (single-tenant, byte-identical to pre-multi-space) or `discover(spacesRoot)` (boots each `spaces/<id>/`
   with a `config/` subtree). Runtime CRUD with no restart: `create`, `createFromBundle`, `delete(id, purge)`,
   serialized on `lifecycleLock` (reads are lock-free).
 * `SpaceContext` (`…/service/SpaceContext.java`) — a thin per-space holder (id + `SpaceRoot` + manifest + its
-  own unchanged `SourceService`).
+  own unchanged `CollectorService`).
 * `SpaceMigrator` (`…/service/SpaceMigrator.java`) — migrates a space's DuckDB/state stores on boot.
 
 ## Singleton isolation via the `space` MDC
