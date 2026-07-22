@@ -9,7 +9,10 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-/** Phase-D2: a SEQUENCE_GAP domain event is promoted to a managed ALERT object (with de-duplication). */
+/**
+ * Phase-D2: SEQUENCE_GAP and FLOW_CONSERVATION_IMBALANCE domain events are each promoted to a managed
+ * ALERT object (with de-duplication).
+ */
 class EventObjectBridgeTest {
 
     private static Event gap(String pipeline, String expected) {
@@ -19,6 +22,17 @@ class EventObjectBridgeTest {
                 .attr("expected", expected)
                 .attr("sequence", "cdr_{yyyyMMddHH}.csv")
                 .attr("unit", "HOURS")
+                .build();
+    }
+
+    private static Event imbalance(String pipeline, String node, String kind, long in, long out) {
+        return Event.builder(EventType.FLOW_CONSERVATION_IMBALANCE)
+                .pipeline(pipeline)
+                .message("flow '" + pipeline + "' node '" + node + "': " + in + " in, " + out + " out (" + kind + ")")
+                .attr("node", node)
+                .attr("kind", kind)
+                .attr("recordsIn", in)
+                .attr("recordsOut", out)
                 .build();
     }
 
@@ -49,6 +63,47 @@ class EventObjectBridgeTest {
 
         bridge.onEvent(gap("gap_src", "cdr_2026061405.csv"));   // a different hole ⇒ its own object
         assertEquals(2, objects.active(ObjectType.ALERT, "gap_src").size());
+    }
+
+    @Test
+    void promotesAConservationImbalanceToAnAlertObject() {
+        ObjectService objects = new ObjectService(new InMemoryObjectStore());
+        EventObjectBridge bridge = new EventObjectBridge(objects);
+
+        bridge.onEvent(imbalance("evt_rollup", "flt", "LOSS", 3, 2));
+
+        List<OperationalObject> alerts = objects.active(ObjectType.ALERT, "evt_rollup");
+        assertEquals(1, alerts.size());
+        OperationalObject a = alerts.get(0);
+        assertEquals(EventObjectBridge.IMBALANCE_RULE, a.attributes().get("rule"));
+        assertEquals("flt", a.attributes().get("node"));
+        assertEquals("LOSS", a.attributes().get("kind"));
+        assertEquals("3", a.attributes().get("recordsIn"));
+        assertEquals("2", a.attributes().get("recordsOut"));
+        assertTrue(a.title().startsWith("Data loss"), a.title());
+        assertTrue(a.title().contains("flt"), a.title());
+    }
+
+    @Test
+    void anActiveImbalanceForTheSameNodeIsNotDuplicated() {
+        ObjectService objects = new ObjectService(new InMemoryObjectStore());
+        EventObjectBridge bridge = new EventObjectBridge(objects);
+
+        bridge.onEvent(imbalance("evt_rollup", "flt", "LOSS", 3, 2));
+        bridge.onEvent(imbalance("evt_rollup", "flt", "LOSS", 5, 4));   // same node re-reported (e.g. after a restart)
+        assertEquals(1, objects.active(ObjectType.ALERT, "evt_rollup").size(), "same node ⇒ no clone");
+
+        bridge.onEvent(imbalance("evt_rollup", "agg", "AMPLIFICATION", 2, 6));   // a different node ⇒ its own object
+        assertEquals(2, objects.active(ObjectType.ALERT, "evt_rollup").size());
+    }
+
+    @Test
+    void anImbalanceWithoutANodeIsIgnored() {
+        ObjectService objects = new ObjectService(new InMemoryObjectStore());
+        EventObjectBridge bridge = new EventObjectBridge(objects);
+
+        bridge.onEvent(Event.builder(EventType.FLOW_CONSERVATION_IMBALANCE).pipeline("p").message("no node attr").build());
+        assertTrue(objects.active(ObjectType.ALERT, "p").isEmpty());
     }
 
     @Test

@@ -227,8 +227,13 @@ public final class PipelineJobRunner implements Job {
      * {@link EventType#FLOW_CONSERVATION_IMBALANCE} event for each non-amplifying node where records were lost
      * or unexpectedly amplified. The {@link com.gamma.ops.EventObjectBridge} promotes it to a managed ALERT.
      * Never throws — observability must not break the run that just succeeded.
+     *
+     * <p>Package-visible (not private) so a test can drive the emit bridge with crafted imbalanced counts:
+     * a healthy real run conserves by construction (every conserving node records both its kept and its
+     * diverted relations), so a positive {@code FLOW_CONSERVATION_IMBALANCE} is only reachable from an
+     * injected count mismatch, not a clean flow.
      */
-    private static void reportConservation(PipelineGraph g, String flowId, String batchId, List<ProvenanceRow> rows) {
+    static void reportConservation(PipelineGraph g, String flowId, String batchId, List<ProvenanceRow> rows) {
         try {
             Map<String, Long> counts = new LinkedHashMap<>();
             for (ProvenanceRow r : rows) counts.put(r.nodeId() + "|" + r.rel(), r.rowCount());

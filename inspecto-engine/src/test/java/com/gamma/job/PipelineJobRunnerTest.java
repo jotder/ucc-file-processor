@@ -1,5 +1,9 @@
 package com.gamma.job;
 
+import com.gamma.event.Event;
+import com.gamma.event.EventLevel;
+import com.gamma.event.EventLog;
+import com.gamma.event.EventType;
 import com.gamma.pipeline.PipelineEdge;
 import com.gamma.pipeline.PipelineGraph;
 import com.gamma.pipeline.PipelineNode;
@@ -9,6 +13,7 @@ import com.gamma.pipeline.ViewDefinition;
 import com.gamma.pipeline.ViewStore;
 import com.gamma.pipeline.exec.DbProvenanceStore;
 import com.gamma.pipeline.exec.PipelineExecutor;
+import com.gamma.pipeline.exec.ProvenanceRow;
 import com.gamma.etl.BatchEventBus;
 import com.gamma.sql.SqlViews;
 import com.gamma.util.DuckDbUtil;
@@ -24,6 +29,8 @@ import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.function.Consumer;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -334,6 +341,54 @@ class PipelineJobRunnerTest {
             assertEquals(2L, counts.get("out|data"), "the sink received both surviving rows");
             // the run is discoverable
             assertEquals(1, prov.batches("prov_flow", 10).size());
+        }
+    }
+
+    @Test
+    void reportConservationEmitsAnImbalanceEventForALostRecordCount() {
+        // T22 — the run→check→event bridge. A healthy real run conserves by construction (every conserving
+        // node records both its kept and its diverted relations — see PipelineExecutor.recordCounts), so a
+        // positive imbalance is only reachable from an injected count mismatch, not a clean flow. Drive the
+        // bridge directly with crafted counts: a filter that consumed 3 but accounted for only 2 (data 2,
+        // dropped 0) is a silent LOSS the runner must promote to a FLOW_CONSERVATION_IMBALANCE event.
+        PipelineGraph g = new PipelineGraph("loss_flow", true,
+                List.of(PipelineNode.of("src", "parser"),
+                        PipelineNode.of("flt", "transform.filter", Map.of("where", "amt >= 100")),
+                        PipelineNode.of("out", "sink.persistent", Map.of("store", "o"))),
+                List.of(PipelineEdge.data("src", "flt"), PipelineEdge.data("flt", "out")));
+
+        List<Event> captured = new CopyOnWriteArrayList<>();
+        Consumer<Event> sub = e -> {
+            if (EventType.FLOW_CONSERVATION_IMBALANCE.equals(e.type()) && "loss_flow".equals(e.pipeline()))
+                captured.add(e);
+        };
+        EventLog.global().addSubscriber(sub);   // reportConservation emits via EventLog.current() → global() (no space MDC)
+        try {
+            PipelineJobRunner.reportConservation(g, "loss_flow", "batch-1", List.of(
+                    new ProvenanceRow("loss_flow", "batch-1", "src", PipelineRel.DATA, 3, "t"),
+                    new ProvenanceRow("loss_flow", "batch-1", "flt", PipelineRel.DATA, 2, "t"),
+                    new ProvenanceRow("loss_flow", "batch-1", "flt", PipelineRel.DROPPED, 0, "t"),
+                    new ProvenanceRow("loss_flow", "batch-1", "out", PipelineRel.DATA, 2, "t")));
+
+            assertEquals(1, captured.size(), "one imbalance event for the lossy filter node");
+            Event e = captured.get(0);
+            assertEquals("flt", e.attributes().get("node"));
+            assertEquals("3", e.attributes().get("recordsIn"));
+            assertEquals("2", e.attributes().get("recordsOut"));
+            assertEquals("LOSS", e.attributes().get("kind"));
+            assertEquals(EventLevel.ERROR, e.level(), "a LOSS is ERROR-level (an AMPLIFICATION would be WARN)");
+            assertEquals("batch-1", e.correlationId(), "correlated to the run's batchId");
+
+            // a balanced accounting (dropped 1 ⇒ 2 + 1 == 3 in) fires nothing — no false positive on a clean run
+            captured.clear();
+            PipelineJobRunner.reportConservation(g, "loss_flow", "batch-2", List.of(
+                    new ProvenanceRow("loss_flow", "batch-2", "src", PipelineRel.DATA, 3, "t"),
+                    new ProvenanceRow("loss_flow", "batch-2", "flt", PipelineRel.DATA, 2, "t"),
+                    new ProvenanceRow("loss_flow", "batch-2", "flt", PipelineRel.DROPPED, 1, "t"),
+                    new ProvenanceRow("loss_flow", "batch-2", "out", PipelineRel.DATA, 2, "t")));
+            assertTrue(captured.isEmpty(), "a balanced run emits no imbalance");
+        } finally {
+            EventLog.global().removeSubscriber(sub);
         }
     }
 
