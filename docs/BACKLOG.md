@@ -246,8 +246,11 @@ under concurrency**, because the caps that prevent it are off-by-default:
 - **Legacy (pre-v1) trigger routes run ingest INLINE on the HTTP request thread** (`RunRoutes.java:96`,
   `AcquisitionRoutes.java:50` → `CollectorService.runPipeline` synchronously); v1 routes are async
   (`202`+runId via `triggerRunAsync`). Standardize on v1 / deprecate the inline path. **[open]**
-- **Single GB file isn't auto-chunked** — `processing.chunking.max_file_bytes = 0` (disabled +
-  undocumented in `okf/backend/engine/*`). Enable as a safety net for pathological single files. **[open]**
+- **Single GB file isn't auto-chunked** — `processing.chunking.max_file_bytes = 0` (disabled by default;
+  the knob IS documented — `okf/backend/config/configuration.md` §"Large files", + referenced in
+  `okf/backend/engine/stage1-architecture.md` and `plugins.md`; the "undocumented" tag was stale, corrected
+  2026-07-22). The open part is a *policy* call — ship an on-by-default safety-net value for pathological
+  single files (needs a sensible fixed cap; ties to the memory-cap decision above). **[open]**
 Order of value: ~~cap the two uncapped paths~~ (done) → on-by-default memory value + bound job concurrency
 → v1-only triggers → chunking. Read-path is NOT the risk here (see C6 note). Cheap open-cost instrumentation
 is the gate.
