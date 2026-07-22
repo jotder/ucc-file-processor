@@ -173,9 +173,15 @@ increment 1 below then reshaped the bottom row:
   subsequently extracted as their own modules (increments 3–4, below). Further fragmentation of the
   remaining `{pipeline,job,query,enrich}` SCC is the same class of deliberate, deadlock-sensitive
   design work — do it only if finer module granularity is wanted. The coarse `fp-engine` already
-  delivers the acyclic core↔engine boundary, which was the whole point of WS-D.
-- **M2 `CollectorService`/`SourceService` decomposition** remains open as maintainability work (it
-  reorganizes classes *within* core's `service` package; it is NOT a split blocker).
+  delivers the acyclic core↔engine boundary, which was the whole point of WS-D. **Triaged 2026-07-22
+  and deferred (nobody has requested finer granularity):** the actual `fp-query`/`fp-job`/`fp-enrich`
+  module split is NOT a single clean increment — `query`/`job` also depend on `signal` and `ops`
+  (outside the four-package group; their own test up-imports unscanned) which must be co-extracted, and
+  `job`'s `SharedDottedPathGrammarTest` imports `com.gamma.notify.NotificationTemplate` (a rule-5 test
+  up-import that must be cut, notify staying behind).
+- **M2 `CollectorService`/`SourceService` decomposition — CLOSED (won't-do), triaged 2026-07-22.**
+  `CollectorService` (1266 lines) already reads as a composition-root/facade wiring ~15 extracted
+  collaborators and is covered by 6 focused test files; maintainability-only, NOT a split blocker.
 
 **The `{pipeline, job, query, enrich}` SCC was itself decomposed (2026-07-22, same-day follow-up).**
 An empirical edge scan (comment-stripped import + inline-FQN, both directions) found the whole

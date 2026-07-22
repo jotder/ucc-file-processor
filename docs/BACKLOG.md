@@ -90,8 +90,11 @@ The engineering MoSCoW (build hygiene, `SourceService` decomposition, `agent.spi
 Fuse-leftover removal, reactor split, shutdown robustness, `@PublicApi` freezing) lived in
 **`archived-documents/plans-archive/modularization-optimization-plan.md`** §4 — **COMPLETE 2026-07-21
 and archived**; as-built facts distilled to `okf/backend/modules/reactor.md`. Headline Musts:
-~~M1 parent `dependencyManagement`~~ **SHIPPED 2026-07-21** (`73ea9a1`) · M2 `SourceService`
-decomposition · M3 `agent.spi` facade · M4 UI Fuse-leftover removal (~25.8k lines) · M5 coverage
+~~M1 parent `dependencyManagement`~~ **SHIPPED 2026-07-21** (`73ea9a1`) · M2 `CollectorService`
+decomposition **CLOSED — won't-do (maintainability-only; see §5 triage 2026-07-22)** ·
+~~M3 `agent.spi` facade~~ **SHIPPED 2026-07-21** (`fc772f0d` + `f7d148a4` — as a `@PublicApi` contract
+freeze on the agent-consumed core surface, deliberately NOT a wrapping facade) · M4 UI Fuse-leftover
+removal (~25.8k lines) · M5 coverage
 baseline · ~~M6 repo-clutter sweep~~ **SHIPPED 2026-07-21** (`b554048` — most already done by prior
 shifts; only the stale `HANDOVER-multi-space.md` + a mangled root build-log remained).
 
@@ -168,11 +171,48 @@ their natural homes (`job`, `query`), which also dropped `enrich` out of the SCC
 `fp-query`/`fp-job`/`fp-enrich` module split, not the split itself. Detail:
 [`okf/backend/modules/reactor.md`](okf/backend/modules/reactor.md).
 
-**Remaining follow-ons (none blocking):**
-- **Actual module extraction of `fp-query`/`fp-job`/`fp-enrich`** below `fp-engine`, now that the
-  package layering is acyclic — only if finer module granularity is actually wanted.
+**Remaining follow-on — TRIAGED 2026-07-22 (deferred, not to build now):**
+- **Actual module extraction of `fp-query`/`fp-job`/`fp-enrich`** below `fp-engine` — **deferred pending
+  an actual desire for finer module granularity** (nobody has asked for it; it is a preference, not a
+  need). Mechanically re-assessed this triage: main-code layering is clean and acyclic (`pipeline` base
+  → `query`→`pipeline`, `enrich`→`query` one-way with no `query↔enrich` cycle → `job` on top; the only
+  consumers — `inspector`/`catalog`/`alert` — reach downward only, incl. two inline-FQN calls in
+  `alert` (`DatasetMeasureProbe`/`ConditionTree`) that a plain import grep misses, rule 5). But it is
+  **NOT a single clean increment**: (a) `query`/`job` also depend on `signal` and `ops`, which sit
+  outside the four-package group and would have to be co-extracted below/alongside the new modules
+  (their own test-side up-imports were not scanned — an unknown), and (b) a known test cut is required —
+  `job`'s `SharedDottedPathGrammarTest` imports `com.gamma.notify.NotificationTemplate` (notify stays
+  behind), the same rule-5 test-up-import class that bit `fp-etl`. Same deadlock-prone reactor work as
+  the prior increments, for granularity no one has requested — **build only on explicit request.**
 
-**Deferred by design:** M2 `SourceService`/`CollectorService` decomposition — maintainability-only, not a split blocker (the old premise was corrected). The intra-module `ops↔ops.link/workflow` and `catalog↔catalog.spi` cycles are same-family, not reactor-split blockers. Trigger-gated: C2 store-pair generic base, C4 BOM, C6 DuckDB per-run connection reuse.
+**Triage verdicts — 2026-07-22 (the rest are CLOSED or stay trigger-gated; none to build now):**
+- **M2 `CollectorService` decomposition — CLOSED (won't-do).** `CollectorService`
+  (`inspecto/src/main/java/com/gamma/service/CollectorService.java`, 1266 lines) already reads as a
+  composition-root/facade: its constructor wires ~15 already-extracted collaborators rather than
+  implementing their logic, and it is covered by 6 focused test files. Maintainability-only, not a
+  split blocker (old premise corrected). No god-class emergency → deliberately not pursued.
+- **M3 `agent.spi` facade — SHIPPED 2026-07-21** (`fc772f0d` + `f7d148a4`), as a `@PublicApi` contract
+  freeze on the ~31 agent-consumed core types, deliberately NOT a wrapping facade (access already
+  funnels through `UccAgentContext`). Item was stale on the tracking list; recorded here for the record.
+- **C2 store-pair generic base — stays trigger-gated** (boilerplate-reduction only; trigger not fired).
+  Distinct from the shipped M7 (`DurableJsonlRing`/`AgentWriteRoot`, agent-side JSONL stores): the real
+  remaining duplication is the JDBC `Db*Store` family in `inspecto-engine`
+  (`DbObjectStore`/`DbLinkStore`/`DbNoteStore`/`DbJobRunStore`/`DbProvenanceStore` + `DbStatusStore`),
+  which repeats the same `browseConnection()`/`initSchema()`/`open(...)` shape. Convention is consistent
+  and correct today — no bug forcing dedup.
+- **C4 BOM — CLOSED (moot).** The precondition (artifacts consumed OUTSIDE this reactor) does not exist —
+  the project ships as a fat-JAR deployable, not a published library, and M1 (`73ea9a1`) already gave the
+  reactor modules shared version hygiene via parent `dependencyManagement`. Reopen only if an external
+  consumer of these artifacts ever appears.
+- **C6 DuckDB per-run connection reuse — stays trigger-gated** (profiling-gated; no profiling evidence
+  exists). Current code already opens ONE connection per run against a fresh unique temp scratch DB and
+  shares it across all ops in that run (`PipelineJobRunner.run`, `EnrichmentEngine.runResult`). The
+  proposal is cross-RUN reuse — a real re-architecture that is actively risky (per-run scratch DBs are
+  deliberately ephemeral/isolated, JDBC connections aren't thread-safe, jobs run concurrently). Build
+  only after profiling shows open cost matters.
+
+The intra-module `ops↔ops.link/workflow` and `catalog↔catalog.spi` cycles are same-family, not
+reactor-split blockers.
 
 ## 6. Security-module scope (deferred wholesale — do not partially implement elsewhere)
 
