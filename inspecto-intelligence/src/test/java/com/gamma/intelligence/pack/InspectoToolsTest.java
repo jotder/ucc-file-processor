@@ -401,8 +401,9 @@ class InspectoToolsTest {
 
     @Test
     void componentDraftRejectsAnUnvalidatableKind() {
+        // 'dataset' has no ConfigSpec; 'widget'/'dashboard' gained one for kpi_report_builder (2026-07-22).
         ToolResult r = draftTool().invoke(new ToolCall("component_draft",
-                Map.of("kind", "widget", "config", Map.of()), new RunId("t")));
+                Map.of("kind", "dataset", "config", Map.of()), new RunId("t")));
         assertFalse(r.ok());
         assertTrue(r.error().contains("no structural spec"));
     }
@@ -649,5 +650,79 @@ class InspectoToolsTest {
         ToolResult r = qa.invoke(new ToolCall("query_author", Map.of("dataset", "ghost"), new RunId("t")));
         assertFalse(r.ok());
         assertTrue(r.error().contains("unknown dataset"), r.error());
+    }
+
+    // ── kpi_report_builder (AGT-5 P2) ─────────────────────────────────────────
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void kpiReportBuilderComposesAKpiWidgetPerMeasurePlusATilingDashboard(@TempDir Path dir) throws Exception {
+        ComponentStore components = new ComponentStore(dir.resolve("registry"));
+        components.write("dataset", "orders", Map.of("view", "v_orders"));
+        Tool kb = tool(InspectoTools.tools(seeded(), components, List::of), "kpi_report_builder");
+        assertFalse(kb.spec().mutating(), "kpi_report_builder authors drafts — the gated write is component_apply");
+
+        Map<String, Object> out = invoke(kb, Map.of(
+                "dataset", "orders",
+                "title", "Orders Report",
+                "measures", List.of(Map.of("agg", "sum", "field", "gross"), Map.of("agg", "count"))));
+
+        assertEquals("dashboard", out.get("kind"));
+        assertEquals(Boolean.TRUE, out.get("clean"), () -> "composed drafts validate clean: " + out.get("findings"));
+
+        List<Map<String, Object>> widgets = (List<Map<String, Object>>) out.get("widgets");
+        assertEquals(2, widgets.size(), "one kpi widget per measure");
+        Map<String, Object> w0 = (Map<String, Object>) widgets.get(0).get("draft");
+        assertEquals("kpi", w0.get("vizType"));
+        assertEquals("orders", w0.get("datasetId"));
+        List<Map<String, Object>> value =
+                (List<Map<String, Object>>) ((Map<String, Object>) w0.get("controls")).get("value");
+        assertEquals(Map.of("field", "gross", "agg", "sum"), value.get(0), "controls.value = [{field,agg}]");
+
+        Map<String, Object> dash = (Map<String, Object>) out.get("draft");
+        List<Map<String, Object>> tiles = (List<Map<String, Object>>) dash.get("tiles");
+        assertEquals(2, tiles.size(), "the dashboard tiles both widgets");
+        assertEquals(widgets.get(0).get("id"), tiles.get(0).get("widgetId"), "tiles reference the widgets by id, in order");
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void kpiReportBuilderWithGroupByComposesASingleGroupedBarChart(@TempDir Path dir) throws Exception {
+        ComponentStore components = new ComponentStore(dir.resolve("registry"));
+        components.write("dataset", "orders", Map.of("view", "v_orders"));
+        Tool kb = tool(InspectoTools.tools(seeded(), components, List::of), "kpi_report_builder");
+
+        Map<String, Object> out = invoke(kb, Map.of(
+                "dataset", "orders",
+                "title", "Revenue by region",
+                "measures", List.of(Map.of("agg", "sum", "field", "gross")),
+                "groupBy", List.of("region")));
+
+        assertEquals(Boolean.TRUE, out.get("clean"), () -> "findings: " + out.get("findings"));
+        List<Map<String, Object>> widgets = (List<Map<String, Object>>) out.get("widgets");
+        assertEquals(1, widgets.size(), "grouped measures collapse into one chart, not a kpi-per-measure");
+        Map<String, Object> draft = (Map<String, Object>) widgets.get(0).get("draft");
+        assertEquals("bar", draft.get("vizType"));
+        Map<String, Object> controls = (Map<String, Object>) draft.get("controls");
+        assertEquals(List.of(Map.of("field", "region")), controls.get("x"), "groupBy → x channel");
+        assertEquals(List.of(Map.of("field", "gross", "agg", "sum")), controls.get("y"), "measures → y channel");
+    }
+
+    @Test
+    void kpiReportBuilderRejectsAnUnknownAggAndAnUnknownDataset(@TempDir Path dir) throws Exception {
+        ComponentStore components = new ComponentStore(dir.resolve("registry"));
+        components.write("dataset", "orders", Map.of("view", "v_orders"));
+        Tool kb = tool(InspectoTools.tools(seeded(), components, List::of), "kpi_report_builder");
+
+        ToolResult badAgg = kb.invoke(new ToolCall("kpi_report_builder", Map.of(
+                "dataset", "orders", "title", "X",
+                "measures", List.of(Map.of("agg", "median", "field", "gross"))), new RunId("t")));
+        assertFalse(badAgg.ok(), "an unsupported aggregation is rejected");
+
+        ToolResult ghost = kb.invoke(new ToolCall("kpi_report_builder", Map.of(
+                "dataset", "ghost", "title", "X",
+                "measures", List.of(Map.of("agg", "count"))), new RunId("t")));
+        assertFalse(ghost.ok());
+        assertTrue(ghost.error().contains("unknown dataset"), ghost.error());
     }
 }

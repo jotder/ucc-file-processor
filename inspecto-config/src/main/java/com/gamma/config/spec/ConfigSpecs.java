@@ -29,7 +29,8 @@ public final class ConfigSpecs {
 
     /** Spec types in canonical order — also the set accepted by {@code GET /config/spec/{type}}. */
     public static final List<String> TYPES =
-            List.of("pipeline", "enrichment", "job", "schema", "meta", "alert", "expectation");
+            List.of("pipeline", "enrichment", "job", "schema", "meta", "alert", "expectation",
+                    "widget", "dashboard");
 
     /** The {@link ConfigSpec} for {@code type}, or {@code null} if {@code type} is unknown. */
     public static ConfigSpec forType(String type) {
@@ -44,6 +45,8 @@ public final class ConfigSpecs {
             case "meta"       -> meta();
             case "alert"      -> alert();
             case "expectation" -> expectation();
+            case "widget"     -> widget();
+            case "dashboard"  -> dashboard();
             default           -> null;
         };
     }
@@ -380,6 +383,68 @@ public final class ConfigSpecs {
                                 || (present(raw, "refDataset") && present(raw, "refColumn")))
         );
         return new ConfigSpec("expectation", fields, rules);
+    }
+
+    // ── widget ────────────────────────────────────────────────────────────────────
+
+    /** A saved visualization: a viz-plugin {@code vizType} + a dataset (or a saved view) + the
+     *  field→channel {@code controls} the plugin compiles to a query. The {@code controls} shape is
+     *  plugin-defined (an open map), so this spec validates the envelope, not the per-viz channel keys;
+     *  the one hard rule is that a widget must bind a dataset or a view. Mirrors {@code widget-types.ts}. */
+    public static ConfigSpec widget() {
+        List<FieldSpec> fields = List.of(
+                FieldSpec.required("vizType", "Visualization type", FieldType.STRING,
+                        "The viz plugin type: kpi, bar, line, pie, table, geo-map, link-analysis, …"),
+                FieldSpec.of("datasetId", "Dataset", FieldType.STRING,
+                        "The dataset the widget queries (empty for a view-bound widget, which uses viewId)."),
+                FieldSpec.of("viewId", "View", FieldType.STRING,
+                        "A saved investigation view (geo-map/link-analysis) rendered instead of a dataset query."),
+                FieldSpec.of("queryId", "Query", FieldType.STRING,
+                        "A saved query component that supplies the rows instead of the dataset's own columns."),
+                FieldSpec.of("controls", "Field mapping", FieldType.MAP,
+                        "The field→channel mapping the viz plugin compiles to a query (e.g. value / x / y / series)."),
+                FieldSpec.of("options", "Advanced options", FieldType.MAP, "Caption/title and render options."),
+                FieldSpec.of("tags", "Tags", FieldType.LIST, "Free-text tags for the widget gallery."),
+                FieldSpec.of("description", "Description", FieldType.STRING, "Library-card subtitle.")
+        );
+        List<CrossFieldRule> rules = List.of(
+                new CrossFieldRule(
+                        "binds-a-dataset-or-a-view",
+                        "A widget must bind a dataset (datasetId) or a saved view (viewId).",
+                        Severity.ERROR,
+                        List.of("datasetId", "viewId"),
+                        raw -> present(raw, "datasetId") || present(raw, "viewId"))
+        );
+        return new ConfigSpec("widget", fields, rules);
+    }
+
+    // ── dashboard ─────────────────────────────────────────────────────────────────
+
+    /** A composite of saved widgets laid out in a grid, with an optional dashboard-level cross-filter
+     *  injected into every tile's query. Each tile references a widget by id + a 1|2 column span; deep
+     *  per-tile validation and widget-existence checks belong in the caller, not this envelope spec.
+     *  Mirrors {@code dashboard-types.ts}. */
+    public static ConfigSpec dashboard() {
+        List<FieldSpec> fields = List.of(
+                FieldSpec.required("tiles", "Tiles", FieldType.LIST,
+                        "Placed widgets — each {widgetId, span:1|2}; array order is the layout order."),
+                FieldSpec.of("filter", "Cross-filter", FieldType.MAP,
+                        "A Query Core condition group injected into every tile's query."),
+                FieldSpec.of("exposedFields", "Exposed filter fields", FieldType.LIST,
+                        "Columns offered to viewers as quick filters (the dashboard filter bar).")
+        );
+        List<CrossFieldRule> rules = List.of(
+                new CrossFieldRule(
+                        "at-least-one-tile",
+                        "A dashboard needs at least one tile.",
+                        Severity.ERROR,
+                        List.of("tiles"),
+                        raw -> {
+                            Object tiles = at(raw, "tiles");
+                            return !(tiles instanceof List<?> l) || !l.isEmpty();
+                        })
+        );
+        return new ConfigSpec("dashboard", fields, rules);
     }
 
     // ── schema ──────────────────────────────────────────────────────────────────

@@ -96,7 +96,8 @@ final class InspectoTools {
                 signalsQuery(service), signalTimeline(service),
                 timelineBuild(service, components), diffBatches(service),
                 configVersionsDiff(components), anomalyScan(browseStores),
-                componentDraft(), queryAuthor(service, components), pipelineAuthor(), suggestExpectations(browseStores),
+                componentDraft(), queryAuthor(service, components), kpiReportBuilder(components),
+                pipelineAuthor(), suggestExpectations(browseStores),
                 componentApply(controlPlane), componentRollback(controlPlane),
                 jobRun(controlPlane), pipelineRerun(controlPlane),
                 alertAck(controlPlane), scheduleApply(controlPlane),
@@ -734,7 +735,7 @@ final class InspectoTools {
     private static Tool componentDraft() {
         ToolSpec spec = new ToolSpec("component_draft",
                 "Validate a proposed component draft (kind: pipeline|enrichment|job|schema|expectation|"
-                        + "alert-rule) against the control plane's structural spec + hard-fail safety gate; "
+                        + "alert-rule|widget|dashboard) against the control plane's structural spec + hard-fail safety gate; "
                         + "returns anchored findings to repair. Does not persist — a clean draft is one a "
                         + "human can apply unchanged.",
                 "{\"type\":\"object\",\"properties\":{"
@@ -751,7 +752,8 @@ final class InspectoTools {
             ConfigSpec cfgSpec = ConfigSpecs.forType(type);
             if (cfgSpec == null) {
                 return error("no structural spec for kind '" + kind
-                        + "' (validatable kinds: pipeline, enrichment, job, schema, expectation, alert-rule)");
+                        + "' (validatable kinds: pipeline, enrichment, job, schema, expectation, alert-rule, "
+                        + "widget, dashboard)");
             }
             List<Finding> findings = new ArrayList<>(ConfigLoader.filesystem().validate(cfgSpec, draft));
             // Agent drafts must clear the security boundary before a human ever sees them (plan §6.4):
@@ -828,6 +830,160 @@ final class InspectoTools {
             result.put("draft", draft);
             return ok(result);
         });
+    }
+
+    /** Accepted measure aggregations — input matched case-insensitively, stored in the canonical casing
+     *  the viz compile step + {@code MeasureCompiler.Measure} expect. */
+    private static final Map<String, String> AGG_CANON = Map.of(
+            "count", "count", "countdistinct", "countDistinct", "sum", "sum",
+            "avg", "avg", "min", "min", "max", "max");
+
+    /**
+     * AGT-5 P2 {@code kpi_report_builder} (author, L1): compose a KPI report from a dataset ref + a list of
+     * measures ({@code {agg,field}}). The server builds DRAFT {@code widget} components — one {@code kpi}
+     * widget per measure, or a single grouped {@code bar} chart when {@code groupBy} is given — and a DRAFT
+     * {@code dashboard} that tiles them, then validates every piece against its {@link ConfigSpecs}
+     * envelope. The model supplies only structured measures/dimensions — never widget/dashboard JSON — so
+     * the composed configs are trusted by construction (field names stay inert until the guarded compile
+     * step). It never persists: apply the returned {@code widgets} then the {@code dashboard} via
+     * {@code component_apply}, the L2 gated write — exactly like {@link #queryAuthor}.
+     */
+    private static Tool kpiReportBuilder(ComponentStore components) {
+        ToolSpec spec = new ToolSpec("kpi_report_builder",
+                "Compose a KPI report from a dataset ref + measures. Builds DRAFT widgets (one 'kpi' per "
+                        + "measure, or one grouped 'bar' chart when groupBy is given) and a DRAFT 'dashboard' "
+                        + "tiling them — you never write widget/dashboard JSON. Returns the draft bundle to "
+                        + "promote via component_apply (apply the widgets first, then the dashboard). Args: "
+                        + "dataset (ref), title, measures ([{agg,field,label?}], agg in "
+                        + "count|countDistinct|sum|avg|min|max), groupBy (optional [field]), filter (optional).",
+                "{\"type\":\"object\",\"properties\":{"
+                        + "\"dataset\":{\"type\":\"string\"},"
+                        + "\"title\":{\"type\":\"string\"},"
+                        + "\"measures\":{\"type\":\"array\",\"items\":{\"type\":\"object\"}},"
+                        + "\"groupBy\":{\"type\":\"array\",\"items\":{\"type\":\"string\"}},"
+                        + "\"filter\":{\"type\":\"object\"}},"
+                        + "\"required\":[\"dataset\",\"title\",\"measures\"]}",
+                false, Role.USER, Capability.AUTHOR_PIPELINE);
+        return new FunctionTool(spec, call -> {
+            if (components == null) {
+                return error("no write root configured — kpi_report_builder needs -Dassist.write.root");
+            }
+            String dataset = arg(call, "dataset");
+            if (dataset == null || dataset.isBlank()) return error("dataset is required");
+            String title = arg(call, "title");
+            if (title == null || title.isBlank()) return error("title is required");
+            try {
+                if (components.get("dataset", dataset).isEmpty()) return error("unknown dataset '" + dataset + "'");
+            } catch (IllegalArgumentException e) {
+                return error("could not read dataset '" + dataset + "': " + e.getMessage());
+            }
+
+            List<Map<String, Object>> measures = listOfMapsArg(call, "measures");
+            if (measures == null || measures.isEmpty())
+                return error("measures is required and must be a non-empty array of {agg,field}");
+            List<Map<String, Object>> norm = new ArrayList<>();   // normalized {field, agg}
+            List<String> labels = new ArrayList<>();
+            for (Map<String, Object> m : measures) {
+                Object aggO = m.get("agg");
+                String agg = aggO == null ? null : AGG_CANON.get(aggO.toString().trim().toLowerCase(Locale.ROOT));
+                if (agg == null) return error("each measure needs an agg in " + AGG_CANON.values() + ", got: " + aggO);
+                Object fieldO = m.get("field");
+                String field = fieldO == null ? "" : fieldO.toString().trim();
+                if (!agg.equals("count") && field.isEmpty())
+                    return error("measure agg '" + agg + "' needs a field");
+                Map<String, Object> mm = new LinkedHashMap<>();
+                mm.put("field", field);
+                mm.put("agg", agg);
+                norm.add(mm);
+                Object lbl = m.get("label");
+                labels.add(lbl != null && !lbl.toString().isBlank() ? lbl.toString().trim()
+                        : (field.isEmpty() ? agg : agg + " " + field));
+            }
+
+            List<String> groupBy = new ArrayList<>();
+            Object gb = call.arguments() == null ? null : call.arguments().get("groupBy");
+            if (gb instanceof List<?> l)
+                for (Object o : l) if (o != null && !o.toString().isBlank()) groupBy.add(o.toString().trim());
+            Map<String, Object> filter = mapArg(call, "filter");
+
+            String base = slug(title);
+            List<Map<String, Object>> widgets = new ArrayList<>();   // each {id, draft}
+            List<Map<String, Object>> tiles = new ArrayList<>();
+            if (groupBy.isEmpty()) {
+                for (int i = 0; i < norm.size(); i++) {
+                    String wid = base + "_kpi_" + (i + 1);
+                    Map<String, Object> controls = Map.of("value", List.of(norm.get(i)));
+                    widgets.add(widgetEntry(wid, widgetDraft(dataset, "kpi", controls, labels.get(i))));
+                    tiles.add(tile(wid, 1));
+                }
+            } else {
+                String wid = base + "_chart";
+                Map<String, Object> controls = new LinkedHashMap<>();
+                controls.put("x", List.of(Map.of("field", groupBy.get(0))));
+                controls.put("y", norm);
+                if (groupBy.size() > 1) controls.put("series", List.of(Map.of("field", groupBy.get(1))));
+                widgets.add(widgetEntry(wid, widgetDraft(dataset, "bar", controls, title.trim())));
+                tiles.add(tile(wid, 2));   // a chart reads better across the full 2-column span
+            }
+
+            Map<String, Object> dashboard = new LinkedHashMap<>();
+            dashboard.put("tiles", tiles);
+            if (filter != null && !filter.isEmpty()) dashboard.put("filter", filter);
+
+            // validate every composed draft against its structural spec (clean by construction; findings
+            // here surface a composition bug, mirroring componentDraft's validator-repair contract).
+            ConfigLoader loader = ConfigLoader.filesystem();
+            List<Finding> findings = new ArrayList<>();
+            for (Map<String, Object> w : widgets)
+                findings.addAll(loader.validate(ConfigSpecs.widget(), draftOf(w)));
+            findings.addAll(loader.validate(ConfigSpecs.dashboard(), dashboard));
+
+            Map<String, Object> result = new LinkedHashMap<>();
+            result.put("kind", "dashboard");
+            result.put("id", base);
+            result.put("clean", findings.isEmpty());
+            result.put("findings", findings.stream().map(InspectoTools::findingMap).toList());
+            result.put("draft", dashboard);
+            result.put("widgets", widgets);
+            return ok(result);
+        });
+    }
+
+    /** A {@code widget} component draft: {@code vizType} + dataset + the plugin {@code controls}, with an
+     *  optional {@code options.title} caption. */
+    private static Map<String, Object> widgetDraft(String datasetId, String vizType,
+                                                   Map<String, Object> controls, String title) {
+        Map<String, Object> w = new LinkedHashMap<>();
+        w.put("vizType", vizType);
+        w.put("datasetId", datasetId);
+        w.put("controls", controls);
+        if (title != null && !title.isBlank()) w.put("options", Map.of("title", title.trim()));
+        return w;
+    }
+
+    private static Map<String, Object> widgetEntry(String id, Map<String, Object> draft) {
+        Map<String, Object> e = new LinkedHashMap<>();
+        e.put("id", id);
+        e.put("draft", draft);
+        return e;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Map<String, Object> draftOf(Map<String, Object> widgetEntry) {
+        return (Map<String, Object>) widgetEntry.get("draft");
+    }
+
+    private static Map<String, Object> tile(String widgetId, int span) {
+        Map<String, Object> t = new LinkedHashMap<>();
+        t.put("widgetId", widgetId);
+        t.put("span", span);
+        return t;
+    }
+
+    /** A filesystem/id-safe slug from a free-text title (lowercase, runs of non-alphanumerics → {@code _}). */
+    private static String slug(String s) {
+        String base = s.trim().toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9]+", "_").replaceAll("^_+|_+$", "");
+        return base.isEmpty() ? "report" : base;
     }
 
     /** Map a component kind to its {@link ConfigSpecs} config type ({@code alert-rule}→{@code alert}). */

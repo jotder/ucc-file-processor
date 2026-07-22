@@ -58,9 +58,10 @@ class InspectoPackTest {
     @Test
     void toolBeltHasRoleAndCapabilityAndOnlyP3ActToolsMutateAndNoMcp() {
         List<Tool> tools = pack.toolProvider().tools();
-        assertEquals(20, tools.size()); // glossary_lookup, docs_search, status_get, S5 signals_query, signal_timeline
+        assertEquals(21, tools.size()); // glossary_lookup, docs_search, status_get, S5 signals_query, signal_timeline
                                         // + P1 timeline_build, diff_batches, config_versions_diff, anomaly_scan
-                                        // + P2 component_draft, query_author, pipeline_author, suggest_expectations
+                                        // + P2 component_draft, query_author, kpi_report_builder, pipeline_author,
+                                        //   suggest_expectations
                                         // + P3 act (mutating, gated): component_apply, component_rollback,
                                         //   job_run, pipeline_rerun, alert_ack, schedule_apply, runbook_operator
         Set<String> actTools = Set.of("component_apply", "component_rollback",

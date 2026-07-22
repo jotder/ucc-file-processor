@@ -177,4 +177,26 @@ class ConfigSpecsTest {
         assertTrue(fire(j, "cron-field-count", Map.of("job", Map.of("cron", "0 0 2 * * *"))).isEmpty());
         assertTrue(fire(j, "cron-field-count", Map.of("job", Map.of("cron", "0 2 *"))).isPresent());
     }
+
+    // ── widget / dashboard cross-field rules (kpi_report_builder, 2026-07-22) ──────
+
+    @Test
+    void widgetMustBindADatasetOrAView() {
+        ConfigSpec w = ConfigSpecs.widget();
+        assertTrue(fire(w, "binds-a-dataset-or-a-view", Map.of("vizType", "kpi", "datasetId", "orders")).isEmpty(),
+                "a dataset binding satisfies the rule");
+        assertTrue(fire(w, "binds-a-dataset-or-a-view", Map.of("vizType", "geo-map", "viewId", "v1")).isEmpty(),
+                "a view binding satisfies the rule (a view-bound widget has no datasetId)");
+        assertTrue(fire(w, "binds-a-dataset-or-a-view", Map.of("vizType", "kpi")).isPresent(),
+                "neither dataset nor view → ERROR");
+    }
+
+    @Test
+    void dashboardNeedsAtLeastOneTile() {
+        ConfigSpec d = ConfigSpecs.dashboard();
+        assertTrue(fire(d, "at-least-one-tile",
+                Map.of("tiles", List.of(Map.of("widgetId", "w1", "span", 1)))).isEmpty(), "one tile → ok");
+        assertTrue(fire(d, "at-least-one-tile", Map.of("tiles", List.of())).isPresent(),
+                "an empty tiles list → ERROR (required alone would accept [])");
+    }
 }
