@@ -9,10 +9,15 @@ import { expectNoA11yViolations } from 'app/inspecto/testing/a11y';
 import { ObjectCreateDialog } from './object-create.dialog';
 
 const CREATED = { id: 'OBJ-1', objectType: 'INCIDENT', title: 'Late feed' } as OperationalObject;
+const CANDIDATE = { id: 'OBJ-9', objectType: 'ALERT', title: 'disk full', status: 'OPEN' } as OperationalObject;
 
 function create() {
     const ref = { close: vi.fn() };
-    const api = { create: vi.fn(() => of(CREATED)), tags: vi.fn(() => of([{ name: 'network' }, { name: 'urgent' }])) };
+    const api = {
+        create: vi.fn(() => of(CREATED)),
+        tags: vi.fn(() => of([{ name: 'network' }, { name: 'urgent' }])),
+        list: vi.fn(() => of([CANDIDATE])),
+    };
     TestBed.configureTestingModule({
         imports: [ObjectCreateDialog],
         providers: [
@@ -29,7 +34,7 @@ function create() {
 }
 
 describe('ObjectCreateDialog', () => {
-    it('blocks save until title AND the 3-layer category are set, then creates and closes', () => {
+    it('blocks save until title, the 3-layer category, AND ≥1 link are set, then creates and closes', () => {
         const { c, ref, api } = create();
         c.save();
         expect(api.create).not.toHaveBeenCalled();
@@ -39,14 +44,20 @@ describe('ObjectCreateDialog', () => {
         c.save();
         expect(api.create).not.toHaveBeenCalled();
 
+        // Category satisfied but still no linked entity → the ≥1-link contract blocks the save.
         c.form.patchValue({ l1: 'Data Quality', l2: 'Timeliness', l3: 'Late arrival' });
         c.tags.set(['urgent', 'feed']);
+        c.save();
+        expect(api.create).not.toHaveBeenCalled();
+
+        c.form.patchValue({ links: [CANDIDATE.id] });
         c.save();
         expect(api.create).toHaveBeenCalledWith({
             type: 'INCIDENT',
             title: 'Late feed',
             severity: 'WARNING',
             attributes: { category: 'Data Quality / Timeliness / Late arrival', tags: 'urgent,feed' },
+            links: [{ to: 'OBJ-9', relationship: 'RELATED_TO' }],
         });
         expect(ref.close).toHaveBeenCalledWith(CREATED);
     });

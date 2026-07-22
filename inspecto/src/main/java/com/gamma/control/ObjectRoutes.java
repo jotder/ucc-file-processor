@@ -251,9 +251,12 @@ final class ObjectRoutes implements RouteModule {
      * {@code POST /objects} (Phase 3) — create a managed object. The complement of alert auto-promotion:
      * ALERTs are opened by the {@code AlertService}, whereas INCIDENTs are operator-created here. Body
      * {@code {type?,title,description?,severity?,priority?,owner?,assignee?,correlationId?,attributes?,
-     * dueAt?|dueInMinutes?}} — {@code type} defaults to {@code INCIDENT}, {@code title} is required, and
-     * {@code dueAt} (epoch millis) or {@code dueInMinutes} sets the SLA deadline the sweep tracks. The
-     * object opens in its workflow's initial state; lifecycle moves go through {@code /objects/{id}/transition}.
+     * dueAt?|dueInMinutes?,links:[{to,relationship?}|id…]}} — {@code type} defaults to {@code INCIDENT},
+     * {@code title} is required, {@code dueAt} (epoch millis) or {@code dueInMinutes} sets the SLA deadline,
+     * and {@code links} must name at least one existing object to correlate with (product decision
+     * 2026-07-22: a case/incident with nothing linked isn't useful — the auto-creation paths that open
+     * objects directly via {@code ObjectService.open} are unaffected). The object opens in its workflow's
+     * initial state; lifecycle moves go through {@code /objects/{id}/transition}.
      */
     private Object createObject(ApiContext api, Map<String, Object> body) {
         String title = ApiContext.str(body, "title");
@@ -266,15 +269,53 @@ final class ObjectRoutes implements RouteModule {
         }
         if (type == null) type = ObjectType.INCIDENT;   // the create path exists for operator-created incidents
 
+        // ≥1 linked entity is mandatory. Validate every target exists BEFORE opening, so a dangling link
+        // can't leave an orphan object behind (open() then link() is not atomic).
+        List<LinkSpec> links = parseLinks(body.get("links"));
+        if (links.isEmpty()) throw new ApiException(400, "body must include at least one entry in 'links'");
+        for (LinkSpec l : links)
+            if (api.service().objects().get(l.to()).isEmpty())
+                throw new ApiException(404, "no object with id '" + l.to() + "'");
+
         Map<String, String> attrs = new LinkedHashMap<>();
         if (body.get("attributes") instanceof Map<?, ?> bag)
             bag.forEach((k, v) -> { if (k != null && v != null) attrs.put(k.toString(), v.toString()); });
         Long dueAt = parseDueAt(body);
         if (dueAt != null) attrs.put(ObjectService.ATTR_DUE_AT, Long.toString(dueAt));
 
-        return api.service().objects().open(type, title, ApiContext.str(body, "description"), ApiContext.str(body, "severity"),
-                ApiContext.str(body, "priority"), ApiContext.str(body, "owner"), ApiContext.str(body, "assignee"),
-                ApiContext.str(body, "correlationId"), attrs).toMap();
+        OperationalObject created = api.service().objects().open(type, title, ApiContext.str(body, "description"),
+                ApiContext.str(body, "severity"), ApiContext.str(body, "priority"), ApiContext.str(body, "owner"),
+                ApiContext.str(body, "assignee"), ApiContext.str(body, "correlationId"), attrs);
+        String actor = ApiContext.str(body, "actor");
+        for (LinkSpec l : links)
+            api.service().objects().link(created.id(), l.to(), l.relationship(), actor);
+        return created.toMap();
+    }
+
+    /** One entry of the create body's mandatory {@code links} array. */
+    private record LinkSpec(String to, String relationship) {}
+
+    /**
+     * Parse the create body's {@code links} into {@code {to,relationship?}} specs: each element is either a
+     * {@code {to,relationship?}} object (mirroring the {@code /objects/{id}/links} body) or a bare id string
+     * (the relationship then defaults to {@code RELATED_TO} in {@code link()}). Blank/absent {@code to}
+     * entries are skipped, mirroring {@link #stringList}, so an all-blank array reads as empty → 400.
+     */
+    private static List<LinkSpec> parseLinks(Object v) {
+        List<LinkSpec> out = new java.util.ArrayList<>();
+        if (v instanceof List<?> list) {
+            for (Object o : list) {
+                if (o instanceof Map<?, ?> m) {
+                    Object to = m.get("to");
+                    if (to == null || to.toString().isBlank()) continue;
+                    Object rel = m.get("relationship");
+                    out.add(new LinkSpec(to.toString().trim(), rel == null ? null : rel.toString()));
+                } else if (o != null && !o.toString().isBlank()) {
+                    out.add(new LinkSpec(o.toString().trim(), null));
+                }
+            }
+        }
+        return out;
     }
 
     /** SLA deadline from the create body: absolute {@code dueAt} (epoch millis) or relative {@code dueInMinutes}. */

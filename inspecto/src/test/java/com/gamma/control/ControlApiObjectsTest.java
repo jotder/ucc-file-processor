@@ -95,14 +95,20 @@ class ControlApiObjectsTest {
     @Test
     void createIncidentAndWalkLifecycle(@TempDir Path dir) throws Exception {
         try (Ctx c = open(dir)) {
+            // an existing object to satisfy the mandatory ≥1-link create contract (an incident-source)
+            OperationalObject src = c.svc.objects().open(ObjectType.ALERT, "source alert", "d", "HIGH", "corr", Map.of());
+
             // create an INCIDENT via POST /objects (type defaults to INCIDENT); dueInMinutes seeds the SLA deadline
             JsonNode created = json(send(c.port, "POST", "/objects",
-                    "{\"title\":\"bad rows\",\"severity\":\"HIGH\",\"assignee\":\"alice\",\"dueInMinutes\":30}"));
+                    "{\"title\":\"bad rows\",\"severity\":\"HIGH\",\"assignee\":\"alice\",\"dueInMinutes\":30,"
+                    + "\"links\":[{\"to\":\"" + src.id() + "\"}]}"));
             String id = created.get("id").asText();
             assertEquals("INCIDENT", created.get("objectType").asText());
             assertEquals("IDENTIFIED", created.get("status").asText());
             assertEquals("alice", created.get("assignee").asText());
             assertTrue(created.get("attributes").has("dueAt"), "dueInMinutes sets a dueAt attribute");
+            assertEquals(1, json(send(c.port, "GET", "/objects/" + id + "/links", null)).size(),
+                    "the mandatory linked entity is attached at creation");
 
             // walk IDENTIFIED → DIAGNOSING → RESOLVED → ARCHIVED (GLOSSARY §9) via the generic transition route
             assertEquals("DIAGNOSING", transition(c.port, id, "accept"));
@@ -121,6 +127,12 @@ class ControlApiObjectsTest {
             // missing title → 400; unknown type → 400
             assertEquals(400, send(c.port, "POST", "/objects", "{\"severity\":\"LOW\"}").statusCode());
             assertEquals(400, send(c.port, "POST", "/objects", "{\"title\":\"x\",\"type\":\"bogus\"}").statusCode());
+
+            // ≥1 linked entity is mandatory: no links key → 400; empty links → 400; a dangling target → 404
+            assertEquals(400, send(c.port, "POST", "/objects", "{\"title\":\"linkless\"}").statusCode());
+            assertEquals(400, send(c.port, "POST", "/objects", "{\"title\":\"linkless\",\"links\":[]}").statusCode());
+            assertEquals(404, send(c.port, "POST", "/objects",
+                    "{\"title\":\"dangling\",\"links\":[{\"to\":\"ghost\"}]}").statusCode());
         }
     }
 

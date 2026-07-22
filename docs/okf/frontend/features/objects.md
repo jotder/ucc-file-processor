@@ -24,13 +24,19 @@ route data (`incidents.routes.ts` / `cases.routes.ts`), the canonical
   instead of hardcoding transitions, so TOON-overridden workflows drive the same panes. Resolve requires
   a resolution comment; a soft resolution-readiness warn checks timeline/cause-analysis/corrective
   actions (backend workflow guard is a documented follow-up).
-* **Create contract (product sign-off 2026-07-22)** — assignment is **direct**: an `assignee`, optional at
-  creation, settable at triage; queue-based routing is deferred (no multi-analyst consumer yet). Mandatory
-  at creation: **title** (already enforced, 400) **+ at least one linked entity/incident-source** (a
-  case/incident with nothing linked isn't useful). The ≥1-link requirement is the agreed *target* contract:
-  today creation is title-only (`POST /objects`, linking is the separate `POST /objects/{id}/links` step —
-  create-then-link), so enforcing link-at-create is a tracked change across the route + `object-create.dialog`
-  + mock + tests ([`BACKLOG.md`](../../../BACKLOG.md) §7), not yet enforced.
+* **Create contract (product sign-off + enforced 2026-07-22)** — assignment is **direct**: an `assignee`,
+  optional at creation, settable at triage; queue-based routing is deferred (no multi-analyst consumer yet).
+  Mandatory at creation: **title** (400) **+ at least one linked entity** (a case/incident with nothing
+  linked isn't useful). `POST /objects` now takes a `links:[{to,relationship?}|id…]` array (≥1); the route
+  validates every target exists *before* `open()` so a dangling link can't orphan the object, then links
+  after opening — empty/absent `links` → 400, an unknown target → 404, `relationship` defaults to
+  `RELATED_TO` (`ObjectRoutes.createObject`). The create dialog collects them via a required "Linked
+  entities" multi-select + relationship select (`object-create.dialog`; a case defaults to `CONTAINS`, an
+  incident to `RELATED_TO`), and the `mockOps` handler mirrors the contract. **Unaffected:** the
+  auto-creation paths (`AlertService`/`DecisionRoutes`/`ExpectationRoutes`/`ReconRunJob`/`EventObjectBridge`)
+  open objects directly via `ObjectService.open`, bypassing the route. **Bootstrap consequence:** the first
+  object in an empty space must come from an auto-creation path — there is nothing to link to yet, so the
+  dialog shows a "no existing objects to link to" hint and blocks manual creation until one exists.
 * **Triage is optimistic** — every bulk verb (accept / resolve / archive / reopen / escalate /
   prioritize / tag / case actions) patches the loaded rows + open detail to the expected post-state,
   then reconciles each row with the authoritative server object; failures reload

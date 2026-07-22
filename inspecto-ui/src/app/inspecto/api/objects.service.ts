@@ -204,6 +204,8 @@ export interface CreateObject {
     attributes?: Record<string, string>;
     dueInMinutes?: number;
     dueAt?: number;
+    /** ≥1 existing object to correlate with — mandatory at creation (product decision 2026-07-22). */
+    links?: { to: string; relationship?: string }[];
 }
 
 /** Partial update for PATCH /objects/{id} — `attributes` merge onto the stored map. */

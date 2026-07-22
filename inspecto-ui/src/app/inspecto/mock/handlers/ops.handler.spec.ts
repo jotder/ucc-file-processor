@@ -164,6 +164,7 @@ describe('opsHandler', () => {
                 severity: 'WARNING',
                 dueInMinutes: 60,
                 attributes: { category: 'Data Quality / Timeliness / Late arrival', tags: 'urgent' },
+                links: [{ to: 'incident-101' }],
             }),
             store,
         )?.body as OperationalObject;
@@ -187,6 +188,20 @@ describe('opsHandler', () => {
             ?.body as OperationalObject;
         expect(archived.status).toBe('ARCHIVED');
         expect(archived.closedAt).toBeGreaterThan(0);
+    });
+
+    it('requires ≥1 linked entity at creation and persists the link rows', () => {
+        const store = seededStore();
+        // no links / empty links → 422; an unknown target → 422
+        expect(handler(req('POST', '/api/objects', { type: 'incident', title: 'orphan' }), store)?.status).toBe(422);
+        expect(handler(req('POST', '/api/objects', { type: 'incident', title: 'orphan', links: [] }), store)?.status).toBe(422);
+        expect(handler(req('POST', '/api/objects', { type: 'incident', title: 'orphan', links: [{ to: 'ghost' }] }), store)?.status).toBe(422);
+        // a valid target → created, and the link row is queryable
+        const created = handler(req('POST', '/api/objects',
+            { type: 'incident', title: 'linked', links: [{ to: 'incident-101', relationship: 'CAUSED_BY' }] }), store)
+            ?.body as OperationalObject;
+        const links = handler(req('GET', `/api/objects/${created.id}/links`), store)?.body as ObjectLink[];
+        expect(links.some((l) => l.from === created.id && l.to === 'incident-101' && l.relationship === 'CAUSED_BY')).toBe(true);
     });
 
     it('manages the tag registry (list sorted, create validates + 409s duplicates)', () => {
@@ -231,13 +246,13 @@ describe('opsHandler', () => {
         const store = seededStore();
         // The seeded rule "critical-is-urgent" tags CRITICAL incidents with "urgent".
         const created = handler(
-            req('POST', '/api/objects', { type: 'incident', title: 'Broken feed', priority: 'CRITICAL' }),
+            req('POST', '/api/objects', { type: 'incident', title: 'Broken feed', priority: 'CRITICAL', links: [{ to: 'incident-101' }] }),
             store,
         )?.body as OperationalObject;
         expect((created.attributes?.['tags'] ?? '').split(',')).toContain('urgent');
         // A non-matching object stays untagged.
         const minor = handler(
-            req('POST', '/api/objects', { type: 'incident', title: 'Small glitch', priority: 'LOW' }),
+            req('POST', '/api/objects', { type: 'incident', title: 'Small glitch', priority: 'LOW', links: [{ to: 'incident-101' }] }),
             store,
         )?.body as OperationalObject;
         expect(minor.attributes?.['tags']).toBeUndefined();
@@ -298,8 +313,8 @@ describe('opsHandler', () => {
             expect(again.grouped).toBe(0);
         }
         // create two fresh CRITICAL incidents, then a bespoke rule groups them
-        handler(req('POST', '/api/objects', { type: 'incident', title: 'x1', priority: 'CRITICAL' }), store);
-        handler(req('POST', '/api/objects', { type: 'incident', title: 'x2', priority: 'CRITICAL' }), store);
+        handler(req('POST', '/api/objects', { type: 'incident', title: 'x1', priority: 'CRITICAL', links: [{ to: 'incident-101' }] }), store);
+        handler(req('POST', '/api/objects', { type: 'incident', title: 'x2', priority: 'CRITICAL', links: [{ to: 'incident-101' }] }), store);
         handler(req('POST', '/api/cases/rules', {
             name: 'r2', title: 'Cluster 2', threshold: 2, windowMinutes: 1440,
             filter: { type: 'INCIDENT', priority: 'CRITICAL' },
@@ -413,8 +428,8 @@ describe('opsHandler', () => {
         });
 
         handler(req('POST', '/api/alerts/evaluate'), store);
-        handler(req('POST', '/api/objects', { type: 'INCIDENT', title: 'Late feed' }), store);
-        handler(req('POST', '/api/objects', { type: 'CASE', title: 'No fan-out for cases' }), store);
+        handler(req('POST', '/api/objects', { type: 'INCIDENT', title: 'Late feed', links: [{ to: 'incident-101' }] }), store);
+        handler(req('POST', '/api/objects', { type: 'CASE', title: 'No fan-out for cases', links: [{ to: 'incident-101' }] }), store);
 
         // The evaluate() sweep can fire more than one rule (real ledger math, not a single canned
         // breach) — assert both trigger KINDS fan out, not an exact count.

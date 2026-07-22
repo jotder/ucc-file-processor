@@ -256,6 +256,11 @@ export function opsHandler(flags: MockFlags): MockHandler {
         if (method === 'POST' && OBJECTS.test(url)) {
             const b = (req.body ?? {}) as Record<string, unknown> & { title?: string };
             if (!b.title) return error(422, 'title is required');
+            // ≥1 linked entity is mandatory at creation (product decision 2026-07-22) — mirror the backend.
+            const links = parseLinks(b['links']);
+            if (!links.length) return error(422, 'at least one linked entity is required');
+            for (const l of links)
+                if (!store.get<OperationalObject>(space, OPS_OBJECTS_COLL, l.to)) return error(422, `target object ${l.to} not found`);
             const now = Date.now();
             const objectType = String(b['type'] ?? 'INCIDENT').toUpperCase();
             const obj: OperationalObject = {
@@ -281,6 +286,19 @@ export function opsHandler(flags: MockFlags): MockHandler {
             // Tag Rules apply automatically to incoming objects (the Gmail-filter semantics).
             autoApplyTagRules(store, space, obj);
             store.put(space, OPS_OBJECTS_COLL, obj.id, obj);
+            // Persist the mandatory link rows (mirrors the OBJECT_LINKS POST logic).
+            for (const l of links) {
+                const to = store.get<OperationalObject>(space, OPS_OBJECTS_COLL, l.to)!;
+                const link: ObjectLink = {
+                    from: obj.id,
+                    fromType: obj.objectType,
+                    to: to.id,
+                    toType: to.objectType,
+                    relationship: l.relationship ?? 'RELATED_TO',
+                    createdAt: Date.now(),
+                };
+                store.put(space, OBJECT_LINKS_COLL, `${link.from}->${link.to}:${link.relationship}`, link);
+            }
             if (obj.objectType === 'INCIDENT') {
                 // Emit an INCIDENT_OPENED signal; emitSignal fans out the notification (was a direct fanOut).
                 emitSignal(store, space, {
@@ -810,6 +828,23 @@ let objSeq = 0;
 /** Collision-proof object id — a bare `obj-<now>` collides when two objects are created in the same ms. */
 function newObjId(): string {
     return `obj-${Date.now()}-${++objSeq}`;
+}
+
+/** Parse a create body's `links` into `{to,relationship?}` specs (object or bare-id form); blanks dropped. */
+function parseLinks(v: unknown): { to: string; relationship?: string }[] {
+    if (!Array.isArray(v)) return [];
+    const out: { to: string; relationship?: string }[] = [];
+    for (const o of v) {
+        if (o && typeof o === 'object' && 'to' in o) {
+            const to = String((o as Record<string, unknown>)['to'] ?? '').trim();
+            if (!to) continue;
+            const rel = (o as Record<string, unknown>)['relationship'];
+            out.push({ to, relationship: rel == null ? undefined : String(rel) });
+        } else if (typeof o === 'string' && o.trim()) {
+            out.push({ to: o.trim() });
+        }
+    }
+    return out;
 }
 
 let noteSeq = 0;

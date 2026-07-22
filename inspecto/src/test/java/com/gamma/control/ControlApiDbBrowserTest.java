@@ -4,8 +4,11 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.gamma.etl.PipelineConfigBatchTest;
 import com.gamma.etl.TestConfigs;
+import com.gamma.ops.ObjectType;
+import com.gamma.ops.OperationalObject;
 import com.gamma.pipeline.ComponentStore;
 import com.gamma.service.CollectorService;
+import com.gamma.service.SpaceId;
 import com.gamma.service.SpaceManager;
 import com.gamma.util.DuckDbUtil;
 import org.junit.jupiter.api.Test;
@@ -218,9 +221,13 @@ class ControlApiDbBrowserTest {
         String prior = System.getProperty("objects.backend");
         System.setProperty("objects.backend", "db");   // makes DbObjectStore live (a BrowsableStore)
         try (Ctx c = open(root)) {
+            // a link target in the same space to satisfy the mandatory ≥1-link create contract
+            OperationalObject target = c.spaces.space(SpaceId.of("s1")).orElseThrow().service().objects()
+                    .open(ObjectType.INCIDENT, "link target", "d", "HIGH", "corr", java.util.Map.of());
+
             // seed one row via the API (POST /objects defaults to an INCIDENT)
             HttpResponse<String> created = postJson(c.port, "/api/v1/spaces/s1/objects",
-                    "{\"title\":\"DB browser probe\",\"type\":\"INCIDENT\"}");
+                    "{\"title\":\"DB browser probe\",\"type\":\"INCIDENT\",\"links\":[{\"to\":\"" + target.id() + "\"}]}");
             assertTrue(created.statusCode() < 300, created.body());
 
             // catalog now carries the operational objects group alongside the parquet stores
@@ -233,15 +240,17 @@ class ControlApiDbBrowserTest {
             for (JsonNode t : ops.get("tables")) if ("inspecto_ops_objects".equals(t.get("name").asText())) hasTable = true;
             assertTrue(hasTable, "inspecto_ops_objects listed: " + ops.get("tables"));
 
-            // browse the table through the live connection
+            // browse the table through the live connection (the probe + its mandatory link target = 2 rows)
             JsonNode data = JSON.readTree(get(c.port,
                     "/api/v1/spaces/s1/db/table?group=ops:objects&name=inspecto_ops_objects").body()).get("data");
-            assertEquals(1, data.get("rows").size());
-            assertEquals("DB browser probe", data.get("rows").get(0).get("title").asText());
+            assertEquals(2, data.get("rows").size());
+            List<String> titles = new java.util.ArrayList<>();
+            for (JsonNode row : data.get("rows")) titles.add(row.get("title").asText());
+            assertTrue(titles.contains("DB browser probe"), titles.toString());
 
             // ad-hoc read-only SQL over the live connection
             JsonNode q = JSON.readTree(postJson(c.port, "/api/v1/spaces/s1/db/query",
-                    "{\"group\":\"ops:objects\",\"sql\":\"SELECT title FROM inspecto_ops_objects\"}").body()).get("data");
+                    "{\"group\":\"ops:objects\",\"sql\":\"SELECT title FROM inspecto_ops_objects WHERE title = 'DB browser probe'\"}").body()).get("data");
             assertEquals("DB browser probe", q.get("rows").get(0).get("title").asText());
 
             // unknown table for the group → 404; a mutating statement → 422

@@ -123,13 +123,13 @@ class ControlApiTagRoutesTest {
             JsonNode tagged = json(send(c.port, "GET", "/objects/" + critical.id(), null));
             assertEquals("urgent", tagged.get("attributes").get("tags").asText());
 
-            // auto-apply: a new matching object is tagged at creation
+            // auto-apply: a new matching object is tagged at creation (links satisfy the ≥1-link contract)
             JsonNode created = json(send(c.port, "POST", "/objects",
-                    "{\"title\":\"gateway down\",\"priority\":\"CRITICAL\"}"));
+                    "{\"title\":\"gateway down\",\"priority\":\"CRITICAL\",\"links\":[{\"to\":\"" + critical.id() + "\"}]}"));
             assertEquals("urgent", created.get("attributes").get("tags").asText(),
                     "Tag Rules auto-apply on create (Gmail-filter semantics)");
             JsonNode nonMatch = json(send(c.port, "POST", "/objects",
-                    "{\"title\":\"small thing\",\"priority\":\"LOW\"}"));
+                    "{\"title\":\"small thing\",\"priority\":\"LOW\",\"links\":[{\"to\":\"" + critical.id() + "\"}]}"));
             assertFalse(nonMatch.get("attributes").has("tags"), "non-matching objects stay untagged");
 
             // unknown rule → 404 on apply; delete removes registry entry + file, then 404s

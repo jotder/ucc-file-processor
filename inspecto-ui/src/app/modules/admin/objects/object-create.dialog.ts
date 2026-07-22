@@ -10,7 +10,7 @@ import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import { COMMA, ENTER } from '@angular/cdk/keycodes';
 import { ToastrService } from 'ngx-toastr';
-import { apiErrorMessage, CreateObject, ObjectsService } from 'app/inspecto/api';
+import { apiErrorMessage, CreateObject, ObjectsService, OperationalObject } from 'app/inspecto/api';
 import { InspectoConfirmService } from 'app/inspecto/confirm.service';
 import { guardDirtyClose } from 'app/inspecto/dialog-dirty-guard';
 import { INCIDENT_TAXONOMY, joinCategory } from './incident-taxonomy';
@@ -147,6 +147,31 @@ import { currentOperator, INCIDENT_PRIORITIES } from './mail-model';
                         </mat-autocomplete>
                     </mat-form-field>
                 </div>
+                <div class="flex gap-3">
+                    <mat-form-field class="flex-1" subscriptSizing="dynamic">
+                        <mat-label>Relationship</mat-label>
+                        <mat-select formControlName="linkRelationship">
+                            <mat-option value="CONTAINS">CONTAINS</mat-option>
+                            <mat-option value="ESCALATED_FROM">ESCALATED_FROM</mat-option>
+                            <mat-option value="CAUSED_BY">CAUSED_BY</mat-option>
+                            <mat-option value="RELATED_TO">RELATED_TO</mat-option>
+                        </mat-select>
+                    </mat-form-field>
+                    <mat-form-field class="flex-[2]" subscriptSizing="dynamic">
+                        <mat-label>Linked entities</mat-label>
+                        <mat-select formControlName="links" multiple required>
+                            @for (o of candidates(); track o.id) {
+                                <mat-option [value]="o.id">{{ o.objectType }} · {{ o.title || o.id }} ({{ o.status }})</mat-option>
+                            }
+                        </mat-select>
+                        @if (form.controls.links.hasError('required') && form.controls.links.touched) {
+                            <mat-error>Link at least one existing entity.</mat-error>
+                        }
+                        @if (!candidates().length) {
+                            <mat-hint>No existing objects to link to yet — one must exist before a new {{ data.label }} can be created.</mat-hint>
+                        }
+                    </mat-form-field>
+                </div>
                 <mat-form-field subscriptSizing="dynamic">
                     <mat-label>SLA (minutes)</mat-label>
                     <input matInput type="number" formControlName="dueInMinutes" placeholder="optional" />
@@ -186,6 +211,10 @@ export class ObjectCreateDialog {
         severity: [''],
         priority: [''],
         assignee: [''],
+        // ≥1 linked entity is mandatory at creation (product decision 2026-07-22); a case CONTAINS its
+        // members, an incident RELATES_TO its source. The multi-select's `required` blocks an empty list.
+        linkRelationship: [this.data.type === 'CASE' ? 'CONTAINS' : 'RELATED_TO'],
+        links: [[] as string[], Validators.required],
         dueInMinutes: [null as number | null],
     });
 
@@ -193,6 +222,9 @@ export class ObjectCreateDialog {
     readonly tags = signal<string[]>([]);
     readonly tagQuery = signal('');
     private readonly registry = signal<string[]>([]);
+
+    /** Existing objects the new one can be linked to (the mandatory ≥1-link contract). */
+    readonly candidates = signal<OperationalObject[]>([]);
 
     /** Suggestions: registry tags not yet chosen, narrowed by the input's text. */
     readonly tagSuggestions = (): string[] => {
@@ -210,6 +242,7 @@ export class ObjectCreateDialog {
 
     constructor() {
         this.api.tags().subscribe({ next: (t) => this.registry.set(t.map((x) => x.name)), error: () => undefined });
+        this.api.list({ limit: 200 }).subscribe({ next: (os) => this.candidates.set(os), error: () => this.candidates.set([]) });
     }
 
     addTag(event: MatChipInputEvent): void {
@@ -269,6 +302,7 @@ export class ObjectCreateDialog {
         const tags = this.tags().join(',');
         if (tags) attributes['tags'] = tags;
         if (Object.keys(attributes).length) body.attributes = attributes;
+        body.links = (v.links ?? []).map((to) => ({ to, relationship: v.linkRelationship || 'RELATED_TO' }));
         this.api.create(body).subscribe({
             next: (o) => {
                 this.toastr.success(`Created ${o.objectType} ${o.id}`);
