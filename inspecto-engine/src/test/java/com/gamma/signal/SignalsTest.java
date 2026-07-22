@@ -76,6 +76,34 @@ class SignalsTest {
         assertEquals(1, Signals.query(seeded(), null, null, null, null, null, 1).size(), "limit caps the page");
     }
 
+    private static Signal sourced(Ref source) {
+        return new Signal("id", "job.run.started", Instant.ofEpochMilli(1000), Severity.INFO,
+                source, null, "corr1", null, null, null, "m", Map.of(), 1);
+    }
+
+    @Test
+    void sourceFilterMatchesKindOrCompactForm() {
+        Signal jobX = sourced(new Ref("job", "nightly", "emits", "run:1"));
+        assertTrue(Signals.matchesSource(jobX, null), "null filter ⇒ no filter");
+        assertTrue(Signals.matchesSource(jobX, "  "), "blank filter ⇒ no filter");
+        assertTrue(Signals.matchesSource(jobX, "job"), "matches by source kind");
+        assertTrue(Signals.matchesSource(jobX, "JOB"), "kind match is case-insensitive");
+        assertTrue(Signals.matchesSource(jobX, "job:nightly"), "matches by compact kind:id");
+        assertFalse(Signals.matchesSource(jobX, "pipeline"), "a different kind ⇒ no match");
+        assertFalse(Signals.matchesSource(jobX, "job:other"), "same kind, different id ⇒ no match");
+        assertFalse(Signals.matchesSource(sourced(null), "job"), "a source-less signal is excluded by a source filter");
+        assertTrue(Signals.matchesSource(sourced(null), null), "but not excluded when no filter is given");
+    }
+
+    @Test
+    void matchesCombinesSourceWithTheOtherFilters() {
+        Signal jobFail = new Signal("id", "job.run.failed", Instant.ofEpochMilli(2000), Severity.CRITICAL,
+                Ref.of("job", "nightly"), null, "corr1", null, null, null, "m", Map.of(), 1);
+        assertTrue(Signals.matches(jobFail, "job.run.*", Severity.WARN, "job", "corr1"));
+        assertFalse(Signals.matches(jobFail, "job.run.*", Severity.WARN, "pipeline", "corr1"),
+                "a non-matching source excludes even when type/severity/correlationId all match");
+    }
+
     /** S0 DoD: a nested payload round-trips through {@code toEvent()}/{@code fromEvent()} with zero
      *  JSON-in-attribute (the {@link Signal#payload()} stays a real, nested {@code Map<String,Object>}
      *  end to end), and the API view's {@code source} is a nested {@link Ref} object, not a flat string. */

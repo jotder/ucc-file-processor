@@ -24,9 +24,10 @@ import java.util.function.Consumer;
  * counterpart ({@code GET /signals/stream}, event-signal-backbone-plan §S3). Signals persist as
  * {@code EventType.SIGNAL} events on the one ledger (§19.2); {@code GET /signals} reconstructs them and
  * filters by {@code type} (exact or {@code prefix.*} glob), the {@code since}/{@code until} epoch-milli
- * bounds, {@code severity} (a minimum floor), and {@code correlationId} — everything but the type glob
- * applies in-store. Space-scoped like {@code /events} (the {@code /spaces/{id}} prefix routes to the
- * space's event store).
+ * bounds, {@code severity} (a minimum floor), {@code source} (the emitter Ref, by {@code kind} or
+ * {@code kind:id}), and {@code correlationId} — the time bounds, severity floor and correlationId apply
+ * in-store, while the type glob and source match apply over the returned page (the store has no attribute
+ * filter). Space-scoped like {@code /events} (the {@code /spaces/{id}} prefix routes to the space's event store).
  */
 final class SignalRoutes implements RouteModule {
 
@@ -40,16 +41,19 @@ final class SignalRoutes implements RouteModule {
         api.get("/signals/stream", (e, m) -> stream(api, e));
     }
 
-    /** {@code GET /signals?type=&since=&until=&severity=&correlationId=&limit=} — the correlation-chain-filterable ledger view. */
+    /** {@code GET /signals?type=&since=&until=&severity=&source=&correlationId=&limit=} — the correlation-chain-filterable ledger view. */
     private Object signals(ApiContext api, HttpExchange e) {
         int limit = ApiContext.parseIntOr(ApiContext.query(e, "limit"), 200);
         Long since = parseEpochMs(ApiContext.query(e, "since"), "since");
         Long until = parseEpochMs(ApiContext.query(e, "until"), "until");
         Severity minSeverity = parseSeverity(ApiContext.query(e, "severity"));
+        String source = ApiContext.query(e, "source");
         List<Signal> found = Signals.query(api.service().events(),
                 ApiContext.query(e, "type"), since, until, minSeverity,
                 ApiContext.query(e, "correlationId"), limit);
-        return found.stream().map(Signal::toMap).toList();
+        return found.stream()
+                .filter(s -> Signals.matchesSource(s, source))   // source has no in-store filter — apply over the page
+                .map(Signal::toMap).toList();
     }
 
     private static Long parseEpochMs(String s, String field) {
@@ -72,11 +76,11 @@ final class SignalRoutes implements RouteModule {
     }
 
     /**
-     * {@code GET /signals/stream?type=&severity=&correlationId=} — Server-Sent Events, live-filtered at
+     * {@code GET /signals/stream?type=&severity=&source=&correlationId=} — Server-Sent Events, live-filtered at
      * open time (no {@code since}/{@code until}/{@code limit}/historical replay in this slice; a client
      * wanting both does an initial {@code GET /signals} fetch, then opens this stream for what's next).
      * Subscribes to the space's {@link EventLog}, keeps only {@code EventType.SIGNAL} events, reconstructs
-     * a {@link Signal} and applies the same type-glob/severity-floor/correlationId predicate {@code GET
+     * a {@link Signal} and applies the same type-glob/severity-floor/source/correlationId predicate {@code GET
      * /signals} uses ({@link Signals#matches}), and frames each match as a plain unnamed {@code data:}
      * frame — mirrors {@code NotificationRoutes.stream}'s SSE plumbing exactly (register-before-headers,
      * heartbeat poll, {@code finally}-deregister).
@@ -85,13 +89,14 @@ final class SignalRoutes implements RouteModule {
         EventLog log = api.service().eventLog();
         String type = ApiContext.query(ex, "type");
         Severity minSeverity = parseSeverity(ApiContext.query(ex, "severity"));
+        String source = ApiContext.query(ex, "source");
         String correlationId = ApiContext.query(ex, "correlationId");
 
         BlockingQueue<Signal> queue = new LinkedBlockingQueue<>();
         Consumer<Event> listener = e -> {
             if (e.type() != EventType.SIGNAL) return;
             Signal s = Signal.fromEvent(e);
-            if (Signals.matches(s, type, minSeverity, correlationId)) queue.offer(s);
+            if (Signals.matches(s, type, minSeverity, source, correlationId)) queue.offer(s);
         };
         // Register before the response is committed so no signal can slip through between the client
         // seeing the headers and the listener being live.

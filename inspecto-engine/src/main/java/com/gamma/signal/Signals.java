@@ -51,17 +51,40 @@ public final class Signals {
     }
 
     /**
-     * The shared type/severity-floor/correlationId predicate used both by the in-store {@link #query}
-     * page filter and by a live subscriber (e.g. {@code /signals/stream}, S3) applying the same filters
-     * to freshly-emitted signals. {@code type} is an exact match or a {@code prefix.*} glob (see
-     * {@link #matchesType}); {@code minSeverity} keeps only signals at or above that floor (natural
-     * enum order, {@code TRACE < ... < CRITICAL}); any filter may be {@code null}/blank to mean "no filter".
+     * The shared type/severity-floor/source/correlationId predicate used both by the {@link #query} page
+     * filter (source applied by the route over the returned page — the store has no attribute filter) and
+     * by a live subscriber (e.g. {@code /signals/stream}, S3) applying the same filters to freshly-emitted
+     * signals. {@code type} is an exact match or a {@code prefix.*} glob (see {@link #matchesType});
+     * {@code minSeverity} keeps only signals at or above that floor (natural enum order,
+     * {@code TRACE < ... < CRITICAL}); {@code source} matches the emitter Ref (see {@link #matchesSource});
+     * any filter may be {@code null}/blank to mean "no filter".
      */
-    public static boolean matches(Signal s, String type, Severity minSeverity, String correlationId) {
+    public static boolean matches(Signal s, String type, Severity minSeverity, String source, String correlationId) {
         if (!matchesType(s.type(), type)) return false;
         if (minSeverity != null && s.severity().ordinal() < minSeverity.ordinal()) return false;
+        if (!matchesSource(s, source)) return false;
         if (correlationId != null && !correlationId.isBlank() && !correlationId.equals(s.correlationId())) return false;
         return true;
+    }
+
+    /**
+     * Whether {@code s}'s {@code source} {@link Ref} matches {@code filter} — a case-insensitive exact match
+     * against either the source's {@code kind} (e.g. {@code job}, {@code pipeline}) or its compact
+     * {@code kind:id} form (e.g. {@code job:nightly_recon}). A {@code null}/blank filter means "no filter";
+     * a signal whose {@code source} is {@code null} is excluded once a filter is given.
+     */
+    public static boolean matchesSource(Signal s, String filter) {
+        if (filter == null || filter.isBlank()) return true;
+        Ref src = s.source();
+        if (src == null) return false;
+        String f = filter.trim();
+        return f.equalsIgnoreCase(src.kind()) || f.equalsIgnoreCase(compact(src));
+    }
+
+    /** The compact {@code kind:id} form of a Ref (or just {@code id}/{@code kind} when the other is absent). */
+    private static String compact(Ref r) {
+        if (r.kind() == null) return r.id();
+        return r.id() == null ? r.kind() : r.kind() + ":" + r.id();
     }
 
     private static String blankToNull(String s) {

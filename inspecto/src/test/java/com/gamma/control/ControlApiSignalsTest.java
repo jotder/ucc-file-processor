@@ -22,7 +22,8 @@ import static org.junit.jupiter.api.Assertions.*;
 /**
  * {@code GET /signals} over real HTTP: a failing Job run emits {@code job.run.started} (INFO) and
  * {@code job.run.failed} (CRITICAL) signals; the route reconstructs them from the event ledger and filters
- * by type glob, exact type and the {@code severity} floor — plus the 400 gate on an unrecognised severity.
+ * by type glob, exact type, the {@code severity} floor and the {@code source} Ref (kind or {@code kind:id})
+ * — plus the 400 gate on an unrecognised severity.
  */
 class ControlApiSignalsTest {
 
@@ -75,6 +76,19 @@ class ControlApiSignalsTest {
             JsonNode failed = json(send(c.port, "GET", base + "/signals?type=job.run.failed", null));
             assertTrue(failed.isArray() && !failed.isEmpty());
             for (JsonNode s : failed) assertEquals("job.run.failed", s.get("type").asText());
+
+            // source filter (the new param): the run signals are sourced Ref("job","broken") — filter by kind…
+            JsonNode bySourceKind = json(send(c.port, "GET", base + "/signals?source=job", null));
+            assertTrue(bySourceKind.isArray() && !bySourceKind.isEmpty(), "source=job returns the run signals");
+            for (JsonNode s : bySourceKind)
+                assertEquals("job", s.get("source").get("kind").asText(), "every result is job-sourced");
+            // …and by the compact kind:id form
+            JsonNode byCompact = json(send(c.port, "GET", base + "/signals?source=job:broken", null));
+            assertTrue(byCompact.isArray() && !byCompact.isEmpty(), "source=job:broken matches the 'broken' job's signals");
+            for (JsonNode s : byCompact) assertEquals("broken", s.get("source").get("id").asText());
+            // a source matching nothing filters everything out
+            JsonNode noSource = json(send(c.port, "GET", base + "/signals?source=pipeline", null));
+            assertTrue(noSource.isArray() && noSource.isEmpty(), "a non-matching source returns no signals");
 
             // an unrecognised severity is a 400 (not a silent "everything")
             assertEquals(400, send(c.port, "GET", base + "/signals?severity=NOPE", null).statusCode());
