@@ -116,6 +116,15 @@ final class CapabilityManifest {
             new Entry("POST", "/tags/rules", Roles.CAN_AUTHOR_WORKBENCH),
             new Entry("DELETE", "/tags/rules/([^/]+)", Roles.CAN_AUTHOR_WORKBENCH));
 
+    /** The declared capability gating {@code method path}, or null when the route is ungated —
+     *  the A3 authorize stage classifies {@code operate} actions off this (a state-changing call
+     *  whose gate is {@code canOperateRuns} is an operation, not an authoring write). */
+    static String capabilityFor(String method, String path) {
+        for (Entry e : ENTRIES)
+            if (e.method().equals(method) && path.matches(e.pattern())) return e.capability();
+        return null;
+    }
+
     /** The capability vocabulary — every capability some route gate demands. */
     static Set<String> capabilities() {
         Set<String> out = new LinkedHashSet<>();

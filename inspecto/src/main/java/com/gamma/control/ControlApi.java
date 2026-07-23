@@ -586,6 +586,7 @@ public final class ControlApi implements AutoCloseable, ApiContext {
             }
             if (legacySurface) markDeprecated(ex);
             authenticate(ex, path);
+            authorize(ex, method, path);
             Object result = r.handler.handle(ex, m);
             if (result != HANDLED) respond(ex, 200, result);
             AuditTrail.record(ex, method, path, 200);   // audit successful state-changing requests
@@ -630,6 +631,23 @@ public final class ControlApi implements AutoCloseable, ApiContext {
             if (subject.isPresent()) ex.setAttribute(ApiContext.ATTR_SUBJECT, subject.get());
             else if (required) throw new ApiException(401, ErrorCodes.UNAUTHENTICATED, "authentication required");
         });
+    }
+
+    /** Route-level PEP (ABAC A3): consult the edition's {@link AccessDecider} — a no-op when none is
+     *  on the classpath (Personal/Standard byte-identical) or no {@link Subject} is attached (the
+     *  public probe surface). Only an explicit {@code DENY} acts (403); {@code ALLOW}/{@code ABSTAIN}
+     *  fall through to the existing capability gates — a policy allow never bypasses them. The action
+     *  vocabulary is {@code read} (GET/HEAD) / {@code operate} (a state change gated
+     *  {@code canOperateRuns} per the R4 manifest) / {@code write} (every other state change). */
+    private void authorize(HttpExchange ex, String method, String path) {
+        AccessDecider decider = AccessDeciders.active().orElse(null);
+        if (decider == null || PUBLIC_PATHS.contains(path) || path.startsWith("/public/dashboards/")) return;
+        if (!(ex.getAttribute(ApiContext.ATTR_SUBJECT) instanceof Subject subject)) return;
+        String action = "GET".equals(method) || "HEAD".equals(method) ? "read"
+                : Roles.CAN_OPERATE_RUNS.equals(CapabilityManifest.capabilityFor(method, path)) ? "operate"
+                : "write";
+        if (decider.decide(ex, subject, action, path, null, Map.of()) == AccessDecider.Decision.DENY)
+            throw new ApiException(403, ErrorCodes.PERMISSION_DENIED, "denied by access policy");
     }
 
     private void respond(HttpExchange ex, int status, Object body) throws IOException {

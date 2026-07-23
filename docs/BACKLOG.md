@@ -29,8 +29,8 @@ by dependency fan-out — each row's detail stays in its own section; this is on
 1. **Root enablers (largest downstream fan-out — start here):**
    - **§6 RBAC/ABAC R-workstreams** (`superpower/rbac-abac-plan.md`) — unblocks Lens Access P3,
      SPC-5 ABAC, X-Actor retirement, auth-gated notification prefs, and the NFR-7 access-control
-     evidence. *(R0 remainder + R1/R2/R3/R4/R5 + A1/A2 all shipped 2026-07-23 — A3 (enterprise
-     engine) → A4 (SPC-5) → A5 (decision audit) remain.)*
+     evidence. *(R0 remainder + R1–R5 + A1/A2 shipped 2026-07-23; A3 (enterprise engine) shipped
+     2026-07-24 — A4 (SPC-5 seeded policies) → A5 (decision audit) remain.)*
    - **Bound job concurrency** (semaphore on the `JobService` executor) — stated prerequisite (§5
      DuckDB issue) for the on-by-default memory cap, which in turn gates the chunking default.
    - **Incidents I1 backend workflow resolution-gate + `ObjectStore` delete** — sole blocker on MNT-14.
@@ -368,10 +368,14 @@ evaluation = A3): shared `com.gamma.util.Conditions` (parse-once, fail-closed tr
 "one policy engine, many policy kinds" library), `Subject.attributes()` + the `identity:
 {attributeClaims}` allowlist on `roles.toon` (OIDC copies allowlisted verified claims only), and
 core `AccessPolicies` + `GET/PUT /access/policies` (`when` parse-gates 422; unreadable doc =
-deny-loudly marker) — as-built in the plan §4. Remaining in §6: **A3** (`inspecto-policy`
-Enterprise module, `PolicyEngine implements AccessDecider`, `RowScope`, `edition-enterprise`
-profile) → **A4** (SPC-5 seeded space-scoping policies) → **A5** (decision audit).
-Identity/login, user model, role-assignment UI,
+deny-loudly marker) — as-built in the plan §4. **A3 SHIPPED 2026-07-24:** core `AccessDecider`
+SPI + authorize stage + `RowScope` (objects wired); `inspecto-policy` Enterprise module
+(`edition-enterprise` profile) with the deny-overrides `PolicyEngine` — as-built + deliberate
+deviations in the plan §4 A3. ⚠ Follow-up: `package.ps1 -Edition Enterprise` packaging flavor
+deferred (the file is another session's uncommitted edit — add the flavor once it's released).
+Remaining in §6: **A4** (SPC-5 seeded space-scoping policies — the engine already binds
+`resource.space`/`subject.space`) → **A5** (decision audit: `access.denied`/`access.granted`
+entries with the matched policy). Identity/login, user model, role-assignment UI,
 Admin pane, server enforcement, lens-switcher
 constraint — per `archived-documents/plans-archive/rbac-groundwork.md` §5. Rides on top:
 **Lens Access P3** (subjects become Roles, matrix enforcement server-side — the shipped

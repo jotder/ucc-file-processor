@@ -68,9 +68,18 @@ migration. At 5–15 users with a capabilities-based RFP, a framework buys nothi
 don't, and a lean dependency tree is a FedRAMP asset (small SBOM, fewer CVEs to attest). The full
 assessment + 7-phase hardening roadmap is maintained alongside this repo's planning notes.
 
-## Enterprise (future, distributed) — keep the seams open
+## Enterprise (partially shipped 2026-07-23) — keep the seams open
+
+**Shipped — the ABAC policy engine (rbac-abac-plan §4):** the `edition-enterprise` Maven profile
+(= `edition-standard` + `inspecto-policy`). The module registers a `PolicyEngine` on the core's
+`com.gamma.control.AccessDecider` ServiceLoader seam; authored per-space Access Policies
+(`access-policies.toon`, the shared `Conditions` grammar) then evaluate at the route-level authorize
+stage (deny = 403) and the row-level `RowScope` filter (deny = the SEC-7d 404/filtered contract).
+Personal and Standard never bundle the module and behave byte-identically. Build/test:
+`mvn -o clean test -Pedition-enterprise`.
 
 Already fits: stateless stage-1 engine, **stateless JWT auth** (no server session ⇒ horizontal scale),
 pluggable `DbStatusStore` (Postgres) / `ObjectStore` db backend / `ParquetEventStore`, `SecretsProvider`.
 Will need later (don't preclude now): distributed scheduler coordination, all state on shared backends
-(Postgres + object store for Parquet + shared secrets), work distribution, per-tenant ABAC.
+(Postgres + object store for Parquet + shared secrets), work distribution, per-tenant ABAC seeded
+policies (A4 — next).

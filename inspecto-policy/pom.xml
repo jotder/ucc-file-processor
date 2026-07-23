@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>com.gamma.inspector</groupId>
+        <artifactId>file-processor-parent</artifactId>
+        <version>4.0.0-RC1</version>
+        <relativePath>../pom.xml</relativePath>
+    </parent>
+
+    <artifactId>file-processor-policy</artifactId>
+    <packaging>jar</packaging>
+
+    <name>Inspecto — policy engine (Enterprise edition, optional)</name>
+    <description>
+        OPTIONAL Enterprise-edition AccessDecider (ABAC A3, docs/superpower/rbac-abac-plan.md §4):
+        evaluates the space's authored Access Policies (access-policies.toon, the shared Conditions
+        grammar) at the core's two PEPs -- the route-level authorize stage and the row-level RowScope
+        filter. Discovered by the core's ServiceLoader seam (com.gamma.control.AccessDecider) --
+        dropping THIS jar on the classpath is what turns policy evaluation on; Personal and Standard
+        never bundle it and keep their existing behaviour byte-identically. Dependency-free beyond the
+        core (the condition evaluator is hand-rolled in inspecto-util). Only built as part of the
+        reactor under the "edition-enterprise" profile (= edition-standard + this module).
+    </description>
+
+    <dependencies>
+        <!-- The core: the AccessDecider SPI, Subject, and the AccessPolicies document store. -->
+        <dependency>
+            <groupId>com.gamma.inspector</groupId>
+            <artifactId>file-processor</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+
+        <!-- The shared Conditions grammar (already transitive via the core; declared for direct use). -->
+        <dependency>
+            <groupId>com.gamma.inspector</groupId>
+            <artifactId>file-processor-util</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+
+        <!-- fp-etl test-jar: the shared fixtures com.gamma.etl.TestConfigs/PipelineConfigBatchTest
+             boot a real CollectorService + ControlApi in the end-to-end policy tests (same pattern
+             as the core's control tests; test scope is not transitive, so declared explicitly). -->
+        <dependency>
+            <groupId>com.gamma.inspector</groupId>
+            <artifactId>file-processor-etl</artifactId>
+            <type>test-jar</type>
+            <scope>test</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+</project>

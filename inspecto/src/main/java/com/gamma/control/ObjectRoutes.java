@@ -139,12 +139,27 @@ final class ObjectRoutes implements RouteModule {
      * Whether the caller may see {@code o}: an unscoped caller (Personal — no Subject; or a role with
      * {@code dataScopes = null}) sees everything; a scoped caller sees untyped objects plus those whose
      * {@code caseType} is in their scopes. Fail-closed: an empty scope set reveals only untyped objects.
+     * ABAC A3: the edition's policy engine ({@link RowScope}) can additionally hide a row — a policy
+     * deny over the object's attributes is indistinguishable from absence, same SEC-7d contract.
      */
     private static boolean visibleTo(HttpExchange ex, OperationalObject o) {
         Subject s = ApiContext.subject(ex).orElse(null);
-        if (s == null || !s.scoped()) return true;
-        String caseType = o.attributes().get(ATTR_CASE_TYPE);
-        return caseType == null || caseType.isBlank() || s.dataScopes().contains(caseType);
+        if (s != null && s.scoped()) {
+            String caseType = o.attributes().get(ATTR_CASE_TYPE);
+            if (caseType != null && !caseType.isBlank() && !s.dataScopes().contains(caseType)) return false;
+        }
+        return RowScope.visible(ex, o.objectType().name().toLowerCase(java.util.Locale.ROOT), resourceAttributes(o));
+    }
+
+    /** The row's attribute map for policy conditions ({@code resource.*}): kind + id + owner + the
+     *  object's own string attributes (incl. {@code caseType}); the engine binds {@code resource.space}
+     *  to the request's bound space when a row doesn't carry one. */
+    private static Map<String, Object> resourceAttributes(OperationalObject o) {
+        Map<String, Object> r = new LinkedHashMap<>(o.attributes());
+        r.put("kind", o.objectType().name().toLowerCase(java.util.Locale.ROOT));
+        r.put("id", o.id());
+        if (o.owner() != null && !o.owner().isBlank()) r.put("owner", o.owner());
+        return r;
     }
 
     private static List<OperationalObject> visibleOnly(List<OperationalObject> objs, HttpExchange ex) {

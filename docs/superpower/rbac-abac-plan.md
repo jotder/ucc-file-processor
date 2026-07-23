@@ -256,7 +256,31 @@ the SEC-7d contract: 404, never 403 (no existence leak).
   "Policy"/"Rule" kind). The *dataset-side* rule families (Expectation / Alert Rule / Decision
   Rule) already share the Query Core filter model evaluated over data — that SQL-substrate family
   stays as-is; no attempt to force one grammar across both substrates.
-- **A3 — evaluation + enforcement.** `PolicyEngine implements AccessDecider` (ServiceLoader,
+- **A3 — evaluation + enforcement. ✅ SHIPPED 2026-07-24.** As built: core gained the
+  `AccessDecider` SPI (`@PublicApi`; `AccessDeciders` mirrors `Authenticators` — absent = no-op,
+  `forTest` seam), an **authorize stage** in `ControlApi.routeDispatch` (after `authenticate`,
+  before the handler; skips the public probe surface and subject-less exchanges; DENY → 403
+  `PERMISSION_DENIED` "denied by access policy"), and the **`RowScope`** row-level PEP —
+  `ObjectRoutes.visibleTo` now consults it beside the SEC-7d data-scope filter (list filtering +
+  by-id 404, kind = the lowercased object type, resource attrs = the object's attribute map +
+  kind/id/owner). Action vocabulary binds as read (GET/HEAD) / **operate** (a state change whose R4
+  manifest gate is `canOperateRuns` — `CapabilityManifest.capabilityFor`) / write (other state
+  changes). `inspecto-policy` (artifactId `file-processor-policy`, `edition-enterprise` profile =
+  standard + policy) ships `PolicyEngine implements AccessDecider`: deny-overrides → allow →
+  ABSTAIN over `AccessPolicies.effective(ex)` (the A2 mtime cache IS the compiled-policy cache —
+  policies are pre-parsed, a PUT bumps mtime); context = `subject.id/capabilities/dataScopes/roles`
+  (roles via the R3 held-roles exchange attribute) + A1 claims flattened under `subject.*`,
+  `env.action/route/space`, and row-level `resource.*` with `resource.space` defaulting to the
+  bound space (the A4 seam). Unreadable doc = DENY every decision, loudly (⚠ including the repair
+  PUT — fix on disk; same posture as R1's suspended grants). **Deliberate deviations/deferrals:**
+  (1) an explicit policy **allow does NOT bypass capability gates** (defense in depth — §2's order
+  put policy-allow first; revisit only with a concrete need); (2) `RowScope` adopters beyond
+  objects deferred (components/datasets already have R3's `ComponentAccess`; generalize when a
+  policy use-case demands it); (3) `PolicyEngine` wraps nothing — the "Standard decider" is the
+  existing capability/profile enforcement, which ABSTAIN falls through to; (4) `package.ps1
+  -Edition Enterprise` packaging flavor deferred — the file is another session's uncommitted edit
+  (BACKLOG §6 row); CI edition builds unchanged (no workflow builds editions today). Original
+  scope: `PolicyEngine implements AccessDecider` (ServiceLoader,
   Enterprise classpath only), wrapping the Standard decider per §2's combining order. Route-level:
   the authorize stage. Row-level: the `RowScope` helper generalizes `ObjectRoutes`' SEC-7d filter to
   any policy-scoped list endpoint (objects first; components/datasets when R3 lands). Compiled

@@ -60,6 +60,16 @@
                 <module>inspecto-security</module>
             </modules>
         </profile>
+        <!-- Enterprise = Standard + the ABAC policy engine (rbac-abac-plan §5): the same one-version
+             reactor gains inspecto-policy (com.gamma.control.AccessDecider via ServiceLoader).
+             "mvn -o clean test -Pedition-enterprise" builds/tests all optional modules. -->
+        <profile>
+            <id>edition-enterprise</id>
+            <modules>
+                <module>inspecto-security</module>
+                <module>inspecto-policy</module>
+            </modules>
+        </profile>
         <!-- M5 (A2): JaCoCo lives in the PARENT so every module instruments in one reactor pass —
              'mvn -Pcoverage test'. A normal 'mvn test' is unaffected (profile inactive; the default
              empty <argLine> below keeps surefire's @{argLine} resolving cleanly). Formerly duplicated
