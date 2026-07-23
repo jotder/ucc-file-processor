@@ -197,9 +197,67 @@ class JobServiceTest {
         }
     }
 
+    // ── concurrency bound (-Djobs.maxConcurrentRuns) ──────────────────────────────────
+
+    @Test
+    void concurrencyBoundIsUnboundedByDefault(@TempDir Path dir) throws Exception {
+        JobConfig hb = maintenance("hb", null, null, Map.of("task", "heartbeat"));
+        try (Scheduler s = new Scheduler();
+             JobService js = new JobService(List.of(hb), new BatchEventBus(), s, null, dir.resolve("audit").toString())) {
+            assertEquals(-1, js.availableRunPermits(), "no -Djobs.maxConcurrentRuns set → unbounded");
+        }
+    }
+
+    @Test
+    void concurrencyBoundSerializesRunsAcrossJobs(@TempDir Path dir) throws Exception {
+        // With a bound of 1, two different jobs fired at once cannot run concurrently: the second's
+        // permit acquire (on its worker thread, not the caller) waits until the first releases.
+        assumeTrue(ToolProvider.getSystemJavaCompiler() != null, "needs a JDK (javac) to build the pack jar");
+        Path packsDir = Files.createDirectories(dir.resolve("packs"));
+        buildSleepPackJar(dir, packsDir.resolve("sleep-1.jar"), "acme.sleep", "SleepType", "acme-sleep");
+        System.setProperty("jobs.packs.dir", packsDir.toString());
+        System.setProperty("jobs.maxConcurrentRuns", "1");
+        try (Scheduler s = new Scheduler();
+             JobService js = new JobService(List.of(), new BatchEventBus(), s, null, dir.resolve("audit").toString())) {
+            js.start();
+            assertEquals(1, js.availableRunPermits(), "bound of 1 → one free permit while idle");
+            js.upsertJob(new JobConfig("s1", "acme.sleep", null, null, true, false, Map.of(), null, null));
+            js.upsertJob(new JobConfig("s2", "acme.sleep", null, null, true, false, Map.of(), null, null));
+
+            js.triggerRun("s1", null);
+            js.triggerRun("s2", null);
+
+            // One run holds the sole permit; the other is queued (0 permits free) and not yet SUCCESS.
+            JobRun firstDone = await(() -> {
+                JobRun a = js.lastRunOf("s1").filter(r -> "SUCCESS".equals(r.status())).orElse(null);
+                JobRun b = js.lastRunOf("s2").filter(r -> "SUCCESS".equals(r.status())).orElse(null);
+                return a != null ? a : b;
+            });
+            assertNotNull(firstDone);
+            // both eventually complete once the permit recycles
+            JobRun s1 = await(() -> js.lastRunOf("s1").filter(r -> "SUCCESS".equals(r.status())).orElse(null));
+            JobRun s2 = await(() -> js.lastRunOf("s2").filter(r -> "SUCCESS".equals(r.status())).orElse(null));
+            assertEquals("SUCCESS", s1.status());
+            assertEquals("SUCCESS", s2.status());
+            assertEquals(1, js.availableRunPermits(), "permit released after both runs finish");
+        } finally {
+            System.clearProperty("jobs.packs.dir");
+            System.clearProperty("jobs.maxConcurrentRuns");
+        }
+    }
+
+    /** A pack whose Job body sleeps, so the concurrency bound has an observable window to serialize within. */
+    private static Path buildSleepPackJar(Path work, Path jar, String id, String cls, String packId) throws Exception {
+        return buildPackJar(work, jar, id, cls, packId, "try { Thread.sleep(400); } catch (InterruptedException e) { Thread.currentThread().interrupt(); } return JobResult.ok(\"slept\", 400L);");
+    }
+
     /** Compile+jar a minimal {@link JobTypeProvider}/{@link Job} pair off the test classpath, mirroring the
      *  fixture in {@code JobPackManagerTest} (kept local here so this test doesn't reach across test classes). */
     private static Path buildPackJar(Path work, Path jar, String id, String cls, String packId) throws Exception {
+        return buildPackJar(work, jar, id, cls, packId, "return JobResult.ok(\"hi\", 0L);");
+    }
+
+    private static Path buildPackJar(Path work, Path jar, String id, String cls, String packId, String runBody) throws Exception {
         String fqcn = "com.acme.pack." + cls;
         String src = """
                 package com.acme.pack;
@@ -215,11 +273,11 @@ class JobServiceTest {
                         return new Job() {
                             public String name() { return config.name(); }
                             public String type() { return "%s"; }
-                            public JobResult run() { return JobResult.ok("hi", 0L); }
+                            public JobResult run() { %s }
                         };
                     }
                 }
-                """.formatted(id, cls, id, id);
+                """.formatted(id, cls, id, id, runBody);
 
         Path stage = Files.createTempDirectory(work, "stage-");
         Path srcFile = stage.resolve("com/acme/pack/" + cls + ".java");

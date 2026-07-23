@@ -30,6 +30,16 @@ virtual thread. `runJob()` uses `runner.runExclusiveOrSkip(name, …)` for a non
 already in flight records `SKIPPED`); different jobs run in parallel. On startup, `catchUpMissedFires()`
 replays a single missed cron fire for `catch_up: true` jobs from the durable `jobs_runs.csv` ledger.
 
+**Total-concurrency bound (opt-in).** By default different jobs run unbounded on the virtual-thread pool.
+Setting `-Djobs.maxConcurrentRuns=N` (default `0` = unbounded) installs a `Semaphore(N)` (`runPermits`)
+acquired/released **on the worker thread inside** `submitRun`/`submitAdhocRun`, never on the caller — so a
+full pool *queues* fired Runs rather than blocking the cron/event/manual dispatch thread. This is the
+per-job-service analogue of the batch-ingest `maxConcurrentRuns` semaphore in
+`MultiCollectorProcessor.runAll`, and the stated prerequisite for an eventual on-by-default DuckDB memory
+cap (unbounded job concurrency defeats a `RAM/N` per-instance cap — see [DuckDB](../engine/duckdb.md) and
+`docs/BACKLOG.md` §5). Deadlock-safe: no Job Type synchronously waits on another Run's completion (all
+triggering is fire-and-forget via `workers.submit`).
+
 `JobType` includes `ENRICH`, `REPORT`, `MAINTENANCE`, and **`PIPELINE`** (authored-Pipeline execution — see
 [pipeline live execution](../pipeline-graph/live-execution.md)).
 

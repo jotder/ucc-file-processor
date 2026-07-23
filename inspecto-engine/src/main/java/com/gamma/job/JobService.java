@@ -58,7 +58,11 @@ import java.util.concurrent.atomic.AtomicLong;
  * The cron/event triggers only <em>submit</em> work to an internal virtual-thread executor, so
  * the scheduler thread is never blocked by a long job. A per-job lock guarantees non-overlap:
  * if a job fires while its previous run is still in flight, the new fire records {@code SKIPPED}
- * rather than running concurrently. Different jobs run in parallel.
+ * rather than running concurrently. Different jobs run in parallel — unbounded by default, or capped
+ * at {@code -Djobs.maxConcurrentRuns} total in-flight Runs (0 = unbounded, the default) when an
+ * operator needs to bound aggregate resource use (e.g. as a prerequisite for a DuckDB memory cap).
+ * The permit is acquired on the worker thread, never the submitting thread, so a full pool queues
+ * Runs rather than blocking the cron/event/manual caller.
  *
  * <p>The {@link Scheduler} is <b>borrowed</b> (owned by the hosting service); {@link #close()}
  * shuts down only the executor this service created.
@@ -124,6 +128,13 @@ public final class JobService implements AutoCloseable {
     private final RunArtifactStore runArtifactStore;
     /** Cap on Run Log entries per run (overflow summarized) — {@code -Djobs.runlog.maxEntries}, default 10 000. */
     private final int runLogMax = Integer.getInteger("jobs.runlog.maxEntries", 10_000);
+    /** Total concurrent in-flight Runs across all jobs — {@code -Djobs.maxConcurrentRuns}, default 0 (unbounded,
+     *  preserving prior behavior). {@code null} permits ⇒ no bound; a fired Run then queues on {@link #runPermits}
+     *  once the cap is reached rather than running immediately (root enabler for an eventual on-by-default
+     *  DuckDB memory cap — see docs/BACKLOG.md §5). */
+    private final int maxConcurrentRuns = Integer.getInteger("jobs.maxConcurrentRuns", 0);
+    private final java.util.concurrent.Semaphore runPermits =
+            maxConcurrentRuns > 0 ? new java.util.concurrent.Semaphore(maxConcurrentRuns) : null;
     /** This space's event ledger — the on-signal Trigger source (P1c). Set by the host ({@code CollectorService});
      *  {@code null} (e.g. the bare-{@code JobService} test constructors) disables on-signal dispatch. */
     private volatile EventLog eventLog;
@@ -630,11 +641,39 @@ public final class JobService implements AutoCloseable {
         workers.submit(() -> {
             if (scoped) MDC.put(EventLog.SPACE_MDC_KEY, spaceId);
             try {
-                runJob(runId, name, trigger, start, correlationId, chainDepth, firing);
+                if (!acquireRunPermit()) return;
+                try {
+                    runJob(runId, name, trigger, start, correlationId, chainDepth, firing);
+                } finally {
+                    releaseRunPermit();
+                }
             } finally {
                 if (scoped) MDC.remove(EventLog.SPACE_MDC_KEY);
             }
         });
+    }
+
+    /** Blocks the worker thread (never the caller) until a slot is free under {@code -Djobs.maxConcurrentRuns};
+     *  a no-op ({@code true}) when unbounded. {@code false} means the wait was interrupted (e.g. shutdown) —
+     *  the caller must skip the run without releasing. */
+    private boolean acquireRunPermit() {
+        if (runPermits == null) return true;
+        try {
+            runPermits.acquire();
+            return true;
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return false;
+        }
+    }
+
+    private void releaseRunPermit() {
+        if (runPermits != null) runPermits.release();
+    }
+
+    /** Test-visibility peek at the concurrency bound: -1 when unbounded, else free permits right now. */
+    int availableRunPermits() {
+        return runPermits == null ? -1 : runPermits.availablePermits();
     }
 
     /** As {@link #submitRun(String, String, String, String, int, Firing)} but for an ad-hoc run
@@ -647,7 +686,12 @@ public final class JobService implements AutoCloseable {
         workers.submit(() -> {
             if (scoped) MDC.put(EventLog.SPACE_MDC_KEY, spaceId);
             try {
-                runJob(job, cfg, runId, cfg.name(), trigger, start, runId, 0, Firing.NONE);
+                if (!acquireRunPermit()) return;
+                try {
+                    runJob(job, cfg, runId, cfg.name(), trigger, start, runId, 0, Firing.NONE);
+                } finally {
+                    releaseRunPermit();
+                }
             } finally {
                 if (scoped) MDC.remove(EventLog.SPACE_MDC_KEY);
             }

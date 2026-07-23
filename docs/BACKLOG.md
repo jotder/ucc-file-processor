@@ -31,8 +31,9 @@ by dependency fan-out — each row's detail stays in its own section; this is on
      SPC-5 ABAC, X-Actor retirement, auth-gated notification prefs, and the NFR-7 access-control
      evidence. *(R0 remainder + R1–R5 + A1/A2 shipped 2026-07-23; A3 + A4 + A5 shipped 2026-07-24 —
      **the whole RBAC/ABAC plan is now COMPLETE**; plan is archive-ready.)*
-   - **Bound job concurrency** (semaphore on the `JobService` executor) — stated prerequisite (§5
-     DuckDB issue) for the on-by-default memory cap, which in turn gates the chunking default.
+   - ~~**Bound job concurrency** (semaphore on the `JobService` executor)~~ **SHIPPED 2026-07-24**
+     (`-Djobs.maxConcurrentRuns`, default 0=unbounded) — the stated prerequisite (§5 DuckDB issue) for the
+     on-by-default memory cap (which in turn gates the chunking default) is now cleared.
    - ~~Incidents I1 backend workflow resolution-gate~~ **SHIPPED 2026-07-24** (`e3ee50ab`) — `ObjectStore` delete remains the sole blocker on MNT-14.
    - **v1-only triggers** (retire the legacy inline-ingest routes) — drives
      `inspecto_legacy_api_requests_total` to zero, which is what starts the API-5 30-day soak clock.
@@ -287,12 +288,15 @@ under concurrency**, because the caps that prevent it are off-by-default:
   **80% RAM per instance** → concurrent runs overcommit → OS thrash/OOM → whole box (incl. HTTP API)
   unresponsive. Operators can now cap all paths with `-Dprocessing.duckdb.memory_limit` (+ `.temp_directory`
   for spill), but there is **no computed default** — deliberately, because the backlog's suggested
-  `RAM×0.7 / maxConcurrentRuns` premise is **wrong for the job path**: `maxConcurrentRuns` only bounds the
-  batch-ingest semaphore; flow-jobs run on `JobService`'s **unbounded** virtual-thread pool (only same-job
-  mutual exclusion), so `RAM/N` wouldn't bound their aggregate memory. Shipping an on-by-default value
-  therefore needs either (a) bounding job concurrency (a semaphore on the `JobService` executor — throughput/
-  deadlock considerations) or (b) a conservative fixed per-instance cap + spill. Deferred by the "consistency
-  only, no new defaults" scope decision (2026-07-22).
+  `RAM×0.7 / maxConcurrentRuns` premise was **wrong for the job path**: batch-ingest's `maxConcurrentRuns`
+  only bounds that semaphore; flow-jobs ran on `JobService`'s unbounded virtual-thread pool. ~~bounding job
+  concurrency (a semaphore on the `JobService` executor)~~ **SHIPPED 2026-07-24** (`-Djobs.maxConcurrentRuns`,
+  default `0`=unbounded; `runPermits` acquired on the worker thread inside `submitRun`/`submitAdhocRun`,
+  deadlock-safe — all triggering is fire-and-forget; `okf/.../jobs.md`). With that prerequisite in place, an
+  on-by-default memory value is now unblocked but **still not shipped** — it needs a computed cap that accounts
+  for both semaphores (batch `maxConcurrentRuns` + `jobs.maxConcurrentRuns`) or a conservative fixed
+  per-instance cap + spill. Deferred by the "no new defaults" scope decision (2026-07-22); reopen when an
+  operator sets the concurrency bound and wants a matching memory default.
 - **Legacy (pre-v1) trigger routes run ingest INLINE on the HTTP request thread** (`RunRoutes.java:96`,
   `AcquisitionRoutes.java:50` → `CollectorService.runPipeline` synchronously); v1 routes are async
   (`202`+runId via `triggerRunAsync`). Standardize on v1 / deprecate the inline path. **[open]**
@@ -301,9 +305,9 @@ under concurrency**, because the caps that prevent it are off-by-default:
   `okf/backend/engine/stage1-architecture.md` and `plugins.md`; the "undocumented" tag was stale, corrected
   2026-07-22). The open part is a *policy* call — ship an on-by-default safety-net value for pathological
   single files (needs a sensible fixed cap; ties to the memory-cap decision above). **[open]**
-Order of value: ~~cap the two uncapped paths~~ (done) → on-by-default memory value + bound job concurrency
-→ v1-only triggers → chunking. Read-path is NOT the risk here (see C6 note). Cheap open-cost instrumentation
-is the gate.
+Order of value: ~~cap the two uncapped paths~~ (done) → ~~bound job concurrency~~ (done 2026-07-24) →
+on-by-default memory value → v1-only triggers → chunking. Read-path is NOT the risk here (see C6 note). Cheap
+open-cost instrumentation is the gate.
 
 **Postgres multi-user transactional backend (raised 2026-07-22 — DIRECTION captured, deferred by
 operator).** Idea: move the transactional surface (`event→alert→incident/Case` + objects/links/notes/
