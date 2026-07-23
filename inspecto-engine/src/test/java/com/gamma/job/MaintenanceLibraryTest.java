@@ -48,6 +48,40 @@ class MaintenanceLibraryTest {
         AcquisitionLedgers.use(null);
     }
 
+    // ── notification_prune ───────────────────────────────────────────────────────
+
+    @Test
+    void notificationPruneForgetsAgedFeedEntries(@TempDir Path audit) throws Exception {
+        var store = new com.gamma.notify.InMemoryNotificationStore();
+        long now = System.currentTimeMillis();
+        long old = now - Duration.ofDays(100).toMillis();
+        store.add(new com.gamma.notify.Notification("n-old", old, "ops", null, null, "old", "b",
+                com.gamma.notify.NotificationState.UNREAD, null, null));
+        store.add(new com.gamma.notify.Notification("n-new", now, "ops", null, null, "new", "b",
+                com.gamma.notify.NotificationState.UNREAD, null, null));
+        try (com.gamma.util.Scheduler s = new com.gamma.util.Scheduler();
+             JobService js = new JobService(List.of(), new com.gamma.etl.BatchEventBus(), s, null, audit.toString())) {
+            js.notificationStore(store);
+            JobConfig cfg = job(Map.of("task", "notification_prune", "retention_days", "30"));
+            // dry-run counts the aged entry but removes nothing
+            JobResult dry = new MaintenanceJob(cfg, null, audit.toString(), null, js).run(dryCtx(audit));
+            assertTrue(dry.message().contains("would remove 1 notification(s)"), dry.message());
+            assertEquals(2, store.size(), "dry run must not remove");
+            // real run forgets only the entry older than retention_days
+            JobResult real = new MaintenanceJob(cfg, null, audit.toString(), null, js).run();
+            assertTrue(real.message().contains("removed 1 notification(s)"), real.message());
+            assertEquals(1, store.size());
+            assertTrue(store.get("n-new").isPresent() && store.get("n-old").isEmpty(), "kept the recent one only");
+        }
+    }
+
+    @Test
+    void notificationPruneWithNoFeedAttachedIsANoOp(@TempDir Path audit) throws Exception {
+        JobResult r = new MaintenanceJob(job(Map.of("task", "notification_prune", "retention_days", "30")))
+                .run(dryCtx(audit));
+        assertTrue(r.message().contains("no notification feed attached"), r.message());
+    }
+
     // ── dry run (System Maintenance MNT-1) ───────────────────────────────────────
 
     @Test

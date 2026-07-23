@@ -48,6 +48,15 @@ public interface NotificationStore extends AutoCloseable {
     /** Archive one notification (the user's "delete"); {@code false} if no such id. */
     boolean archive(String id);
 
+    /** Count notifications created before {@code cutoffMs} (epoch millis), whatever their state — the
+     *  {@code notification_prune} dry-run preview. */
+    int countPrunable(long cutoffMs);
+
+    /** Permanently forget notifications created before {@code cutoffMs} (epoch millis), whatever their
+     *  read/archived state — deliberate time-based forgetting, like the ledger / run-log prunes.
+     *  Returns how many were removed. */
+    int prune(long cutoffMs);
+
     /** Release resources (e.g. a DB connection). Idempotent; no-op for in-memory. */
     @Override
     default void close() {}

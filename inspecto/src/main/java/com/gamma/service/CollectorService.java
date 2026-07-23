@@ -377,6 +377,7 @@ public final class CollectorService implements AutoCloseable {
         // each match is handed to NotificationService's own virtual-thread executor — never run inline on
         // the emit/ingest thread (which may hold ingestLock inside the synchronous bus publish).
         this.notifications = ServiceStores.openNotificationStore(root);
+        if (this.jobs != null) this.jobs.notificationStore(notifications);   // notification_prune maintenance task
         this.notificationPreferences = new com.gamma.notify.NotificationPreferences();
         // Persisted channel destinations (admin CRUD) live under <write-root>/registry as `channel`
         // components — the same per-space write root the channel routes write to (this space's config dir,
@@ -955,6 +956,7 @@ public final class CollectorService implements AutoCloseable {
             created.spaceId(spaceId);
             created.eventLog(eventLog);
             created.knownPipelines(this::pipelineNamesForAudit);   // MNT-4: orphan on_pipeline detection
+            created.notificationStore(notifications);              // notification_prune maintenance task
             created.start();
             jobs = created;
         }

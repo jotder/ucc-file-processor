@@ -90,6 +90,20 @@ public final class InMemoryNotificationStore implements NotificationStore {
         return true;
     }
 
+    @Override
+    public synchronized int countPrunable(long cutoffMs) {
+        int n = 0;
+        for (Notification x : byId.values()) if (x.ts() < cutoffMs) n++;
+        return n;
+    }
+
+    @Override
+    public synchronized int prune(long cutoffMs) {
+        int before = byId.size();
+        byId.values().removeIf(x -> x.ts() < cutoffMs);
+        return before - byId.size();
+    }
+
     /** Current entry count, including archived (diagnostics/tests). */
     public synchronized int size() {
         return byId.size();

@@ -1,5 +1,6 @@
 package com.gamma.job;
 
+import com.gamma.notify.NotificationStore;
 import com.gamma.signal.Severity;
 import com.gamma.signal.Signals;
 import org.slf4j.Logger;
@@ -47,6 +48,10 @@ import java.util.stream.Stream;
  *       JSONL files under {@code <auditDir>/runlog/} and {@code <auditDir>/artifacts/}, plus rows of the
  *       optional {@code inspecto_job_runs} projection; optional {@code max_count} caps each JSONL dir to
  *       its newest N files (System Maintenance MNT-2a).</li>
+ *   <li>{@code notification_prune} — delete in-app notifications older than {@code retention_days}
+ *       (required) from this space's feed, whatever their read/archived state. <b>Deliberate
+ *       forgetting</b> like the other prunes. (The default feed is in-memory and self-caps, so this
+ *       matters most once a persistent notification backend lands.)</li>
  *   <li>{@code storage_report} — read-only per-axis storage usage + largest consumers over {@code dir},
  *       recorded as Run Artifacts and — on a real run with a data/write root configured — appended as one
  *       row per axis to the queryable {@code maintenance_storage} catalog Dataset (the sample series
@@ -135,6 +140,7 @@ final class MaintenanceJob implements Job {
             case "cleanup"            -> cleanup(dryRun);
             case "ledger_prune"       -> ledgerPrune(dryRun);
             case "runlog_prune"       -> runlogPrune(dryRun);
+            case "notification_prune" -> notificationPrune(dryRun);
             // Read-only observers: a dry run and a real run observe the same thing. (storage_report
             // additionally persists its sample to the maintenance_storage catalog — real runs only.)
             case "storage_report"     -> storageReport(ctx);
@@ -179,6 +185,30 @@ final class MaintenanceJob implements Job {
         int removed = ledger.prune(cutoff, source);
         return JobResult.ok("ledger_prune: removed " + removed + " fingerprint(s)" + scope,
                 (System.nanoTime() - t0) / 1_000_000L);
+    }
+
+    /**
+     * {@code notification_prune}: forget in-app notifications older than {@code retention_days}
+     * (required — deliberate forgetting, like {@code ledger_prune}), whatever their read/archived state.
+     * The feed is per-space and reached through the hosting {@link JobService}; a bare/lazily-created
+     * host with no feed attached prunes nothing (fail-open — never throws).
+     */
+    private JobResult notificationPrune(boolean dryRun) {
+        long days = Long.parseLong(cfg.require("retention_days"));   // required: forgetting is deliberate
+        if (days < 1) throw new IllegalArgumentException("notification_prune retention_days must be >= 1");
+        long t0 = System.nanoTime();
+        var store = host == null ? java.util.Optional.<NotificationStore>empty() : host.notificationStore();
+        if (store.isEmpty())
+            return JobResult.ok("notification_prune: no notification feed attached — nothing to prune", 0L);
+        long cutoff = System.currentTimeMillis() - Duration.ofDays(days).toMillis();
+        if (dryRun) {
+            int would = store.get().countPrunable(cutoff);
+            return JobResult.ok("notification_prune[dry-run]: would remove " + would
+                    + " notification(s) older than " + days + "d", (System.nanoTime() - t0) / 1_000_000L);
+        }
+        int removed = store.get().prune(cutoff);
+        return JobResult.ok("notification_prune: removed " + removed + " notification(s) older than "
+                + days + "d", (System.nanoTime() - t0) / 1_000_000L);
     }
 
     /**

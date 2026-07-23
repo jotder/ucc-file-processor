@@ -99,7 +99,10 @@ Design of record (all phases + resolved decisions + TOON config gallery):
 
 System maintenance is **tasks on the `maintenance` job type, never shell scripts or OS cron**. Task library:
 `cleanup` (retention knobs `max_count`/`max_size`/`archive_dir`/`min_keep` — the newest N are never retired),
-`ledger_prune`, `runlog_prune` (`retention_days` required — deliberate forgetting), `db_maintenance`
+`ledger_prune`, `runlog_prune`, `notification_prune` (`retention_days` required — deliberate forgetting;
+`notification_prune` forgets in-app feed entries older than the window whatever their read/archived state,
+via `NotificationStore.prune`/`countPrunable`, the per-space feed attached to `JobService` post-construction),
+`db_maintenance`
 (CHECKPOINT/VACUUM over the live stores via host seams), `storage_report` (per-axis usage; on a real run
 also appends a queryable per-axis sample to the `maintenance_storage` catalog Dataset — the `BackupTask`
 idiom, skipped on dry-run), `storage_trend` (growth-trend analysis over that series), `scheduler_audit`,

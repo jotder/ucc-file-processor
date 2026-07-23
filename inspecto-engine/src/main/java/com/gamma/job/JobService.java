@@ -85,6 +85,9 @@ public final class JobService implements AutoCloseable {
     private final String auditDir;
     /** Optional DuckDB data-plane provenance store for PIPELINE jobs (T21); {@code null} when no backend is configured. */
     private final com.gamma.pipeline.exec.DbProvenanceStore provenanceStore;
+    /** This space's in-app notification feed, attached post-construction by the host (the feed is created
+     *  after this service); read at run time by the {@code notification_prune} maintenance task. */
+    private volatile com.gamma.notify.NotificationStore notificationStore;
     /** Authored-flow store for {@link JobType#PIPELINE} jobs (T32); {@code null} when no write root is configured. */
     private final PipelineStore flowStore;
     /** Data root under which each store is a sub-directory — a flow job reads/writes {@code <dataDir>/<store>} (T32). */
@@ -224,8 +227,8 @@ public final class JobService implements AutoCloseable {
                 List.of(EventType.REPORT_READY), List.of(ArtifactDecl.report("report"))),
                 c -> new ReportJob(c, reports, dataDir)));
         registry.register(JobTypeProvider.of(new JobTypeDescriptor("maintenance", "Maintenance",
-                "Built-in housekeeping task (cleanup / ledger_prune / runlog_prune / storage_report / "
-                        + "storage_trend / scheduler_audit / backup / backup_verify / restore / "
+                "Built-in housekeeping task (cleanup / ledger_prune / runlog_prune / notification_prune / "
+                        + "storage_report / storage_trend / scheduler_audit / backup / backup_verify / restore / "
                         + "metadata_validate / file_repository_audit / db_maintenance / compact / materialize).",
                 List.of(ParameterDecl.optional("task", ParamType.STRING, "cleanup", "Which maintenance task"),
                         ParameterDecl.optional("dir", ParamType.STRING, null, "Target directory (cleanup / compact / storage_report / backup source)"),
@@ -766,6 +769,17 @@ public final class JobService implements AutoCloseable {
     /** The DuckDB data-plane provenance store (T21), or empty when no backend is configured. */
     public Optional<com.gamma.pipeline.exec.DbProvenanceStore> provenanceStore() {
         return Optional.ofNullable(provenanceStore);
+    }
+
+    /** The in-app notification feed the {@code notification_prune} maintenance task prunes, or empty
+     *  when the host never attached one (a bare/lazily-created service). */
+    public Optional<com.gamma.notify.NotificationStore> notificationStore() {
+        return Optional.ofNullable(notificationStore);
+    }
+
+    /** Attach this space's notification feed post-construction (the feed is created after this service). */
+    public void notificationStore(com.gamma.notify.NotificationStore store) {
+        this.notificationStore = store;
     }
 
     /** Install the deletion fence (T25) consulted before a delete job declaring a {@code store:} runs. */
