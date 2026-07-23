@@ -29,8 +29,8 @@ by dependency fan-out — each row's detail stays in its own section; this is on
 1. **Root enablers (largest downstream fan-out — start here):**
    - **§6 RBAC/ABAC R-workstreams** (`superpower/rbac-abac-plan.md`) — unblocks Lens Access P3,
      SPC-5 ABAC, X-Actor retirement, auth-gated notification prefs, and the NFR-7 access-control
-     evidence. *(R0 remainder + R1–R5 + A1/A2 shipped 2026-07-23; A3 (enterprise engine) shipped
-     2026-07-24 — A4 (SPC-5 seeded policies) → A5 (decision audit) remain.)*
+     evidence. *(R0 remainder + R1–R5 + A1/A2 shipped 2026-07-23; A3 (enterprise engine) + A4
+     (SPC-5 seeded policies) shipped 2026-07-24 — A5 (decision audit) remains.)*
    - **Bound job concurrency** (semaphore on the `JobService` executor) — stated prerequisite (§5
      DuckDB issue) for the on-by-default memory cap, which in turn gates the chunking default.
    - **Incidents I1 backend workflow resolution-gate + `ObjectStore` delete** — sole blocker on MNT-14.
@@ -39,7 +39,7 @@ by dependency fan-out — each row's detail stays in its own section; this is on
 2. **Cheap decision gates (product calls, near-zero build):** NFR-7 C1 sequencing sign-off ·
    secret-in-bundle policy (sole blocker on the bundle `connection` kind) · API-5 soak sign-off
    once the meter reads zero.
-3. **Dependent chains (sequence behind tier 1):** SPC-5 ABAC, ~~sharing RBAC~~ *(shipped as R3)*, Lens Access P3, and
+3. **Dependent chains (sequence behind tier 1):** ~~SPC-5 ABAC~~ *(shipped as A4)*, ~~sharing RBAC~~ *(shipped as R3)*, Lens Access P3, and
    NFR-7 SOC 2 execution → after RBAC R1–R2 · MNT-14 → after I1 · API-5 physical deletion → after
    the soak · Postgres multi-user (write the `docs/superpower/` plan first, then store pooling) —
    pairs with RBAC for the multi-user story and gives notifications a persistent backend.
@@ -66,7 +66,7 @@ by dependency fan-out — each row's detail stays in its own section; this is on
 | AGT-5 · eoiagent DryRunProvider seam | Cross-repo (`jotder/inspect-agent`): add a per-tool `DryRunProvider`/preview seam to `PlatformBuilder` so the framework populates `ApprovalRequest.preview`, letting inspecto drop its parallel `AgentApprovals` previewer | **OPEN — low priority.** Pure refactor; functional parity today. Push-first discipline applies (CI rebuilds eoiagent from `main`). Precedent: the P3 `approvalDecisionStore` seam (`d6fabb3`). |
 | AGT-5 cuts | QA-only (`incident_explain` waits on the eoiagent host seam); local-models-only | Open scope cuts — same |
 | AGT-6 | AI behind every screen / agent graphs | PLANNED |
-| SPC-5 | Per-tenant ABAC (rides the SEC-7 grants model; absorbs per-resource ACLs/ownership) | PLANNED (Enterprise) |
+| SPC-5 | Per-tenant ABAC (rides the SEC-7 grants model; absorbs per-resource ACLs/ownership) | **SHIPPED 2026-07-24 as ABAC A4** — engine-resident seeded space-isolation policies in `PolicyEngine.SEED` (deny when home-space claim ≠ bound space; `canConfigureAccess` operator exemption; authored-doc per-name override). As-built in `superpower/rbac-abac-plan.md` §4 A4. Per-resource ACLs/ownership landed earlier as R3 sharing. |
 | E1 | Enterprise distributed tier / Stage-2 streaming | Demand-gated |
 
 ## 3. Feature follow-ons (deferral sections of shipped work)
@@ -373,8 +373,10 @@ SPI + authorize stage + `RowScope` (objects wired); `inspecto-policy` Enterprise
 (`edition-enterprise` profile) with the deny-overrides `PolicyEngine` — as-built + deliberate
 deviations in the plan §4 A3. ⚠ Follow-up: `package.ps1 -Edition Enterprise` packaging flavor
 deferred (the file is another session's uncommitted edit — add the flavor once it's released).
-Remaining in §6: **A4** (SPC-5 seeded space-scoping policies — the engine already binds
-`resource.space`/`subject.space`) → **A5** (decision audit: `access.denied`/`access.granted`
+**A4 SHIPPED 2026-07-24** (SPC-5): engine-resident seeded space-isolation policies
+(`PolicyEngine.SEED`, per-name authored override, `canConfigureAccess` operator exemption,
+engages only when a `space` home-space claim is mapped) — as-built in the plan §4 A4.
+Remaining in §6: **A5** (decision audit: `access.denied`/`access.granted`
 entries with the matched policy). Identity/login, user model, role-assignment UI,
 Admin pane, server enforcement, lens-switcher
 constraint — per `archived-documents/plans-archive/rbac-groundwork.md` §5. Rides on top:

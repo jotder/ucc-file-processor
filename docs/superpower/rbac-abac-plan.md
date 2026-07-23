@@ -285,9 +285,28 @@ the SEC-7d contract: 404, never 403 (no existence leak).
   the authorize stage. Row-level: the `RowScope` helper generalizes `ObjectRoutes`' SEC-7d filter to
   any policy-scoped list endpoint (objects first; components/datasets when R3 lands). Compiled
   policies cached, invalidated on `PUT`.
-- **A4 — Space scoping = SPC-5.** Per-tenant isolation ships as *seeded policies*
+- **A4 — Space scoping = SPC-5. ✅ SHIPPED 2026-07-24.** As built: two engine-resident seed
+  policies in `PolicyEngine.SEED` (`inspecto-policy`), overlaid **per policy name** by the authored
+  doc — the `Roles.SEED` discipline decided over seeding `access-policies.toon` at space creation
+  (uniform across pre-existing spaces; the auth-free core never writes Enterprise policy text; no
+  inert docs on Personal/Standard; disable/tailor by authoring the same name — an `allow`
+  replacement neutralizes a seed since policy-allow never bypasses capability gates).
+  `space-isolation` denies route+row access when the subject's home space ≠ the bound space
+  (`env.space`); `space-isolation-rows` denies rows carrying an explicit foreign `resource.space`.
+  Both denies engage **only when the subject has a mapped `space` home-space claim** (A1
+  `attributeClaims` — a deployment that hasn't mapped one gets no isolation rather than a bricked
+  API; strict deployments can author a harder policy) and exempt `canConfigureAccess` holders (the
+  operator escape hatch, same capability as R3's sharing bypass). **Server-global surface note:**
+  `EventLog.currentSpaceId()` never returns null — un-prefixed routes (`/spaces`, `/spaces/_meta`,
+  …) bind `env.space` to the **default** space, so a home-space subject other than `default` is
+  denied there too (strict isolation of the cross-space management surface; the operator is exempt,
+  and a `default`-home subject reaches them). Deferral: `GET /access/policies`
+  surfaces only the authored doc — seed visibility rides the §8 Q3 policy-authoring UX. Tests:
+  `PolicyEngineTest` seeded-isolation trio (cross-space deny route+row, operator/unmapped/unbound
+  exemptions, per-name authored override incl. seeds-stay-in-force). Retires BACKLOG SPC-5 row.
+  Original scope: per-tenant isolation ships as *seeded policies*
   (`deny when resource.space != subject.space` + an operator exemption), not bespoke code — the
-  proof the engine earns its keep. Retires BACKLOG SPC-5 row.
+  proof the engine earns its keep.
 - **A5 — decision audit.** Every deny (and policy-matched allow) → an Audit Log entry
   (`access.denied` / `access.granted`: subject, route/resource, matched policy). Uses the existing
   audit seam; no new store.

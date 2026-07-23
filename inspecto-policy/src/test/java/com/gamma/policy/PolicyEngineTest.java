@@ -140,6 +140,56 @@ class PolicyEngineTest {
     }
 
     @Test
+    void seededSpaceIsolationDeniesCrossSpaceSubjects(@TempDir Path root) throws Exception {
+        // A4/SPC-5: no authored doc at all — the engine-resident seeds alone isolate tenants.
+        Subject local = new Subject("ana", Set.of(), null, Map.of("space", "alpha"));
+        Subject visitor = new Subject("bob", Set.of(), null, Map.of("space", "beta"));
+        assertEquals(Decision.ABSTAIN, decide(root, null, "alpha", local, "read", null, Map.of()),
+                "home-space subject in their own bound space");
+        assertEquals(Decision.DENY, decide(root, null, "alpha", visitor, "read", null, Map.of()),
+                "cross-space route access denied by the seed");
+        assertEquals(Decision.DENY, decide(root, null, "alpha", visitor, "write", null, Map.of()));
+        assertEquals(Decision.DENY, decide(root, null, "alpha", local, "read",
+                "incident", Map.of("space", "beta")), "a row carrying a foreign explicit space is denied");
+        assertEquals(Decision.ABSTAIN, decide(root, null, "alpha", local, "read",
+                "incident", Map.of("space", "alpha")));
+    }
+
+    @Test
+    void seededSpaceIsolationExemptsOperatorsAndUnmappedSubjects(@TempDir Path root) throws Exception {
+        Subject operator = new Subject("op", Set.of("canConfigureAccess"), null, Map.of("space", "beta"));
+        assertEquals(Decision.ABSTAIN, decide(root, null, "alpha", operator, "write", null, Map.of()),
+                "canConfigureAccess is the operator exemption");
+        assertEquals(Decision.ABSTAIN, decide(root, null, "alpha", subject("ana"), "read", null, Map.of()),
+                "no mapped home-space claim — isolation cannot engage (never a bricked API)");
+        // Server-global routes carry no per-space MDC, so the engine binds env.space to the DEFAULT
+        // space (EventLog.currentSpaceId never returns null). A subject whose home space IS the
+        // default space reaches them; a foreign-space subject is denied there too (strict isolation).
+        Subject defaultLocal = new Subject("d", Set.of(), null, Map.of("space", EventLog.DEFAULT_SPACE_ID));
+        assertEquals(Decision.ABSTAIN, decide(root, null, null, defaultLocal, "read", null, Map.of()),
+                "default-space subject on the (default-bound) server-global surface");
+        Subject foreign = new Subject("ana", Set.of(), null, Map.of("space", "alpha"));
+        assertEquals(Decision.DENY, decide(root, null, null, foreign, "read", null, Map.of()),
+                "a foreign-space subject cannot reach the default-bound server-global surface");
+    }
+
+    @Test
+    void authoredPolicyOverridesSeedPerName(@TempDir Path root) throws Exception {
+        // The Roles.SEED discipline: authoring the seed's name replaces it — an allow replacement
+        // disables the deny (a policy allow never bypasses the capability gates anyway).
+        writePolicies(root, List.of(
+                Map.of("name", "space-isolation", "effect", "allow"),
+                Map.of("name", "space-isolation-rows", "effect", "allow")));
+        Subject visitor = new Subject("bob", Set.of(), null, Map.of("space", "beta"));
+        assertEquals(Decision.ALLOW, decide(root, null, "alpha", visitor, "read", null, Map.of()),
+                "seed deny replaced by the authored policy of the same name");
+        // ...while an unrelated authored doc leaves the seeds in force.
+        writePolicies(root, List.of(Map.of("name", "unrelated", "effect", "allow",
+                "when", "subject.id == 'nobody'")));
+        assertEquals(Decision.DENY, decide(root, null, "alpha", visitor, "read", null, Map.of()));
+    }
+
+    @Test
     void heldRolesAndCapabilitiesBindUnderSubject(@TempDir Path root) throws Exception {
         writePolicies(root, List.of(
                 Map.of("name", "contractor-write-freeze", "effect", "deny",

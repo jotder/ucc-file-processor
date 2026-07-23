@@ -5,6 +5,7 @@ import com.gamma.control.AccessPolicies;
 import com.gamma.control.ComponentAccess;
 import com.gamma.control.Subject;
 import com.gamma.event.EventLog;
+import com.gamma.util.Conditions;
 import com.sun.net.httpserver.HttpExchange;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -36,10 +37,38 @@ import java.util.Map;
  * request's bound space); {@code resource.*} = the row's attribute map (row-level only), with
  * {@code resource.space} defaulting to the bound space when the row carries none — resources live
  * in the space that serves them (what A4's seeded space-scoping policies condition on).
+ *
+ * <p><b>Seeded policies (A4 = SPC-5):</b> {@link #SEED} ships per-tenant space isolation as ordinary
+ * policies, resident here (never written to disk) and overlaid <b>per policy name</b> by the authored
+ * doc — the {@code Roles.SEED} discipline: author a policy named {@code space-isolation} /
+ * {@code space-isolation-rows} to tailor it (an {@code allow} replacement effectively disables it —
+ * a policy allow never bypasses the capability gates). The denies only engage for a subject whose
+ * {@code space} home-space claim is mapped (A1 {@code attributeClaims}) — a deployment that has not
+ * mapped one gets no isolation rather than a bricked API — and exempt {@code canConfigureAccess}
+ * holders (the operator escape hatch, same as R3's sharing). {@code env.space} is always bound
+ * ({@code EventLog.currentSpaceId} falls back to the default space), so un-prefixed server-global
+ * routes bind the default space — only a default-home (or operator) subject reaches them.
  */
 public final class PolicyEngine implements AccessDecider {
 
     private static final Logger LOG = LoggerFactory.getLogger(PolicyEngine.class);
+
+    private static final String EXEMPT =
+            "not (subject.capabilities contains 'canConfigureAccess')";
+
+    /** The seeded space-scoping policies (A4 = SPC-5), overlaid per name by the authored doc. */
+    static final List<AccessPolicies.Policy> SEED = List.of(
+            // Route + row level: a subject with a home space may only address their own bound space.
+            seed("space-isolation", "subject.space != null and env.space != null"
+                    + " and not (env.space == subject.space) and " + EXEMPT),
+            // Rows that carry an explicit space of their own (beyond the bound-space default).
+            seed("space-isolation-rows", "subject.space != null and resource.space != null"
+                    + " and not (resource.space == subject.space) and " + EXEMPT));
+
+    private static AccessPolicies.Policy seed(String name, String when) {
+        return new AccessPolicies.Policy(name, "deny", java.util.Set.of(), java.util.Set.of(),
+                when, Conditions.parse(when));
+    }
 
     @Override
     public Decision decide(HttpExchange ex, Subject subject, String action, String route,
@@ -50,16 +79,26 @@ public final class PolicyEngine implements AccessDecider {
                     action, route, subject.id());
             return Decision.DENY;
         }
-        if (doc.policies().isEmpty()) return Decision.ABSTAIN;
         Map<String, Object> context = context(ex, subject, action, route, resourceKind, resource);
         Decision verdict = Decision.ABSTAIN;
-        for (AccessPolicies.Policy p : doc.policies()) {
+        for (AccessPolicies.Policy p : effective(doc.policies())) {
             if (!targets(p, action, resourceKind)) continue;
             if (!p.condition().test(context)) continue;
             if (p.deny()) return Decision.DENY;   // deny overrides — no later allow can rescue
             verdict = Decision.ALLOW;
         }
         return verdict;
+    }
+
+    /** Authored policies overlaid on {@link #SEED} per policy name — an authored policy with a
+     *  seed's name replaces that seed; unnamed seeds stay in force. Order-preserving, though the
+     *  deny-overrides combining is order-insensitive in outcome. */
+    private static List<AccessPolicies.Policy> effective(List<AccessPolicies.Policy> authored) {
+        if (authored.isEmpty()) return SEED;
+        Map<String, AccessPolicies.Policy> merged = new LinkedHashMap<>();
+        for (AccessPolicies.Policy p : SEED) merged.put(p.name(), p);
+        for (AccessPolicies.Policy p : authored) merged.put(p.name(), p);
+        return List.copyOf(merged.values());
     }
 
     /** Target match: empty dimensions are unconstrained; a {@code resourceKinds} target requires a

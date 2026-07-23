@@ -78,8 +78,13 @@ stage (deny = 403) and the row-level `RowScope` filter (deny = the SEC-7d 404/fi
 Personal and Standard never bundle the module and behave byte-identically. Build/test:
 `mvn -o clean test -Pedition-enterprise`.
 
+**Shipped 2026-07-24 — per-tenant space isolation (A4 = SPC-5):** `PolicyEngine.SEED` carries two
+engine-resident seeded policies (`space-isolation`, `space-isolation-rows`) denying access outside
+the subject's home space; they engage only once a `space` claim is mapped via `roles.toon`
+`identity: {attributeClaims}`, exempt `canConfigureAccess` holders, and are tailorable/disableable
+by authoring a policy of the same name in `access-policies.toon`.
+
 Already fits: stateless stage-1 engine, **stateless JWT auth** (no server session ⇒ horizontal scale),
 pluggable `DbStatusStore` (Postgres) / `ObjectStore` db backend / `ParquetEventStore`, `SecretsProvider`.
 Will need later (don't preclude now): distributed scheduler coordination, all state on shared backends
-(Postgres + object store for Parquet + shared secrets), work distribution, per-tenant ABAC seeded
-policies (A4 — next).
+(Postgres + object store for Parquet + shared secrets), work distribution.
