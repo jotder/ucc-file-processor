@@ -21,7 +21,35 @@ Job pack unavailable-flip, Email/SMTP channel, `record_split`, R8 pivot-bar) · 
 
 ## 1. Act first / in-flight repo state
 
-_(none open — the `package.ps1` bundle smoke-test row closed 2026-07-20, see §3 note below)_
+_(no in-flight repo state — the `package.ps1` bundle smoke-test row closed 2026-07-20, see §3 note below)_
+
+**Dependency-ordered priority (triaged 2026-07-23).** Order of attack across the open rows below,
+by dependency fan-out — each row's detail stays in its own section; this is only the ordering:
+
+1. **Root enablers (largest downstream fan-out — start here):**
+   - **§6 RBAC/ABAC R-workstreams** (`superpower/rbac-abac-plan.md`) — unblocks sharing RBAC
+     (§3 Queries/BI), Lens Access P3, SPC-5 ABAC, X-Actor retirement, auth-gated notification
+     prefs, and the NFR-7 access-control evidence. None of those dependents can start before R1–R2.
+   - **Bound job concurrency** (semaphore on the `JobService` executor) — stated prerequisite (§5
+     DuckDB issue) for the on-by-default memory cap, which in turn gates the chunking default.
+   - **Incidents I1 backend workflow resolution-gate + `ObjectStore` delete** — sole blocker on MNT-14.
+   - **v1-only triggers** (retire the legacy inline-ingest routes) — drives
+     `inspecto_legacy_api_requests_total` to zero, which is what starts the API-5 30-day soak clock.
+2. **Cheap decision gates (product calls, near-zero build):** NFR-7 C1 sequencing sign-off ·
+   secret-in-bundle policy (sole blocker on the bundle `connection` kind) · API-5 soak sign-off
+   once the meter reads zero.
+3. **Dependent chains (sequence behind tier 1):** SPC-5 ABAC, sharing RBAC, Lens Access P3, and
+   NFR-7 SOC 2 execution → after RBAC R1–R2 · MNT-14 → after I1 · API-5 physical deletion → after
+   the soak · Postgres multi-user (write the `docs/superpower/` plan first, then store pooling) —
+   pairs with RBAC for the multi-user story and gives notifications a persistent backend.
+4. **Independent — schedule by value, no ordering constraint:** AGT-6 · Geo Phase 4 backend (also
+   feeds the `spatial` QueryType + ComponentStore view-kind widening) · link-analysis V2 ·
+   Reference Phase-2 engine semantics · T15 adaptive back-pressure · notification follow-ons
+   (webhooks/digest/authorable TOON) · M4 Fuse remainder + M5 coverage baseline · onboarding
+   per-stage `/validate` · menu O1/O2/O3 · eoiagent DryRunProvider.
+5. **Externally gated (parked — not schedulable by us):** OPS-5 live soak (deployment) · EOI-7b
+   (infra) · E1 (demand) · parser field tiers (UX session) · `package.ps1` ACL fix (admin access) ·
+   remaining connector workbenches (demand) · C6 (profiling evidence).
 
 ## 2. Product remainder (MoSCoW of record: `REQUIREMENTS.md` §5)
 
@@ -300,7 +328,11 @@ building.
 
 **PLAN FINALIZED 2026-07-23 → `superpower/rbac-abac-plan.md`** (authorable `roles.toon` · Access
 Policy engine · RBAC=Standard / ABAC=Enterprise; workstreams R1–R5 + A1–A5 — that doc is now the
-authoritative scope for everything in this section). Identity/login, user model, role-assignment UI,
+authoritative scope for everything in this section). **Auth-stack direction added 2026-07-23:
+Keycloak / WSO2** (external OIDC IdP + WSO2 APIM gateway) — groundwork captured as **R0**
+(dependency-free `OidcAuthenticator`, JWKS validation, config-driven claim mapping, gateway
+signed-JWT trust mode) + plan §5-B (gateway topology: OpenAPI import, SSE passthrough, SPA
+PKCE login — absorbs the §3 "UI sign-out affordance" row); standards-only, no vendor SDK. Identity/login, user model, role-assignment UI,
 Admin pane, server enforcement, lens-switcher
 constraint — per `archived-documents/plans-archive/rbac-groundwork.md` §5. Rides on top:
 **Lens Access P3** (subjects become Roles, matrix enforcement server-side — the shipped
