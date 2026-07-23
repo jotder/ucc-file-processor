@@ -69,6 +69,11 @@ timestamp: 2026-07-16T00:00:00Z
   channel-specific change. Tests: `SmtpEmailChannelTest` (message addressing, no live server),
   `ControlApiNotificationChannelsTest` (422 on an invalid EMAIL target). Still deferred:
   delivery-status webhooks, digest batching.
+* **Conservation imbalance now notifies** (2026-07-23) — `NotificationRules.defaults()` gained a rule
+  for `FLOW_CONSERVATION_IMBALANCE` (category `ops`, `minLevel=WARN` so both `LOSS`/ERROR and
+  `AMPLIFICATION`/WARN reach the feed, matching that `EventObjectBridge` opens an ALERT object for both
+  kinds). Closes the gap `docs/ops/provenance-conservation-verification.md` flagged (OPS-5 product Q).
+  Rules stay code-only in `defaults()` (no authorable `notifications` TOON section yet).
 * Deferred to editions/follow-ons: delivery-status webhooks, digest batching, time-based retention
   sweep, GeoIP, auth-gated security-event triggers / per-user prefs.
 

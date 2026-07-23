@@ -1,6 +1,7 @@
 package com.gamma.notify;
 
 import com.gamma.event.Event;
+import com.gamma.event.EventLevel;
 import com.gamma.event.EventType;
 import org.junit.jupiter.api.Test;
 
@@ -93,6 +94,43 @@ class NotificationServiceTest {
         assertEquals(1, feed.size(), "a fired Alert Rule reaches the Notification Center");
         assertEquals("Alert: reject-rate-high", feed.get(0).title());
         assertEquals("ops", feed.get(0).category());
+    }
+
+    @Test
+    void conservationLossReachesTheFeedAsAnOpsNotification() {
+        NotificationStore store = new InMemoryNotificationStore();
+        NotificationService svc = new NotificationService(store, NotificationRules.defaults(),
+                new NotificationPreferences());
+
+        svc.onEvent(Event.builder(EventType.FLOW_CONSERVATION_IMBALANCE).level(EventLevel.ERROR)
+                .pipeline("orders").correlationId("b1")
+                .attr("node", "dedupe").attr("recordsIn", "1000").attr("recordsOut", "980")
+                .attr("kind", "LOSS").build());
+        svc.close();
+
+        List<Notification> feed = store.recent(10);
+        assertEquals(1, feed.size(), "a conservation LOSS reaches the Notification Center");
+        assertEquals("Conservation LOSS in orders", feed.get(0).title());
+        assertEquals("dedupe: 1000 in vs 980 out", feed.get(0).body());
+        assertEquals("ops", feed.get(0).category());
+    }
+
+    @Test
+    void conservationAmplificationAlsoNotifiesDespiteBeingWarn() {
+        NotificationStore store = new InMemoryNotificationStore();
+        NotificationService svc = new NotificationService(store, NotificationRules.defaults(),
+                new NotificationPreferences());
+
+        // AMPLIFICATION carries EventLevel.WARN — the rule's minLevel WARN must still match it.
+        svc.onEvent(Event.builder(EventType.FLOW_CONSERVATION_IMBALANCE).level(EventLevel.WARN)
+                .pipeline("orders").correlationId("b2")
+                .attr("node", "fanout").attr("recordsIn", "1000").attr("recordsOut", "1200")
+                .attr("kind", "AMPLIFICATION").build());
+        svc.close();
+
+        List<Notification> feed = store.recent(10);
+        assertEquals(1, feed.size(), "an AMPLIFICATION (WARN) also notifies, matching the ALERT bridge");
+        assertEquals("Conservation AMPLIFICATION in orders", feed.get(0).title());
     }
 
     @Test

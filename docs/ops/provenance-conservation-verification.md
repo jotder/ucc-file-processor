@@ -18,12 +18,15 @@ here.
   Alerts/Incidents view; and the run's per-node counts drive the Lineage/Sankey overlay served by
   `JobRoutes` — `GET /provenance` and `GET /provenance/batches` (not `LineageRoutes`, which is the
   separate file→store→flow ingest-lineage endpoint).
-  - ⚠ **No toast/email notification fires for a conservation imbalance today** —
-    `NotificationRules`/`NotificationService` carry no rule matching `FLOW_CONSERVATION_IMBALANCE`
-    (nor the `OBJECT_OPENED` that opening the ALERT emits). So during the soak, watch the **ALERT
-    object list and the event ledger**, not a notification (this is exactly why step 3 says "not
-    just 'no alert fired'"). Whether an imbalance *should* also raise a notification is an open
-    product call (BACKLOG) — decide it before recommending provenance as a standing default.
+  - A conservation imbalance now also raises an operator **notification** (product Q resolved
+    2026-07-23): `NotificationRules.defaults()` carries a rule for `FLOW_CONSERVATION_IMBALANCE`
+    (category `ops`, `minLevel=WARN` so both `LOSS`/ERROR and `AMPLIFICATION`/WARN notify — matching
+    that the ALERT bridge fires for both kinds), so an imbalance reaches the in-app feed and any
+    enabled channel (email, etc.). The rules stay code-only in `NotificationRules.defaults()` (no
+    authorable `notifications` TOON section yet); the `OBJECT_OPENED` the ALERT itself emits still has
+    no rule. During the soak you can watch the **notification feed as well as** the ALERT object list
+    and the event ledger — but step 3 still verifies `recordsIn`/`recordsOut` against ground truth,
+    not just "an alert/notification fired".
 
 ## The protocol
 

@@ -1,6 +1,7 @@
 package com.gamma.notify;
 
 import com.gamma.event.Event;
+import com.gamma.event.EventLevel;
 import com.gamma.event.EventType;
 
 import java.util.List;
@@ -63,7 +64,14 @@ public final class NotificationRules {
                 new NotificationRule(EventType.OBJECT_ESCALATED, null, "ops",
                         "Incident escalated: {{attributes.objectId}}",
                         "{{message}}",
-                        "escalated:{{attributes.objectId}}")));
+                        "escalated:{{attributes.objectId}}"),
+                // A provenance conservation breach already opens an ALERT object (both kinds); surface it
+                // to the operator's feed too. minLevel WARN catches AMPLIFICATION (WARN) as well as LOSS
+                // (ERROR) — matching that the ALERT bridge fires for both.
+                new NotificationRule(EventType.FLOW_CONSERVATION_IMBALANCE, EventLevel.WARN, "ops",
+                        "Conservation {{attributes.kind}} in {{pipeline}}",
+                        "{{attributes.node}}: {{attributes.recordsIn}} in vs {{attributes.recordsOut}} out",
+                        "conservation:{{pipeline}}:{{attributes.node}}")));
     }
 
     /** The first rule that matches {@code e}, if any. */
