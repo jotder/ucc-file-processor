@@ -225,8 +225,8 @@ public final class JobService implements AutoCloseable {
                 c -> new ReportJob(c, reports, dataDir)));
         registry.register(JobTypeProvider.of(new JobTypeDescriptor("maintenance", "Maintenance",
                 "Built-in housekeeping task (cleanup / ledger_prune / runlog_prune / storage_report / "
-                        + "scheduler_audit / backup / backup_verify / restore / metadata_validate / "
-                        + "file_repository_audit / db_maintenance / compact / materialize).",
+                        + "storage_trend / scheduler_audit / backup / backup_verify / restore / "
+                        + "metadata_validate / file_repository_audit / db_maintenance / compact / materialize).",
                 List.of(ParameterDecl.optional("task", ParamType.STRING, "cleanup", "Which maintenance task"),
                         ParameterDecl.optional("dir", ParamType.STRING, null, "Target directory (cleanup / compact / storage_report / backup source)"),
                         ParameterDecl.optional("retention_days", ParamType.INTEGER, "7", "Age threshold in days (required for the *_prune tasks)"),
@@ -236,7 +236,9 @@ public final class JobService implements AutoCloseable {
                         ParameterDecl.optional("min_keep", ParamType.INTEGER, null, "cleanup: never retire the newest N files, whatever the other limits say"),
                         ParameterDecl.optional("archive_instead_of_delete", ParamType.BOOLEAN, "false", "cleanup: move affected files to archive_dir instead of deleting"),
                         ParameterDecl.optional("archive_dir", ParamType.STRING, null, "Archive destination (required when archiving)"),
-                        ParameterDecl.optional("warn_bytes", ParamType.INTEGER, null, "storage_report: emit maintenance.storage.threshold above this total"),
+                        ParameterDecl.optional("warn_bytes", ParamType.INTEGER, null, "storage_report: emit maintenance.storage.threshold above this total · storage_trend: total to project the breach ETA against"),
+                        ParameterDecl.optional("window_days", ParamType.INTEGER, "30", "storage_trend: analysis window (most-recent N days of samples)"),
+                        ParameterDecl.optional("warn_days", ParamType.INTEGER, "14", "storage_trend: warn when the projected warn_bytes breach is within N days"),
                         ParameterDecl.optional("backup_dir", ParamType.STRING, null, "backup / backup_verify: the archive directory"),
                         ParameterDecl.optional("prefix", ParamType.STRING, null, "backup: archive filename prefix (default: source dir name)"),
                         ParameterDecl.optional("archive", ParamType.STRING, null, "backup_verify: one archive name · restore: the archive path"),
@@ -246,10 +248,10 @@ public final class JobService implements AutoCloseable {
                         ParameterDecl.optional("min_age_days", ParamType.INTEGER, "1", "compact / file_repository_audit: quiet window in days"),
                         ParameterDecl.optional("source", ParamType.STRING, null, "ledger_prune: scope to one Source"),
                         ParameterDecl.optional("store", ParamType.STRING, null, "Store(s) a delete task targets (fenced)")),
-                List.of("maintenance.storage.threshold", "maintenance.scheduler.findings",
-                        "maintenance.backup.completed", "maintenance.backup.verify_failed",
-                        "maintenance.restore.completed", "maintenance.metadata.findings",
-                        "maintenance.filerepo.findings"), List.of()),
+                List.of("maintenance.storage.threshold", "maintenance.storage.trend",
+                        "maintenance.scheduler.findings", "maintenance.backup.completed",
+                        "maintenance.backup.verify_failed", "maintenance.restore.completed",
+                        "maintenance.metadata.findings", "maintenance.filerepo.findings"), List.of()),
                 c -> new MaintenanceJob(c, dataDir, auditDir, ledger.runStore().orElse(null), this)));
         registry.register(JobTypeProvider.of(new JobTypeDescriptor("pipeline", "Pipeline",
                 "Runs an authored Pipeline over data at rest; emits a commit downstream jobs can chain on.",

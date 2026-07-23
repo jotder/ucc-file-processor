@@ -100,7 +100,9 @@ Design of record (all phases + resolved decisions + TOON config gallery):
 System maintenance is **tasks on the `maintenance` job type, never shell scripts or OS cron**. Task library:
 `cleanup` (retention knobs `max_count`/`max_size`/`archive_dir`/`min_keep` — the newest N are never retired),
 `ledger_prune`, `runlog_prune` (`retention_days` required — deliberate forgetting), `db_maintenance`
-(CHECKPOINT/VACUUM over the live stores via host seams), `storage_report`, `scheduler_audit`,
+(CHECKPOINT/VACUUM over the live stores via host seams), `storage_report` (per-axis usage; on a real run
+also appends a queryable per-axis sample to the `maintenance_storage` catalog Dataset — the `BackupTask`
+idiom, skipped on dry-run), `storage_trend` (growth-trend analysis over that series), `scheduler_audit`,
 `metadata_validate` (broken refs / duplicates / missing physical data), `file_repository_audit`, `backup`
 (timestamped zip + SHA-256 sidecar manifest via `Checksums`) / `backup_verify` (archive hash first,
 fail-closed) / `restore` (manifest validation before any write, zip-slip jail, conflict preview; archive-based,
@@ -114,5 +116,12 @@ fail-closed) / `restore` (manifest validation before any write, zip-slip jail, c
 * **`/health/details` (MNT-15)** — per-subsystem UP/DOWN/NOT_CONFIGURED (`HealthDetails`); overall DOWN iff any
   subsystem DOWN; auth-gated, deliberately not on the public-path allowlist. The bare `/health` probe stays
   public for the connectivity banner.
+* **Growth trend (COULD, shipped 2026-07-23)** — `storage_trend` (`StorageTrendTask`) reads the
+  `maintenance_storage` sample series `storage_report` accumulates: a two-point bytes/day slope per axis + total
+  over a `window_days` window (default 30), a projected `warn_bytes` breach ETA, and the fastest-growing axes as
+  archive candidates; emits `maintenance.storage.trend` (WARN) when the breach is within `warn_days` (default 14).
+  Read-only, fail-soft on <2 samples. The catalog's `created_ms` (epoch millis) is the sortable/filterable key —
+  ISO strings aren't reliably chronological across variable precision. Open COULD follow-ons: space-to-space
+  comparison, predictive maintenance (the latter is AGT-5/self-healing territory, deliberately deferred).
 * **Deferred:** the Archived-Incident sweep (MNT-14) is blocked until the backend Incident workflow gains the
   Identified→Archived lifecycle + an `ObjectStore` delete API. Runbook: `docs/ops/backup-restore-runbook.md`.

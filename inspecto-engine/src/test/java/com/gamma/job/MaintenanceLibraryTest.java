@@ -37,6 +37,12 @@ class MaintenanceLibraryTest {
         return ctx;
     }
 
+    /** A real (non-dry) {@link RunContext}, audit files under {@code auditDir}. */
+    private static JobContext realCtx(Path auditDir) {
+        return new RunContext("r", "default", "m", "manual", "r", 0, Map.of(),
+                new RunLogStore(auditDir.toString()), 100, new RunArtifactStore(auditDir.toString()));
+    }
+
     @AfterEach
     void resetLedger() {
         AcquisitionLedgers.use(null);
@@ -278,6 +284,110 @@ class MaintenanceLibraryTest {
         JobResult r = new MaintenanceJob(job(Map.of("task", "storage_report",
                 "dir", space.toString(), "warn_bytes", "1000"))).run();
         assertFalse(r.message().contains("OVER"), r.message());
+    }
+
+    @Test
+    void storageReportAppendsQueryableSampleAndRegistersTheDataset(@TempDir Path space, @TempDir Path dataDir,
+            @TempDir Path writeRoot, @TempDir Path audit) throws Exception {
+        Files.writeString(Files.createDirectories(space.resolve("data")).resolve("big.csv"), "12345678");
+        Files.writeString(Files.createDirectories(space.resolve("config")).resolve("a.toon"), "1234");
+        System.setProperty("assist.write.root", writeRoot.toString());
+        try {
+            JobResult r = new MaintenanceJob(job(Map.of("task", "storage_report", "dir", space.toString())),
+                    dataDir.toString()).run(realCtx(audit));
+            assertEquals("SUCCESS", r.status(), r.message());
+            Path storeDir = dataDir.resolve("maintenance_storage");
+            try (var s = Files.list(storeDir)) {
+                assertEquals(1, s.filter(p -> p.getFileName().toString().endsWith(".parquet")).count(),
+                        "one sample parquet per storage_report run");
+            }
+            var store = new com.gamma.pipeline.ComponentStore(writeRoot.resolve("registry"));
+            assertTrue(store.exists("dataset", "maintenance_storage"), "sample-series Dataset registered");
+        } finally {
+            System.clearProperty("assist.write.root");
+        }
+    }
+
+    @Test
+    void storageReportDryRunPersistsNoSample(@TempDir Path space, @TempDir Path dataDir,
+            @TempDir Path writeRoot, @TempDir Path audit) throws Exception {
+        Files.writeString(Files.createDirectories(space.resolve("data")).resolve("big.csv"), "12345678");
+        System.setProperty("assist.write.root", writeRoot.toString());
+        try {
+            new MaintenanceJob(job(Map.of("task", "storage_report", "dir", space.toString())),
+                    dataDir.toString()).run(dryCtx(audit));
+            assertFalse(Files.isDirectory(dataDir.resolve("maintenance_storage")),
+                    "a dry-run preview must not add a sample to the trend series");
+        } finally {
+            System.clearProperty("assist.write.root");
+        }
+    }
+
+    // ── storage_trend (System Maintenance COULD tier — growth analysis) ──────────
+
+    /** Write one storage_report-shaped sample (a row per axis) as a Parquet in the catalog dir. */
+    private static void storageSample(Path storeDir, Instant created, Map<String, long[]> axes) throws Exception {
+        Files.createDirectories(storeDir);
+        Path parquet = storeDir.resolve("storage_" + created.toEpochMilli() + "_out.parquet");
+        DuckDbUtil.loadDriver();
+        try (Connection conn = DriverManager.getConnection("jdbc:duckdb:")) {
+            try (Statement st = conn.createStatement()) {
+                st.execute("CREATE TABLE s (created VARCHAR, created_ms BIGINT, axis VARCHAR, files BIGINT, bytes BIGINT)");
+            }
+            try (var ps = conn.prepareStatement("INSERT INTO s VALUES (?,?,?,?,?)")) {
+                for (Map.Entry<String, long[]> e : axes.entrySet()) {
+                    ps.setString(1, created.toString());
+                    ps.setLong(2, created.toEpochMilli());
+                    ps.setString(3, e.getKey());
+                    ps.setLong(4, e.getValue()[0]);
+                    ps.setLong(5, e.getValue()[1]);
+                    ps.addBatch();
+                }
+                ps.executeBatch();
+            }
+            try (Statement st = conn.createStatement()) {
+                st.execute("COPY s TO '" + parquet.toAbsolutePath().toString().replace('\\', '/')
+                        + "' (FORMAT PARQUET)");
+            }
+        }
+    }
+
+    @Test
+    void storageTrendProjectsGrowthTowardTheThreshold(@TempDir Path dataDir, @TempDir Path audit) throws Exception {
+        Path storeDir = dataDir.resolve("maintenance_storage");
+        Instant now = Instant.now();
+        // Two samples 10 days apart: data grows 100→300 (20 b/day), config flat at 50.
+        storageSample(storeDir, now.minus(Duration.ofDays(10)),
+                Map.of("data", new long[]{1, 100}, "config", new long[]{1, 50}));
+        storageSample(storeDir, now,
+                Map.of("data", new long[]{1, 300}, "config", new long[]{1, 50}));
+
+        // total now 350, +20 b/day; (550-350)/20 = 10 days to the threshold.
+        JobResult r = new MaintenanceJob(job(Map.of("task", "storage_trend",
+                "warn_bytes", "550", "warn_days", "30")), dataDir.toString()).run(realCtx(audit));
+
+        assertEquals("SUCCESS", r.status(), r.message());
+        assertTrue(r.message().contains("total 350b"), r.message());
+        assertTrue(r.message().contains("data(+20b/day)"), r.message());
+        assertFalse(r.message().contains("config(+"), "a flat axis is not an archive candidate: " + r.message());
+        assertTrue(r.message().contains("warn_bytes=550 in ~10d"), r.message());
+    }
+
+    @Test
+    void storageTrendNeedsAtLeastTwoSamples(@TempDir Path dataDir, @TempDir Path audit) throws Exception {
+        storageSample(dataDir.resolve("maintenance_storage"), Instant.now(),
+                Map.of("data", new long[]{1, 100}));
+        JobResult r = new MaintenanceJob(job(Map.of("task", "storage_trend")), dataDir.toString())
+                .run(realCtx(audit));
+        assertTrue(r.message().contains("insufficient history"), r.message());
+    }
+
+    @Test
+    void storageTrendWithoutHistoryIsFailSoft(@TempDir Path dataDir, @TempDir Path audit) throws Exception {
+        JobResult r = new MaintenanceJob(job(Map.of("task", "storage_trend")), dataDir.toString())
+                .run(realCtx(audit));
+        assertEquals("SUCCESS", r.status(), r.message());
+        assertTrue(r.message().contains("no storage_report history yet"), r.message());
     }
 
     // ── scheduler_audit (MNT-4) ──────────────────────────────────────────────────

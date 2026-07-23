@@ -10,6 +10,10 @@ import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.PathMatcher;
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.PreparedStatement;
+import java.sql.Statement;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -44,7 +48,14 @@ import java.util.stream.Stream;
  *       optional {@code inspecto_job_runs} projection; optional {@code max_count} caps each JSONL dir to
  *       its newest N files (System Maintenance MNT-2a).</li>
  *   <li>{@code storage_report} — read-only per-axis storage usage + largest consumers over {@code dir},
- *       recorded as Run Artifacts; optional {@code warn_bytes} threshold signal (MNT-3).</li>
+ *       recorded as Run Artifacts and — on a real run with a data/write root configured — appended as one
+ *       row per axis to the queryable {@code maintenance_storage} catalog Dataset (the sample series
+ *       {@code storage_trend} reads); optional {@code warn_bytes} threshold signal (MNT-3).</li>
+ *   <li>{@code storage_trend} — read-only growth-trend analysis over the {@code maintenance_storage}
+ *       sample series: per-axis and total bytes/day over a {@code window_days} window, a projected
+ *       {@code warn_bytes} breach ETA, and the fastest-growing axes as archive candidates; emits
+ *       {@code maintenance.storage.trend} when the projected breach is within {@code warn_days} (System
+ *       Maintenance COULD tier). See {@link StorageTrendTask}.</li>
  *   <li>{@code scheduler_audit} — read-only hygiene audit of the Job registry: disabled jobs, duplicate
  *       names/specs, orphan triggers (MNT-4).</li>
  *   <li>{@code backup} / {@code backup_verify} / {@code restore} — zip + SHA-256-manifest archive of a
@@ -71,6 +82,10 @@ import java.util.stream.Stream;
 final class MaintenanceJob implements Job {
 
     private static final Logger log = LoggerFactory.getLogger(MaintenanceJob.class);
+
+    /** The Dataset {@code storage_report} appends its per-axis samples to (one file per run, glob-union)
+     *  and {@code storage_trend} reads (MNT-3 → COULD-tier growth-trend analysis). */
+    private static final String STORAGE_CATALOG = "maintenance_storage";
 
     private final JobConfig cfg;
     private final String dataDir;   // the space's data root — needed only by the materialize task
@@ -120,8 +135,10 @@ final class MaintenanceJob implements Job {
             case "cleanup"            -> cleanup(dryRun);
             case "ledger_prune"       -> ledgerPrune(dryRun);
             case "runlog_prune"       -> runlogPrune(dryRun);
-            // Read-only tasks: a dry run and a real run are the same thing.
+            // Read-only observers: a dry run and a real run observe the same thing. (storage_report
+            // additionally persists its sample to the maintenance_storage catalog — real runs only.)
             case "storage_report"     -> storageReport(ctx);
+            case "storage_trend"      -> StorageTrendTask.run(cfg, dataDir, ctx);
             case "scheduler_audit"    -> schedulerAudit(ctx);
             case "backup_verify"      -> BackupTask.verify(cfg, ctx);
             case "metadata_validate"  -> MetadataValidateTask.run(ctx, dataDir);
@@ -277,6 +294,9 @@ final class MaintenanceJob implements Job {
             if (breached)
                 ctx.signals().emit("maintenance.storage.threshold", Severity.WARN,
                         Map.of("dir", dir.toString(), "totalBytes", totalBytes, "warnBytes", warnBytes));
+            // Persist this run's per-axis sample so the series accumulates queryably for storage_trend —
+            // real runs only (a dry-run preview must never add a data point to the trend).
+            if (!ctx.dryRun()) storageCatalog(ctx, axes);
         }
         StringBuilder perAxis = new StringBuilder();
         axes.forEach((axis, acc) -> perAxis.append(perAxis.isEmpty() ? "" : ", ")
@@ -285,6 +305,63 @@ final class MaintenanceJob implements Job {
                 + dir + " [" + perAxis + "]"
                 + (breached ? " — OVER warn_bytes=" + warnBytes : ""),
                 (System.nanoTime() - t0) / 1_000_000L);
+    }
+
+    /**
+     * Append this {@code storage_report} run's per-axis sample as one Parquet (a row per axis) in
+     * {@code <dataDir>/maintenance_storage/} (readers glob {@code *.parquet} — rows union across runs)
+     * and idempotently register the {@code maintenance_storage} Dataset, the {@link BackupTask} /
+     * {@link MaterializeTask} catalog idiom. {@code created_ms} is the sortable/filterable sample key
+     * (epoch millis — ISO-string comparison is not reliably chronological across variable precision).
+     * Best-effort: a missing data/write root or a Parquet failure is noted in the Run Log, never fails
+     * the report.
+     */
+    private void storageCatalog(JobContext ctx, Map<String, long[]> axes) {
+        String writeRoot = System.getProperty("assist.write.root");
+        if (dataDir == null || dataDir.isBlank() || writeRoot == null || writeRoot.isBlank()) {
+            ctx.log().info("storage_report catalog skipped (no data root / write root configured)");
+            return;
+        }
+        try {
+            Instant now = Instant.now();
+            Path storeDir = Path.of(dataDir).resolve(STORAGE_CATALOG);
+            Files.createDirectories(storeDir);
+            Path parquet = storeDir.resolve("storage_" + now.toEpochMilli() + "_out.parquet");
+            com.gamma.util.DuckDbUtil.loadDriver();
+            try (Connection conn = DriverManager.getConnection("jdbc:duckdb:")) {
+                try (Statement st = conn.createStatement()) {
+                    st.execute("CREATE TABLE storage_sample (created VARCHAR, created_ms BIGINT, "
+                            + "axis VARCHAR, files BIGINT, bytes BIGINT)");
+                }
+                try (PreparedStatement ps = conn.prepareStatement("INSERT INTO storage_sample VALUES (?,?,?,?,?)")) {
+                    for (Map.Entry<String, long[]> e : axes.entrySet()) {
+                        ps.setString(1, now.toString());
+                        ps.setLong(2, now.toEpochMilli());
+                        ps.setString(3, e.getKey());
+                        ps.setLong(4, e.getValue()[0]);
+                        ps.setLong(5, e.getValue()[1]);
+                        ps.addBatch();
+                    }
+                    ps.executeBatch();
+                }
+                try (Statement st = conn.createStatement()) {
+                    st.execute("COPY storage_sample TO '"
+                            + parquet.toAbsolutePath().toString().replace('\\', '/').replace("'", "''")
+                            + "' (FORMAT PARQUET)");
+                }
+            }
+            com.gamma.pipeline.ComponentStore store =
+                    new com.gamma.pipeline.ComponentStore(Path.of(writeRoot).resolve("registry"));
+            Map<String, Object> content = new LinkedHashMap<>();
+            content.put("name", STORAGE_CATALOG);
+            content.put("physicalRef", STORAGE_CATALOG);
+            content.put("description", "System Maintenance storage-usage samples (one row per axis per run, MNT-3)");
+            store.write("dataset", STORAGE_CATALOG, content, false);   // result-stamp write, no version churn
+            ctx.artifacts().dataset(STORAGE_CATALOG, STORAGE_CATALOG, null, (long) axes.size(), null);
+        } catch (Exception e) {
+            log.warn("storage_report catalog append failed (report itself succeeded): {}", e.getMessage());
+            ctx.log().warn("storage_report catalog append failed: " + e.getMessage());
+        }
     }
 
     /**
