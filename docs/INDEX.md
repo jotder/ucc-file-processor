@@ -77,6 +77,14 @@ former root reference docs** (each index lists them):
   spine + **P1 investigation tier SHIPPED** (2026-07-20, distilled into
   [`okf/backend/agent/embedded-intelligence.md`](okf/backend/agent/embedded-intelligence.md));
   **P2–P5 open** (§8 = live phasing).
+- [`superpower/rbac-abac-plan.md`](superpower/rbac-abac-plan.md) — **RBAC & ABAC plan, finalized
+  2026-07-23** (decisions locked: authorable `roles.toon` · hand-rolled Access Policy engine over a
+  shared core `Conditions` evaluator · RBAC=Standard / policy engine=Enterprise); workstreams
+  R1–R5 + A1–A5, none started.
+- [`superpower/compliance-certifications-plan.md`](superpower/compliance-certifications-plan.md) —
+  **NFR-7 certifications plan, DRAFT 2026-07-23** (SOC 2 Type I → II → ISO 27001 → FedRAMP
+  800-53 alignment/ATO-support; HIPAA/PCI scoping statements only); control-level coverage in
+  §2b, workstreams C1–C6, sequencing sign-off pending.
 - [`superpower/living-operational-system.md`](superpower/living-operational-system.md) — standing
   **architecture north-star** (seven networks over one Component metamodel); R1–R6 all shipped.
 - [`superpower/geo-map-case-studies.md`](superpower/geo-map-case-studies.md) — Geo Map CS1–CS5

@@ -29,7 +29,7 @@ _(none open — the `package.ps1` bundle smoke-test row closed 2026-07-20, see �
 |---|---|---|
 | ACQ-4 | Object-storage connectors — S3/MinIO/GCS-interop + SDK-free Azure Blob + **GCS-native (JSON API, service-account OAuth2) all shipped** (2026-07-22) | **DONE.** The "offline-blocked (no SDK jars)" tag was stale — OAuth2 JWT signing is the same JDK-crypto category as SigV4/SharedKey, no SDK needed. `okf/backend/acquisition/connectors.md` |
 | OPS-5 | Provenance conservation on live data (built, off by default) | Needs a live deployment to verify. **Offline de-risk done 2026-07-22:** feature integrity re-confirmed post engine-refactor + synthetic tests added for the imbalance→ALERT promotion and the run→check→emit bridge; `docs/ops/provenance-conservation-verification.md` corrected (alerting path = ALERT object via `EventObjectBridge`, Sankey via `JobRoutes`). ~~⚠ Open product Q: should an imbalance also fire a `NotificationRule`?~~ **RESOLVED + SHIPPED 2026-07-23 — yes:** `NotificationRules.defaults()` now carries a `FLOW_CONSERVATION_IMBALANCE` rule (category `ops`, `minLevel=WARN` → both LOSS/ERROR and AMPLIFICATION/WARN notify, matching the ALERT bridge). The remaining OPS-5 work is still the live-feed soak (no code left). |
-| NFR-7 | Compliance certifications | PARTIAL (not started) |
+| NFR-7 | Compliance certifications | PARTIAL (not started) — **plan drafted 2026-07-23: `superpower/compliance-certifications-plan.md`** (SOC 2 first; C1 sequencing sign-off pending) |
 | API-5 | Legacy route **physical deletion** — sunset mechanism + `inspecto_legacy_api_requests_total` meter shipped (W8); delete after the signed **30-days-at-zero soak** | Soak-gated policy call |
 | EOI-7b | Publish eoiagent `0.1.0` artifacts to a registry (v0.1.0 cut + pinned 2026-07-08; CI rebuilds from tag meanwhile) | Infra/product call |
 | AGT-5 P0–P5 | Embedded-intelligence agent — QA → author (L1) → gated action (L2) → bounded autonomy (L3) → learning | **COMPLETE 2026-07-21** (+ polish). Roadmap fully shipped; history in git + `superpower/embedded-intelligence-plan.md` §8, distilled in `okf/backend/agent/embedded-intelligence.md`. Only the follow-ons below remain OPEN. |
@@ -298,7 +298,10 @@ building.
 
 ## 6. Security-module scope (deferred wholesale — do not partially implement elsewhere)
 
-Identity/login, user model, role-assignment UI, Admin pane, server enforcement, lens-switcher
+**PLAN FINALIZED 2026-07-23 → `superpower/rbac-abac-plan.md`** (authorable `roles.toon` · Access
+Policy engine · RBAC=Standard / ABAC=Enterprise; workstreams R1–R5 + A1–A5 — that doc is now the
+authoritative scope for everything in this section). Identity/login, user model, role-assignment UI,
+Admin pane, server enforcement, lens-switcher
 constraint — per `archived-documents/plans-archive/rbac-groundwork.md` §5. Rides on top:
 **Lens Access P3** (subjects become Roles, matrix enforcement server-side — the shipped
 catalog/profile/matrix reuse as designed) · dataset/widget/dashboard sharing RBAC ·
