@@ -341,8 +341,13 @@ route capabilities (`canConfigureAccess`, `canAuthorAlertRules`, `canOfferDatase
 under OIDC; bootstrap deadlock) — now seeded to builder/ops/admin/super per the plan's R1 note;
 **product review of the new seed pending** (fold into Q3). **R4 SHIPPED 2026-07-23:**
 `CapabilityManifest` (70 declared gates) + two-way source-scan congruence test; `KNOWN_CAPABILITIES`
-now derives from it; catalog action nodes 422 on unknown capabilities. Next per plan phasing: **R2**
-(Access-Profile server-side enforcement + authorize stage; folds in X-Actor retirement). Identity/login, user model, role-assignment UI,
+now derives from it; catalog action nodes 422 on unknown capabilities. **R2 backend SHIPPED
+2026-07-23:** `AccessGrants` — role Access-Profiles enforced server-side by shaping Subject
+capabilities at authentication (union-of-access across roles, nearest-ancestor grants, fail-closed
+unreadable docs, claim path-jail); no authorize middleware needed, `requireCapability` + envelope
+`permissions` do the rest. Remaining in §6: **R2 UI half** (LensService re-derives from
+`/bootstrap` effective permissions; lens-switcher constraining; nav hides denied nodes) → then
+R3 (sharing RBAC) → R5 (Settings ▸ Access Roles tab), then the A-workstreams. Identity/login, user model, role-assignment UI,
 Admin pane, server enforcement, lens-switcher
 constraint — per `archived-documents/plans-archive/rbac-groundwork.md` §5. Rides on top:
 **Lens Access P3** (subjects become Roles, matrix enforcement server-side — the shipped

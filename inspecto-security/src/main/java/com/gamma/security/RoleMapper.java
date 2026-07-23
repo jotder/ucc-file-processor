@@ -75,8 +75,9 @@ final class RoleMapper {
 
     /** The role-name list from {@code rolesClaim}, or (when that claim is absent/not a string list and
      *  the caller asked for the default {@code "roles"}) Keycloak's default nesting
-     *  {@code realm_access.roles}. Empty when neither shape is present. */
-    private static List<String> roles(JWTClaimsSet claims, String rolesClaim) {
+     *  {@code realm_access.roles}. Empty when neither shape is present. Package-visible so
+     *  {@code OidcAuthenticator} can hand the held roles to {@code AccessGrants} (R2). */
+    static List<String> roles(JWTClaimsSet claims, String rolesClaim) {
         try {
             List<String> direct = claims.getStringListClaim(rolesClaim);
             if (direct != null) return direct;

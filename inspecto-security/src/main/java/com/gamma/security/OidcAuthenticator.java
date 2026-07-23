@@ -1,5 +1,6 @@
 package com.gamma.security;
 
+import com.gamma.control.AccessGrants;
 import com.gamma.control.Authenticator;
 import com.gamma.control.Roles;
 import com.gamma.control.Subject;
@@ -65,7 +66,13 @@ public final class OidcAuthenticator implements Authenticator {
             // RBAC R1: the role → grant table is per-request — the bound space's authored roles.toon
             // overlaid on the seed (ControlApi stamps the config root on the exchange pre-auth).
             var defs = Roles.effective(ex);
-            return Optional.of(new Subject(subjectId, RoleMapper.capabilitiesFor(claims, rolesClaim, defs),
+            var capabilities = new java.util.LinkedHashSet<>(RoleMapper.capabilitiesFor(claims, rolesClaim, defs));
+            // RBAC R2: role-subject Access Profiles enforce server-side by shaping the Subject's
+            // capabilities here — only recognised (table-backed) roles count toward the union.
+            var held = RoleMapper.roles(claims, rolesClaim).stream()
+                    .map(r -> r.toLowerCase(java.util.Locale.ROOT)).filter(defs::containsKey).toList();
+            capabilities.removeAll(AccessGrants.deniedCapabilities(ex, held));
+            return Optional.of(new Subject(subjectId, Set.copyOf(capabilities),
                     RoleMapper.dataScopesFor(claims, rolesClaim, defs)));
         } catch (Exception e) {
             return Optional.empty();   // bad signature, wrong issuer/audience, expired, malformed — all 401

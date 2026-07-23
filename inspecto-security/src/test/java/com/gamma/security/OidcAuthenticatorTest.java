@@ -258,6 +258,29 @@ class OidcAuthenticatorTest {
     }
 
     @Test
+    void roleAccessProfileShapesTheSubjectCapabilities(@TempDir java.nio.file.Path configRoot) throws Exception {
+        // RBAC R2: a subjectType:role Access Profile denying a catalog action node strips the bound
+        // capability from the Subject at authentication time — requireCapability then 403s it.
+        java.nio.file.Path catalogDir = java.nio.file.Files.createDirectories(
+                configRoot.resolve("registry").resolve("access-catalog"));
+        java.nio.file.Files.writeString(catalogDir.resolve("catalog.toon"), JToon.encode(Map.of(
+                "version", 1, "nodes", List.of(Map.of("id", "wb.author", "label", "Author",
+                        "kind", "action", "capability", Roles.CAN_AUTHOR_WORKBENCH)))));
+        java.nio.file.Path profileDir = java.nio.file.Files.createDirectories(
+                configRoot.resolve("registry").resolve("access-profiles"));
+        java.nio.file.Files.writeString(profileDir.resolve("role-developer.toon"), JToon.encode(Map.of(
+                "subjectType", "role", "subjectId", "developer", "label", "Developer",
+                "grants", Map.of("wb.author", "deny"))));
+
+        String jwt = token(Instant.now().plusSeconds(60), List.of("developer"), RSA_KEY, ISSUER, AUDIENCE, "dev");
+        Subject dev = authenticateWithHeader(authenticator(ISSUER, AUDIENCE), "Bearer " + jwt, configRoot).orElseThrow();
+        assertFalse(dev.capabilities().contains(Roles.CAN_AUTHOR_WORKBENCH),
+                "profile-denied capability stripped server-side");
+        assertTrue(dev.capabilities().contains(Roles.CAN_AUTHOR_ALERT_RULES),
+                "capabilities not bound to a denied node are untouched");
+    }
+
+    @Test
     void unreadableRoleDocSuspendsAllGrantsFailClosed(@TempDir java.nio.file.Path configRoot) throws Exception {
         java.nio.file.Files.writeString(configRoot.resolve("roles.toon"), "roles: [ this is not valid");
         String jwt = token(Instant.now().plusSeconds(60), List.of("super"), RSA_KEY, ISSUER, AUDIENCE, "root");

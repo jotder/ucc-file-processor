@@ -113,13 +113,25 @@ the SEC-7d contract: 404, never 403 (no existence leak).
   Tests: `ControlApiAccessRolesTest` (real-HTTP gates) + `OidcAuthenticatorTest` (authored
   grant/revoke/no-restart, role dataScopes, unreadable-doc fail-closed). Capability-name validation
   uses `Roles.KNOWN_CAPABILITIES` until R4's manifest replaces it as the source of truth.
-- **R2 — Access-Profile enforcement (Lens Access P3).** Profiles with `subjectType: role` are
-  resolved server-side in the new authorize stage: route → catalog node (`capability`/`link`
-  binding) → nearest-ancestor grant (allow/deny, root default allow — GLOSSARY "Grant" semantics,
-  unchanged). Lens profiles stay UI-only. UI: the lens-switcher constrains to Lenses the subject's
-  roles project onto; `/bootstrap` returns effective capabilities so `LensService` re-derives its
-  signals from the subject (the one-file swap promised in rbac-groundwork §2 — no pane changes).
-  *DoD:* a role-denied catalog node 403s server-side AND disappears from that subject's nav.
+- **R2 — Access-Profile enforcement (Lens Access P3). ✅ BACKEND HALF SHIPPED 2026-07-23.**
+  As built — one deliberate deviation from the sketch below: there is **no separate authorize
+  middleware stage**. Enforcement happens at *authentication* time — core `AccessGrants` resolves
+  the subject's held (table-backed) roles against the saved `subjectType: role` profiles over the
+  catalog (nearest-ancestor grant, root default allow; **union-of-access across roles** — holding
+  an extra role never reduces access; deny binds via catalog *action nodes* → their `capability`),
+  and `OidcAuthenticator` strips the denied capabilities before the `Subject` is built. So:
+  `Subject` stays capabilities-only (guideline 13 — role names never leave the authenticator),
+  every existing `requireCapability` gate enforces profile denies with zero route changes, and the
+  v1 envelope/`/bootstrap` `permissions` automatically report *effective* grants. Fail-closed:
+  unreadable profile → its role contributes no allows; unreadable catalog (all roles profiled) →
+  all capabilities denied. Claim-supplied role names are path-jailed before profile lookup.
+  Lens profiles stay UI-only, as designed. Tests: `AccessGrantsTest` (inheritance, union,
+  fail-closed, restart-free, path jail) + `OidcAuthenticatorTest` end-to-end deny.
+  **UI half still open:** lens-switcher constrains to Lenses the subject's roles project onto;
+  `LensService` re-derives its signals from `/bootstrap` effective capabilities (the one-file swap
+  promised in rbac-groundwork §2 — no pane changes). Note: server-side, only `capability`-bound
+  action nodes enforce; menu/pane `link` nodes shape the UI nav (they don't map to API routes) —
+  the nav half of the DoD lands with the UI swap.
 - **R3 — sharing RBAC (datasets / widgets / dashboards).** Components gain optional
   `owner` + `shares: [{subjectType: role|user, subjectId, access: view|edit}]` (additive TOON;
   absent = today's behavior). Enforced in the component read/write routes via the decider.
