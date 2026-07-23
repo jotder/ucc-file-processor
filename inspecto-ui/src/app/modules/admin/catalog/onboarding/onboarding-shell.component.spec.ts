@@ -8,6 +8,7 @@ import { ToastrService } from 'ngx-toastr';
 import { ConfigService, ConnectionsService } from 'app/inspecto/api';
 import { expectNoA11yViolations } from 'app/inspecto/testing/a11y';
 import { OnboardingShellComponent } from './onboarding-shell.component';
+import { OnboardingStateService } from './onboarding-state.service';
 
 const TOASTR = { success: vi.fn(), error: vi.fn(), warning: vi.fn(), info: vi.fn() };
 
@@ -91,6 +92,25 @@ describe('OnboardingShellComponent', () => {
 
     it('has no a11y violations', async () => {
         const fixture = create({ name: 'orders_feed' });
+        await expectNoA11yViolations(fixture.nativeElement);
+    });
+
+    it('renders a Blocked chip in the rail when a stage save returns an ERROR finding', async () => {
+        const fixture = create(
+            { name: 'x', stage: 'parsing' },
+            {
+                read: () => of({ type: 'pipeline', name: 'x', path: 'p', config: { name: 'x', parsing: { frontend: 'delimited' } } }),
+                write: () => of({
+                    type: 'pipeline', written: true, path: 'p', name: 'x', bytes: 1, overwritten: true,
+                    findings: [{ severity: 'ERROR', fieldPath: 'parsing.frontend', message: 'bad parser' }],
+                }),
+            },
+        );
+        const state = fixture.debugElement.injector.get(OnboardingStateService);
+        state.activeStageId.set('parsing');
+        state.saveBlock({ parsing: { frontend: 'nope' } }).subscribe();
+        fixture.detectChanges();
+        expect(fixture.nativeElement.textContent).toContain('Blocked');
         await expectNoA11yViolations(fixture.nativeElement);
     });
 });

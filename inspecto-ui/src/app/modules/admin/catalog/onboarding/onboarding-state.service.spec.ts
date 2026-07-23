@@ -137,4 +137,36 @@ describe('OnboardingStateService', () => {
         s.config.set({ name: 'Orders Feed' });
         expect(s.normalizedName()).toBe('orders_feed');
     });
+
+    it('marks a stage blocked on an ERROR finding (never Ready), and clears it on a clean save', () => {
+        const write = vi.fn(() => of({ findings: [{ severity: 'ERROR', fieldPath: 'parsing.frontend', message: 'bad parser' }] }));
+        const s = create({ write } as unknown as Partial<ConfigService>);
+        s.config.set({
+            name: 'x', collector: { connector: 'local' }, parsing: { frontend: 'delimited' },
+            processing: { schema_file: 's.toon' }, output: { format: 'CSV' },
+        });
+        expect(s.lifecycle()).toBe('Ready'); // baseline: fully configured
+
+        s.activeStageId.set('parsing');
+        s.saveBlock({ parsing: { frontend: 'nope' } }).subscribe();
+        expect(s.stageStatus().parsing).toBe('blocked');
+        expect(s.blockingMessage('parsing')).toBe('bad parser');
+        expect(s.lifecycle()).toBe('Draft'); // a blocked required stage is not Ready
+
+        write.mockReturnValue(of({ findings: [] }));
+        s.saveBlock({ parsing: { frontend: 'delimited' } }).subscribe();
+        expect(s.stageStatus().parsing).toBe('configured');
+        expect(s.blockingMessage('parsing')).toBeNull();
+        expect(s.lifecycle()).toBe('Ready');
+    });
+
+    it('a WARNING finding toasts but does not block the stage', () => {
+        const write = vi.fn(() => of({ findings: [{ severity: 'WARNING', fieldPath: 'parsing.x', message: 'heads up' }] }));
+        const s = create({ write } as unknown as Partial<ConfigService>);
+        s.config.set({ name: 'x', parsing: { frontend: 'delimited' } });
+        s.activeStageId.set('parsing');
+        s.saveBlock({ parsing: { frontend: 'delimited' } }).subscribe();
+        expect(s.stageStatus().parsing).toBe('configured'); // warning ≠ blocked
+        expect(TOASTR.warning).toHaveBeenCalled();
+    });
 });

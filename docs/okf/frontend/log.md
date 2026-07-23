@@ -19,6 +19,22 @@
   `menu-builder.component.spec`). Preview-verified offline end-to-end: star a leaf → the "Favorites" group
   appears top-of-sidebar with the item linking to `/w/<nodeId>`; the star's aria-label flips Add↔Remove; no
   console errors.
+* **Onboarding per-stage "blocked" chip SHIPPED** (BACKLOG §3 Onboarding — "Per-stage findings → blocked
+  chip state", the small version): the Stream/Reference onboarding rail now surfaces validation findings as
+  a persistent per-stage chip instead of only a transient toast. `StageStatus` gains `'blocked'`;
+  `OnboardingStateService` retains each stage's last-save `POST /config/write` findings in a `stageFindings`
+  signal (attributed to the stage that triggered the save, reset on load), a stage with an **ERROR**-severity
+  Finding reads as `blocked` in `stageStatus`, `lifecycle` no longer counts a blocked required stage as
+  Ready, and `blockingMessage(id)` exposes the first ERROR message. The rail renders a `@case('blocked')`
+  "⚠ Blocked" chip (`text-warn`) with the message in a `matTooltip`. WARNING findings still just toast
+  (unchanged). Deliberately small: a dedicated per-stage `POST /validate` feed with precise `fieldPath`→stage
+  attribution stays the larger deferred item (the `/validate` endpoint + ERROR findings already exist —
+  `ConfigService.validateDraft`, mock `demo.handler`). DoD green: lint:tokens PASS · build PASS · test:ci
+  **1560/0/5** (exit 0; new specs in `onboarding-state.service.spec` + `onboarding-shell.component.spec`).
+  Preview note: the offline mock's `/config/write` always returns `findings: []` (onboarding.handler.ts), so
+  the blocked state is **not triggerable through the offline UI** — its real-DOM render is instead covered by
+  the shell spec (renders the actual template + chip in a real Angular cycle, axe-clean); the shell + service
+  were confirmed to load/run error-free in the browser.
 
 ## 2026-07-20
 * **R8 pivot-bar SHIPPED** (ui-design-review, BACKLOG §4 — was design-only "wait for two hosts"): the

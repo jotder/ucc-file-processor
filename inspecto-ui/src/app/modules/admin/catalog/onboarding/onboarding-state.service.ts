@@ -1,14 +1,15 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
 import { Observable, catchError, forkJoin, map, of, switchMap, tap } from 'rxjs';
 import { ToastrService } from 'ngx-toastr';
-import { apiErrorMessage, ConfigDeleteResult, ConfigService, ConfigWriteResult, ParsingPreview, SchemaPreview } from 'app/inspecto/api';
+import { apiErrorMessage, ConfigDeleteResult, ConfigService, ConfigWriteResult, Finding, ParsingPreview, SchemaPreview } from 'app/inspecto/api';
 import { mergeBlock } from './onboarding-config-utils';
 
 /** Stage ids across both kinds — a Stream uses schema/enrichment, a Reference keys. */
 export type OnboardingStageId = 'collection' | 'parsing' | 'schema' | 'enrichment' | 'keys' | 'publish';
 
-/** Computed, never stored: readiness is derived from the config blocks on every read. */
-export type StageStatus = 'empty' | 'configured' | 'validated';
+/** Computed, never stored: readiness is derived from the config blocks (+ the last save's findings) on
+ *  every read. `blocked` = the stage's last save returned an ERROR-severity Finding still to resolve. */
+export type StageStatus = 'empty' | 'configured' | 'validated' | 'blocked';
 
 export interface OnboardingStage {
     id: OnboardingStageId;
@@ -65,6 +66,13 @@ export class OnboardingStateService {
      *  draft itself; null = none authored yet (the stage is optional). */
     readonly enrichmentConfig = signal<Record<string, unknown> | null>(null);
 
+    /** Findings retained from each stage's last save (the server `POST /config/write` result). A stage
+     *  with an ERROR-severity finding reads as `blocked` in {@link stageStatus}; a later clean save
+     *  clears it. Findings are whole-config, so they are attributed to the stage that triggered the
+     *  save (`activeStageId` at save time) — the small, honest heuristic (precise per-field attribution
+     *  would need a dedicated per-stage validate feed). */
+    readonly stageFindings = signal<Partial<Record<OnboardingStageId, Finding[]>>>({});
+
     /** The active pane's unsaved-changes probe (registered on init, cleared on destroy). */
     private dirtyCheck: (() => boolean) | null = null;
 
@@ -97,27 +105,38 @@ export class OnboardingStateService {
         const schemaStatus: StageStatus = hasSchema
             ? this.schemaPreview() && !this.schemaError() ? 'validated' : 'configured'
             : 'empty';
+        // A stage whose last save returned an ERROR finding is `blocked`, overriding its base readiness.
+        const sf = this.stageFindings();
+        const at = (id: OnboardingStageId, base: StageStatus): StageStatus =>
+            (sf[id] ?? []).some((f) => f.severity === 'ERROR') ? 'blocked' : base;
         return {
-            collection: 'collector' in cfg ? 'configured' : 'empty',
-            parsing: parsingConfigured
+            collection: at('collection', 'collector' in cfg ? 'configured' : 'empty'),
+            parsing: at('parsing', parsingConfigured
                 ? this.parsePreview() && !this.parseError() ? 'validated' : 'configured'
-                : 'empty',
-            schema: schemaStatus,
+                : 'empty'),
+            schema: at('schema', schemaStatus),
             // The Reference "Keys & Load" stage authors the same schema artifact.
-            keys: schemaStatus,
-            enrichment: this.enrichmentConfig() ? 'configured' : 'empty',
-            publish: 'output' in cfg || this.active() ? 'configured' : 'empty',
+            keys: at('keys', schemaStatus),
+            enrichment: at('enrichment', this.enrichmentConfig() ? 'configured' : 'empty'),
+            publish: at('publish', 'output' in cfg || this.active() ? 'configured' : 'empty'),
         };
     });
 
-    /** Draft (incomplete) → Ready (complete, inactive) → Live (active). */
+    /** Draft (incomplete) → Ready (complete, inactive) → Live (active). A `blocked` stage (unresolved
+     *  ERROR finding) is not Ready any more than an empty one. */
     readonly lifecycle = computed<'Draft' | 'Ready' | 'Live'>(() => {
         if (this.active()) return 'Live';
         const status = this.stageStatus();
         const required = this.stages().filter((s) => !s.optional && s.id !== 'publish');
-        const complete = required.every((s) => status[s.id] !== 'empty') && status['publish'] !== 'empty';
+        const ready = (st: StageStatus): boolean => st !== 'empty' && st !== 'blocked';
+        const complete = required.every((s) => ready(status[s.id])) && ready(status['publish']);
         return complete ? 'Ready' : 'Draft';
     });
+
+    /** The first ERROR finding message for a stage (the rail's `blocked` chip tooltip), or null. */
+    blockingMessage(id: OnboardingStageId): string | null {
+        return (this.stageFindings()[id] ?? []).find((f) => f.severity === 'ERROR')?.message ?? null;
+    }
 
     /** The first not-yet-configured stage in data-path order — where a resumed session lands
      *  (an unimplemented stage's placeholder honestly names the next step). */
@@ -132,6 +151,7 @@ export class OnboardingStateService {
         this.loading.set(true);
         this.missing.set(false);
         this.enrichmentConfig.set(null);
+        this.stageFindings.set({});
         this.configApi.read('pipeline', name).subscribe({
             next: (r) => {
                 this.config.set(r.config);
@@ -163,10 +183,12 @@ export class OnboardingStateService {
             tap({
                 next: (r) => {
                     this.config.set(next);
-                    const warnings = (r.findings ?? []).length;
-                    if (warnings) {
+                    // Retain the findings against the stage that triggered the save (clears it clean).
+                    const findings = r.findings ?? [];
+                    this.stageFindings.update((m) => ({ ...m, [this.activeStageId()]: findings }));
+                    if (findings.length) {
                         this.toastr.warning(
-                            `${r.findings[0].message}${warnings > 1 ? ` (+${warnings - 1} more)` : ''}`,
+                            `${findings[0].message}${findings.length > 1 ? ` (+${findings.length - 1} more)` : ''}`,
                             'Saved with warnings',
                         );
                     }

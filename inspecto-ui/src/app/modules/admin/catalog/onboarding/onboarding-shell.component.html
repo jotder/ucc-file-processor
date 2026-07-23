@@ -82,6 +82,12 @@
                                             @case ('configured') {
                                                 <span class="font-semibold">● Configured</span>
                                             }
+                                            @case ('blocked') {
+                                                <span
+                                                    class="text-warn font-semibold"
+                                                    [matTooltip]="state.blockingMessage(s.id) ?? ''"
+                                                >⚠ Blocked</span>
+                                            }
                                             @default {
                                                 <span class="text-secondary">○ Not configured</span>
                                             }
