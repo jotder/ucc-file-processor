@@ -16,11 +16,14 @@ import java.security.NoSuchAlgorithmException;
  * Metadata Bundle v2 provenance {@code contentHash} for drift detection + idempotent re-promotion.
  *
  * <p><b>Parity note.</b> Identical to the UI hash for the JSON value types that appear in config
- * content (string / boolean / integer / nested object / array / null) — pinned by
- * {@code ContentHashTest}. Exact cross-implementation parity for floating-point values (JS emits the
- * shortest round-trip form; Java may differ, e.g. {@code 1.0} vs {@code 1}) is deliberately left to
- * a conformance test that lands with the backend bundle endpoints; for W3 the hash is used purely
- * backend-side, where self-consistency (same content ⇒ same hash across reads) is all that matters.
+ * content (string / boolean / integer / nested object / array / null) and for <i>non-integer</i>
+ * floating-point values (JDK 19+ {@code Double.toString} and JS both emit the shortest round-tripping
+ * decimal) — all pinned as shared conformance vectors across {@code ContentHashTest} and the UI's
+ * {@code content-hash.spec.ts}. The one known divergence is an <b>integer-valued double</b>: Jackson
+ * keeps {@code 1.0} as {@code "1.0"}, while JS has no int/double distinction and emits {@code "1"}, so
+ * the two sides hash such a value differently. Config content the two sides both hash should avoid
+ * integer-valued floats; for W3 the hash is used purely backend-side, where self-consistency (same
+ * content ⇒ same hash across reads) is all that matters.
  */
 final class ContentHash {
 
