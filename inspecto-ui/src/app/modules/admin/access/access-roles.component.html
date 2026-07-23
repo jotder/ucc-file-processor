@@ -1,0 +1,88 @@
+<div class="flex flex-col gap-4">
+    <div class="flex flex-wrap items-start gap-4">
+        <p class="text-secondary max-w-3xl">
+            What each role grants — capabilities and data scopes, enforced server-side on every
+            authenticated request. Role <strong>assignment</strong> happens in your identity
+            provider; only the definitions live here. A struck-through capability is granted by the
+            role but denied by its Access Profile (the effective grant).
+        </p>
+        <span class="flex-1"></span>
+        @if (canEdit()) {
+            <button mat-flat-button color="primary" type="button" (click)="newRole()" [disabled]="saving()">
+                <mat-icon svgIcon="heroicons_outline:plus"></mat-icon>
+                New role
+            </button>
+        }
+    </div>
+
+    @if (docError(); as err) {
+        <inspecto-alert variant="error" title="Role grants suspended">{{ err }}</inspecto-alert>
+    }
+    @if (!canEdit()) {
+        <inspecto-alert variant="info" title="Read-only">
+            Editing role definitions requires the access-configuration capability.
+        </inspecto-alert>
+    }
+
+    @if (loading()) {
+        <inspecto-skeleton [lines]="4" height="3rem" />
+    } @else {
+        <div class="grid gap-3">
+            @for (card of cards(); track card.role.name) {
+                <div class="bg-card flex flex-col gap-2 rounded-lg border p-4">
+                    <div class="flex flex-wrap items-center gap-2">
+                        <span class="font-medium">{{ card.role.name }}</span>
+                        <inspecto-chip
+                            variant="soft"
+                            [tone]="card.role.source === 'authored' ? 'primary' : 'neutral'">
+                            {{ card.role.source === 'authored' ? 'Authored' : 'Seed default' }}
+                        </inspecto-chip>
+                        <span class="flex-1"></span>
+                        @if (canEdit()) {
+                            <button
+                                mat-icon-button
+                                type="button"
+                                [attr.aria-label]="'Edit role ' + card.role.name"
+                                matTooltip="Edit"
+                                [disabled]="saving()"
+                                (click)="edit(card.role)">
+                                <mat-icon class="icon-size-5" svgIcon="heroicons_outline:pencil-square"></mat-icon>
+                            </button>
+                            @if (card.role.source === 'authored') {
+                                <button
+                                    mat-icon-button
+                                    type="button"
+                                    [attr.aria-label]="'Revert role ' + card.role.name + ' to its seed defaults or remove it'"
+                                    matTooltip="Revert to seed / remove"
+                                    [disabled]="saving()"
+                                    (click)="revert(card.role)">
+                                    <mat-icon class="icon-size-5" svgIcon="heroicons_outline:arrow-uturn-left"></mat-icon>
+                                </button>
+                            }
+                        }
+                    </div>
+                    <div class="flex flex-wrap items-center gap-1.5">
+                        @for (cap of card.capabilities; track cap.capability) {
+                            <inspecto-chip
+                                variant="outline"
+                                [tone]="cap.deniedByProfile ? 'neutral' : 'primary'"
+                                [matTooltip]="cap.deniedByProfile ? 'Denied by this role\'s Access Profile — not effective' : ''">
+                                <span [class.line-through]="cap.deniedByProfile">{{ cap.capability }}</span>
+                                @if (cap.deniedByProfile) {
+                                    <span class="sr-only">(denied by Access Profile)</span>
+                                }
+                            </inspecto-chip>
+                        } @empty {
+                            <span class="text-secondary text-sm">No capabilities — a recognised, read-only role.</span>
+                        }
+                    </div>
+                    @if (card.role.dataScopes?.length) {
+                        <div class="text-secondary text-sm">
+                            Data scopes: {{ card.role.dataScopes!.join(', ') }}
+                        </div>
+                    }
+                </div>
+            }
+        </div>
+    }
+</div>

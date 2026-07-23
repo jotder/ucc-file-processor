@@ -11,6 +11,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
+import { MatTabsModule } from '@angular/material/tabs';
 import { ColDef } from 'ag-grid-community';
 import { cloneDeep } from 'lodash-es';
 import { ToastrService } from 'ngx-toastr';
@@ -35,6 +36,7 @@ import { InspectoAlertComponent } from 'app/inspecto/components/alert.component'
 import { TreeTableComponent } from 'app/inspecto/tree-table/tree-table.component';
 import { TreeNode } from 'app/inspecto/tree-table/tree-types';
 import { AccessCellState, AccessGrantCell } from './access-grant-cell.component';
+import { AccessRolesComponent } from './access-roles.component';
 
 /** Per-lens working grants (lens id → sparse nodeId → allow|deny). */
 type GrantsBySubject = Record<string, Record<string, AccessGrant>>;
@@ -56,8 +58,10 @@ type GrantsBySubject = Record<string, Record<string, AccessGrant>>;
         MatFormFieldModule,
         MatIconModule,
         MatInputModule,
+        MatTabsModule,
         InspectoAlertComponent,
         TreeTableComponent,
+        AccessRolesComponent,
     ],
     templateUrl: './access.component.html',
 })

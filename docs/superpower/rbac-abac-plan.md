@@ -179,9 +179,27 @@ the SEC-7d contract: 404, never 403 (no existence leak).
   orphan-capability bug class can't recur) and `Roles.KNOWN_CAPABILITIES` is now *derived from* the
   manifest (single source of truth for the roles.toon 422 set). Access-Catalog action nodes now 422
   on a capability outside the manifest vocabulary.
-- **R5 — Admin visibility.** Settings ▸ Access gains a **Roles** tab: the R1 editor + a read-only
-  "effective grants" view per role (roles.toon ∘ profile matrix). Role *assignment* stays in the
-  IdP (claims), by design.
+- **R5 — Admin visibility. ✅ SHIPPED 2026-07-23.** As built: Settings ▸ Access is now tabbed —
+  **Lenses** (the existing matrix, unchanged) + **Roles** (`access-roles.component`, lazy
+  `matTabContent`). The Roles tab renders one card per effective role (source badge
+  `Authored | Seed default`, capability chips, data scopes) and edits through `role-form.dialog`
+  (name immutable after create — it is the IdP claim key; capability checkboxes; comma-separated
+  SEC-7d scopes; dirty-guarded). **Authored-overlay semantics surface directly in the UX** (no
+  hidden state): every save PUTs the full authored set — editing a seed role moves it into the
+  overlay, one "Revert" action drops the override (seed role → shipped defaults, custom role →
+  removed), exactly `PUT /access/roles`'s settings-doc contract. The **effective-grants view**
+  (roles.toon ∘ profile matrix) is the strike-through overlay: a capability the role grants but its
+  own `subjectType: role` Access Profile denies (resolved over the derived catalog's action nodes,
+  the same projection `AccessGrants` enforces at authentication) renders struck with an explanatory
+  tooltip + `sr-only` text. Capability vocabulary = catalog-bound capabilities ∪ every capability
+  any role row grants (the seed `super` role carries the full route-gate set, so nothing route-only
+  like `canApproveShares` can be silently stripped by the checkbox editor). Fail-closed states
+  surfaced: the unreadable-doc `error` renders a "Role grants suspended" alert; editing gates on
+  `canConfigureAccess` (UI + method-level). Role *assignment* stays in the IdP (claims), stated in
+  the pane copy. Offline: the mock `access.handler` now serves `GET/PUT /access/roles` with the
+  seed table + persisted authored overlay and the backend's 422 gates. Tests:
+  `access-roles.component.spec` (cards, vocabulary union, profile-deny strike, revert/edit overlay
+  PUTs, read-only gate, fail-closed alert, axe) + `role-form.dialog.spec`.
 
 ## 4. Workstream A — ABAC policy engine (Enterprise, new `inspecto-policy` module)
 

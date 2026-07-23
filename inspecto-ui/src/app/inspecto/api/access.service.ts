@@ -44,6 +44,23 @@ export function accessProfileId(p: Pick<AccessProfile, 'subjectType' | 'subjectI
     return `${p.subjectType}-${p.subjectId}`;
 }
 
+/** One role's grants (RBAC R1 — the authorable `roles.toon` table behind every OIDC subject). */
+export interface RoleDef {
+    name: string;
+    capabilities: string[];
+    /** SEC-7d data scoping; absent = the role contributes no scoping (unscoped). */
+    dataScopes?: string[];
+    /** GET only: whether the row comes from the authored doc or the shipped seed defaults. */
+    source?: 'authored' | 'seed';
+}
+
+/** `GET /access/roles` — the effective table; `error` set ⇔ the authored doc is unreadable
+ *  (all role grants suspended, fail-closed) until fixed or re-saved. */
+export interface RolesDoc {
+    roles: RoleDef[];
+    error?: string;
+}
+
 @Injectable({ providedIn: 'root' })
 export class AccessService {
     private http = inject(HttpClient);
@@ -67,5 +84,22 @@ export class AccessService {
 
     deleteProfile(id: string): Observable<{ deleted: string }> {
         return this.http.delete<{ deleted: string }>(apiUrl(`/access/profiles/${encodeURIComponent(id)}`));
+    }
+
+    roles(): Observable<RolesDoc> {
+        return this.http.get<RolesDoc>(apiUrl('/access/roles'));
+    }
+
+    /** Full replace of the AUTHORED overlay (settings-doc discipline): roles named here override
+     *  their seed entry (an empty capability list revokes); seed roles not named keep their
+     *  defaults. Returns the resulting effective table. */
+    saveRoles(authored: RoleDef[]): Observable<RolesDoc> {
+        return this.http.put<RolesDoc>(apiUrl('/access/roles'), {
+            roles: authored.map((r) => ({
+                name: r.name,
+                capabilities: r.capabilities,
+                ...(r.dataScopes?.length ? { dataScopes: r.dataScopes } : {}),
+            })),
+        });
     }
 }

@@ -1,11 +1,15 @@
 <div class="flex min-h-0 flex-col gap-4 p-6">
-    <!-- Header: title + search + save bar -->
+    <h1 class="text-2xl font-semibold">Access</h1>
+
+    <mat-tab-group animationDuration="0" mat-stretch-tabs="false">
+        <mat-tab label="Lenses">
+            <div class="flex min-h-0 flex-col gap-4 pt-4">
+    <!-- Header: description + search + save bar -->
     <div class="flex flex-wrap items-start gap-4">
         <div class="min-w-64">
-            <h1 class="text-2xl font-semibold">Access</h1>
-            <p class="text-secondary mt-1 max-w-2xl">
+            <p class="text-secondary max-w-2xl">
                 Choose what each lens shows — menus, panes and functionalities. Lenses are views, not
-                security: roles enforce the same configuration when RBAC lands.
+                security: under OIDC the Roles tab's grants are what the server enforces.
             </p>
         </div>
         <span class="flex-1"></span>
@@ -75,4 +79,15 @@
         stateKey="access-matrix"
         noRowsTitle="Nothing matches your search"
         noRowsHint="Try a different menu or functionality name." />
+            </div>
+        </mat-tab>
+        <mat-tab label="Roles">
+            <!-- Lazy: the Roles pane loads its data when the tab is first opened (RBAC R5). -->
+            <ng-template matTabContent>
+                <div class="pt-4">
+                    <app-access-roles />
+                </div>
+            </ng-template>
+        </mat-tab>
+    </mat-tab-group>
 </div>

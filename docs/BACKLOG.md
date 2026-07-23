@@ -29,8 +29,8 @@ by dependency fan-out — each row's detail stays in its own section; this is on
 1. **Root enablers (largest downstream fan-out — start here):**
    - **§6 RBAC/ABAC R-workstreams** (`superpower/rbac-abac-plan.md`) — unblocks Lens Access P3,
      SPC-5 ABAC, X-Actor retirement, auth-gated notification prefs, and the NFR-7 access-control
-     evidence. *(R1/R2/R4 shipped 2026-07-23; sharing RBAC (R3) shipped 2026-07-23 — R5 + the
-     A-workstreams remain.)*
+     evidence. *(R1/R2/R3/R4/R5 all shipped 2026-07-23 — the R0 remainder + the A-workstreams
+     remain.)*
    - **Bound job concurrency** (semaphore on the `JobService` executor) — stated prerequisite (§5
      DuckDB issue) for the on-by-default memory cap, which in turn gates the chunking default.
    - **Incidents I1 backend workflow resolution-gate + `ObjectStore` delete** — sole blocker on MNT-14.
@@ -356,8 +356,13 @@ occupy granted lenses. **R3 SHIPPED 2026-07-23:** component sharing RBAC — opt
 components, enforced fail-closed (404 existence-hiding, list filtering, owner-only envelope/delete)
 in `/components*` + the BI dataset surface via core `ComponentAccess`; role shares match the
 authenticator-stamped held-roles exchange attribute, Subject stays capabilities-only (as-built in
-the plan §3 R3). Remaining in §6: R5 (Settings ▸ Access Roles tab),
-then the A-workstreams. Identity/login, user model, role-assignment UI,
+the plan §3 R3). **R5 SHIPPED 2026-07-23:** Settings ▸ Access is tabbed — Lenses (matrix,
+unchanged) + Roles: role cards with source badges, the R1 editor (authored-overlay semantics:
+edit moves a seed role into the overlay, Revert drops it), and the read-only effective-grants
+strike-through (role capabilities ∘ its Access-Profile denies over the catalog action nodes);
+mock `/access/roles` handler for offline (as-built in the plan §3 R5). Remaining in §6: the
+R0 remainder (WSO2 X-JWT-Assertion trust mode, `identity:` claim allowlist), then the
+A-workstreams. Identity/login, user model, role-assignment UI,
 Admin pane, server enforcement, lens-switcher
 constraint — per `archived-documents/plans-archive/rbac-groundwork.md` §5. Rides on top:
 **Lens Access P3** (subjects become Roles, matrix enforcement server-side — the shipped
