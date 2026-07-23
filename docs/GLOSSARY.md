@@ -107,7 +107,7 @@ UI copy in the Lens era says **Shown / Hidden / Inherit**. *(Added 2026-07-14.)*
 per-subject access grant on that one component. Distinct from the **Exchange** family
 (Offer / Share Grant), which shares an item *across Spaces* — an Exchange grant names a consumer
 Space, a Share names a Role or user. No `shares` key = the component is unrestricted (legacy
-behavior). *(Added 2026-07-23, RBAC R3 — `superpower/rbac-abac-plan.md` §3.)*
+behavior). *(Added 2026-07-23, RBAC R3 — `okf/backend/editions/auth-security.md`.)*
 
 **Access Policy** — An authorable **allow/deny statement over Attributes** (Enterprise policy engine):
 `{name, effect: allow|deny, target: {actions?, resourceKinds?}, when: <condition>}` in a per-space
@@ -115,7 +115,7 @@ behavior). *(Added 2026-07-23, RBAC R3 — `superpower/rbac-abac-plan.md` §3.)*
 grammar over `subject.* / resource.* / env.*`. ⛔ Never bare *Rule* or *Policy Rule* — "Rule" belongs to
 the dataset-side families (Expectation / Alert Rule / Decision Rule). Authoring is core; *evaluation*
 ships only in the Enterprise `inspecto-policy` module. *(Added 2026-07-23, ABAC A2 —
-`superpower/rbac-abac-plan.md` §4.)*
+`okf/backend/editions/auth-security.md`.)*
 
 **Attribute** — A named **subject / resource / environment fact** an Access Policy conditions on:
 subject = `id`, `capabilities`, `dataScopes`, plus IdP claims allowlisted in `roles.toon`

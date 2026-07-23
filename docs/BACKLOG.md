@@ -380,16 +380,17 @@ engages only when a `space` home-space claim is mapped) — as-built in the plan
 exchange; core `AuditTrail.policyDecision` emits `access.denied`/`access.granted` (with actor,
 ABAC action, route, row kind/id, matched policy) via the existing event seam — route-level deny+allow,
 row-level deny only (row allow omitted as list-read noise) — read back via
-`GET /events?type=ACCESS_DENIED|AUDIT`. **The RBAC/ABAC plan is now COMPLETE** — R0–R5 + A1–A5 all
-shipped; the plan (`superpower/rbac-abac-plan.md`) is archive-ready. Identity/login, user model, role-assignment UI,
-Admin pane, server enforcement, lens-switcher
-constraint — per `archived-documents/plans-archive/rbac-groundwork.md` §5. Rides on top:
-**Lens Access P3** (subjects become Roles, matrix enforcement server-side — the shipped
-catalog/profile/matrix reuse as designed) ·
-rbac open Qs: ~~Q1 `canOnboardConnections` → Admin split~~ **RESOLVED + IMPLEMENTED 2026-07-22**
-(own Admin-only grant on the connection write routes; `RoleMapper admin→canOnboardConnections`) ·
-Q3 `canTriageRequirements` grant set · Q4 Requirements SLA (declined, revisit with roles) ·
-X-Actor retirement (overlaps API v1 row).
+`GET /events?type=ACCESS_DENIED|AUDIT`. **The RBAC/ABAC plan is COMPLETE — R0–R5 + A1–A5 all shipped;
+the plan was archived to `archived-documents/plans-archive/rbac-abac-plan.md` and the durable as-builts
+now live in the OKF concept `okf/backend/editions/auth-security.md`** (the current-knowledge home for
+this whole area — read it there, not the archived plan). **Residual opens (non-blocking, carried
+forward):** Q3 `canTriageRequirements` grant set (product) · X-Actor header retirement (overlaps the
+API-v1 row) · a policy-authoring UX beyond TOON+validation (matrix editor / "why denied?" explain
+endpoint, incl. seed-policy visibility in `GET /access/policies`) · final IdP/gateway vendor split
+(Keycloak + WSO2 APIM vs. WSO2 IS — ops/evidence, not code) · `package.ps1 -Edition Enterprise`
+packaging flavor (deferred while the file was another session's uncommitted edit — add once released).
+~~Q1 `canOnboardConnections` → Admin split~~ RESOLVED+IMPLEMENTED 2026-07-22 · ~~Q4 Requirements SLA~~
+declined (revisit with roles).
 
 ## 7. Docs & open product questions
 
