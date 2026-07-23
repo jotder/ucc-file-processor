@@ -8,6 +8,8 @@ import org.junit.jupiter.api.io.TempDir;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -72,15 +74,6 @@ class CollectorServiceTriggerTest {
         }
     }
 
-    private static boolean waitForOutput(Path root, long timeoutMs) throws Exception {
-        long deadline = System.nanoTime() + timeoutMs * 1_000_000L;
-        while (System.nanoTime() < deadline) {
-            if (outputCount(root) >= 1) return true;
-            Thread.sleep(50);
-        }
-        return outputCount(root) >= 1;
-    }
-
     @Test
     void noTriggerRidesEveryPollCycle(@TempDir Path dir) throws Exception {
         // DEFAULT_POLL: a pipeline with no trigger runs on every cycle, exactly as before T13.
@@ -134,14 +127,25 @@ class CollectorServiceTriggerTest {
         Path down = pipeline(dir.resolve("down"), "DOWN_STREAM",
                 "trigger:\n  type: event\n  on: commit\n  from: up_stream\n");
         try (CollectorService svc = new CollectorService(List.of(up, down), 3600, 2)) {
+            // Await the downstream's own commit event rather than polling its db dir: the writer
+            // stages under db/.staging while the run is in flight, so a concurrent Files.walk can
+            // race the staging cleanup (NoSuchFileException). BatchEvent is emitted only after the
+            // batch is durably committed — outputs revealed, staging gone.
+            CountDownLatch downCommitted = new CountDownLatch(1);
+            svc.eventBus().subscribe(e -> {
+                if ("down_stream".equalsIgnoreCase(e.pipeline()) && "SUCCESS".equalsIgnoreCase(e.status())) {
+                    downCommitted.countDown();
+                }
+            });
             svc.start();   // wires the upstream-commit bus subscriber (poll interval 3600s won't interfere)
 
             assertEquals(0, svc.runAllOnce().total(), "neither flow is loop-driven (manual + event)");
 
             // drive the upstream: its commit event signals the downstream's coalescer (off the bus thread)
             svc.runPipeline("up_stream").orElseThrow();
-            assertTrue(waitForOutput(dir.resolve("down"), 10_000),
+            assertTrue(downCommitted.await(10, TimeUnit.SECONDS),
                     "the event-triggered downstream ran when its upstream committed");
+            assertTrue(outputCount(dir.resolve("down")) >= 1, "the downstream's committed run produced output");
         }
     }
 }
