@@ -1161,6 +1161,29 @@ public final class CollectorService implements AutoCloseable {
         return triggerRunAsync(pipelineName, "manual");
     }
 
+    /**
+     * Back-compat for the pre-v1 trigger routes ({@code POST /runs/{name}/trigger}, {@code /collectors/{id}/notify}):
+     * run a pipeline off the request thread and block for its result, so the legacy caller still receives the
+     * synchronous {@link MultiCollectorProcessor.RunResult} body while the {@link #ingestLock} is acquired on
+     * {@link #triggerWorkers} rather than the HTTP request thread. That closes the request-thread-holds-ingestLock
+     * hazard the old inline {@link #runPipeline} call carried (the sync-bus / ingest-lock deadlock, see the lock's
+     * field doc), without changing the response contract. Empty if no pipeline by that name.
+     */
+    public Optional<MultiCollectorProcessor.RunResult> runPipelineOffThread(String pipelineName) {
+        if (pathFor(pipelineName).isEmpty()) return Optional.empty();
+        try {
+            return Optional.of(triggerWorkers.submit(
+                    () -> runPipeline(pipelineName).orElse(new MultiCollectorProcessor.RunResult(0, 0))).get());
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new RuntimeException("interrupted while awaiting pipeline '" + pipelineName + "'", e);
+        } catch (java.util.concurrent.ExecutionException e) {
+            Throwable cause = e.getCause();
+            if (cause instanceof RuntimeException re) throw re;
+            throw new RuntimeException(cause == null ? e.getMessage() : cause.getMessage(), cause);
+        }
+    }
+
     /** {@link #triggerRunAsync(String)} with an explicit trigger label ({@code manual} | {@code notify} — ACQ-6). */
     public Optional<String> triggerRunAsync(String pipelineName, String trigger) {
         if (pathFor(pipelineName).isEmpty()) return Optional.empty();

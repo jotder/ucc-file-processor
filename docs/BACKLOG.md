@@ -35,8 +35,10 @@ by dependency fan-out — each row's detail stays in its own section; this is on
      (`-Djobs.maxConcurrentRuns`, default 0=unbounded) — the stated prerequisite (§5 DuckDB issue) for the
      on-by-default memory cap (which in turn gates the chunking default) is now cleared.
    - ~~Incidents I1 backend workflow resolution-gate~~ **SHIPPED 2026-07-24** (`e3ee50ab`) — `ObjectStore` delete remains the sole blocker on MNT-14.
-   - **v1-only triggers** (retire the legacy inline-ingest routes) — drives
-     `inspecto_legacy_api_requests_total` to zero, which is what starts the API-5 30-day soak clock.
+   - ~~**v1-only triggers** — the *inline-ingest hazard* half~~ **SHIPPED 2026-07-24** (legacy trigger/notify
+     now run off the request thread via `runPipelineOffThread`; see §5). The *meter→zero* half (client
+     migration to `/api/v1`, which starts the API-5 30-day soak clock) is a separate, already-built soak
+     mechanism gated on client migration + sign-off, not code.
 2. **Cheap decision gates (product calls, near-zero build):** NFR-7 C1 sequencing sign-off ·
    secret-in-bundle policy (sole blocker on the bundle `connection` kind) · API-5 soak sign-off
    once the meter reads zero.
@@ -297,9 +299,15 @@ under concurrency**, because the caps that prevent it are off-by-default:
   for both semaphores (batch `maxConcurrentRuns` + `jobs.maxConcurrentRuns`) or a conservative fixed
   per-instance cap + spill. Deferred by the "no new defaults" scope decision (2026-07-22); reopen when an
   operator sets the concurrency bound and wants a matching memory default.
-- **Legacy (pre-v1) trigger routes run ingest INLINE on the HTTP request thread** (`RunRoutes.java:96`,
-  `AcquisitionRoutes.java:50` → `CollectorService.runPipeline` synchronously); v1 routes are async
-  (`202`+runId via `triggerRunAsync`). Standardize on v1 / deprecate the inline path. **[open]**
+- ~~**Legacy (pre-v1) trigger routes run ingest INLINE on the HTTP request thread**~~ **SHIPPED 2026-07-24.**
+  `POST /runs/{name}/trigger` + `POST /collectors/{id}/notify` legacy branches now call the new
+  `CollectorService.runPipelineOffThread`, which submits `runPipeline` to the `triggerWorkers` virtual-thread
+  pool and blocks for the result — so `ingestLock` is acquired on a worker, not the request thread (closing the
+  documented sync-bus/ingest-lock-on-request-thread hazard), while the pre-v1 synchronous `200 RunResult` body
+  is unchanged (existing `legacyPipelineTriggerResponseIsUnchanged`/`legacyNotifyIsSynchronousRunResult` still
+  green). NB this only removes the inline-ingest hazard — it does **not** move `inspecto_legacy_api_requests_total`
+  (that meter counts every unversioned hit sync-or-async; driving it to zero is client migration to `/api/v1`,
+  the separate already-shipped soak mechanism — see the API-5 row + `docs/ops/legacy-api-sunset-runbook.md`).
 - **Single GB file isn't auto-chunked** — `processing.chunking.max_file_bytes = 0` (disabled by default;
   the knob IS documented — `okf/backend/config/configuration.md` §"Large files", + referenced in
   `okf/backend/engine/stage1-architecture.md` and `plugins.md`; the "undocumented" tag was stale, corrected

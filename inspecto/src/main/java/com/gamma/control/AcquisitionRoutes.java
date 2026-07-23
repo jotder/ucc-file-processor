@@ -32,7 +32,9 @@ final class AcquisitionRoutes implements RouteModule {
     /**
      * {@code POST /collectors/{id}/notify} — fire the pipeline owning source {@code id}. v1: {@code 202} +
      * {@code {runId,…}} + a {@code Location} to poll (async, off the ingest lock — mirrors
-     * {@code POST /runs/{name}/trigger}); legacy: synchronous {@code 200} run result. 404 for an unknown
+     * {@code POST /runs/{name}/trigger}); legacy: synchronous {@code 200} run result, but the run now executes
+     * on the trigger pool via {@link CollectorService#runPipelineOffThread} (blocking for the result), so the
+     * ingest lock is no longer held on the request thread. 404 for an unknown
      * source id. The request body is ignored: a notify is a hint that something arrived, and the triggered
      * cycle re-discovers authoritatively.
      */
@@ -47,7 +49,7 @@ final class AcquisitionRoutes implements RouteModule {
             return ApiContext.respondJson(e, 202, java.util.Map.of(
                     "runId", runId, "source", sourceId, "pipeline", pipeline, "status", "running"));
         }
-        return api.service().runPipeline(pipeline)
+        return api.service().runPipelineOffThread(pipeline)
                 .orElseThrow(() -> new ApiException(404, "no source '" + sourceId + "'"));
     }
 

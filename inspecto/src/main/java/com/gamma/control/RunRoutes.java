@@ -85,7 +85,9 @@ final class RunRoutes implements RouteModule {
     /**
      * {@code POST /runs/{name}/trigger} — fire a pipeline. On the v1 surface returns {@code 202} + {@code {runId,…}}
      * + a {@code Location} to poll (async, off the ingest lock — mirrors the job trigger); the legacy surface keeps
-     * its unchanged {@code 200} {@link com.gamma.inspector.MultiCollectorProcessor.RunResult} body. 404 if no such pipeline.
+     * its unchanged {@code 200} {@link com.gamma.inspector.MultiCollectorProcessor.RunResult} body — but the run now
+     * executes on the trigger pool via {@link CollectorService#runPipelineOffThread} (blocking for the result), so
+     * even the legacy path no longer holds the ingest lock on the request thread. 404 if no such pipeline.
      */
     private Object triggerPipeline(ApiContext api, HttpExchange e, String name) throws IOException {
         if (ApiContext.v1(e)) {
@@ -93,7 +95,7 @@ final class RunRoutes implements RouteModule {
             e.getResponseHeaders().set("Location", "/api/v1/runs/runs/" + runId);
             return ApiContext.respondJson(e, 202, Map.of("runId", runId, "pipeline", name, "status", "running"));
         }
-        return api.service().runPipeline(name).orElseThrow(() -> notFound(name));
+        return api.service().runPipelineOffThread(name).orElseThrow(() -> notFound(name));
     }
 
     /** {@code GET /runs/runs/{runId}} — poll one manual pipeline run's status (W5b); 404 once evicted or unknown. */
