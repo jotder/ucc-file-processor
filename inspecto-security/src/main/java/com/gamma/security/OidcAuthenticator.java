@@ -1,6 +1,7 @@
 package com.gamma.security;
 
 import com.gamma.control.Authenticator;
+import com.gamma.control.Roles;
 import com.gamma.control.Subject;
 import com.nimbusds.jose.JWSAlgorithm;
 import com.nimbusds.jose.jwk.source.JWKSource;
@@ -61,8 +62,11 @@ public final class OidcAuthenticator implements Authenticator {
             JWTClaimsSet claims = processor.process(header.substring(7).trim(), null);
             String subjectId = claims.getSubject();
             if (subjectId == null || subjectId.isBlank()) return Optional.empty();
-            return Optional.of(new Subject(subjectId, RoleMapper.capabilitiesFor(claims, rolesClaim),
-                    RoleMapper.dataScopesFor(claims, rolesClaim)));
+            // RBAC R1: the role → grant table is per-request — the bound space's authored roles.toon
+            // overlaid on the seed (ControlApi stamps the config root on the exchange pre-auth).
+            var defs = Roles.effective(ex);
+            return Optional.of(new Subject(subjectId, RoleMapper.capabilitiesFor(claims, rolesClaim, defs),
+                    RoleMapper.dataScopesFor(claims, rolesClaim, defs)));
         } catch (Exception e) {
             return Optional.empty();   // bad signature, wrong issuer/audience, expired, malformed — all 401
         }

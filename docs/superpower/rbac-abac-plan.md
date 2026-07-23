@@ -65,7 +65,17 @@ the SEC-7d contract: 404, never 403 (no existence leak).
 
 ## 3. Workstream R — RBAC (Standard, `inspecto-security`)
 
-- **R0 — OIDC/JWT groundwork (makes the IdP seam real; prerequisite for R1's subject).**
+- **R0 — OIDC/JWT groundwork. ⚠ REALITY CHECK 2026-07-23: most of R0 already existed** (this item
+  was drafted from a stale premise): `inspecto-security` has shipped a working `OidcAuthenticator`
+  since W6 — Bearer-JWT signature via **Nimbus JOSE+JWT** JWKS (`RemoteJWKSet`), issuer/audience/
+  `exp` verification, `-Dauth.oidc.issuer/jwksUri/audience/rolesClaim` config, Keycloak's
+  `realm_access.roles` nesting handled — plus a `KeycloakTokenRelay` (Auth-Code+PKCE server-side
+  exchange, refresh tokens never reach the browser). The "hand-rolled dependency-free JOSE" bullet
+  below is therefore MOOT (Nimbus is already the signed-off, module-confined dependency; note the
+  BACKLOG §3 jlink-vs-Nimbus re-verify row). **Still open from R0:** the gateway signed-JWT trust
+  mode (WSO2 `X-JWT-Assertion` as a second configured issuer/JWKS) · the `identity:` claim-mapping
+  block in `roles.toon` (`attributeClaims` allowlist → `Subject.attributes()`, lands with A1) ·
+  bounded clock skew review. Original scope for reference:
   - `OidcAuthenticator implements Authenticator` (in `inspecto-security`): validates
     `Authorization: Bearer` JWTs — issuer + audience + `exp`/`nbf` (bounded clock skew), signature
     against the IdP's **JWKS** (`RS256`/`ES256` via `java.security` — hand-rolled JOSE header/
@@ -85,13 +95,24 @@ the SEC-7d contract: 404, never 403 (no existence leak).
     itself retires in R2 as planned.
   - *DoD:* valid token → capabilities flow end-to-end; expired/bad-audience/unknown-`kid`/plain-
     header → 401; Personal (no `Authenticator` on classpath) byte-identical fail-open.
-- **R1 — authorable `roles.toon`.** Per-space settings doc (settings-doc discipline like
-  `nav-menus.toon`/`icon-map.toon`): `roles: [{name, capabilities: […], dataScopes: […]}]`.
-  `GET/PUT /access/roles` in `AccessRoutes` (gated `canConfigureAccess`; endpoint-skill gate order;
-  422 via spec validation — capability names validated against the manifest from R4). `RoleStore`
-  with seed = today's `RoleMapper` table; `RoleMapper` consults it, falls back to built-ins when the
-  doc is absent. *DoD:* real-HTTP test class per the endpoint skill; a role edit changes an
-  authenticated subject's capabilities without restart.
+- **R1 — authorable `roles.toon`. ✅ SHIPPED 2026-07-23.** As built: core `com.gamma.control.Roles`
+  (`@PublicApi`) holds the seed table, the doc parser/validator, and the per-request resolution seam —
+  `ControlApi` stamps the bound space's config root on the exchange (`Roles.ATTR_CONFIG_ROOT`) before
+  invoking the `Authenticator`, and `Roles.effective(ex)` overlays the authored doc on the seed
+  **per role name** (authored `[]` revokes; unnamed seed roles keep defaults), mtime-cached so edits
+  apply on the next request, no restart. `GET/PUT /access/roles` in `AccessRoutes` (PUT gated
+  `canConfigureAccess`, 503→422 gates; GET marks each row `source: authored|seed`). The security
+  module's `RoleMapper` lost its hardcoded switch and resolves through the table; authored roles can
+  also carry `dataScopes` (SEC-7d, third scoping source beside the `data_scopes` claim + `case:*`
+  roles). **Fail-closed:** an existing-but-unreadable `roles.toon` suspends ALL role grants (never a
+  silent seed fallback). ⚠ **Seed table corrected, needs product review (with §8 Q3):** the old
+  switch predated five route capabilities that no role granted — incl. `canConfigureAccess`, without
+  which a fresh deployment could never author this very table (bootstrap deadlock). New seed: builder
+  roles + `canAuthorAlertRules`/`canOfferDatasets`/`canRequestShares`; ops + `canRequestShares`;
+  admin + `canConfigureAccess`/`canApproveShares`; super = all nine. All editable via the doc.
+  Tests: `ControlApiAccessRolesTest` (real-HTTP gates) + `OidcAuthenticatorTest` (authored
+  grant/revoke/no-restart, role dataScopes, unreadable-doc fail-closed). Capability-name validation
+  uses `Roles.KNOWN_CAPABILITIES` until R4's manifest replaces it as the source of truth.
 - **R2 — Access-Profile enforcement (Lens Access P3).** Profiles with `subjectType: role` are
   resolved server-side in the new authorize stage: route → catalog node (`capability`/`link`
   binding) → nearest-ancestor grant (allow/deny, root default allow — GLOSSARY "Grant" semantics,

@@ -1,7 +1,10 @@
 package com.gamma.security;
 
 import com.gamma.control.Authenticator;
+import com.gamma.control.Roles;
 import com.gamma.control.Subject;
+import dev.toonformat.jtoon.JToon;
+import org.junit.jupiter.api.io.TempDir;
 import com.nimbusds.jose.JWSAlgorithm;
 import com.nimbusds.jose.JWSHeader;
 import com.nimbusds.jose.crypto.RSASSASigner;
@@ -26,6 +29,7 @@ import java.net.http.HttpResponse;
 import java.time.Instant;
 import java.util.Date;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
@@ -68,13 +72,21 @@ class OidcAuthenticatorTest {
         return jwt.serialize();
     }
 
-    /** Round-trips a real HTTP request through a throwaway server so {@code auth} sees a genuine
-     *  {@code HttpExchange} carrying {@code authorizationHeader} (or none, if {@code null}). */
     private static Optional<Subject> authenticateWithHeader(Authenticator auth, String authorizationHeader) throws Exception {
+        return authenticateWithHeader(auth, authorizationHeader, null);
+    }
+
+    /** Round-trips a real HTTP request through a throwaway server so {@code auth} sees a genuine
+     *  {@code HttpExchange} carrying {@code authorizationHeader} (or none, if {@code null}). A non-null
+     *  {@code configRoot} is stamped as {@link Roles#ATTR_CONFIG_ROOT} pre-auth, exactly as
+     *  {@code ControlApi.authenticate} does — the RBAC R1 per-space roles.toon seam. */
+    private static Optional<Subject> authenticateWithHeader(Authenticator auth, String authorizationHeader,
+                                                            java.nio.file.Path configRoot) throws Exception {
         HttpServer server = HttpServer.create(new InetSocketAddress(0), 0);
         AtomicReference<Optional<Subject>> result = new AtomicReference<>();
         CountDownLatch done = new CountDownLatch(1);
         server.createContext("/", ex -> {
+            if (configRoot != null) ex.setAttribute(Roles.ATTR_CONFIG_ROOT, configRoot);
             result.set(auth.authenticate(ex));
             ex.sendResponseHeaders(204, -1);
             ex.close();
@@ -98,7 +110,10 @@ class OidcAuthenticatorTest {
         Optional<Subject> subject = authenticateWithHeader(authenticator(ISSUER, AUDIENCE), "Bearer " + jwt);
         assertTrue(subject.isPresent());
         assertEquals("jdoe", subject.get().id());
-        assertEquals(Set.of(RoleMapper.CAN_AUTHOR_WORKBENCH), subject.get().capabilities());
+        // Seed table (Roles.SEED, corrected 2026-07-23): builder roles author the workbench, alert
+        // rules, and dataset offers, and may request shares.
+        assertEquals(Set.of(Roles.CAN_AUTHOR_WORKBENCH, Roles.CAN_AUTHOR_ALERT_RULES,
+                Roles.CAN_OFFER_DATASETS, Roles.CAN_REQUEST_SHARES), subject.get().capabilities());
     }
 
     @Test
@@ -107,7 +122,10 @@ class OidcAuthenticatorTest {
         // Admin-owned grant — Admin gets canOnboardConnections and NOT canAuthorWorkbench (Builder-only).
         String jwt = token(Instant.now().plusSeconds(60), List.of("admin"), RSA_KEY, ISSUER, AUDIENCE, "root");
         Subject admin = authenticateWithHeader(authenticator(ISSUER, AUDIENCE), "Bearer " + jwt).orElseThrow();
-        assertEquals(Set.of(RoleMapper.CAN_ONBOARD_CONNECTIONS), admin.capabilities());
+        assertEquals(Set.of(Roles.CAN_ONBOARD_CONNECTIONS, Roles.CAN_CONFIGURE_ACCESS,
+                Roles.CAN_APPROVE_SHARES), admin.capabilities());
+        assertFalse(admin.capabilities().contains(Roles.CAN_AUTHOR_WORKBENCH),
+                "canAuthorWorkbench stays Builder-only");
     }
 
     @Test
@@ -118,7 +136,8 @@ class OidcAuthenticatorTest {
         Subject ana = authenticateWithHeader(authenticator(ISSUER, AUDIENCE), "Bearer " + scoped).orElseThrow();
         assertTrue(ana.scoped());
         assertEquals(Set.of("fraud"), ana.dataScopes());
-        assertEquals(Set.of(RoleMapper.CAN_OPERATE_RUNS), ana.capabilities(), "case role grants no capability");
+        assertEquals(Set.of(Roles.CAN_OPERATE_RUNS, Roles.CAN_REQUEST_SHARES), ana.capabilities(),
+                "case role grants no capability");
 
         String plain = token(Instant.now().plusSeconds(60), List.of("operations"), RSA_KEY, ISSUER, AUDIENCE, "ops");
         assertFalse(authenticateWithHeader(authenticator(ISSUER, AUDIENCE), "Bearer " + plain)
@@ -190,8 +209,60 @@ class OidcAuthenticatorTest {
     void superRoleGrantsAllCapabilities() throws Exception {
         String jwt = token(Instant.now().plusSeconds(60), List.of("super"), RSA_KEY, ISSUER, AUDIENCE, "root");
         Optional<Subject> subject = authenticateWithHeader(authenticator(ISSUER, AUDIENCE), "Bearer " + jwt);
-        assertEquals(Set.of(RoleMapper.CAN_AUTHOR_WORKBENCH, RoleMapper.CAN_OPERATE_RUNS,
-                        RoleMapper.CAN_TRIAGE_REQUIREMENTS, RoleMapper.CAN_ONBOARD_CONNECTIONS),
+        assertEquals(Set.of(Roles.CAN_AUTHOR_WORKBENCH, Roles.CAN_OPERATE_RUNS,
+                        Roles.CAN_TRIAGE_REQUIREMENTS, Roles.CAN_ONBOARD_CONNECTIONS,
+                        Roles.CAN_CONFIGURE_ACCESS, Roles.CAN_AUTHOR_ALERT_RULES, Roles.CAN_OFFER_DATASETS,
+                        Roles.CAN_REQUEST_SHARES, Roles.CAN_APPROVE_SHARES),
                 subject.get().capabilities());
+    }
+
+    // ── RBAC R1: authored roles.toon resolved per request (no restart) ──────────────
+
+    private static void writeRolesDoc(java.nio.file.Path configRoot, List<Map<String, Object>> roles) throws Exception {
+        java.nio.file.Files.writeString(configRoot.resolve("roles.toon"),
+                JToon.encode(Map.of("roles", roles)));
+    }
+
+    @Test
+    void authoredRoleDocGrantsAndRevokesWithoutRestart(@TempDir java.nio.file.Path configRoot) throws Exception {
+        OidcAuthenticator auth = authenticator(ISSUER, AUDIENCE);
+        String jwt = token(Instant.now().plusSeconds(60), List.of("auditor", "developer"),
+                RSA_KEY, ISSUER, AUDIENCE, "ada");
+
+        // custom role granted + seed role revoked, in one authored doc
+        writeRolesDoc(configRoot, List.of(
+                Map.of("name", "auditor", "capabilities", List.of(Roles.CAN_OPERATE_RUNS)),
+                Map.of("name", "developer", "capabilities", List.of())));
+        Subject ada = authenticateWithHeader(auth, "Bearer " + jwt, configRoot).orElseThrow();
+        assertEquals(Set.of(Roles.CAN_OPERATE_RUNS), ada.capabilities(),
+                "authored 'auditor' grants; authored 'developer' with [] revokes its seed grants");
+
+        // edit the doc — the very next request sees the new table (mtime-cached, restart-free)
+        writeRolesDoc(configRoot, List.of(
+                Map.of("name", "auditor", "capabilities",
+                        List.of(Roles.CAN_OPERATE_RUNS, Roles.CAN_TRIAGE_REQUIREMENTS))));
+        Subject after = authenticateWithHeader(auth, "Bearer " + jwt, configRoot).orElseThrow();
+        assertTrue(after.capabilities().contains(Roles.CAN_TRIAGE_REQUIREMENTS), "edit applies without restart");
+        assertTrue(after.capabilities().contains(Roles.CAN_AUTHOR_WORKBENCH),
+                "'developer' no longer authored — falls back to its seed grants");
+    }
+
+    @Test
+    void authoredRoleDataScopesScopeTheSubject(@TempDir java.nio.file.Path configRoot) throws Exception {
+        writeRolesDoc(configRoot, List.of(Map.of("name", "fraud-analyst",
+                "capabilities", List.of(Roles.CAN_OPERATE_RUNS), "data_scopes", List.of("Fraud"))));
+        String jwt = token(Instant.now().plusSeconds(60), List.of("fraud-analyst"), RSA_KEY, ISSUER, AUDIENCE, "ana");
+        Subject ana = authenticateWithHeader(authenticator(ISSUER, AUDIENCE), "Bearer " + jwt, configRoot).orElseThrow();
+        assertTrue(ana.scoped());
+        assertEquals(Set.of("fraud"), ana.dataScopes(), "role-authored dataScopes, lower-cased (SEC-7d)");
+    }
+
+    @Test
+    void unreadableRoleDocSuspendsAllGrantsFailClosed(@TempDir java.nio.file.Path configRoot) throws Exception {
+        java.nio.file.Files.writeString(configRoot.resolve("roles.toon"), "roles: [ this is not valid");
+        String jwt = token(Instant.now().plusSeconds(60), List.of("super"), RSA_KEY, ISSUER, AUDIENCE, "root");
+        Subject root = authenticateWithHeader(authenticator(ISSUER, AUDIENCE), "Bearer " + jwt, configRoot).orElseThrow();
+        assertTrue(root.capabilities().isEmpty(),
+                "an existing-but-unreadable roles.toon suspends ALL role grants — never a silent seed fallback");
     }
 }

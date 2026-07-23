@@ -19,6 +19,10 @@ import java.util.Set;
  * (today {@code subjectType: lens} — Builder/Ops/Business visibility shaping; under RBAC the same
  * documents carry {@code subjectType: role} and the security module enforces them server-side).
  *
+ * <p>{@code /access/roles} (RBAC R1) serves and authors the role → capability/data-scope table
+ * ({@link Roles} — a {@code roles.toon} settings doc overlaying the shipped seed; the security
+ * module's {@code RoleMapper} resolves grants through it per request, so edits apply immediately).
+ *
  * <p>Persistence is {@link ComponentStore} ({@code access-catalog} singleton id {@value #CATALOG_ID},
  * {@code access-profile} keyed {@code <subjectType>-<subjectId>}) — same fail-closed gates as the other
  * component-backed families (503 no write root, 422 bad body/name, 404 unknown). A grant may reference a
@@ -36,6 +40,9 @@ final class AccessRoutes implements RouteModule {
 
     @Override
     public void register(ApiContext api) {
+        api.get("/access/roles", (e, m) -> roles(api));
+        api.put("/access/roles", ApiContext.withCapability("canConfigureAccess",
+                (e, m) -> saveRoles(api, api.body(e))));
         api.get("/access/catalog", (e, m) -> catalog(api));
         api.put("/access/catalog", ApiContext.withCapability("canConfigureAccess",
                 (e, m) -> saveCatalog(api, api.body(e))));
@@ -44,6 +51,43 @@ final class AccessRoutes implements RouteModule {
                 (e, m) -> saveProfile(api, ApiContext.name(m), api.body(e))));
         api.delete("/access/profiles/([^/]+)", ApiContext.withCapability("canConfigureAccess",
                 (e, m) -> deleteProfile(api, ApiContext.name(m))));
+    }
+
+    // ── roles (RBAC R1 — authorable role → capability/data-scope table) ────────────
+
+    /** The effective table: authored roles overlaid on the seed, each row marked {@code source:
+     *  authored|seed}. An unreadable authored doc is surfaced (grants are suspended, fail-closed). */
+    private Object roles(ApiContext api) {
+        Roles.Doc doc = Roles.load(api.writeRoot());
+        Map<String, Object> out = new LinkedHashMap<>();
+        if (doc.unreadable()) {
+            out.put("roles", List.of());
+            out.put("error", "roles.toon is unreadable — all role grants are suspended (fail-closed) until it is fixed or re-saved");
+            return out;
+        }
+        List<Map<String, Object>> rows = new java.util.ArrayList<>();
+        Roles.effective(api.writeRoot()).forEach((name, def) ->
+                rows.add(roleShape(name, def, doc.authored().containsKey(name) ? "authored" : "seed")));
+        out.put("roles", rows);
+        return out;
+    }
+
+    /** Full replace of the authored doc (settings-doc discipline): roles named here override their
+     *  seed entry (an empty capability list revokes); seed roles not named keep their defaults. */
+    private Object saveRoles(ApiContext api, Map<String, Object> body) throws IOException {
+        Path root = WriteGates.requireWriteRoot(api, "role settings write");
+        Map<String, Roles.Def> authored = Roles.validate(body.get("roles"));
+        Roles.write(root, authored);
+        return roles(api);
+    }
+
+    private static Map<String, Object> roleShape(String name, Roles.Def def, String source) {
+        Map<String, Object> r = new LinkedHashMap<>();
+        r.put("name", name);
+        r.put("capabilities", def.capabilities().stream().sorted().toList());
+        if (def.dataScopes() != null) r.put("dataScopes", def.dataScopes().stream().sorted().toList());
+        r.put("source", source);
+        return r;
     }
 
     // ── catalog ───────────────────────────────────────────────────────────────────

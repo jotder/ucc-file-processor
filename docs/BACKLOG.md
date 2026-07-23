@@ -329,10 +329,18 @@ building.
 **PLAN FINALIZED 2026-07-23 → `superpower/rbac-abac-plan.md`** (authorable `roles.toon` · Access
 Policy engine · RBAC=Standard / ABAC=Enterprise; workstreams R1–R5 + A1–A5 — that doc is now the
 authoritative scope for everything in this section). **Auth-stack direction added 2026-07-23:
-Keycloak / WSO2** (external OIDC IdP + WSO2 APIM gateway) — groundwork captured as **R0**
-(dependency-free `OidcAuthenticator`, JWKS validation, config-driven claim mapping, gateway
-signed-JWT trust mode) + plan §5-B (gateway topology: OpenAPI import, SSE passthrough, SPA
-PKCE login — absorbs the §3 "UI sign-out affordance" row); standards-only, no vendor SDK. Identity/login, user model, role-assignment UI,
+Keycloak / WSO2** (external OIDC IdP + WSO2 APIM gateway) — groundwork captured as **R0** + plan
+§5-B (gateway topology: OpenAPI import, SSE passthrough, SPA PKCE login — absorbs the §3 "UI
+sign-out affordance" row); standards-only. **R0 reality-check (same day): the OIDC validator +
+Keycloak PKCE relay already existed in `inspecto-security` (Nimbus JWKS, W6)** — R0's remaining
+open items are the WSO2 gateway signed-JWT trust mode + the `identity:` claim allowlist (see plan).
+**R1 SHIPPED 2026-07-23:** authorable `roles.toon` (`GET/PUT /access/roles`, core `Roles` seed +
+per-request overlay, restart-free; `RoleMapper` switch retired). ⚠ Seed table corrected — five
+route capabilities (`canConfigureAccess`, `canAuthorAlertRules`, `canOfferDatasets`,
+`canRequestShares`, `canApproveShares`) were granted by NO role (access-config writes unreachable
+under OIDC; bootstrap deadlock) — now seeded to builder/ops/admin/super per the plan's R1 note;
+**product review of the new seed pending** (fold into Q3). Next per plan phasing: **R4**
+(capability→route manifest), then R2 (Access-Profile server-side enforcement). Identity/login, user model, role-assignment UI,
 Admin pane, server enforcement, lens-switcher
 constraint — per `archived-documents/plans-archive/rbac-groundwork.md` §5. Rides on top:
 **Lens Access P3** (subjects become Roles, matrix enforcement server-side — the shipped

@@ -615,6 +615,10 @@ public final class ControlApi implements AutoCloseable, ApiContext {
         // -Dbi.share.secret is configured, so this exemption is inert by default.
         boolean required = !PUBLIC_PATHS.contains(path) && !path.startsWith("/public/dashboards/");
         Authenticators.active().ifPresent(a -> {
+            // RBAC R1: hand the authenticator the bound space's config root so it can resolve the
+            // authored roles.toon (Roles.effective) for THIS request — per-space, restart-free.
+            java.nio.file.Path rolesRoot = writeRoot();
+            if (rolesRoot != null) ex.setAttribute(Roles.ATTR_CONFIG_ROOT, rolesRoot);
             // SEC-7(a): on Standard the acting identity is authoritative from the authenticated Subject; a
             // client-supplied X-Actor header is an attempted actor spoof and is rejected outright. (Personal
             // has no Authenticator, so this branch never runs there and X-Actor stays the historic actor.)

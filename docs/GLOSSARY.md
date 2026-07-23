@@ -76,7 +76,10 @@ self-selected and freely switchable; a **Role** is assigned and enforced.
 **Role** — An **assigned authorization** (security-module editions): a named grant set held by a user
 (e.g. Business User, Pipeline Developer, Operations/Support, Power User, Admin, Super User). A user may hold
 several Roles; Roles *project onto* Lenses (they decide which Lenses are available and which **Capabilities**
-are granted within them) but are enforced server-side, unlike Lenses. Not built in the auth-free core.
+are granted within them) but are enforced server-side, unlike Lenses. **Data-defined since RBAC R1
+(2026-07-23):** the role → Capability/data-scope table is a per-space `roles.toon` settings doc
+(`GET/PUT /access/roles`) overlaying a shipped seed — role *assignment* stays in the IdP (claims);
+only the *definitions* are authorable. Enforcement stays out of the auth-free core.
 *(Added 2026-07-03; design: `superpower/rbac-groundwork.md`.)*
 
 **Capability** — One named authorization question the UI gates on (e.g. `canAuthorWorkbench`,

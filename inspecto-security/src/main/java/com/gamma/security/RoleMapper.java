@@ -1,5 +1,6 @@
 package com.gamma.security;
 
+import com.gamma.control.Roles;
 import com.nimbusds.jwt.JWTClaimsSet;
 
 import java.text.ParseException;
@@ -11,59 +12,40 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * claims → Roles → Capabilities (W6, design §8), mirroring
- * {@code docs/superpower/rbac-groundwork.md} §3's role taxonomy 1:1 — this is not a new policy, it is
- * the already-agreed table re-derived server-side instead of the frontend honor system. Reads
+ * claims → Roles → Capabilities (W6, design §8). Since RBAC R1 the role → grant table is no longer
+ * hardcoded here: it is resolved per request from {@link Roles#effective} — the bound space's
+ * authored {@code roles.toon} overlaid on the shipped seed (which carries the original
+ * {@code rbac-groundwork.md} §3 taxonomy, corrected to the full route capability vocabulary). Reads
  * {@code rolesClaim} as a role-name list (case-insensitive) and unions each role's grants. An
  * unrecognised role name grants nothing (fail-closed — never "everything").
  *
  * <p><b>Data scopes (SEC-7d, closes rbac-groundwork §4 Q2):</b> {@link #dataScopesFor} resolves the
  * case-type/business-function visibility grants ("a fraud analyst sees fraud cases") that
- * {@code ObjectRoutes} row-filters on. Two claim shapes feed it: a {@code data_scopes} string-list
- * claim, and/or role names of the form {@code case:<scope>} (e.g. {@code case:fraud}). When neither
- * is present the subject is <b>unscoped</b> ({@code null}) — every plain role keeps full visibility,
- * exactly the pre-scoping behaviour.
+ * {@code ObjectRoutes} row-filters on. Three sources feed it: a {@code data_scopes} string-list
+ * claim, role names of the form {@code case:<scope>} (e.g. {@code case:fraud}), and — new with R1 —
+ * a matched role's authored {@code dataScopes}. When none is present the subject is <b>unscoped</b>
+ * ({@code null}) — every plain role keeps full visibility, exactly the pre-scoping behaviour.
  */
 final class RoleMapper {
     private RoleMapper() {}
 
-    static final String CAN_AUTHOR_WORKBENCH     = "canAuthorWorkbench";
-    static final String CAN_OPERATE_RUNS         = "canOperateRuns";
-    static final String CAN_TRIAGE_REQUIREMENTS  = "canTriageRequirements";
-    // canOnboardConnections (rbac-groundwork §3/§4.1 Q1, product sign-off 2026-07-22) — Connection
-    // onboarding/config is the credential + network-egress surface, so it is its own Admin-only grant,
-    // NOT folded into canAuthorWorkbench: a Pipeline Developer builds pipelines against EXISTING
-    // connections but can't mint new ones. Admin projects onto the Settings/Admin surface (§3), so it
-    // holds this rather than canAuthorWorkbench (which stays Builder-only).
-    static final String CAN_ONBOARD_CONNECTIONS  = "canOnboardConnections";
-
-    static Set<String> capabilitiesFor(JWTClaimsSet claims, String rolesClaim) {
+    static Set<String> capabilitiesFor(JWTClaimsSet claims, String rolesClaim, Map<String, Roles.Def> defs) {
         Set<String> caps = new LinkedHashSet<>();
         for (String role : roles(claims, rolesClaim)) {
-            switch (role.toLowerCase(Locale.ROOT)) {
-                case "pipeline-developer", "app-developer", "developer" -> caps.add(CAN_AUTHOR_WORKBENCH);
-                case "operations", "support" -> caps.add(CAN_OPERATE_RUNS);
-                case "admin" -> caps.add(CAN_ONBOARD_CONNECTIONS);
-                case "power" -> { caps.add(CAN_AUTHOR_WORKBENCH); caps.add(CAN_OPERATE_RUNS); }
-                case "super" -> {
-                    caps.add(CAN_AUTHOR_WORKBENCH);
-                    caps.add(CAN_OPERATE_RUNS);
-                    caps.add(CAN_TRIAGE_REQUIREMENTS);
-                    caps.add(CAN_ONBOARD_CONNECTIONS);
-                }
-                default -> { /* "business" or unrecognised — no additional grant */ }
-            }
+            Roles.Def def = defs.get(role.toLowerCase(Locale.ROOT));
+            if (def != null) caps.addAll(def.capabilities());
         }
         return caps;
     }
 
     /**
      * The caller's data-visibility scopes (SEC-7d), or {@code null} when unscoped. Union of the
-     * {@code data_scopes} string-list claim and any {@code case:<scope>} role names (lower-cased).
-     * Distinguishes "no scoping claims at all" ({@code null} — sees everything) from an explicit empty
-     * list ({@code []} — sees only untyped objects, fail-closed).
+     * {@code data_scopes} string-list claim, any {@code case:<scope>} role names, and any matched
+     * role's authored {@code dataScopes} (all lower-cased). Distinguishes "no scoping sources at all"
+     * ({@code null} — sees everything) from an explicit empty list ({@code []} — sees only untyped
+     * objects, fail-closed).
      */
-    static Set<String> dataScopesFor(JWTClaimsSet claims, String rolesClaim) {
+    static Set<String> dataScopesFor(JWTClaimsSet claims, String rolesClaim, Map<String, Roles.Def> defs) {
         Set<String> scopes = new LinkedHashSet<>();
         boolean scoped = false;
         try {
@@ -81,6 +63,11 @@ final class RoleMapper {
                 scoped = true;
                 String s = r.substring("case:".length()).trim();
                 if (!s.isEmpty()) scopes.add(s);
+            }
+            Roles.Def def = defs.get(r);
+            if (def != null && def.dataScopes() != null) {
+                scoped = true;
+                scopes.addAll(def.dataScopes());
             }
         }
         return scoped ? scopes : null;
