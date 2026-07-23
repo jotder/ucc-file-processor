@@ -71,4 +71,31 @@ describe('MenuService', () => {
         spaceId.set('s1');
         expect(svc.nodes().map((n) => n.title)).toEqual(['Revenue']);
     });
+
+    it('toggles a personal favorite, reflects it in isFavorite/favoriteIds, and scopes it per space', () => {
+        const svc = TestBed.inject(MenuService);
+        expect(svc.favoriteIds()).toEqual([]);
+
+        svc.toggleFavorite('leaf-1');
+        expect(svc.isFavorite('leaf-1')).toBe(true);
+        expect(svc.favoriteIds()).toEqual(['leaf-1']);
+
+        spaceId.set('s2');
+        expect(svc.isFavorite('leaf-1')).toBe(false); // favorites are per space
+        spaceId.set('s1');
+
+        svc.toggleFavorite('leaf-1'); // off again
+        expect(svc.isFavorite('leaf-1')).toBe(false);
+    });
+
+    it('never writes favorites to the server, and they survive a fresh instance via the local mirror', () => {
+        const svc = TestBed.inject(MenuService);
+        svc.toggleFavorite('leaf-9');
+        expect(navApi.put).not.toHaveBeenCalled(); // favorites are client-local, not a tree mutation
+
+        TestBed.resetTestingModule();
+        configure();
+        const svc2 = TestBed.inject(MenuService);
+        expect(svc2.isFavorite('leaf-9')).toBe(true);
+    });
 });

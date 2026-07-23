@@ -7,7 +7,7 @@ import {
     futuristicNavigation,
     horizontalNavigation,
 } from 'app/core/navigation/navigation-data';
-import { loadMenuTrees, menuTreeToNav } from 'app/inspecto/menu';
+import { favoritesNavGroup, loadMenuFavorites, loadMenuTrees, menuTreeToNav } from 'app/inspecto/menu';
 import { cloneDeep } from 'lodash-es';
 import { Observable, ReplaySubject, of, tap } from 'rxjs';
 
@@ -80,8 +80,11 @@ export class NavigationService {
             'default';
         const tree = loadMenuTrees()[space];
         const custom = tree ? menuTreeToNav(tree.nodes) : [];
+        // The personal Favorites group (client-local overlay) sits above the custom groups.
+        const favorites = tree ? favoritesNavGroup(tree.nodes, loadMenuFavorites()[space] ?? []) : null;
+        const prepend = favorites ? [favorites, ...custom] : custom;
         const withCustom = (nav: GammaNavigationItem[]): GammaNavigationItem[] =>
-            dedupeById(custom.length ? [...cloneDeep(custom), ...nav] : nav);
+            dedupeById(prepend.length ? [...cloneDeep(prepend), ...nav] : nav);
 
         return {
             compact: withCustom(_compact),

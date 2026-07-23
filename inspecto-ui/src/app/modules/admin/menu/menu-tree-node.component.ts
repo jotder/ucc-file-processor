@@ -43,6 +43,24 @@ import { MenuNodeDialog, MenuNodeDialogData, MenuNodeDialogResult } from './menu
                 }
             </button>
 
+            @if (isLeaf()) {
+                <button
+                    mat-icon-button
+                    type="button"
+                    class="shrink-0"
+                    [class.text-primary]="isFavorite()"
+                    [attr.aria-pressed]="isFavorite()"
+                    [attr.aria-label]="favoriteLabel()"
+                    [matTooltip]="isFavorite() ? 'Remove from favorites' : 'Add to favorites'"
+                    (click)="toggleFavorite()"
+                >
+                    <mat-icon
+                        class="icon-size-5"
+                        [svgIcon]="isFavorite() ? 'heroicons_solid:star' : 'heroicons_outline:star'"
+                    ></mat-icon>
+                </button>
+            }
+
             <button
                 mat-icon-button
                 class="opacity-0 group-hover:opacity-100 focus:opacity-100"
@@ -110,6 +128,10 @@ export class MenuTreeNodeComponent {
     readonly icon = computed(
         () => this.node().icon ?? (this.isLeaf() ? 'heroicons_outline:document-chart-bar' : 'heroicons_outline:folder'),
     );
+    readonly isFavorite = computed(() => this.isLeaf() && this.menu.isFavorite(this.node().id));
+    readonly favoriteLabel = computed(() =>
+        this.isFavorite() ? `Remove ${this.node().title} from favorites` : `Add ${this.node().title} to favorites`,
+    );
 
     private index = computed(() => this.siblings().findIndex((s) => s.id === this.node().id));
     readonly canMoveUp = computed(() => this.index() > 0);
@@ -124,6 +146,11 @@ export class MenuTreeNodeComponent {
             this.menu.mutate((s) => s.rename(this.node().id, r.title).setIcon(this.node().id, r.icon));
             this.changed.emit();
         });
+    }
+
+    toggleFavorite(): void {
+        this.menu.toggleFavorite(this.node().id);
+        this.changed.emit();
     }
 
     addSubMenu(): void {

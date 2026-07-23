@@ -3,6 +3,7 @@ import { ToastrService } from 'ngx-toastr';
 import { NavigationService } from 'app/core/navigation/navigation.service';
 import { apiErrorMessage, SpacesService } from 'app/inspecto/api';
 import { NavMenusService } from './menu-api';
+import { loadMenuFavorites, saveMenuFavorites } from './menu-favorites';
 import { loadMenuTrees, saveMenuTrees } from './menu-persist';
 import { MenuStore } from './menu-store';
 import { emptyTree, MenuNode, MenuTree } from './menu-types';
@@ -23,6 +24,8 @@ export class MenuService {
     private readonly navigation = inject(NavigationService);
     private readonly toastr = inject(ToastrService);
     private readonly store = signal<Record<string, MenuTree>>(this.load());
+    /** Personal favorites overlay (per Space), client-local — never sent to the server. */
+    private readonly favorites = signal<Record<string, string[]>>(loadMenuFavorites());
 
     constructor() {
         const space = this.spaceKey();
@@ -51,6 +54,25 @@ export class MenuService {
     /** Find a node anywhere in the active Space's tree (e.g. the dynamic host resolving `/w/:nodeId`). */
     find(id: string): MenuNode | undefined {
         return new MenuStore(this.tree()).find(id);
+    }
+
+    /** This device's favorited leaf ids for the active Space (order = the order they were starred). */
+    readonly favoriteIds = computed<string[]>(() => this.favorites()[this.spaceKey()] ?? []);
+
+    /** Whether a leaf is in this device's personal Favorites for the active Space. */
+    isFavorite(id: string): boolean {
+        return this.favoriteIds().includes(id);
+    }
+
+    /** Toggle a leaf's personal-favorite state — client-local + per Space, persisted to the mirror only
+     *  (favorites are personal; the shared tree write-through in {@link mutate} does not touch them). */
+    toggleFavorite(id: string): void {
+        const space = this.spaceKey();
+        const current = this.favorites()[space] ?? [];
+        const next = current.includes(id) ? current.filter((f) => f !== id) : [...current, id];
+        const store = { ...this.favorites(), [space]: next };
+        this.favorites.set(store);
+        saveMenuFavorites(store);
     }
 
     /** Apply pure ops against the active Space's tree, persist (optimistic + mirror), then write through

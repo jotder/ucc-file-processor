@@ -1,5 +1,25 @@
 # Log
 
+## 2026-07-23
+* **Menu Builder favorites SHIPPED** (menu-builder-plan M5, BACKLOG §3 Menu builder — "favorites … still
+  open"): a personal quick-access layer over the per-Space custom menu tree. Favorites are a **client-local
+  overlay** — a per-space localStorage set of favorited *leaf* ids (`inspecto/menu/menu-favorites.ts`, key
+  `inspecto.menuFavorites.v1`), deliberately separate from the shared, server-backed tree (favorites are
+  personal; never PUT to `/nav/menus`). `MenuService` gained `favoriteIds`/`isFavorite`/`toggleFavorite`
+  (persists to the mirror only — not a tree mutation). The builder tree shows a **star toggle on leaf rows**
+  (groups have no artifact to open, so no star), reusing the existing sql-editor favorites idiom
+  (`heroicons_solid:star` vs `_outline:star` + `text-primary`) plus `aria-pressed`/`aria-label` for the
+  toggle. A virtual **"Favorites" group** is prepended above the custom menus in the sidebar
+  (`favoritesNavGroup` in `menu-nav.ts`, wired in `NavigationService._build`): it resolves the favorite ids
+  against the live tree, silently drops any that no longer resolve to a leaf (renamed/deleted), preserves
+  star order, and gives the shortcut items their own `fav-…` ids so they never collide with the same leaf's
+  `menu-…` id under its real group. No backend — the real `/nav/menus` endpoint is unaffected. Still open:
+  O3 Telecom seed + a `/design` gallery entry for the builder. DoD green: lint:tokens PASS · build PASS ·
+  test:ci **1557/0/5** (exit 0; new specs across `menu-nav.spec`, `menu.service.spec`,
+  `menu-builder.component.spec`). Preview-verified offline end-to-end: star a leaf → the "Favorites" group
+  appears top-of-sidebar with the item linking to `/w/<nodeId>`; the star's aria-label flips Add↔Remove; no
+  console errors.
+
 ## 2026-07-20
 * **R8 pivot-bar SHIPPED** (ui-design-review, BACKLOG §4 — was design-only "wait for two hosts"): the
   shared investigation-pivot contract, scoped exactly to the doc's one-line direction — switching the
