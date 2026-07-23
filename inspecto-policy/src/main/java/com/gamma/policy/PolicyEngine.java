@@ -77,16 +77,23 @@ public final class PolicyEngine implements AccessDecider {
         if (doc.unreadable()) {
             LOG.warn("access-policies doc unreadable — DENY {} {} for '{}' (fail-closed until fixed)",
                     action, route, subject.id());
+            ex.setAttribute(AccessDecider.ATTR_MATCHED_POLICY, "<policies-unreadable>");
             return Decision.DENY;
         }
         Map<String, Object> context = context(ex, subject, action, route, resourceKind, resource);
         Decision verdict = Decision.ABSTAIN;
+        String matched = null;
         for (AccessPolicies.Policy p : effective(doc.policies())) {
             if (!targets(p, action, resourceKind)) continue;
             if (!p.condition().test(context)) continue;
-            if (p.deny()) return Decision.DENY;   // deny overrides — no later allow can rescue
+            if (p.deny()) {   // deny overrides — no later allow can rescue
+                ex.setAttribute(AccessDecider.ATTR_MATCHED_POLICY, p.name());
+                return Decision.DENY;
+            }
             verdict = Decision.ALLOW;
+            matched = p.name();
         }
+        if (verdict == Decision.ALLOW) ex.setAttribute(AccessDecider.ATTR_MATCHED_POLICY, matched);
         return verdict;
     }
 

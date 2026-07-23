@@ -29,8 +29,8 @@ by dependency fan-out — each row's detail stays in its own section; this is on
 1. **Root enablers (largest downstream fan-out — start here):**
    - **§6 RBAC/ABAC R-workstreams** (`superpower/rbac-abac-plan.md`) — unblocks Lens Access P3,
      SPC-5 ABAC, X-Actor retirement, auth-gated notification prefs, and the NFR-7 access-control
-     evidence. *(R0 remainder + R1–R5 + A1/A2 shipped 2026-07-23; A3 (enterprise engine) + A4
-     (SPC-5 seeded policies) shipped 2026-07-24 — A5 (decision audit) remains.)*
+     evidence. *(R0 remainder + R1–R5 + A1/A2 shipped 2026-07-23; A3 + A4 + A5 shipped 2026-07-24 —
+     **the whole RBAC/ABAC plan is now COMPLETE**; plan is archive-ready.)*
    - **Bound job concurrency** (semaphore on the `JobService` executor) — stated prerequisite (§5
      DuckDB issue) for the on-by-default memory cap, which in turn gates the chunking default.
    - **Incidents I1 backend workflow resolution-gate + `ObjectStore` delete** — sole blocker on MNT-14.
@@ -376,8 +376,12 @@ deferred (the file is another session's uncommitted edit — add the flavor once
 **A4 SHIPPED 2026-07-24** (SPC-5): engine-resident seeded space-isolation policies
 (`PolicyEngine.SEED`, per-name authored override, `canConfigureAccess` operator exemption,
 engages only when a `space` home-space claim is mapped) — as-built in the plan §4 A4.
-Remaining in §6: **A5** (decision audit: `access.denied`/`access.granted`
-entries with the matched policy). Identity/login, user model, role-assignment UI,
+**A5 SHIPPED 2026-07-24** (decision audit): `PolicyEngine` stamps the matched policy name on the
+exchange; core `AuditTrail.policyDecision` emits `access.denied`/`access.granted` (with actor,
+ABAC action, route, row kind/id, matched policy) via the existing event seam — route-level deny+allow,
+row-level deny only (row allow omitted as list-read noise) — read back via
+`GET /events?type=ACCESS_DENIED|AUDIT`. **The RBAC/ABAC plan is now COMPLETE** — R0–R5 + A1–A5 all
+shipped; the plan (`superpower/rbac-abac-plan.md`) is archive-ready. Identity/login, user model, role-assignment UI,
 Admin pane, server enforcement, lens-switcher
 constraint — per `archived-documents/plans-archive/rbac-groundwork.md` §5. Rides on top:
 **Lens Access P3** (subjects become Roles, matrix enforcement server-side — the shipped

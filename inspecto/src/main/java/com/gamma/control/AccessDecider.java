@@ -26,6 +26,15 @@ public interface AccessDecider {
     enum Decision { ALLOW, DENY, ABSTAIN }
 
     /**
+     * Exchange attribute (ABAC A5): after {@link #decide} returns {@code ALLOW} or {@code DENY}, the
+     * decider MAY stamp the matched Access Policy's name here so the core audit stage can name it in
+     * the {@code access.denied}/{@code access.granted} entry. Absent on {@code ABSTAIN}. The core
+     * clears it before every {@code decide} and reads it immediately after, so a decider that never
+     * stamps simply audits an unnamed decision. Value is a {@link String}.
+     */
+    String ATTR_MATCHED_POLICY = "com.gamma.control.AccessDecider.matchedPolicy";
+
+    /**
      * Decide one access. Route-level calls pass {@code resourceKind = null} and an empty
      * {@code resource} (nothing is resolved yet — policies targeting {@code resourceKinds} must not
      * match); row-level calls pass the resolved resource's kind and attribute map.

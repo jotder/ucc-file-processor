@@ -80,6 +80,40 @@ final class AuditTrail {
     }
 
     /**
+     * Record an access-policy decision (ABAC A5): a policy {@code DENY} (a 403 at the route level or a
+     * hidden row at the row level) or a policy-matched {@code ALLOW} at the route level. Emitted as an
+     * {@link EventType#ACCESS_DENIED} ({@code access.denied}) / {@link EventType#AUDIT}
+     * ({@code access.granted}) event carrying the matched policy name. Never throws.
+     *
+     * @param granted      true for a policy-matched allow, false for a deny
+     * @param abacAction   the ABAC action verb the decision covered ({@code read}/{@code write}/{@code operate})
+     * @param route        the effective route path (prefixes stripped)
+     * @param resourceType the resolved row's kind at the row level, else null (route-level decision)
+     * @param resourceId   the resolved row's id at the row level, else null
+     * @param policy       the matched Access Policy name (or a fail-closed marker), null when unnamed
+     */
+    static void policyDecision(HttpExchange ex, boolean granted, String abacAction, String route,
+                               String resourceType, String resourceId, String policy) {
+        try {
+            String actor = ApiContext.actor(ex);
+            String verb = granted ? "access.granted" : "access.denied";
+            EventLog.current().emit(Event.builder(granted ? EventType.AUDIT : EventType.ACCESS_DENIED)
+                    .source("audit")
+                    .message(actor + " " + verb + " " + abacAction + " " + route
+                            + (policy == null ? "" : " (policy " + policy + ")"))
+                    .actor(actor).actorType(ApiContext.actorType(ex))
+                    .action(verb).actionCategory("authorization")
+                    .target(resourceType, resourceId)
+                    .ip(ApiContext.ip(ex)).userAgent(ApiContext.userAgent(ex))
+                    .attr(AuditAttrs.HTTP_PATH, route)
+                    .attr(AuditAttrs.ABAC_ACTION, abacAction)
+                    .attr(AuditAttrs.POLICY, policy));
+        } catch (RuntimeException ignore) {
+            // best effort — auditing must never break the request
+        }
+    }
+
+    /**
      * Map a resolved request to an auditable {@link Action}, or {@code null} when it carries no audit
      * value. Pure (no I/O) so it is unit-testable. The {@code path} has prefixes stripped.
      */

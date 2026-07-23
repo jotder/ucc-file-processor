@@ -638,7 +638,10 @@ public final class ControlApi implements AutoCloseable, ApiContext {
      *  public probe surface). Only an explicit {@code DENY} acts (403); {@code ALLOW}/{@code ABSTAIN}
      *  fall through to the existing capability gates — a policy allow never bypasses them. The action
      *  vocabulary is {@code read} (GET/HEAD) / {@code operate} (a state change gated
-     *  {@code canOperateRuns} per the R4 manifest) / {@code write} (every other state change). */
+     *  {@code canOperateRuns} per the R4 manifest) / {@code write} (every other state change).
+     *  Each policy-matched verdict (DENY → 403, or a policy-matched ALLOW) is recorded to the audit
+     *  trail with the matched policy name (ABAC A5); an ABSTAIN is not a policy decision and is not
+     *  audited (the existing capability gates decide and audit their own mutations). */
     private void authorize(HttpExchange ex, String method, String path) {
         AccessDecider decider = AccessDeciders.active().orElse(null);
         if (decider == null || PUBLIC_PATHS.contains(path) || path.startsWith("/public/dashboards/")) return;
@@ -646,8 +649,13 @@ public final class ControlApi implements AutoCloseable, ApiContext {
         String action = "GET".equals(method) || "HEAD".equals(method) ? "read"
                 : Roles.CAN_OPERATE_RUNS.equals(CapabilityManifest.capabilityFor(method, path)) ? "operate"
                 : "write";
-        if (decider.decide(ex, subject, action, path, null, Map.of()) == AccessDecider.Decision.DENY)
-            throw new ApiException(403, ErrorCodes.PERMISSION_DENIED, "denied by access policy");
+        ex.setAttribute(AccessDecider.ATTR_MATCHED_POLICY, null);   // clear stale; the decider re-stamps
+        AccessDecider.Decision decision = decider.decide(ex, subject, action, path, null, Map.of());
+        if (decision == AccessDecider.Decision.ABSTAIN) return;
+        String policy = ex.getAttribute(AccessDecider.ATTR_MATCHED_POLICY) instanceof String p ? p : null;
+        boolean granted = decision == AccessDecider.Decision.ALLOW;
+        AuditTrail.policyDecision(ex, granted, action, path, null, null, policy);
+        if (!granted) throw new ApiException(403, ErrorCodes.PERMISSION_DENIED, "denied by access policy");
     }
 
     private void respond(HttpExchange ex, int status, Object body) throws IOException {

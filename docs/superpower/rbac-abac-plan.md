@@ -1,6 +1,8 @@
 # RBAC & ABAC plan — data-driven Roles, server-side enforcement, and the Access Policy engine
 
-**Status:** FINALIZED 2026-07-23 (product decisions locked in-session) — not started. · **Owner:**
+**Status:** ✅ COMPLETE 2026-07-24 — all of R0–R5 + A1–A5 shipped & pushed. Archive-ready: distill
+the durable as-builts into the OKF access/authorization concept, move any residual §8 opens to
+BACKLOG, then `git mv` this plan to `archived-documents/plans-archive/`. · **Owner:**
 enterprise-PM track · **Companions:** `../GLOSSARY.md` §1-A (Lens / Role / Capability / Access
 Catalog / Access Profile / Grant — binding) ·
 `../archived-documents/plans-archive/rbac-groundwork.md` (the capability seam + role taxonomy) ·
@@ -307,9 +309,25 @@ the SEC-7d contract: 404, never 403 (no existence leak).
   Original scope: per-tenant isolation ships as *seeded policies*
   (`deny when resource.space != subject.space` + an operator exemption), not bespoke code — the
   proof the engine earns its keep.
-- **A5 — decision audit.** Every deny (and policy-matched allow) → an Audit Log entry
-  (`access.denied` / `access.granted`: subject, route/resource, matched policy). Uses the existing
-  audit seam; no new store.
+- **A5 — decision audit. ✅ SHIPPED 2026-07-24.** As built: the PDP annotates its verdict — after a
+  non-ABSTAIN decision `PolicyEngine` stamps the matched policy name on the exchange
+  (`AccessDecider.ATTR_MATCHED_POLICY`; a `<policies-unreadable>` marker on a fail-closed deny) — and
+  the **core** audit stage emits the entry (keeping `AuditTrail` package-private and the auth-free
+  core identity-agnostic). New `AuditTrail.policyDecision(...)` writes `access.denied`
+  (`EventType.ACCESS_DENIED`) / `access.granted` (`EventType.AUDIT`), category `authorization`, with
+  the actor, ABAC action verb (`AuditAttrs.ABAC_ACTION`), route (`HTTP_PATH`), row target
+  (kind/id at row level), and matched policy (`AuditAttrs.POLICY`); readable via the existing
+  `GET /events?type=ACCESS_DENIED|AUDIT`. **Emission points & scope:** the route-level authorize
+  stage audits every DENY (403) *and* the policy-matched ALLOW (coarse, one per request); the
+  row-level `RowScope` audits DENYs only (target = the hidden row's kind/id). **Deliberate scope
+  limit:** a row-level ALLOW is *not* audited — unlike the coarse route allow it fires per surviving
+  row, so it would flood the log on every list read (recorded in `RowScope`'s javadoc). ABSTAIN is
+  not a policy decision and is never audited (the existing capability gates decide and audit their
+  own mutations via `AuditTrail.record`). Tests (`ControlApiPolicyEnforcementTest`, real HTTP +
+  events read-back): a matched deny names its policy, a policy-matched allow is audited with its
+  name, a fail-closed deny carries the unreadable marker. Original scope: Every deny (and
+  policy-matched allow) → an Audit Log entry (`access.denied` / `access.granted`: subject,
+  route/resource, matched policy). Uses the existing audit seam; no new store.
 
 ## 5. Edition & build wiring
 

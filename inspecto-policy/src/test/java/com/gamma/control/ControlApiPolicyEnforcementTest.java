@@ -137,6 +137,45 @@ class ControlApiPolicyEnforcementTest {
     }
 
     @Test
+    void decisionsAreAuditedWithTheMatchedPolicy(@TempDir Path dir) throws Exception {
+        try (Ctx c = open(dir)) {
+            writePolicies(c, List.of(
+                    Map.of("name", "freeze-contractor", "effect", "deny",
+                            "target", Map.of("actions", List.of("write", "operate")),
+                            "when", "subject.employment == 'contractor'"),
+                    Map.of("name", "allow-reads", "effect", "allow",
+                            "target", Map.of("actions", List.of("read")))));
+
+            // a policy-matched ALLOW (read) → access.granted; a route-level DENY (write) → 403 + access.denied
+            assertEquals(200, send(c.port, "GET", "/objects", null, "ana").statusCode());
+            assertEquals(403, send(c.port, "PUT", "/access/roles", "{\"roles\":[]}", "carl:contractor").statusCode());
+
+            String denied = send(c.port, "GET", "/events?type=ACCESS_DENIED", null, "root").body();
+            assertTrue(denied.contains("access.denied"), denied);
+            assertTrue(denied.contains("freeze-contractor"),
+                    "the deny audit names the matched policy: " + denied);
+
+            String audit = send(c.port, "GET", "/events?type=AUDIT", null, "root").body();
+            assertTrue(audit.contains("access.granted"), audit);
+            assertTrue(audit.contains("allow-reads"),
+                    "the policy-matched allow is audited with its policy name: " + audit);
+        }
+    }
+
+    @Test
+    void unreadableDocDenyIsAuditedAsFailClosed(@TempDir Path dir) throws Exception {
+        try (Ctx c = open(dir)) {
+            Files.writeString(c.writeRoot().resolve("access-policies.toon"), "policies: [ broken");
+            assertEquals(403, send(c.port, "GET", "/objects", null, "ana").statusCode());
+            // repair so the events read is allowed again, then confirm the fail-closed deny was recorded
+            writePolicies(c, List.of());
+            String denied = send(c.port, "GET", "/events?type=ACCESS_DENIED", null, "root").body();
+            assertTrue(denied.contains("<policies-unreadable>"),
+                    "a fail-closed deny is audited with the unreadable marker: " + denied);
+        }
+    }
+
+    @Test
     void withoutAnyDocEveryRouteBehavesAsOnStandard(@TempDir Path dir) throws Exception {
         try (Ctx c = open(dir)) {
             assertEquals(200, send(c.port, "GET", "/objects", null, "ana").statusCode());

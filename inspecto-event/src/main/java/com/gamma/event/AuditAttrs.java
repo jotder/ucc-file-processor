@@ -50,4 +50,11 @@ public final class AuditAttrs {
     public static final String HTTP_PATH = "http_path";
     /** HTTP response status of the audited request. */
     public static final String HTTP_STATUS = "http_status";
+
+    // ── access-policy decision (ABAC A5) ──────────────────────────────────────────
+    /** The ABAC action verb the decision was made over: {@code read} / {@code write} / {@code operate}. */
+    public static final String ABAC_ACTION = "abac_action";
+    /** The name of the Access Policy that matched the decision ({@code access.denied}/{@code access.granted}),
+     *  or a marker like {@code <policies-unreadable>} for a fail-closed deny. */
+    public static final String POLICY = "policy";
 }
