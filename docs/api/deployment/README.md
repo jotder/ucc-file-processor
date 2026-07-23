@@ -63,6 +63,26 @@ The blueprint's realm/client names map to the `-Dauth.oidc.*` flags `OidcAuthent
 `AUTH_OIDC_CLIENT_SECRET` environment variables — the secret is forwarded as an `${ENV:…}` reference
 the backend resolves at use, so neither the bundle nor the process command line ever holds it.
 
+### Gateway trust mode (WSO2 APIM `X-JWT-Assertion`, RBAC R0 — optional)
+
+When the gateway terminates end-user auth and forwards its own **gateway-signed** backend JWT
+(APIM's Backend JWT feature, default header `X-JWT-Assertion`), configure a second trust anchor —
+`OidcAuthenticator` verifies that header through the exact same signature/issuer/audience/expiry
+pipeline against the *gateway's* JWKS:
+
+| Flag | Value |
+|---|---|
+| `-Dauth.oidc.gateway.issuer` | the backend-JWT issuer APIM signs with (default `wso2.org/products/am`) — setting this enables the mode |
+| `-Dauth.oidc.gateway.jwksUri` | the gateway's JWKS endpoint (APIM: `https://<gw-host>/oauth2/jwks`) — required once the issuer is set |
+| `-Dauth.oidc.gateway.audience` | *optional* exact-audience check on the assertion |
+| `-Dauth.oidc.gateway.header` | *optional*, default `X-JWT-Assertion` |
+
+A `Bearer` token, when present and valid, always decides first; the assertion is consulted only when
+no valid Bearer subject resolves (APIM may pass the client's opaque gateway token through in
+`Authorization`). A plain **unsigned** header is never trusted — `alg:none` and bare identity strings
+fail verification. With the flags unset the mode is off and the header is ignored entirely. Both
+paths tolerate Nimbus's default bounded clock skew (60 s) on `exp`/`nbf`.
+
 ## Explicitly out of scope
 
 Case-type/business-function data-scoped grants (rbac-groundwork §4 open Q2), the `canOnboardConnections`

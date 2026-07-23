@@ -29,8 +29,8 @@ by dependency fan-out — each row's detail stays in its own section; this is on
 1. **Root enablers (largest downstream fan-out — start here):**
    - **§6 RBAC/ABAC R-workstreams** (`superpower/rbac-abac-plan.md`) — unblocks Lens Access P3,
      SPC-5 ABAC, X-Actor retirement, auth-gated notification prefs, and the NFR-7 access-control
-     evidence. *(R1/R2/R3/R4/R5 all shipped 2026-07-23 — the R0 remainder + the A-workstreams
-     remain.)*
+     evidence. *(R0 remainder + R1/R2/R3/R4/R5 all shipped 2026-07-23 — the A-workstreams
+     remain; `identity:` claim allowlist rides with A1.)*
    - **Bound job concurrency** (semaphore on the `JobService` executor) — stated prerequisite (§5
      DuckDB issue) for the on-by-default memory cap, which in turn gates the chunking default.
    - **Incidents I1 backend workflow resolution-gate + `ObjectStore` delete** — sole blocker on MNT-14.
@@ -333,8 +333,10 @@ authoritative scope for everything in this section). **Auth-stack direction adde
 Keycloak / WSO2** (external OIDC IdP + WSO2 APIM gateway) — groundwork captured as **R0** + plan
 §5-B (gateway topology: OpenAPI import, SSE passthrough, SPA PKCE login — absorbs the §3 "UI
 sign-out affordance" row); standards-only. **R0 reality-check (same day): the OIDC validator +
-Keycloak PKCE relay already existed in `inspecto-security` (Nimbus JWKS, W6)** — R0's remaining
-open items are the WSO2 gateway signed-JWT trust mode + the `identity:` claim allowlist (see plan).
+Keycloak PKCE relay already existed in `inspecto-security` (Nimbus JWKS, W6)**; **R0 remainder
+SHIPPED 2026-07-23:** WSO2 gateway signed-JWT trust mode (`X-JWT-Assertion` as a second configured
+issuer/JWKS, `-Dauth.oidc.gateway.*`, Bearer decides first, unsigned never trusted — flag table in
+`docs/api/deployment/README.md`); the `identity:` claim allowlist rides with A1 (see plan).
 **R1 SHIPPED 2026-07-23:** authorable `roles.toon` (`GET/PUT /access/roles`, core `Roles` seed +
 per-request overlay, restart-free; `RoleMapper` switch retired). ⚠ Seed table corrected — five
 route capabilities (`canConfigureAccess`, `canAuthorAlertRules`, `canOfferDatasets`,
@@ -360,9 +362,9 @@ the plan §3 R3). **R5 SHIPPED 2026-07-23:** Settings ▸ Access is tabbed — L
 unchanged) + Roles: role cards with source badges, the R1 editor (authored-overlay semantics:
 edit moves a seed role into the overlay, Revert drops it), and the read-only effective-grants
 strike-through (role capabilities ∘ its Access-Profile denies over the catalog action nodes);
-mock `/access/roles` handler for offline (as-built in the plan §3 R5). Remaining in §6: the
-R0 remainder (WSO2 X-JWT-Assertion trust mode, `identity:` claim allowlist), then the
-A-workstreams. Identity/login, user model, role-assignment UI,
+mock `/access/roles` handler for offline (as-built in the plan §3 R5). **R0 remainder SHIPPED
+2026-07-23** (see the auth-stack note above). Remaining in §6: the A-workstreams (the `identity:`
+claim allowlist rides with A1). Identity/login, user model, role-assignment UI,
 Admin pane, server enforcement, lens-switcher
 constraint — per `archived-documents/plans-archive/rbac-groundwork.md` §5. Rides on top:
 **Lens Access P3** (subjects become Roles, matrix enforcement server-side — the shipped

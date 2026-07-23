@@ -72,10 +72,20 @@ the SEC-7d contract: 404, never 403 (no existence leak).
   `realm_access.roles` nesting handled — plus a `KeycloakTokenRelay` (Auth-Code+PKCE server-side
   exchange, refresh tokens never reach the browser). The "hand-rolled dependency-free JOSE" bullet
   below is therefore MOOT (Nimbus is already the signed-off, module-confined dependency; note the
-  BACKLOG §3 jlink-vs-Nimbus re-verify row). **Still open from R0:** the gateway signed-JWT trust
-  mode (WSO2 `X-JWT-Assertion` as a second configured issuer/JWKS) · the `identity:` claim-mapping
-  block in `roles.toon` (`attributeClaims` allowlist → `Subject.attributes()`, lands with A1) ·
-  bounded clock skew review. Original scope for reference:
+  BACKLOG §3 jlink-vs-Nimbus re-verify row). **R0 remainder ✅ SHIPPED 2026-07-23 — gateway trust
+  mode.** As built: `OidcAuthenticator` gains an optional second `DefaultJWTProcessor` (same
+  signature/issuer/audience/expiry pipeline, same role→capability resolution incl. R1/R2/R3 seams)
+  that validates the gateway-signed `X-JWT-Assertion` header. Opt-in via
+  `-Dauth.oidc.gateway.issuer` + `.jwksUri` (optional `.audience`, `.header`; flag table + APIM
+  values in `docs/api/deployment/README.md`). Precedence: a present-and-valid `Bearer` always
+  decides; the assertion is consulted only when no valid Bearer subject resolves (APIM may pass the
+  client's opaque gateway token through in `Authorization`). Plain **unsigned** header identity is
+  never trusted — `alg:none` and bare strings fail verification (the X-Actor lesson, test-pinned).
+  Gateway flags unset ⇒ byte-identical Bearer-only behaviour (test-pinned). **Clock-skew review
+  (closed):** both processors use Nimbus `DefaultJWTClaimsVerifier`'s bounded 60 s default on
+  `exp`/`nbf` — adequate, documented, no config knob added. **Still deferred to A1 (by design):**
+  the `identity:` claim-mapping block in `roles.toon` (`attributeClaims` allowlist →
+  `Subject.attributes()`). Original scope for reference:
   - `OidcAuthenticator implements Authenticator` (in `inspecto-security`): validates
     `Authorization: Bearer` JWTs — issuer + audience + `exp`/`nbf` (bounded clock skew), signature
     against the IdP's **JWKS** (`RS256`/`ES256` via `java.security` — hand-rolled JOSE header/

@@ -49,16 +49,29 @@ class OidcAuthenticatorTest {
 
     private static final String ISSUER = "https://issuer.example/realms/inspecto";
     private static final String AUDIENCE = "inspecto-api";
+    private static final String GW_ISSUER = "wso2.org/products/am";
+    private static final String GW_AUDIENCE = "http://org.wso2.apimgt/gateway";
     private static RSAKey RSA_KEY;
+    private static RSAKey GW_KEY;
 
     @BeforeAll
     static void generateSigningKey() throws Exception {
         RSA_KEY = new RSAKeyGenerator(2048).keyID("k1").generate();
+        GW_KEY = new RSAKeyGenerator(2048).keyID("gw1").generate();
     }
 
     private static OidcAuthenticator authenticator(String issuer, String audience) {
         JWKSource<SecurityContext> source = new ImmutableJWKSet<>(new JWKSet(RSA_KEY.toPublicJWK()));
         return new OidcAuthenticator(source, issuer, audience, "roles");
+    }
+
+    /** IdP trust as above PLUS the gateway trust mode: {@code X-JWT-Assertion} verified against the
+     *  gateway's own JWKS/issuer (RBAC R0 — WSO2 APIM topology). */
+    private static OidcAuthenticator gatewayAuthenticator() {
+        return new OidcAuthenticator(
+                new ImmutableJWKSet<>(new JWKSet(RSA_KEY.toPublicJWK())), ISSUER, AUDIENCE, "roles",
+                new ImmutableJWKSet<>(new JWKSet(GW_KEY.toPublicJWK())), GW_ISSUER, GW_AUDIENCE,
+                "X-JWT-Assertion");
     }
 
     private static String token(Instant exp, List<String> roles, RSAKey signingKey,
@@ -76,12 +89,18 @@ class OidcAuthenticatorTest {
         return authenticateWithHeader(auth, authorizationHeader, null);
     }
 
-    /** Round-trips a real HTTP request through a throwaway server so {@code auth} sees a genuine
-     *  {@code HttpExchange} carrying {@code authorizationHeader} (or none, if {@code null}). A non-null
-     *  {@code configRoot} is stamped as {@link Roles#ATTR_CONFIG_ROOT} pre-auth, exactly as
-     *  {@code ControlApi.authenticate} does — the RBAC R1 per-space roles.toon seam. */
     private static Optional<Subject> authenticateWithHeader(Authenticator auth, String authorizationHeader,
                                                             java.nio.file.Path configRoot) throws Exception {
+        return authenticateWithHeaders(auth,
+                authorizationHeader == null ? Map.of() : Map.of("Authorization", authorizationHeader), configRoot);
+    }
+
+    /** Round-trips a real HTTP request through a throwaway server so {@code auth} sees a genuine
+     *  {@code HttpExchange} carrying {@code headers}. A non-null {@code configRoot} is stamped as
+     *  {@link Roles#ATTR_CONFIG_ROOT} pre-auth, exactly as {@code ControlApi.authenticate} does —
+     *  the RBAC R1 per-space roles.toon seam. */
+    private static Optional<Subject> authenticateWithHeaders(Authenticator auth, Map<String, String> headers,
+                                                             java.nio.file.Path configRoot) throws Exception {
         HttpServer server = HttpServer.create(new InetSocketAddress(0), 0);
         AtomicReference<Optional<Subject>> result = new AtomicReference<>();
         CountDownLatch done = new CountDownLatch(1);
@@ -95,7 +114,7 @@ class OidcAuthenticatorTest {
         server.start();
         try {
             HttpRequest.Builder b = HttpRequest.newBuilder(URI.create("http://localhost:" + server.getAddress().getPort() + "/"));
-            if (authorizationHeader != null) b.header("Authorization", authorizationHeader);
+            headers.forEach(b::header);
             HttpClient.newHttpClient().send(b.GET().build(), HttpResponse.BodyHandlers.discarding());
             assertTrue(done.await(5, TimeUnit.SECONDS));
             return result.get();
@@ -318,5 +337,74 @@ class OidcAuthenticatorTest {
         Subject root = authenticateWithHeader(authenticator(ISSUER, AUDIENCE), "Bearer " + jwt, configRoot).orElseThrow();
         assertTrue(root.capabilities().isEmpty(),
                 "an existing-but-unreadable roles.toon suspends ALL role grants — never a silent seed fallback");
+    }
+
+    // ── RBAC R0: gateway trust mode — X-JWT-Assertion as a second configured issuer/JWKS ──
+
+    @Test
+    void gatewaySignedAssertionAuthenticatesEndToEnd() throws Exception {
+        // WSO2 APIM topology: no end-user Bearer reaches the backend — the gateway forwards its own
+        // signed backend JWT. Capabilities resolve through the exact same role pipeline.
+        String assertion = token(Instant.now().plusSeconds(60), List.of("operations"),
+                GW_KEY, GW_ISSUER, GW_AUDIENCE, "olly");
+        Subject olly = authenticateWithHeaders(gatewayAuthenticator(),
+                Map.of("X-JWT-Assertion", assertion), null).orElseThrow();
+        assertEquals("olly", olly.id());
+        assertEquals(Set.of(Roles.CAN_OPERATE_RUNS, Roles.CAN_REQUEST_SHARES), olly.capabilities());
+    }
+
+    @Test
+    void plainUnsignedAssertionIsNeverTrusted() throws Exception {
+        // The X-Actor lesson: identity from a plain (unsigned) header is never trusted — an alg:none
+        // JWT and an arbitrary string both fail verification, even with gateway mode configured.
+        com.nimbusds.jwt.PlainJWT plain = new com.nimbusds.jwt.PlainJWT(new JWTClaimsSet.Builder()
+                .issuer(GW_ISSUER).subject("root").audience(GW_AUDIENCE)
+                .expirationTime(Date.from(Instant.now().plusSeconds(60)))
+                .claim("roles", List.of("super")).build());
+        assertTrue(authenticateWithHeaders(gatewayAuthenticator(),
+                Map.of("X-JWT-Assertion", plain.serialize()), null).isEmpty(), "alg:none rejected");
+        assertTrue(authenticateWithHeaders(gatewayAuthenticator(),
+                Map.of("X-JWT-Assertion", "root"), null).isEmpty(), "a bare identity string rejected");
+    }
+
+    @Test
+    void assertionSignedByTheIdpKeyOrExpiredIsRejected() throws Exception {
+        // Cross-issuer confusion: an IdP-signed end-user token stuffed into the gateway header must
+        // not verify against the gateway's JWKS — the two trust anchors never blur.
+        String idpSigned = token(Instant.now().plusSeconds(60), List.of("super"), RSA_KEY, GW_ISSUER, GW_AUDIENCE, "root");
+        assertTrue(authenticateWithHeaders(gatewayAuthenticator(),
+                Map.of("X-JWT-Assertion", idpSigned), null).isEmpty(), "unknown kid in the gateway JWKS");
+        String wrongIssuer = token(Instant.now().plusSeconds(60), List.of("super"), GW_KEY, ISSUER, GW_AUDIENCE, "root");
+        assertTrue(authenticateWithHeaders(gatewayAuthenticator(),
+                Map.of("X-JWT-Assertion", wrongIssuer), null).isEmpty(), "gateway-signed but wrong issuer");
+        String expired = token(Instant.now().minusSeconds(120), List.of("super"), GW_KEY, GW_ISSUER, GW_AUDIENCE, "root");
+        assertTrue(authenticateWithHeaders(gatewayAuthenticator(),
+                Map.of("X-JWT-Assertion", expired), null).isEmpty(),
+                "expired beyond the bounded 60s clock skew");
+    }
+
+    @Test
+    void bearerDecidesFirstAndInvalidBearerFallsBackToTheAssertion() throws Exception {
+        // A valid Bearer wins outright; an unverifiable Bearer (APIM passing the client's opaque
+        // gateway token through in Authorization) falls back to the signed assertion.
+        String bearer = token(Instant.now().plusSeconds(60), List.of("developer"), RSA_KEY, ISSUER, AUDIENCE, "dev");
+        String assertion = token(Instant.now().plusSeconds(60), List.of("operations"), GW_KEY, GW_ISSUER, GW_AUDIENCE, "olly");
+        Subject direct = authenticateWithHeaders(gatewayAuthenticator(),
+                Map.of("Authorization", "Bearer " + bearer, "X-JWT-Assertion", assertion), null).orElseThrow();
+        assertEquals("dev", direct.id(), "a valid Bearer always decides — the assertion is not consulted");
+        Subject fallback = authenticateWithHeaders(gatewayAuthenticator(),
+                Map.of("Authorization", "Bearer not-a-jwt", "X-JWT-Assertion", assertion), null).orElseThrow();
+        assertEquals("olly", fallback.id(), "opaque/unverifiable Bearer → the signed assertion authenticates");
+    }
+
+    @Test
+    void withoutGatewayModeTheAssertionHeaderIsIgnored() throws Exception {
+        // Byte-identical Bearer-only behaviour when -Dauth.oidc.gateway.* is unset.
+        String assertion = token(Instant.now().plusSeconds(60), List.of("super"), GW_KEY, GW_ISSUER, GW_AUDIENCE, "root");
+        assertTrue(authenticateWithHeaders(authenticator(ISSUER, AUDIENCE),
+                Map.of("X-JWT-Assertion", assertion), null).isEmpty());
+        assertTrue(authenticateWithHeaders(authenticator(ISSUER, AUDIENCE),
+                Map.of("Authorization", "Basic dXNlcjpwYXNz", "X-JWT-Assertion", assertion), null).isEmpty(),
+                "non-Bearer Authorization stays a 401, exactly as before");
     }
 }
