@@ -193,12 +193,21 @@ their natural homes (`job`, `query`), which also dropped `enrich` out of the SCC
 - **M3 `agent.spi` facade — SHIPPED 2026-07-21** (`fc772f0d` + `f7d148a4`), as a `@PublicApi` contract
   freeze on the ~31 agent-consumed core types, deliberately NOT a wrapping facade (access already
   funnels through `UccAgentContext`). Item was stale on the tracking list; recorded here for the record.
-- **C2 store-pair generic base — stays trigger-gated** (boilerplate-reduction only; trigger not fired).
-  Distinct from the shipped M7 (`DurableJsonlRing`/`AgentWriteRoot`, agent-side JSONL stores): the real
-  remaining duplication is the JDBC `Db*Store` family in `inspecto-engine`
-  (`DbObjectStore`/`DbLinkStore`/`DbNoteStore`/`DbJobRunStore`/`DbProvenanceStore` + `DbStatusStore`),
-  which repeats the same `browseConnection()`/`initSchema()`/`open(...)` shape. Convention is consistent
-  and correct today — no bug forcing dedup.
+- **C2 store-pair generic base — CLOSED (won't-do, 2026-07-23).** Distinct from the shipped M7
+  (`DurableJsonlRing`/`AgentWriteRoot`, agent-side JSONL stores): the candidate duplication is the JDBC
+  `Db*Store` family — 5 in `inspecto-engine`
+  (`DbObjectStore`/`DbLinkStore`/`DbNoteStore`/`DbJobRunStore`/`DbProvenanceStore`) + `DbStatusStore` in
+  the separate `inspecto` module. **Scoped 2026-07-23 and judged not worth it:** a `DbBackedStore` base
+  could absorb only the `conn` field, `close()` (also unifying a minor split — 2 of 5 mark it
+  `synchronized`, 3 don't), `browseConnection()`, and the `initSchema()` try/catch wrapper (DDL text
+  differs per class) — roughly **30–40 lines across 5 classes**. It can't absorb the `open(...)` static
+  factories (return concrete types, not inheritable), the per-class DDL/tables/row-mapping/domain APIs, or
+  the maintenance methods; and the duplication that actually mattered is **already** de-duped by
+  `JdbcDrivers` (connect + dialect), `JdbcRows` (ResultSet→Map), and `BrowsableStore`'s default methods.
+  `DbStatusStore` is a different module and materially more complex (5 tables, transactional `sync()`,
+  legacy migration) — folding it in would add cross-module coupling for little gain. Net a wash for a new
+  inheritance coupling + abstract hooks. Convention is consistent and correct today. **Reopen only if the
+  `Db*Store` family grows materially** (a 7th+ store, or the shared shape starts drifting/bugging).
 - **Signal causation-assembly dedup — DONE (2026-07-22).** Folded `InspectoTools.causationOrder` onto a new
   shared engine primitive `Signals.causationOrder(List<Signal>)`, a depth-first (pre-order) flatten of the
   same `assembleTree` forest that backs `GET /signals/tree`; the private flat DFS in `inspecto-intelligence`
@@ -225,6 +234,11 @@ their natural homes (`job`, `query`), which also dropped `enrich` out of the SCC
   isolated for free. If read-path open cost ever shows up (measure-heavy dashboards / recon boards open
   one temp DuckDB per measure/call), the cheap fix is switching `SqlSandbox` from a temp *file* to
   `:memory:` — not connection sharing.
+
+**C-series DRAINED (2026-07-23).** C3/C5/C7 shipped, C4 closed (moot), C2 closed (won't-do, above), and C6
+stays gated on profiling evidence that does not exist (a re-architecture that is actively risky to build
+speculatively). Nothing in the C-series is buildable now; C6 is the only one that could ever reopen, and
+only on real profiling evidence.
 
 The intra-module `ops↔ops.link/workflow` and `catalog↔catalog.spi` cycles are same-family, not
 reactor-split blockers.
