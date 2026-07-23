@@ -9,6 +9,7 @@ import com.gamma.ops.link.ObjectLink;
 import com.gamma.ops.note.NoteKind;
 import com.gamma.ops.note.ObjectNote;
 import com.gamma.ops.rca.RcaTemplate;
+import com.gamma.util.JsonAttributes;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -94,12 +95,23 @@ class ObjectServiceTest {
 
     // ── Phase 3: INCIDENT lifecycle + SLA sweep ────────────────────────────────────────
 
+    /** A complete I1 postmortem blob (timeline + cause analysis + actions), paired with {@code ATTR_DUE_AT}. */
+    private static Map<String, String> completePostmortemAttrs(long dueAt) {
+        Map<String, Object> postmortem = Map.of(
+                "timeline", List.of(Map.of("time", "10:00", "text", "detected")),
+                "causeAnalysis", List.of("root cause found"),
+                "actions", List.of(Map.of("done", false, "text", "patch job", "owner", "alice", "due", "")));
+        return Map.of(
+                "postmortem", JsonAttributes.toPayloadJson(postmortem),
+                ObjectService.ATTR_DUE_AT, Long.toString(dueAt));
+    }
+
     @Test
     void incidentLifecycleWalk() {
         // The mail lifecycle (GLOSSARY §9): IDENTIFIED → DIAGNOSING → RESOLVED → ARCHIVED, with reopen.
         ObjectService svc = new ObjectService(new InMemoryObjectStore());
         OperationalObject o = svc.open(ObjectType.INCIDENT, "bad rows", "investigate", "HIGH", "P1",
-                null, "alice", "pipeC", Map.of());
+                null, "alice", "pipeC", completePostmortemAttrs(System.currentTimeMillis() + 3_600_000));
         assertEquals("IDENTIFIED", o.status());
         assertEquals("P1", o.priority(), "the fuller open() carries priority");
         assertEquals("alice", o.assignee(), "the fuller open() carries assignee");
@@ -116,6 +128,54 @@ class ObjectServiceTest {
         assertFalse(reopened.isClosed(), "reopen clears closedAt — the incident is live again");
         assertThrows(IllegalStateException.class, () -> svc.transition(o.id(), "accept", null),
                 "accept is only legal from IDENTIFIED");
+    }
+
+    // ── I1: incident resolution hard gate (backend follow-up to the UI soft-warn) ─────
+
+    @Test
+    void resolveBlockedWithoutPostmortemSections() {
+        ObjectService svc = new ObjectService(new InMemoryObjectStore());
+        OperationalObject o = svc.open(ObjectType.INCIDENT, "bad rows", "investigate", "HIGH", "P1",
+                null, "alice", "pipeC", Map.of());
+        svc.transition(o.id(), "accept", "alice");
+        IllegalStateException ex = assertThrows(IllegalStateException.class,
+                () -> svc.transition(o.id(), "resolve", "alice"),
+                "no postmortem/dueAt set — resolution must be blocked");
+        assertTrue(ex.getMessage().contains("timeline"), ex.getMessage());
+        assertTrue(ex.getMessage().contains("cause analysis"), ex.getMessage());
+        assertTrue(ex.getMessage().contains("corrective actions"), ex.getMessage());
+        assertTrue(ex.getMessage().contains("SLA"), ex.getMessage());
+        assertEquals("DIAGNOSING", svc.get(o.id()).orElseThrow().status(), "status must not have changed");
+    }
+
+    @Test
+    void resolveBlockedWithPartialPostmortem() {
+        ObjectService svc = new ObjectService(new InMemoryObjectStore());
+        // dueAt set, but no postmortem sections at all.
+        OperationalObject o = svc.open(ObjectType.INCIDENT, "bad rows", "d", "HIGH", "pipeC",
+                Map.of(ObjectService.ATTR_DUE_AT, Long.toString(System.currentTimeMillis() + 3_600_000)));
+        svc.transition(o.id(), "accept", null);
+        IllegalStateException ex = assertThrows(IllegalStateException.class,
+                () -> svc.transition(o.id(), "resolve", null));
+        assertFalse(ex.getMessage().contains("SLA"), "dueAt was set, so SLA gap must not be reported");
+        assertTrue(ex.getMessage().contains("timeline"));
+    }
+
+    @Test
+    void resolveAllowedOncePostmortemComplete() {
+        ObjectService svc = new ObjectService(new InMemoryObjectStore());
+        OperationalObject o = svc.open(ObjectType.INCIDENT, "bad rows", "investigate", "HIGH", "P1",
+                null, "alice", "pipeC", completePostmortemAttrs(System.currentTimeMillis() + 3_600_000));
+        svc.transition(o.id(), "accept", "alice");
+        assertEquals("RESOLVED", svc.transition(o.id(), "resolve", "alice").status());
+    }
+
+    @Test
+    void resolutionGateOnlyAppliesToIncidents() {
+        // ALERT and CASE also reach a RESOLVED status via "resolve" — the I1 gate is INCIDENT-only.
+        ObjectService svc = new ObjectService(new InMemoryObjectStore());
+        OperationalObject alert = svc.open(ObjectType.ALERT, "t", "d", "INFO", null, Map.of());
+        assertEquals("RESOLVED", svc.resolve(alert.id(), null).status());
     }
 
     @Test
@@ -147,7 +207,7 @@ class ObjectServiceTest {
         ObjectService svc = new ObjectService(new InMemoryObjectStore());
         long now = System.currentTimeMillis();
         OperationalObject o = svc.open(ObjectType.INCIDENT, "fixed in time", "d", "HIGH", "pipeG",
-                Map.of(ObjectService.ATTR_DUE_AT, Long.toString(now - 60_000)));
+                completePostmortemAttrs(now - 60_000));
         svc.transition(o.id(), "accept", "a");
         svc.transition(o.id(), "resolve", "a");   // RESOLVED — the SLA clock has stopped
         assertEquals(0, svc.sweepIncidentSla(now), "a resolved incident past its due time does not breach");

@@ -21,6 +21,7 @@ import com.gamma.ops.tag.CaseRule;
 import com.gamma.ops.tag.Tag;
 import com.gamma.ops.tag.TagRule;
 import com.gamma.ops.workflow.Workflow;
+import com.gamma.util.JsonAttributes;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -1014,6 +1015,12 @@ public final class ObjectService {
 
     private OperationalObject commit(OperationalObject obj, Workflow wf, String target,
                                      String action, String actor) {
+        if (obj.objectType() == ObjectType.INCIDENT && "RESOLVED".equalsIgnoreCase(target)) {
+            List<String> gaps = incidentResolutionGaps(obj);
+            if (!gaps.isEmpty())
+                throw new IllegalStateException(
+                        "incident resolution blocked — missing: " + String.join(", ", gaps));
+        }
         long now = System.currentTimeMillis();
         OperationalObject next = obj.withStatus(target, now, wf.isTerminal(target));
         OperationalObject updated = store.update(next);
@@ -1030,5 +1037,48 @@ public final class ObjectService {
                 .attr("action", action)
                 .attr("actor", actor));
         return updated;
+    }
+
+    /**
+     * I1 — the mandatory resolution pattern (`case-management-design.md` §2b): which of the four
+     * required postmortem sections an incident's {@code attributes.postmortem} JSON blob still lacks.
+     * Empty = complete. Server-side mirror of the UI's {@code postmortemGaps} soft-warn (`mail-model.ts`)
+     * — this is the hard gate the doc calls out as the follow-up, enforced in {@link #commit} so the
+     * API can't bypass it the way a UI-only check could.
+     */
+    @SuppressWarnings("unchecked")
+    static List<String> incidentResolutionGaps(OperationalObject obj) {
+        Map<String, Object> pm = JsonAttributes.fromPayloadJson(obj.attributes().get("postmortem"));
+        List<String> gaps = new ArrayList<>();
+        if (!anyEntryNonBlank((List<Object>) pm.get("timeline"), "time", "text")) gaps.add("timeline");
+        if (!anyStringNonBlank((List<Object>) pm.get("causeAnalysis"))) gaps.add("cause analysis");
+        if (!anyEntryNonBlank((List<Object>) pm.get("actions"), "text")) gaps.add("corrective actions");
+        String dueAt = obj.attributes().get(ATTR_DUE_AT);
+        if (dueAt == null || dueAt.isBlank()) gaps.add("SLA");
+        return gaps;
+    }
+
+    /** True if any element of {@code list} (maps of {@code String -> Object}) has a non-blank value at any of {@code keys}. */
+    @SuppressWarnings("unchecked")
+    private static boolean anyEntryNonBlank(List<Object> list, String... keys) {
+        if (list == null) return false;
+        for (Object item : list) {
+            if (!(item instanceof Map)) continue;
+            Map<String, Object> row = (Map<String, Object>) item;
+            for (String key : keys) {
+                Object v = row.get(key);
+                if (v != null && !v.toString().isBlank()) return true;
+            }
+        }
+        return false;
+    }
+
+    /** True if any element of {@code list} (plain strings) is non-blank. */
+    private static boolean anyStringNonBlank(List<Object> list) {
+        if (list == null) return false;
+        for (Object item : list) {
+            if (item != null && !item.toString().isBlank()) return true;
+        }
+        return false;
     }
 }

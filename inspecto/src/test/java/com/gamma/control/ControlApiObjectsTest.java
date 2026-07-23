@@ -112,6 +112,18 @@ class ControlApiObjectsTest {
 
             // walk IDENTIFIED → DIAGNOSING → RESOLVED → ARCHIVED (GLOSSARY §9) via the generic transition route
             assertEquals("DIAGNOSING", transition(c.port, id, "accept"));
+
+            // I1 hard gate: resolve is blocked until the postmortem's 4 sections are present (dueAt is
+            // already set via dueInMinutes above, so only the postmortem blob is missing here).
+            var blockedResp = send(c.port, "POST", "/objects/" + id + "/resolve", null);
+            assertEquals(422, blockedResp.statusCode());
+            assertTrue(json(blockedResp).get("error").asText().contains("timeline"), blockedResp.body());
+
+            String postmortem = "{\"timeline\":[{\"time\":\"10:00\",\"text\":\"detected\"}],"
+                    + "\"causeAnalysis\":[\"root cause found\"],"
+                    + "\"actions\":[{\"done\":false,\"text\":\"patch job\",\"owner\":\"alice\",\"due\":\"\"}]}";
+            Map<String, Object> patchBody = Map.of("attributes", Map.of("postmortem", postmortem));
+            send(c.port, "PATCH", "/objects/" + id, JSON.writeValueAsString(patchBody));
             assertEquals("RESOLVED", transition(c.port, id, "resolve"));
             JsonNode archived = json(send(c.port, "POST", "/objects/" + id + "/transition",
                     "{\"action\":\"archive\",\"actor\":\"bob\"}"));
