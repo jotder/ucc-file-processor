@@ -21,6 +21,12 @@ this plan's R2) · `../EDITIONS.md`.
    Personal stays auth-free and fail-open (unchanged behavior, verbatim SEC-7a design).
    This plan introduces the `edition-enterprise` build flavor (a Maven profile + one new module —
    **never a branch**, per `../BRANCHING.md` §0).
+4. **Auth stack direction (operator, 2026-07-23): Keycloak / WSO2** — identity via an external
+   OIDC provider (Keycloak or WSO2 Identity Server) and an API gateway (WSO2 API Manager) in
+   front of `ControlApi`. Integration is **standards-only** (OIDC discovery, JWT + JWKS,
+   RFC 7517/7519) — no vendor SDK on the classpath, so either product (or the split: Keycloak
+   IdP + WSO2 gateway) slots in via config alone. Groundwork = R0 (§3) + §5-B; final vendor
+   split is §8 Q5.
 
 Standing constraints carried forward: the **core stays auth-free** (everything here lives behind
 the existing SPI/middleware seams; `rbac-groundwork.md` §5 remains binding for core) · identity
@@ -59,6 +65,26 @@ the SEC-7d contract: 404, never 403 (no existence leak).
 
 ## 3. Workstream R — RBAC (Standard, `inspecto-security`)
 
+- **R0 — OIDC/JWT groundwork (makes the IdP seam real; prerequisite for R1's subject).**
+  - `OidcAuthenticator implements Authenticator` (in `inspecto-security`): validates
+    `Authorization: Bearer` JWTs — issuer + audience + `exp`/`nbf` (bounded clock skew), signature
+    against the IdP's **JWKS** (`RS256`/`ES256` via `java.security` — hand-rolled JOSE header/
+    payload parse, dependency-free like the rest of the backend). JWKS URL from OIDC discovery,
+    cached with `kid`-rollover refetch; **fail-closed** when keys are unreachable past cache TTL.
+    No live IdP in tests: real-HTTP test class mints tokens with a local RSA key pair.
+  - **Claim mapping is config, not code.** `roles.toon` gains an `identity:` block:
+    `{issuer, audience, rolesClaim, attributeClaims: […]}`. Keycloak puts roles at
+    `realm_access.roles` (or `resource_access.<client>.roles`); WSO2 uses different claim shapes —
+    hardcoding either would bake the vendor in. `rolesClaim` is a `DottedPath` into the verified
+    claims; `attributeClaims` is A1's allowlist, landing early. Output stays the existing
+    `Subject{id=sub, capabilities←RoleStore, dataScopes}` — nothing downstream changes.
+  - **Gateway trust mode (WSO2 APIM).** When the gateway terminates end-user auth and forwards a
+    gateway-signed backend JWT (e.g. `X-JWT-Assertion`), `OidcAuthenticator` validates that header
+    against the *gateway's* JWKS via the same code path (a second configured issuer). Identity
+    from a **plain** (unsigned) header is never trusted — that is the X-Actor lesson, and X-Actor
+    itself retires in R2 as planned.
+  - *DoD:* valid token → capabilities flow end-to-end; expired/bad-audience/unknown-`kid`/plain-
+    header → 401; Personal (no `Authenticator` on classpath) byte-identical fail-open.
 - **R1 — authorable `roles.toon`.** Per-space settings doc (settings-doc discipline like
   `nav-menus.toon`/`icon-map.toon`): `roles: [{name, capabilities: […], dataScopes: […]}]`.
   `GET/PUT /access/roles` in `AccessRoutes` (gated `canConfigureAccess`; endpoint-skill gate order;
@@ -127,6 +153,28 @@ the SEC-7d contract: 404, never 403 (no existence leak).
 `-Edition` gains `Enterprise`; CI builds all three flavors per PR (BRANCHING §5 already requires
 every edition green). One version spans all editions; artifacts differ by classifier only.
 
+## 5-B. Gateway groundwork (WSO2 API Manager in front of `ControlApi`)
+
+Deployment-topology work, mostly config + docs — none of it blocks R0–R5, but decide it with R0:
+
+- **Contract import:** the versioned `/api/v1` surface + OpenAPI export already exist
+  (api-contracts-v1) — that spec is what gets imported into APIM as the managed API. Groundwork:
+  keep the export current as routes land (it becomes an external contract, not just docs).
+- **Streaming passthrough:** `GET /signals/stream` (SSE) and the live-tail endpoints need response
+  buffering disabled on their gateway resource; verify SSE survives APIM mediation before relying
+  on it in a gatewayed deployment. List these routes explicitly in the deployment doc.
+- **Origin & headers:** behind the gateway the backend sees gateway-originated connections —
+  audit entries should record the forwarded client (`X-Forwarded-For`) **only when the request
+  came from the trusted gateway** (same trust boundary as the signed-JWT header; never from
+  arbitrary clients). CORS for the SPA moves to the gateway edge; the backend's own CORS handling
+  stays for gateway-less Standard deployments.
+- **UI login flow (SPA):** OIDC Authorization Code + **PKCE** against Keycloak/WSO2 — token
+  acquisition/refresh in a `AuthService` + attach-interceptor; no client secret in the SPA. This
+  absorbs the BACKLOG §3 "UI sign-out affordance" row (sign-out = local token drop + IdP
+  end-session redirect). Personal/mock mode keeps today's no-auth path.
+- **Legacy-route interplay:** APIM only fronts `/api/v1` — one more reason the pre-v1 inline
+  routes (BACKLOG §5 "v1-only triggers") should retire before a gatewayed deployment is supported.
+
 ## 6. Vocabulary (GLOSSARY §1-A additions — land with R1/A2)
 
 **Access Policy** (an authorable allow/deny statement over subject/resource/env attributes —
@@ -136,7 +184,8 @@ fact a policy conditions on) · update **Role** (now data-defined via `roles.too
 
 ## 7. Phasing & DoD
 
-R1 → R4 → R2 → R3 → R5 (Standard, each independently shippable), then A1+A2 → A3 → A4 → A5.
+R0 → R1 → R4 → R2 → R3 → R5 (Standard, each independently shippable), then A1+A2 → A3 → A4 → A5.
+§5-B gateway items ride alongside R0 (decisions) and R2 (UI login), not as a separate phase.
 Each step: full reactor `mvn -o clean test` green **+ `-Pedition-standard`** (and
 `-Pedition-enterprise` once it exists) · endpoint-skill real-HTTP tests for every new/changed
 route · UI steps green on lint:tokens + `test:ci` + axe · Personal-edition regression = the
@@ -152,3 +201,6 @@ existing default-profile suite (fail-open must stay byte-identical).
    endpoint) — decide after A3 ships with real usage.
 4. Does R3 sharing need a `user` subjectType before any user directory exists (IdP `sub` as
    opaque id), or roles-only in v1?
+5. **Final vendor split** — Keycloak as IdP + WSO2 APIM as gateway, or WSO2 Identity Server for
+   both? R0's standards-only design keeps every combination viable; decide before the first
+   gatewayed deployment (affects ops runbooks + the NFR-7 control evidence, not code).
