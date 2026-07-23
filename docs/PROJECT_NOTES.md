@@ -45,6 +45,7 @@ Authoritative shape, version management, and the module-extraction playbook:
 | `inspecto-agent-hosted/` | hosted model providers (omitted from air-gapped builds) | `file-processor-agent-hosted` |
 | `inspecto-intelligence/` | embedded-intelligence agent (eoiagent-backed) | `file-processor-intelligence` |
 | `inspecto-security/` | Standard/Enterprise OIDC auth, `-Pedition-standard` only (not in default `<modules>`) | `file-processor-security` |
+| `inspecto-policy/` | Enterprise ABAC policy engine (`AccessDecider` impl), `-Pedition-enterprise` only (= standard + this) | `file-processor-policy` |
 | `inspecto-ui/` | Angular SPA (gamma/Fuse template), serves from the engine | — (npm; dev :4204) |
 
 agent-kernel is GONE (discontinued upstream, replaced 2026-07-07): its reasoning layer is vendored at
