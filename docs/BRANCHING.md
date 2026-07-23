@@ -133,8 +133,17 @@ git push origin <branch> --tags
 # Build + publish both edition artifacts from the tagged commit:
 #   mvn -Pedition-personal package   → file-processor-X.Y.Z-personal.jar
 #   mvn -Pedition-standard package   → file-processor-X.Y.Z-standard.jar
-gh release create vX.Y.Z --target <branch> \
-    --notes-file <notes> '<personal.jar>' '<standard.jar>'
+# Release integrity (SOC 2 CC8-04): publish a SHA-256 checksum + a GPG detached signature for EVERY
+# artifact so customers can verify integrity AND authenticity. package.ps1 emits .sha256/.asc for the
+# deploy zips; for the raw edition JARs, generate them here (INSPECTO_SIGNING_KEY = the release key id;
+# never commit the key). Customer verification steps: compliance/soc2/CC8-04-release-verification.md.
+for f in '<personal.jar>' '<standard.jar>'; do
+    sha256sum "$f" > "$f.sha256"
+    gpg --local-user "$INSPECTO_SIGNING_KEY" --armor --detach-sign --output "$f.asc" "$f"
+done
+gh release create vX.Y.Z --target <branch> --notes-file <notes> \
+    '<personal.jar>' '<personal.jar>.sha256' '<personal.jar>.asc' \
+    '<standard.jar>' '<standard.jar>.sha256' '<standard.jar>.asc'
 
 # Bump the line back to the next -SNAPSHOT:
 mvn ...:set -DnewVersion=<next>-SNAPSHOT ... && git commit -am "chore: begin <next> development"

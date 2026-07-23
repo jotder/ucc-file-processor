@@ -34,7 +34,14 @@ param(
     # and bundles inspecto-security (W6, the Authenticator SPI's OIDC implementation) alongside the
     # core jar; serve.sh/serve.bat auto-detect its presence and wire -Dauth.mode=oidc from env vars.
     [ValidateSet('Personal', 'Standard')]
-    [string]$Edition = 'Personal'
+    [string]$Edition = 'Personal',
+    # ── release integrity (SOC 2 CC8-04) ──
+    # SHA-256 checksums are ALWAYS written next to each artifact (no key needed). -Sign additionally
+    # produces a GPG detached signature (.asc) per artifact so customers can verify AUTHENTICITY, not
+    # just integrity. Provide the key via -SigningKey or $env:INSPECTO_SIGNING_KEY — never bake a key
+    # into the repo/bundle (see compliance/soc2/policies/06-cryptography-policy.md).
+    [switch]$Sign,
+    [string]$SigningKey = $env:INSPECTO_SIGNING_KEY
 )
 
 Set-StrictMode -Version Latest
@@ -488,10 +495,48 @@ if ($builtLinuxRuntime) {
     Move-Item $windowsRuntimeTmp $windowsRuntimeOut
 }
 
+# ── step 8b: release integrity — SHA-256 checksums (+ optional GPG signatures) [SOC 2 CC8-04] ──
+# Emit a sha256sum-compatible checksum file next to each artifact so customers can verify integrity
+# (Linux: `sha256sum -c <zip>.sha256`; Windows: `Get-FileHash <zip> -Algorithm SHA256`). When -Sign is
+# passed and gpg + a signing key are available, also emit a detached signature (<zip>.asc) so customers
+# can verify AUTHENTICITY. Customer steps: compliance/soc2/CC8-04-release-verification.md.
+function New-ReleaseIntegrity {
+    param([Parameter(Mandatory)][string]$ArtifactPath)
+    if (-not (Test-Path $ArtifactPath)) { return }
+    $name = Split-Path -Leaf $ArtifactPath
+    $hash = (Get-FileHash -Path $ArtifactPath -Algorithm SHA256).Hash.ToLower()
+    # sha256sum format: "<hash>  <filename>" (two spaces), bare filename so `sha256sum -c` resolves it
+    # when run from the artifact's directory.
+    [System.IO.File]::WriteAllText("$ArtifactPath.sha256", "$hash  $name`n", [System.Text.Encoding]::ASCII)
+    Write-Host "  SHA-256  $name = $hash" -ForegroundColor DarkGray
+
+    if ($Sign) {
+        $gpg = (Get-Command gpg -ErrorAction SilentlyContinue).Source
+        if (-not $gpg) {
+            Write-Warning "  -Sign requested but 'gpg' not found on PATH — skipping signature for $name."
+            return
+        }
+        if (-not $SigningKey) {
+            Write-Warning "  -Sign requested but no signing key (pass -SigningKey or set INSPECTO_SIGNING_KEY) — skipping signature for $name."
+            return
+        }
+        $ascFile = "$ArtifactPath.asc"
+        if (Test-Path $ascFile) { Remove-Item $ascFile -Force }
+        & $gpg --batch --yes --local-user $SigningKey --armor --detach-sign --output $ascFile $ArtifactPath
+        if ($LASTEXITCODE -ne 0) { throw "gpg detached-sign failed for $name" }
+        Write-Host "  Signed   $name -> $ascFile (key: $SigningKey)" -ForegroundColor Green
+    }
+}
+
+$sigNote = if ($Sign) { ' + GPG signature' } else { '' }
+Write-Host "Generating release integrity artifacts (SHA-256$sigNote)..." -ForegroundColor Cyan
+New-ReleaseIntegrity -ArtifactPath $outZip
+if ($builtLinuxRuntime) { New-ReleaseIntegrity -ArtifactPath $outZipLinux }
+
 Write-Host ""
 Write-Host "Deployment bundle ready:" -ForegroundColor Green
-Write-Host "  $outZip"
-if ($builtLinuxRuntime) { Write-Host "  $outZipLinux" }
+Write-Host "  $outZip  (+ .sha256$sigNote)"
+if ($builtLinuxRuntime) { Write-Host "  $outZipLinux  (+ .sha256$sigNote)" }
 Write-Host ""
 Write-Host "Deploy to remote server:" -ForegroundColor Cyan
 Write-Host "  1. Copy $outZip to the server"
