@@ -101,6 +101,36 @@ class ControlApiSettingsTest {
         }
     }
 
+    @Test
+    void iconMapRoundTripsAndIsolatesPerSpace(@TempDir Path root) throws Exception {
+        try (Ctx c = open(root)) {
+            assertEquals(200, send(c.port, "POST", "/spaces", "{\"id\":\"acme\"}").statusCode());
+            assertEquals(200, send(c.port, "POST", "/spaces", "{\"id\":\"beta\"}").statusCode());
+
+            // default before any save — empty map
+            assertEquals(0, json(send(c.port, "GET", "/spaces/acme/config/icon-map", null)).size(), "no rules yet");
+
+            // PUT round-trip: a type entry + a category entry, persisted as icon-map.toon
+            HttpResponse<String> put = send(c.port, "PUT", "/spaces/acme/config/icon-map",
+                    "{\"parser.dsv\":{\"glyph\":\"table\",\"color\":\"#00aaff\"},\"PARSE\":{\"glyph\":\"filter\",\"color\":\"#ff8800\"}}");
+            assertEquals(200, put.statusCode(), put.body());
+            assertEquals("table", json(put).get("parser.dsv").get("glyph").asText());
+            assertEquals("#ff8800", json(put).get("PARSE").get("color").asText());
+            assertTrue(Files.exists(root.resolve("acme").resolve("config").resolve("icon-map.toon")));
+
+            JsonNode got = json(send(c.port, "GET", "/spaces/acme/config/icon-map", null));
+            assertEquals("filter", got.get("PARSE").get("glyph").asText());
+            assertEquals("#00aaff", got.get("parser.dsv").get("color").asText());
+
+            // per-space isolation: 'beta' is untouched
+            assertEquals(0, json(send(c.port, "GET", "/spaces/beta/config/icon-map", null)).size());
+
+            // a malformed entry (missing color) → 422
+            assertEquals(422, send(c.port, "PUT", "/spaces/acme/config/icon-map",
+                    "{\"parser.json\":{\"glyph\":\"braces\"}}").statusCode());
+        }
+    }
+
     private HttpResponse<String> send(int port, String method, String path, String body) throws Exception {
         HttpRequest.Builder b = HttpRequest.newBuilder(URI.create("http://localhost:" + port + path));
         if (body != null) b.header("Content-Type", "application/json").method(method, BodyPublishers.ofString(body));
