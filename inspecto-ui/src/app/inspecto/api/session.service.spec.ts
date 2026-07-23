@@ -44,15 +44,21 @@ describe('SessionService (W6d edition switch)', () => {
         expect(svc.loginRequired()).toBe(true);
     });
 
-    it('OIDC bootstrap + refresh 200 ⇒ resumes the session (token + authenticated)', async () => {
+    it('OIDC bootstrap + refresh 200 ⇒ resumes the session (token + authenticated + effective grants)', async () => {
         const done = svc.init();
         httpMock.expectOne(`${base}/bootstrap`).flush({ edition: 'standard', features: { authMode: 'oidc' } });
         await tick();
         httpMock.expectOne(`${base}/auth/refresh`).flush({ accessToken: 'at-resumed', expiresIn: 300 });
+        await tick();
+        // the resume re-reads bootstrap with the bearer — the anonymous first read had no session slice (R2)
+        httpMock
+            .expectOne(`${base}/bootstrap`)
+            .flush({ session: { authenticated: true, capabilities: ['canAuthorWorkbench'] } });
         await done;
         expect(svc.authenticated()).toBe(true);
         expect(svc.token()).toBe('at-resumed');
         expect(svc.loginRequired()).toBe(false);
+        expect(svc.capabilities()).toEqual(['canAuthorWorkbench']);
     });
 
     it('completeLogin rejects a mismatched state without any HTTP call (CSRF guard)', async () => {
@@ -89,6 +95,8 @@ describe('SessionService (W6d edition switch)', () => {
         httpMock.expectOne(`${base}/bootstrap`).flush({ features: { authMode: 'oidc' } });
         await tick();
         httpMock.expectOne(`${base}/auth/refresh`).flush({ accessToken: 'at', expiresIn: 300 });
+        await tick();
+        httpMock.expectOne(`${base}/bootstrap`).flush({ session: { authenticated: true } });
         await done;
         expect(svc.authenticated()).toBe(true);
 

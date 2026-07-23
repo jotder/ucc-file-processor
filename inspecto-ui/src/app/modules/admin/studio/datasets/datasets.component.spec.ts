@@ -35,7 +35,8 @@ function create(datasets: Dataset[] = [D1], opts: { canShare?: boolean; offerRes
             { provide: ToastrService, useValue: { warning: () => undefined, success: () => undefined, error: () => undefined } },
             { provide: InspectoConfirmService, useValue: { confirmDestructive: () => Promise.resolve(true) } },
             { provide: MatDialog, useValue: dialog },
-            { provide: SessionService, useValue: { exchangeEnabled: () => opts.canShare ?? false } },
+            // authMode 'none' keeps LensService on the honor system (R2 grant checks bypassed).
+            { provide: SessionService, useValue: { exchangeEnabled: () => opts.canShare ?? false, authMode: () => 'none', capabilities: () => [] } },
             { provide: ExchangeService, useValue: { offer } },
             { provide: SpacesService, useValue: { currentSpaceId: () => 'default' } },
         ],

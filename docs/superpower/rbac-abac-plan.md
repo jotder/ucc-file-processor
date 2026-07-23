@@ -113,7 +113,7 @@ the SEC-7d contract: 404, never 403 (no existence leak).
   Tests: `ControlApiAccessRolesTest` (real-HTTP gates) + `OidcAuthenticatorTest` (authored
   grant/revoke/no-restart, role dataScopes, unreadable-doc fail-closed). Capability-name validation
   uses `Roles.KNOWN_CAPABILITIES` until R4's manifest replaces it as the source of truth.
-- **R2 — Access-Profile enforcement (Lens Access P3). ✅ BACKEND HALF SHIPPED 2026-07-23.**
+- **R2 — Access-Profile enforcement (Lens Access P3). ✅ SHIPPED 2026-07-23 (both halves).**
   As built — one deliberate deviation from the sketch below: there is **no separate authorize
   middleware stage**. Enforcement happens at *authentication* time — core `AccessGrants` resolves
   the subject's held (table-backed) roles against the saved `subjectType: role` profiles over the
@@ -127,11 +127,22 @@ the SEC-7d contract: 404, never 403 (no existence leak).
   all capabilities denied. Claim-supplied role names are path-jailed before profile lookup.
   Lens profiles stay UI-only, as designed. Tests: `AccessGrantsTest` (inheritance, union,
   fail-closed, restart-free, path jail) + `OidcAuthenticatorTest` end-to-end deny.
-  **UI half still open:** lens-switcher constrains to Lenses the subject's roles project onto;
-  `LensService` re-derives its signals from `/bootstrap` effective capabilities (the one-file swap
-  promised in rbac-groundwork §2 — no pane changes). Note: server-side, only `capability`-bound
-  action nodes enforce; menu/pane `link` nodes shape the UI nav (they don't map to API routes) —
-  the nav half of the DoD lands with the UI swap.
+  **UI half — as built (2026-07-23):** the one-file swap promised in rbac-groundwork §2 landed in
+  `LensService` with zero pane changes. Under `authMode: 'oidc'` each capability signal now requires
+  the matching grant in `SessionService.capabilities()` — the *effective* set `/bootstrap` reports
+  after the backend strips profile denies — intersected with the lens view (so "View as Business"
+  still previews read-only for a granted subject); Personal/`none` stays byte-identical honor
+  system. The switcher constrains to `allowedLenses()` — the lenses the grants project onto per the
+  rbac-groundwork §3 taxonomy (Business always; Builder ⇐ `canAuthorWorkbench`; Ops ⇐
+  `canOperateRuns`) — and `currentLens` became a computed that coerces to the most capable allowed
+  lens without overwriting the stored preference (it snaps back when a revoked role is restored).
+  **Nav half:** rides the existing per-lens Access-Profile filtering (`AccessStateService.filterNav`)
+  now that the subject can only occupy lenses their roles project onto — role-denied subjects land
+  in a lens whose profile hides the denied nodes; no separate role→nav channel is possible or needed
+  client-side (capabilities-only contract — role names never reach the SPA). Supporting fixes:
+  `SessionService.init()` re-reads `/bootstrap` with the fresh bearer after a resume (the first,
+  anonymous read carries no session slice), and the offline mock gained a
+  `localStorage['inspecto.mockCapabilities']` override to exercise constrained subjects.
 - **R3 — sharing RBAC (datasets / widgets / dashboards).** Components gain optional
   `owner` + `shares: [{subjectType: role|user, subjectId, access: view|edit}]` (additive TOON;
   absent = today's behavior). Enforced in the component read/write routes via the decider.

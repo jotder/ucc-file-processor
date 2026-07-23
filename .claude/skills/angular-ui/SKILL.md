@@ -262,11 +262,18 @@ src/app/
 - **Persona lens ("View as") + the Capability seam:** `LensService` (`inspecto/api`) mirrors
   `SpacesService`'s shape (signal + `localStorage` restore/persist) for the three lenses
   (business/builder/ops — `docs/GLOSSARY.md` §1-A). A lens is a **UI-side annotation, never a permission**
-  (Lens ≠ Role — RBAC is security-module scope; design: `docs/superpower/rbac-groundwork.md`). Panes gate on
+  (Lens ≠ Role — `docs/superpower/rbac-abac-plan.md`). Panes gate on
   the **named capability signals** — `lens.canAuthorWorkbench()` (Workbench create/edit/delete),
   `lens.canOperateRuns()` (Runs trigger/pause/reprocess), `lens.canTriageRequirements()` (C1 triage) —
-  **never on `readOnly()`/lens identity**; add a new named capability per distinct authorization question
-  (today they derive from the lens; under RBAC they re-derive from role grants with no pane changes).
+  **never on `readOnly()`/lens identity**; add a new named capability per distinct authorization question.
+  **Since RBAC R2 (2026-07-23)** each capability = the lens derivation **∧, under `authMode 'oidc'`, the
+  matching grant in `SessionService.capabilities()`** (the effective set `/bootstrap` reports after
+  server-side role/Access-Profile enforcement); Personal stays pure honor-system. `currentLens` is now a
+  computed: the persisted preference constrained to `lens.allowedLenses()` (Business always; Builder ⇐
+  `canAuthorWorkbench`; Ops ⇐ `canOperateRuns`) — the switcher iterates `allowedLenses()`, and a spec
+  that stubs `SessionService` must include `authMode: () => 'none'` (+ `capabilities: () => []`) or
+  every LensService capability read throws. Offline dev switch for constrained subjects:
+  `localStorage['inspecto.mockCapabilities'] = 'canOperateRuns'` (with `inspecto.mockAuthMode='oidc'`).
   Default heuristic: operational actions (run-now, enable/disable, dry-run, activate) stay available in
   every lens — gate only true config-authoring — *unless* the plan explicitly says otherwise for a pane
   (Runs is "read-only observe" for Business, hence `canOperateRuns`). Gate the **mutating method**

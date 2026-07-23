@@ -43,7 +43,8 @@ function create(overrides: Partial<CatalogService> = {}, queryParams: Record<str
             { provide: ComponentsDataProvider, useValue: { list: () => Promise.resolve([]) } },
             { provide: PipelinesService, useValue: { authoredList: () => of([]), authoredRaw: () => of(undefined) } },
             // The Exchange tabs gate on bootstrap.features.exchange (SharingComponent is embedded).
-            { provide: SessionService, useValue: { exchangeEnabled: () => true } },
+            // authMode 'none' keeps LensService on the honor system (R2 grant checks bypassed).
+            { provide: SessionService, useValue: { exchangeEnabled: () => true, authMode: () => 'none', capabilities: () => [] } },
             { provide: ExchangeService, useValue: { grants: () => of([]), offers: () => of([]) } },
             { provide: SpacesService, useValue: { currentSpaceId: () => 'default' } },
             { provide: ToastrService, useValue: {} },

@@ -1,7 +1,8 @@
-import { computed, Injectable, signal } from '@angular/core';
+import { computed, inject, Injectable, signal } from '@angular/core';
+import { SessionService } from './session.service';
 
-/** The three persona lenses over the one console (`docs/GLOSSARY.md` §1-A). Not a permission — RBAC
- *  arrives with the security module and maps onto lenses. */
+/** The three persona lenses over the one console (`docs/GLOSSARY.md` §1-A). Not a permission —
+ *  under RBAC (Standard, R2) the subject's role grants constrain which lenses are selectable. */
 export type Lens = 'business' | 'builder' | 'ops';
 
 export interface LensMeta {
@@ -28,19 +29,52 @@ const LENSES: LensMeta[] = [
  * create/edit/delete (authoring) action is hidden — panes stay visible and read-only, they are not
  * removed from navigation.
  *
- * **Capability seam (RBAC groundwork, 2026-07-03 — `docs/superpower/rbac-groundwork.md`):** panes gate
- * on the named **capability** signals below, never on `readOnly`/lens identity directly. A Lens is a
- * *view*, not a permission (GLOSSARY §1-A); today every capability is derived from the self-selected
- * lens (an honor-system preview), and when the security module lands these same signals are re-derived
- * from the authenticated subject's **role grants** — call sites don't change. Add a new named capability
- * per distinct authorization question; don't reuse one because its current value happens to match.
+ * **Capability seam (RBAC groundwork, 2026-07-03; the promised re-derivation landed with RBAC R2,
+ * 2026-07-23 — `docs/superpower/rbac-abac-plan.md` §3):** panes gate on the named **capability**
+ * signals below, never on `readOnly`/lens identity directly. A Lens is a *view*, not a permission
+ * (GLOSSARY §1-A). On Personal (`authMode 'none'`) every capability derives from the self-selected
+ * lens — the honor-system preview, byte-identical to before. Under OIDC each capability additionally
+ * requires the matching grant in {@link SessionService.capabilities} — the *effective* set
+ * `/bootstrap` reports after the backend's role/Access-Profile enforcement — and the "View as"
+ * switcher is constrained to the {@link allowedLenses} those grants project onto. Call sites are
+ * unchanged, as designed. Add a new named capability per distinct authorization question; don't
+ * reuse one because its current value happens to match.
  */
 @Injectable({ providedIn: 'root' })
 export class LensService {
-    /** The three lenses, in display order — the switcher iterates this. */
+    /** The three lenses, in display order — {@link allowedLenses} filters this. */
     static readonly LENSES = LENSES;
 
-    readonly currentLens = signal<Lens>(this.restore());
+    private readonly session = inject(SessionService);
+
+    /** The user's chosen ("View as") lens — persisted. May be constrained away by grants: the
+     *  active lens is {@link currentLens}, which snaps back here whenever the preference is allowed
+     *  again (e.g. an admin restores a revoked role), so a temporary revocation never overwrites
+     *  the stored choice. */
+    private readonly preferredLens = signal<Lens>(this.restore());
+
+    /** The lenses this subject may view as. Honor system (Personal): all three. Under OIDC the
+     *  subject's roles project onto lenses via the effective grants (rbac-groundwork §3 taxonomy):
+     *  Builder needs `canAuthorWorkbench`, Ops needs `canOperateRuns`, Business (read-only) is
+     *  always available. The switcher iterates this. */
+    readonly allowedLenses = computed<LensMeta[]>(() => {
+        if (this.session.authMode() !== 'oidc') return LENSES;
+        const caps = this.session.capabilities();
+        return LENSES.filter(
+            (l) =>
+                l.id === 'business' ||
+                (l.id === 'builder' && caps.includes('canAuthorWorkbench')) ||
+                (l.id === 'ops' && caps.includes('canOperateRuns')),
+        );
+    });
+
+    /** The active lens: the preferred one when allowed, else the most capable allowed lens. */
+    readonly currentLens = computed<Lens>(() => {
+        const allowed = this.allowedLenses();
+        const preferred = this.preferredLens();
+        if (allowed.some((l) => l.id === preferred)) return preferred;
+        return allowed[allowed.length - 1]?.id ?? 'business';
+    });
 
     /** True while the active lens is the read-only one (Business). Internal derivation for the
      *  capabilities below — gate on a capability, not on this. */
@@ -62,37 +96,50 @@ export class LensService {
         return this.actionGrants()?.[actionNodeId]?.[this.currentLens()] ?? true;
     }
 
+    /** Under OIDC, is `cap` among the subject's effective capabilities (`/bootstrap`, post
+     *  server-side R2 enforcement)? Honor-system mode grants everything — the lens decides. */
+    private granted(cap: string): boolean {
+        return this.session.authMode() !== 'oidc' || this.session.capabilities().includes(cap);
+    }
+
     /** May author in the Workbench (Pipelines / Jobs / Components create-edit-delete). RBAC: Pipeline
      *  Developer, Power user, Super user. (Connection onboarding split out to {@link canOnboardConnections}
      *  2026-07-22 — the credential/egress surface is Admin-owned, not Builder.) */
-    readonly canAuthorWorkbench = computed(() => !this.readOnly() && this.allows('workbench.author'));
+    readonly canAuthorWorkbench = computed(
+        () => this.granted('canAuthorWorkbench') && !this.readOnly() && this.allows('workbench.author'));
 
     /** May onboard/configure Connections (create / edit / delete a connection profile) — its own
      *  authorization question because Connections are the credential + network-egress surface, a worse
      *  blast radius than authoring a pipeline (rbac-groundwork §3/§4.1 Q1, product sign-off 2026-07-22).
      *  RBAC: Admin, Super. In the lens honor-system preview it defaults allowed for the non-Business
      *  lenses, exactly as Workbench authoring did before the split. */
-    readonly canOnboardConnections = computed(() => !this.readOnly() && this.allows('connections.onboard'));
+    readonly canOnboardConnections = computed(
+        () => this.granted('canOnboardConnections') && !this.readOnly() && this.allows('connections.onboard'));
 
     /** May operate runs (trigger / pause / resume / reprocess) — the plan's "read-only observe"
      *  exception for Business on the Runs pane. RBAC: Operations, Pipeline Developer, Power/Super. */
-    readonly canOperateRuns = computed(() => !this.readOnly() && this.allows('runs.operate'));
+    readonly canOperateRuns = computed(
+        () => this.granted('canOperateRuns') && !this.readOnly() && this.allows('runs.operate'));
 
     /** May triage Requirements (accept / reject / deliver) — the Builder-facing intake queue (C1).
      *  RBAC: Pipeline Developer, Operations, Power/Super. */
-    readonly canTriageRequirements = computed(() => !this.readOnly() && this.allows('requirements.triage'));
+    readonly canTriageRequirements = computed(
+        () => this.granted('canTriageRequirements') && !this.readOnly() && this.allows('requirements.triage'));
 
     /** May author Alert Rules (create / edit / delete on the Alerts pane — audit C3). A distinct
      *  question from Workbench authoring: monitoring config is Ops-owned. RBAC: Operations,
      *  Power/Super. */
-    readonly canAuthorAlertRules = computed(() => !this.readOnly() && this.allows('alerts.author'));
+    readonly canAuthorAlertRules = computed(
+        () => this.granted('canAuthorAlertRules') && !this.readOnly() && this.allows('alerts.author'));
 
     /** May configure lens access (the Settings ▸ Access matrix). RBAC: Admin, Super. */
-    readonly canConfigureAccess = computed(() => !this.readOnly() && this.allows('access.configure'));
+    readonly canConfigureAccess = computed(
+        () => this.granted('canConfigureAccess') && !this.readOnly() && this.allows('access.configure'));
 
-    /** Set the active lens and persist it across reloads. */
+    /** Set the preferred lens and persist it across reloads. A lens outside {@link allowedLenses}
+     *  is remembered but not activated (the switcher never offers one). */
     selectLens(lens: Lens): void {
-        this.currentLens.set(lens);
+        this.preferredLens.set(lens);
         if (typeof localStorage === 'undefined') return;
         localStorage.setItem(STORAGE_KEY, lens);
     }

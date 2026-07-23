@@ -91,7 +91,11 @@ export class SessionService {
         };
         // A returning user still holds the httpOnly refresh cookie — mint an access token from it. A 401
         // just means "not signed in yet"; the guard will route to sign-in.
-        await firstValueFrom(this.refresh().pipe(catchError(() => of(null))));
+        const token = await firstValueFrom(this.refresh().pipe(catchError(() => of(null))));
+        // The bootstrap read above carried no bearer, so its session slice is the anonymous subject's.
+        // Re-read with the fresh token so `capabilities` holds the subject's *effective* grants (R2)
+        // before anything renders — init() is awaited by the app initializer.
+        if (token) await this.loadSessionFromBootstrap();
     }
 
     /** Start the Authorization-Code + PKCE redirect (or, in mock mode, grant a code locally offline). */
@@ -148,7 +152,9 @@ export class SessionService {
                 }),
                 map(() => true),
                 // Enrich capabilities from the Subject the backend resolves off the new bearer (non-blocking).
-                tap((ok) => ok && this.loadSessionFromBootstrap()),
+                tap((ok) => {
+                    if (ok) void this.loadSessionFromBootstrap();
+                }),
                 catchError(() => of(false)),
             );
     }
@@ -183,13 +189,11 @@ export class SessionService {
         return `${window.location.origin}/auth/callback`;
     }
 
-    private loadSessionFromBootstrap(): void {
-        this.http
-            .get<Bootstrap>(apiUrl('/bootstrap'))
-            .pipe(catchError(() => of({} as Bootstrap)))
-            .subscribe((boot) => {
-                this.authenticated.set(boot.session?.authenticated ?? true);
-                this.capabilities.set(boot.session?.capabilities ?? []);
-            });
+    private async loadSessionFromBootstrap(): Promise<void> {
+        const boot = await firstValueFrom(
+            this.http.get<Bootstrap>(apiUrl('/bootstrap')).pipe(catchError(() => of({} as Bootstrap))),
+        );
+        this.authenticated.set(boot.session?.authenticated ?? true);
+        this.capabilities.set(boot.session?.capabilities ?? []);
     }
 }

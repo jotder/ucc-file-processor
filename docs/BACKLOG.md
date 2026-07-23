@@ -345,9 +345,13 @@ now derives from it; catalog action nodes 422 on unknown capabilities. **R2 back
 2026-07-23:** `AccessGrants` — role Access-Profiles enforced server-side by shaping Subject
 capabilities at authentication (union-of-access across roles, nearest-ancestor grants, fail-closed
 unreadable docs, claim path-jail); no authorize middleware needed, `requireCapability` + envelope
-`permissions` do the rest. Remaining in §6: **R2 UI half** (LensService re-derives from
-`/bootstrap` effective permissions; lens-switcher constraining; nav hides denied nodes) → then
-R3 (sharing RBAC) → R5 (Settings ▸ Access Roles tab), then the A-workstreams. Identity/login, user model, role-assignment UI,
+`permissions` do the rest. **R2 UI half SHIPPED 2026-07-23:** LensService capability signals now
+intersect the lens view with `/bootstrap` effective grants under OIDC (Personal honor-system
+byte-identical); lens-switcher constrained to the lenses the grants project onto (Business always;
+Builder ⇐ canAuthorWorkbench; Ops ⇐ canOperateRuns) with the stored preference preserved across
+revoke/restore; nav shaping rides the per-lens Access-Profile filter now that subjects can only
+occupy granted lenses. Remaining in §6: R3 (sharing RBAC) → R5 (Settings ▸ Access Roles tab),
+then the A-workstreams. Identity/login, user model, role-assignment UI,
 Admin pane, server enforcement, lens-switcher
 constraint — per `archived-documents/plans-archive/rbac-groundwork.md` §5. Rides on top:
 **Lens Access P3** (subjects become Roles, matrix enforcement server-side — the shipped

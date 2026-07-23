@@ -36,6 +36,19 @@ function resolveAuthMode(flags: MockFlags): 'none' | 'oidc' {
     return flags.mockAuthMode === 'oidc' ? 'oidc' : 'none';
 }
 
+/** Runtime override for the mock subject's effective grants (R2 UI dev switch): set
+ *  `localStorage['inspecto.mockCapabilities']` to a comma list (empty string = no grants) to
+ *  exercise a constrained subject — e.g. `'canOperateRuns'` locks the switcher to Business/Ops. */
+function resolveCapabilities(): string[] {
+    if (typeof localStorage !== 'undefined') {
+        const override = localStorage.getItem('inspecto.mockCapabilities');
+        if (override !== null) {
+            return override.split(',').map((c) => c.trim()).filter(Boolean);
+        }
+    }
+    return MOCK_CAPABILITIES;
+}
+
 export function authHandler(flags: MockFlags): MockHandler {
     return (req: MockRequest, store: MockStore) => {
         if (!flags.mockDemo) return undefined;
@@ -50,7 +63,7 @@ export function authHandler(flags: MockFlags): MockHandler {
                 session: {
                     authenticated: active,
                     actor: active ? 'mock-user' : 'appUser',
-                    capabilities: active ? MOCK_CAPABILITIES : [],
+                    capabilities: active ? resolveCapabilities() : [],
                 },
             };
             if (mode === 'oidc') {
