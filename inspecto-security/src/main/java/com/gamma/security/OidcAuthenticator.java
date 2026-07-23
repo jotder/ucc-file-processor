@@ -118,10 +118,24 @@ public final class OidcAuthenticator implements Authenticator {
             // match `subjectType: role` shares — the Subject itself stays capabilities-only.
             ex.setAttribute(ComponentAccess.ATTR_HELD_ROLES, Set.copyOf(held));
             return Optional.of(new Subject(subjectId, Set.copyOf(capabilities),
-                    RoleMapper.dataScopesFor(claims, rolesClaim, defs)));
+                    RoleMapper.dataScopesFor(claims, rolesClaim, defs),
+                    attributes(claims, Roles.attributeClaims(ex))));
         } catch (Exception e) {
             return Optional.empty();   // bad signature, wrong issuer/audience, expired, malformed — all 401
         }
+    }
+
+    /** ABAC A1: only claims allowlisted in the space's {@code roles.toon} {@code identity.
+     *  attributeClaims} reach {@link Subject#attributes()} — never the raw token, and nothing at all
+     *  when the allowlist is unset or the doc is unreadable (fail-closed alongside the role grants). */
+    private static java.util.Map<String, Object> attributes(JWTClaimsSet claims, java.util.List<String> allowlist) {
+        if (allowlist.isEmpty()) return java.util.Map.of();
+        var out = new java.util.LinkedHashMap<String, Object>();
+        for (String name : allowlist) {
+            Object v = claims.getClaim(name);
+            if (v != null) out.put(name, v);
+        }
+        return out;
     }
 
     private static JWKSource<SecurityContext> jwksSource(String propertyKey) {

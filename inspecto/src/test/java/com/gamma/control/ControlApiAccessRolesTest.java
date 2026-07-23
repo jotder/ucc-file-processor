@@ -124,6 +124,30 @@ class ControlApiAccessRolesTest {
         }
     }
 
+    @Test
+    void identityAttributeClaimsRideTheSameDoc(@TempDir Path dir) throws Exception {
+        // ABAC A1: the identity.attributeClaims allowlist (which verified IdP claims may surface as
+        // Subject.attributes()) is authored on the same settings doc — full-replace semantics apply.
+        try (Ctx c = open(dir, dir.resolve("cfg"))) {
+            JsonNode saved = json(send(c.port, "PUT", "/access/roles",
+                    "{\"roles\":[],\"identity\":{\"attributeClaims\":[\"department\",\"clearance\"]}}"));
+            assertEquals("department", saved.get("identity").get("attributeClaims").get(0).asText());
+            assertEquals("clearance", saved.get("identity").get("attributeClaims").get(1).asText());
+
+            // 422 gates: identity not an object · attributeClaims not a list · blank claim
+            assertEquals(422, send(c.port, "PUT", "/access/roles",
+                    "{\"roles\":[],\"identity\":\"department\"}").statusCode());
+            assertEquals(422, send(c.port, "PUT", "/access/roles",
+                    "{\"roles\":[],\"identity\":{\"attributeClaims\":\"department\"}}").statusCode());
+            assertEquals(422, send(c.port, "PUT", "/access/roles",
+                    "{\"roles\":[],\"identity\":{\"attributeClaims\":[\" \"]}}").statusCode());
+
+            // full replace without an identity block clears the allowlist (no attributes, ever)
+            JsonNode cleared = json(send(c.port, "PUT", "/access/roles", "{\"roles\":[]}"));
+            assertNull(cleared.get("identity"));
+        }
+    }
+
     private static JsonNode byName(JsonNode roles, String name) {
         for (JsonNode r : roles) if (name.equals(r.get("name").asText())) return r;
         return null;

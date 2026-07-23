@@ -29,8 +29,8 @@ by dependency fan-out — each row's detail stays in its own section; this is on
 1. **Root enablers (largest downstream fan-out — start here):**
    - **§6 RBAC/ABAC R-workstreams** (`superpower/rbac-abac-plan.md`) — unblocks Lens Access P3,
      SPC-5 ABAC, X-Actor retirement, auth-gated notification prefs, and the NFR-7 access-control
-     evidence. *(R0 remainder + R1/R2/R3/R4/R5 all shipped 2026-07-23 — the A-workstreams
-     remain; `identity:` claim allowlist rides with A1.)*
+     evidence. *(R0 remainder + R1/R2/R3/R4/R5 + A1/A2 all shipped 2026-07-23 — A3 (enterprise
+     engine) → A4 (SPC-5) → A5 (decision audit) remain.)*
    - **Bound job concurrency** (semaphore on the `JobService` executor) — stated prerequisite (§5
      DuckDB issue) for the on-by-default memory cap, which in turn gates the chunking default.
    - **Incidents I1 backend workflow resolution-gate + `ObjectStore` delete** — sole blocker on MNT-14.
@@ -363,8 +363,15 @@ unchanged) + Roles: role cards with source badges, the R1 editor (authored-overl
 edit moves a seed role into the overlay, Revert drops it), and the read-only effective-grants
 strike-through (role capabilities ∘ its Access-Profile denies over the catalog action nodes);
 mock `/access/roles` handler for offline (as-built in the plan §3 R5). **R0 remainder SHIPPED
-2026-07-23** (see the auth-stack note above). Remaining in §6: the A-workstreams (the `identity:`
-claim allowlist rides with A1). Identity/login, user model, role-assignment UI,
+2026-07-23** (see the auth-stack note above). **A1+A2 SHIPPED 2026-07-23** (authoring + grammar;
+evaluation = A3): shared `com.gamma.util.Conditions` (parse-once, fail-closed truthiness — the
+"one policy engine, many policy kinds" library), `Subject.attributes()` + the `identity:
+{attributeClaims}` allowlist on `roles.toon` (OIDC copies allowlisted verified claims only), and
+core `AccessPolicies` + `GET/PUT /access/policies` (`when` parse-gates 422; unreadable doc =
+deny-loudly marker) — as-built in the plan §4. Remaining in §6: **A3** (`inspecto-policy`
+Enterprise module, `PolicyEngine implements AccessDecider`, `RowScope`, `edition-enterprise`
+profile) → **A4** (SPC-5 seeded space-scoping policies) → **A5** (decision audit).
+Identity/login, user model, role-assignment UI,
 Admin pane, server enforcement, lens-switcher
 constraint — per `archived-documents/plans-archive/rbac-groundwork.md` §5. Rides on top:
 **Lens Access P3** (subjects become Roles, matrix enforcement server-side — the shipped

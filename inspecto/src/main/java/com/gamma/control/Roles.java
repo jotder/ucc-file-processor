@@ -71,6 +71,7 @@ public final class Roles {
 
     private static final int MAX_ROLES = 200;
     private static final int MAX_SCOPES = 64;
+    private static final int MAX_ATTRIBUTE_CLAIMS = 32;
 
     /** One role's grants. {@code dataScopes == null} ⇒ the role contributes no data scoping (SEC-7d
      *  unscoped); an empty set is the fail-closed "untyped objects only" scoping. */
@@ -112,9 +113,11 @@ public final class Roles {
 
     // ── resolution ───────────────────────────────────────────────────────────────
 
-    /** The authored doc (authored roles only, no seed merge) + its readability. */
-    record Doc(Map<String, Def> authored, boolean unreadable) {
-        static final Doc ABSENT = new Doc(Map.of(), false);
+    /** The authored doc (authored roles only, no seed merge) + the {@code identity.attributeClaims}
+     *  allowlist (ABAC A1 — which verified IdP claims an {@link Authenticator} may copy onto
+     *  {@link Subject#attributes()}; empty = no attributes, ever) + its readability. */
+    record Doc(Map<String, Def> authored, List<String> attributeClaims, boolean unreadable) {
+        static final Doc ABSENT = new Doc(Map.of(), List.of(), false);
     }
 
     private record Cached(long mtime, long size, Doc doc) {}
@@ -155,19 +158,26 @@ public final class Roles {
             return parsed;
         } catch (IOException e) {
             LOG.warn("roles: cannot stat {} — suspending role grants (fail-closed): {}", file, e.toString());
-            return new Doc(Map.of(), true);
+            return new Doc(Map.of(), List.of(), true);
         }
     }
 
     private static Doc parseFile(Path file) {
         try {
             Map<String, Object> m = ToonHelper.load(file.toString());
-            return new Doc(validate(m.get("roles")), false);
+            return new Doc(validate(m.get("roles")), attributeClaims(m.get("identity")), false);
         } catch (Exception e) {
             LOG.warn("roles: {} is unreadable — suspending ALL role grants (fail-closed) until fixed: {}",
                     file, e.toString());
-            return new Doc(Map.of(), true);
+            return new Doc(Map.of(), List.of(), true);
         }
+    }
+
+    /** The {@code identity.attributeClaims} allowlist for the request's bound space (ABAC A1): the
+     *  only IdP claims an {@link Authenticator} may surface as {@link Subject#attributes()}. Empty
+     *  when unset — and when the doc is unreadable (fail-closed: no grants, no attributes). */
+    public static List<String> attributeClaims(HttpExchange ex) {
+        return load(ex.getAttribute(ATTR_CONFIG_ROOT) instanceof Path p ? p : null).attributeClaims();
     }
 
     // ── validation (shared by the PUT route and the file parser — one grammar) ──────
@@ -206,6 +216,28 @@ public final class Roles {
         return out;
     }
 
+    /** Parse+validate an optional {@code identity} block ({@code {attributeClaims: [claim, …]}}) into
+     *  the claim allowlist. Throws {@link ApiException} 422 on any violation. */
+    static List<String> attributeClaims(Object identityObj) {
+        if (identityObj == null) return List.of();
+        if (!(identityObj instanceof Map<?, ?> identity))
+            throw new ApiException(422, "'identity' must be an object {attributeClaims: [claim, ...]}");
+        Object claimsObj = identity.get("attributeClaims");
+        if (claimsObj == null) claimsObj = identity.get("attribute_claims");
+        if (claimsObj == null) return List.of();
+        if (!(claimsObj instanceof List<?> claims))
+            throw new ApiException(422, "'identity.attributeClaims' must be a list of claim names");
+        if (claims.size() > MAX_ATTRIBUTE_CLAIMS)
+            throw new ApiException(422, "too many attributeClaims (max " + MAX_ATTRIBUTE_CLAIMS + ")");
+        Set<String> out = new LinkedHashSet<>();
+        for (Object c : claims) {
+            String claim = str(c);
+            if (claim.isBlank()) throw new ApiException(422, "blank attribute claim name");
+            out.add(claim);
+        }
+        return List.copyOf(out);
+    }
+
     private static Set<String> dataScopes(String role, Object scopesObj) {
         if (scopesObj == null) return null;   // key absent — the role contributes no scoping
         if (!(scopesObj instanceof List<?> scopes))
@@ -224,8 +256,9 @@ public final class Roles {
 
     // ── persistence (canonical TOON, crash-safe — AccessRoutes' PUT) ────────────────
 
-    /** Write {@code authored} as {@value #FILE} under {@code configRoot} (snake-case on disk). */
-    static void write(Path configRoot, Map<String, Def> authored) throws IOException {
+    /** Write {@code authored} (+ the optional {@code identity.attributeClaims} allowlist) as
+     *  {@value #FILE} under {@code configRoot} (snake-case on disk). */
+    static void write(Path configRoot, Map<String, Def> authored, List<String> attributeClaims) throws IOException {
         List<Map<String, Object>> roles = authored.entrySet().stream().map(e -> {
             Map<String, Object> r = new LinkedHashMap<String, Object>();
             r.put("name", e.getKey());
@@ -233,8 +266,12 @@ public final class Roles {
             if (e.getValue().dataScopes() != null) r.put("data_scopes", List.copyOf(e.getValue().dataScopes()));
             return r;
         }).toList();
+        Map<String, Object> doc = new LinkedHashMap<>();
+        doc.put("roles", roles);
+        if (!attributeClaims.isEmpty())
+            doc.put("identity", Map.of("attribute_claims", List.copyOf(attributeClaims)));
         AtomicFiles.write(configRoot.resolve(FILE),
-                JToon.encode(Map.of("roles", roles)).getBytes(StandardCharsets.UTF_8), ".roles-");
+                JToon.encode(doc).getBytes(StandardCharsets.UTF_8), ".roles-");
     }
 
     private static String str(Object v) {

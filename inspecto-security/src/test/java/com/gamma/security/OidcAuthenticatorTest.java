@@ -339,6 +339,39 @@ class OidcAuthenticatorTest {
                 "an existing-but-unreadable roles.toon suspends ALL role grants — never a silent seed fallback");
     }
 
+    // ── ABAC A1: identity.attributeClaims allowlist → Subject.attributes() ──────────
+
+    @Test
+    void onlyAllowlistedClaimsBecomeSubjectAttributes(@TempDir java.nio.file.Path configRoot) throws Exception {
+        java.nio.file.Files.writeString(configRoot.resolve("roles.toon"), JToon.encode(Map.of(
+                "roles", List.of(),
+                "identity", Map.of("attribute_claims", List.of("department", "clearance", "not-in-token")))));
+        JWTClaimsSet claims = new JWTClaimsSet.Builder()
+                .issuer(ISSUER).subject("ana").audience(AUDIENCE)
+                .expirationTime(Date.from(Instant.now().plusSeconds(60)))
+                .claim("roles", List.of("operations"))
+                .claim("department", "fraud-ops")
+                .claim("clearance", 3)
+                .claim("email", "ana@example.com")   // NOT allowlisted — must never surface
+                .build();
+        SignedJWT jwt = new SignedJWT(
+                new JWSHeader.Builder(JWSAlgorithm.RS256).keyID(RSA_KEY.getKeyID()).build(), claims);
+        jwt.sign(new RSASSASigner(RSA_KEY));
+        Subject ana = authenticateWithHeader(authenticator(ISSUER, AUDIENCE),
+                "Bearer " + jwt.serialize(), configRoot).orElseThrow();
+        assertEquals(Set.of("department", "clearance"), ana.attributes().keySet(),
+                "allowlisted-and-present claims only — never the raw token");
+        assertEquals("fraud-ops", ana.attributes().get("department"));
+        assertEquals(3L, ((Number) ana.attributes().get("clearance")).longValue());
+    }
+
+    @Test
+    void withoutAnAllowlistSubjectAttributesStayEmpty() throws Exception {
+        String jwt = token(Instant.now().plusSeconds(60), List.of("operations"), RSA_KEY, ISSUER, AUDIENCE, "ops");
+        Subject ops = authenticateWithHeader(authenticator(ISSUER, AUDIENCE), "Bearer " + jwt).orElseThrow();
+        assertTrue(ops.attributes().isEmpty(), "A1 is additive — no identity block, no attributes");
+    }
+
     // ── RBAC R0: gateway trust mode — X-JWT-Assertion as a second configured issuer/JWKS ──
 
     @Test

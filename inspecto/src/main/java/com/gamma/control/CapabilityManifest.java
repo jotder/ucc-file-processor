@@ -23,6 +23,7 @@ final class CapabilityManifest {
     static final List<Entry> ENTRIES = List.of(
             // AccessRoutes
             new Entry("PUT", "/access/roles", Roles.CAN_CONFIGURE_ACCESS),
+            new Entry("PUT", "/access/policies", Roles.CAN_CONFIGURE_ACCESS),
             new Entry("PUT", "/access/catalog", Roles.CAN_CONFIGURE_ACCESS),
             new Entry("PUT", "/access/profiles/([^/]+)", Roles.CAN_CONFIGURE_ACCESS),
             new Entry("DELETE", "/access/profiles/([^/]+)", Roles.CAN_CONFIGURE_ACCESS),

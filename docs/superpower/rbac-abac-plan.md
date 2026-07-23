@@ -213,11 +213,33 @@ the SEC-7d contract: 404, never 403 (no existence leak).
 
 ## 4. Workstream A — ABAC policy engine (Enterprise, new `inspecto-policy` module)
 
-- **A1 — attribute model.** Subject attributes: `id`, `roles`, `capabilities`, `dataScopes`,
+- **A1 — attribute model. ✅ SHIPPED 2026-07-23.** As built: `Subject` gained an additive
+  `attributes()` map (empty on every pre-A1 caller — delegating constructors keep all call sites
+  source-identical); `roles.toon` gained the optional `identity: {attributeClaims: […]}` allowlist
+  (validated on the same doc grammar, round-tripped through `GET/PUT /access/roles` with
+  full-replace semantics — omitting it clears it), and `OidcAuthenticator` copies exactly the
+  allowlisted-and-present verified claims onto the Subject (never the raw token; nothing when the
+  doc is unreadable — attributes fail closed alongside the role grants; both Bearer and gateway
+  assertions flow through the same path). Resource/environment attribute *binding* (envelope →
+  `resource.*`, action/route → `env.*`) is the A3 PDP's context assembly, not shipped here.
+  Original scope: subject attributes: `id`, `roles`, `capabilities`, `dataScopes`,
   selected IdP claims (allowlisted in `roles.toon`, never the raw token), bound `space`. Resource
   attributes: `kind`, `id`, `space`, `caseType`, `tags`, `classification`, `owner` (from the
   component/object envelope). Environment: `action` (read/write/operate), `route`.
-- **A2 — Access Policy documents.** ⛔ Never bare "Rule" (GLOSSARY): the authorable kind is
+- **A2 — Access Policy documents. ✅ SHIPPED 2026-07-23** (authoring + grammar; evaluation is A3).
+  As built: `com.gamma.util.Conditions` (inspecto-util, domain-agnostic — the "one policy engine,
+  many policy kinds" library) — recursive-descent, parse-once → `Condition` predicate over nested
+  maps via the existing `DottedPath`; strict-Boolean truthiness and type-mismatch-is-false keep
+  evaluation deterministic and fail-closed, parse errors carry the offset. Core
+  `com.gamma.control.AccessPolicies` (`@PublicApi`) mirrors `Roles`: per-space
+  `access-policies.toon`, mtime/size-cached `load`/`effective(ex)` (the A3 engine's read seam),
+  one validate grammar shared by the file parser and `GET/PUT /access/policies` in `AccessRoutes`
+  (PUT gated `canConfigureAccess` + manifest row; `when` parse-gates as a 422, so an unparseable
+  stored doc can only arise from on-disk edits — it marks the whole doc unreadable and the GET
+  surfaces "the policy engine denies (fail-closed)"). Conditions are pre-parsed into each `Policy`;
+  a blank `when` = constant-true (target-only policy). No UI (plan non-goal) and no evaluation yet —
+  on Personal/Standard classpaths a stored policy has no runtime effect until A3's
+  `inspecto-policy`. Original scope: the authorable kind is
   **Access Policy** — per-space `access-policies.toon`:
   `{name, effect: allow|deny, target: {actions, resourceKinds}, when: <condition>}`.
   Condition grammar (small, closed): attribute refs (`subject.* / resource.* / env.*` here),

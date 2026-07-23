@@ -43,6 +43,9 @@ final class AccessRoutes implements RouteModule {
         api.get("/access/roles", (e, m) -> roles(api));
         api.put("/access/roles", ApiContext.withCapability("canConfigureAccess",
                 (e, m) -> saveRoles(api, api.body(e))));
+        api.get("/access/policies", (e, m) -> policies(api));
+        api.put("/access/policies", ApiContext.withCapability("canConfigureAccess",
+                (e, m) -> savePolicies(api, api.body(e))));
         api.get("/access/catalog", (e, m) -> catalog(api));
         api.put("/access/catalog", ApiContext.withCapability("canConfigureAccess",
                 (e, m) -> saveCatalog(api, api.body(e))));
@@ -69,15 +72,20 @@ final class AccessRoutes implements RouteModule {
         Roles.effective(api.writeRoot()).forEach((name, def) ->
                 rows.add(roleShape(name, def, doc.authored().containsKey(name) ? "authored" : "seed")));
         out.put("roles", rows);
+        if (!doc.attributeClaims().isEmpty())
+            out.put("identity", Map.of("attributeClaims", doc.attributeClaims()));
         return out;
     }
 
     /** Full replace of the authored doc (settings-doc discipline): roles named here override their
-     *  seed entry (an empty capability list revokes); seed roles not named keep their defaults. */
+     *  seed entry (an empty capability list revokes); seed roles not named keep their defaults. The
+     *  optional {@code identity.attributeClaims} allowlist (ABAC A1) rides the same doc — omitting it
+     *  clears it, like any full-replace field. */
     private Object saveRoles(ApiContext api, Map<String, Object> body) throws IOException {
         Path root = WriteGates.requireWriteRoot(api, "role settings write");
         Map<String, Roles.Def> authored = Roles.validate(body.get("roles"));
-        Roles.write(root, authored);
+        List<String> attributeClaims = Roles.attributeClaims(body.get("identity"));
+        Roles.write(root, authored, attributeClaims);
         return roles(api);
     }
 
@@ -87,6 +95,43 @@ final class AccessRoutes implements RouteModule {
         r.put("capabilities", def.capabilities().stream().sorted().toList());
         if (def.dataScopes() != null) r.put("dataScopes", def.dataScopes().stream().sorted().toList());
         r.put("source", source);
+        return r;
+    }
+
+    // ── access policies (ABAC A2 — authorable allow/deny over attributes; evaluation is
+    //    the Enterprise policy engine's job, A3) ─────────────────────────────────────
+
+    /** The authored policies (an unreadable doc is surfaced — the engine denies, fail-closed). */
+    private Object policies(ApiContext api) {
+        AccessPolicies.Doc doc = AccessPolicies.load(api.writeRoot());
+        Map<String, Object> out = new LinkedHashMap<>();
+        if (doc.unreadable()) {
+            out.put("policies", List.of());
+            out.put("error", "access-policies.toon is unreadable — the policy engine denies (fail-closed) until it is fixed or re-saved");
+            return out;
+        }
+        out.put("policies", doc.policies().stream().map(AccessRoutes::policyShape).toList());
+        return out;
+    }
+
+    /** Full replace of the authored doc (settings-doc discipline). Conditions parse-gate here — a
+     *  `when` the {@code Conditions} grammar rejects is a 422, never a stored time bomb. */
+    private Object savePolicies(ApiContext api, Map<String, Object> body) throws IOException {
+        Path root = WriteGates.requireWriteRoot(api, "access policy write");
+        List<AccessPolicies.Policy> policies = AccessPolicies.validate(body.get("policies"));
+        AccessPolicies.write(root, policies);
+        return policies(api);
+    }
+
+    private static Map<String, Object> policyShape(AccessPolicies.Policy p) {
+        Map<String, Object> r = new LinkedHashMap<>();
+        r.put("name", p.name());
+        r.put("effect", p.effect());
+        Map<String, Object> target = new LinkedHashMap<>();
+        if (!p.actions().isEmpty()) target.put("actions", p.actions().stream().sorted().toList());
+        if (!p.resourceKinds().isEmpty()) target.put("resourceKinds", p.resourceKinds().stream().sorted().toList());
+        if (!target.isEmpty()) r.put("target", target);
+        if (!p.when().isBlank()) r.put("when", p.when());
         return r;
     }
 

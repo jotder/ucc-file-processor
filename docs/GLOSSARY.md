@@ -109,6 +109,20 @@ per-subject access grant on that one component. Distinct from the **Exchange** f
 Space, a Share names a Role or user. No `shares` key = the component is unrestricted (legacy
 behavior). *(Added 2026-07-23, RBAC R3 — `superpower/rbac-abac-plan.md` §3.)*
 
+**Access Policy** — An authorable **allow/deny statement over Attributes** (Enterprise policy engine):
+`{name, effect: allow|deny, target: {actions?, resourceKinds?}, when: <condition>}` in a per-space
+`access-policies.toon` (`GET/PUT /access/policies`); the `when` condition is the shared `Conditions`
+grammar over `subject.* / resource.* / env.*`. ⛔ Never bare *Rule* or *Policy Rule* — "Rule" belongs to
+the dataset-side families (Expectation / Alert Rule / Decision Rule). Authoring is core; *evaluation*
+ships only in the Enterprise `inspecto-policy` module. *(Added 2026-07-23, ABAC A2 —
+`superpower/rbac-abac-plan.md` §4.)*
+
+**Attribute** — A named **subject / resource / environment fact** an Access Policy conditions on:
+subject = `id`, `capabilities`, `dataScopes`, plus IdP claims allowlisted in `roles.toon`
+`identity.attributeClaims` (never the raw token); resource = the component/object envelope (`kind`,
+`space`, `owner`, `tags`, …); environment = `action` (read/write/operate), `route`. *(Added 2026-07-24,
+ABAC A1.)*
+
 **Workbench** — The Builder surface for acquisition + processing authoring: Connections, Collectors, and
 Pipelines. *(Formalizes the informal use in §3 Stream.)*
 
@@ -554,7 +568,7 @@ touchpoint before renaming; the backend hits below are *known examples*, not an 
 | Issue | **Incident** | ✅ **DONE** (`2878b31`, breaking → 5.0): `ObjectType.INCIDENT`, `/objects?type=INCIDENT` + `objectType` value, UI `/issues`→`/incidents` (route file renamed), ops-mock seeds INCIDENT. No DB migration (in-memory `ObjectStore`). |
 | Incident lifecycle `OPEN → ASSIGNED → IN_PROGRESS → RESOLVED → CLOSED` | **`IDENTIFIED → DIAGNOSING → RESOLVED → ARCHIVED`** (§9) | ✅ **DONE end-to-end** (2026-07-12, mail-like Incidents/Case Manager — `docs/superpower/incidents-mail-ui-design.md`): UI `object-mail.component` + mock (`128aeaa`/`175a6e7`); backend pass shipped the built-in INCIDENT `Workflow` (actions `accept/resolve/archive/reopen`; ARCHIVED terminal; reopen clears `closedAt`; `assign` no longer moves status) + `PATCH /objects/{id}`. Still config-replaceable via `*_workflow.toon`; UI keeps normalizing legacy names for overridden deployments. |
 | Label *(on an Incident)* | **Tag** (§9) | ✅ **DONE end-to-end**: UI Tags CSV in `attributes.tags`; backend `com.gamma.ops.tag.{Tag,TagRule}` + `/tags*` routes with `*_tag.toon`/`*_tagrule.toon` persistence and the create-time Tag-Rule auto-apply hook (design §5b/§7). |
-| Rule *(bare)* | **Expectation** / **Alert Rule** / **Decision Rule** | rule builder UI; `AlertRule`, rule services — split by purpose |
+| Rule *(bare)* | **Expectation** / **Alert Rule** / **Decision Rule** / **Access Policy** | rule builder UI; `AlertRule`, rule services — split by purpose. **Access Policy** added 2026-07-23 (ABAC A2, §1-A): the attribute-based allow/deny kind (`access-policies.toon`, `AccessPolicies`, `GET/PUT /access/policies`) — never a generic "Policy"/"Rule" kind |
 | Metric *(BI sense)* | **Measure** | ✅ **UI DONE** (`feat/rename-bi-metric-to-measure`): Studio/viz FE renamed — `DatasetRole`/`FieldRole` `'metric'`→`'measure'`, `NamedMetric`→`NamedMeasure`, `QueryMetric`→`QueryMeasure`, `buildMetric`/`metricId`, `isMetric`, `DatasetConfig.metrics`/`QuerySpec.measures`, plugins, mock data + specs. ✅ **Backend = NO-OP** (verified 2026-06-30): the backend BI concept is **KPI** (`kpis:` / `KpiMeta` / `NodeKind.KPI` / `IdScheme.kpi()`) — a *distinct canonical term* (a single-number Measure with a target), **not** renamed. There is no server-side "Metric" in the BI sense. Kept ops `MetricRegistry`/`MetricsService`/`AcquisitionTelemetry` as **Metric**. |
 | Source *(acquisition entity)* | **Collector** | ✅ **DONE (breaking, NO version bump)** — reverses the 2026-06-29 lock (2026-07-14, uncommitted on `master`; nothing shipped on 4.x, same precedent as the Flow→Pipeline backend rename). Backend: SPI `SourceConnector→CollectorConnector` (+ `META-INF/services` + 13 connector impls), `SourceService→CollectorService` (`sources()→collectors()`), watchers/processors, routes **`/sources→/collectors`** + `/collectors/{id}/notify`, audit `collector.notified`. UI: `/sources→/collectors` route+folder+`Collectors*` components/`CollectorsService`, nav, mock `SOURCES_RE→/collectors`, labels. Runtime role = **collection engine**; `collect()` verbs kept. Pipeline **TOON config-key `source:` → `collector:`** also migrated: `PipelineConfig.Source→Collector`, parser key, and all 6 authored TOON blocks (`examples/` + `spaces/{demo,uat}`). Only non-block `source` uses remain (lineage attr key, `Event.source()`, `pd.source()`, `SOURCE` stage-category). |
 | `USES` *(lineage edge)* | **`CONSUMES`** | ✅ **DONE** (breaking → 5.0): `EdgeKind.CONSUMES`, `MetadataGraphBuilder` report→kpi edge; FE `models.ts` `EdgeKind` already `CONSUMES`. ⚠️ `/catalog/graph` emits the new value (no alias). |
