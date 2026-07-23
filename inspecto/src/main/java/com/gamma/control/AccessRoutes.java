@@ -136,6 +136,9 @@ final class AccessRoutes implements RouteModule {
         String capability = str(node.get("capability"));
         if ("action".equals(kind) && capability.isBlank())
             throw new ApiException(422, "action node '" + id + "' requires a 'capability'");
+        if (!capability.isBlank() && !Roles.KNOWN_CAPABILITIES.contains(capability))
+            throw new ApiException(422, "catalog node '" + id + "' has unknown capability '" + capability
+                    + "' (expected one of " + Roles.KNOWN_CAPABILITIES + ")");   // R4: manifest vocabulary
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("id", id);
         out.put("label", label.trim());

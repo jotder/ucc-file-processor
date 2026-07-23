@@ -339,8 +339,10 @@ per-request overlay, restart-free; `RoleMapper` switch retired). ⚠ Seed table 
 route capabilities (`canConfigureAccess`, `canAuthorAlertRules`, `canOfferDatasets`,
 `canRequestShares`, `canApproveShares`) were granted by NO role (access-config writes unreachable
 under OIDC; bootstrap deadlock) — now seeded to builder/ops/admin/super per the plan's R1 note;
-**product review of the new seed pending** (fold into Q3). Next per plan phasing: **R4**
-(capability→route manifest), then R2 (Access-Profile server-side enforcement). Identity/login, user model, role-assignment UI,
+**product review of the new seed pending** (fold into Q3). **R4 SHIPPED 2026-07-23:**
+`CapabilityManifest` (70 declared gates) + two-way source-scan congruence test; `KNOWN_CAPABILITIES`
+now derives from it; catalog action nodes 422 on unknown capabilities. Next per plan phasing: **R2**
+(Access-Profile server-side enforcement + authorize stage; folds in X-Actor retirement). Identity/login, user model, role-assignment UI,
 Admin pane, server enforcement, lens-switcher
 constraint — per `archived-documents/plans-archive/rbac-groundwork.md` §5. Rides on top:
 **Lens Access P3** (subjects become Roles, matrix enforcement server-side — the shipped

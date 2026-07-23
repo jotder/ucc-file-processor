@@ -124,10 +124,14 @@ the SEC-7d contract: 404, never 403 (no existence leak).
   `owner` + `shares: [{subjectType: role|user, subjectId, access: view|edit}]` (additive TOON;
   absent = today's behavior). Enforced in the component read/write routes via the decider.
   Retires the BACKLOG §3/§6 "sharing RBAC" duplicate pair.
-- **R4 — capability→route manifest.** A declared table (code, not config) of
-  `route pattern → capability`, asserted by a test that greps the registered routes vs
-  `withCapability` call sites — closes the "scattered gates, no audit" gap; also feeds R1's 422
-  validation and the Access Catalog's action nodes.
+- **R4 — capability→route manifest. ✅ SHIPPED 2026-07-23.** As built: `CapabilityManifest`
+  (core, package-private) declares all 70 gated registrations (`method + pattern → capability`,
+  grouped by route class); `CapabilityManifestTest` source-scans the route files for
+  `withCapability` sites and asserts exact two-way congruence (drift fails the build), plus the
+  vocabulary invariants — every route-demanded capability is granted by ≥1 seed role (the pre-R1
+  orphan-capability bug class can't recur) and `Roles.KNOWN_CAPABILITIES` is now *derived from* the
+  manifest (single source of truth for the roles.toon 422 set). Access-Catalog action nodes now 422
+  on a capability outside the manifest vocabulary.
 - **R5 — Admin visibility.** Settings ▸ Access gains a **Roles** tab: the R1 editor + a read-only
   "effective grants" view per role (roles.toon ∘ profile matrix). Role *assignment* stays in the
   IdP (claims), by design.

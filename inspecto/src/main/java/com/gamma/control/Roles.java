@@ -65,10 +65,9 @@ public final class Roles {
     public static final String CAN_REQUEST_SHARES      = "canRequestShares";
     public static final String CAN_APPROVE_SHARES      = "canApproveShares";
 
-    static final Set<String> KNOWN_CAPABILITIES = Set.of(
-            CAN_AUTHOR_WORKBENCH, CAN_OPERATE_RUNS, CAN_TRIAGE_REQUIREMENTS, CAN_ONBOARD_CONNECTIONS,
-            CAN_CONFIGURE_ACCESS, CAN_AUTHOR_ALERT_RULES, CAN_OFFER_DATASETS, CAN_REQUEST_SHARES,
-            CAN_APPROVE_SHARES);
+    /** The capability vocabulary = exactly what the route gates demand ({@link CapabilityManifest},
+     *  R4) — the 422 validation set for authored roles and Access-Catalog action nodes. */
+    static final Set<String> KNOWN_CAPABILITIES = Set.copyOf(CapabilityManifest.capabilities());
 
     private static final int MAX_ROLES = 200;
     private static final int MAX_SCOPES = 64;
