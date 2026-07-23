@@ -216,6 +216,37 @@ class OidcAuthenticatorTest {
                 subject.get().capabilities());
     }
 
+    @Test
+    void heldRolesAreStampedOnTheExchangeForShareMatching() throws Exception {
+        // R3: `subjectType: role` component shares match against the recognised role names the
+        // authenticator stamps server-internally (ComponentAccess.ATTR_HELD_ROLES) — the Subject
+        // itself stays capabilities-only, so role names still never reach a response.
+        String jwt = token(Instant.now().plusSeconds(60), List.of("Operations", "made-up-role"),
+                RSA_KEY, ISSUER, AUDIENCE, "olly");
+        HttpServer server = HttpServer.create(new InetSocketAddress(0), 0);
+        AtomicReference<Object> stamped = new AtomicReference<>();
+        CountDownLatch done = new CountDownLatch(1);
+        server.createContext("/", ex -> {
+            authenticator(ISSUER, AUDIENCE).authenticate(ex);
+            stamped.set(ex.getAttribute(com.gamma.control.ComponentAccess.ATTR_HELD_ROLES));
+            ex.sendResponseHeaders(204, -1);
+            ex.close();
+            done.countDown();
+        });
+        server.start();
+        try {
+            HttpClient.newHttpClient().send(
+                    HttpRequest.newBuilder(URI.create("http://localhost:" + server.getAddress().getPort() + "/"))
+                            .header("Authorization", "Bearer " + jwt).GET().build(),
+                    HttpResponse.BodyHandlers.discarding());
+            assertTrue(done.await(5, TimeUnit.SECONDS));
+            assertEquals(Set.of("operations"), stamped.get(),
+                    "recognised (table-backed) roles only, lowercased — unknown roles never stamp");
+        } finally {
+            server.stop(0);
+        }
+    }
+
     // ── RBAC R1: authored roles.toon resolved per request (no restart) ──────────────
 
     private static void writeRolesDoc(java.nio.file.Path configRoot, List<Map<String, Object>> roles) throws Exception {

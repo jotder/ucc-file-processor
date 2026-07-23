@@ -27,21 +27,21 @@ final class ComponentRoutes implements RouteModule {
 
     @Override
     public void register(ApiContext api) {
-        api.get("/components/([^/]+)", (e, m) -> componentList(api, ApiContext.name(m)));
+        api.get("/components/([^/]+)", (e, m) -> componentList(api, e, ApiContext.name(m)));
         api.get("/components/([^/]+)/([^/]+)", (e, m) -> componentById(api, e, ApiContext.name(m), ApiContext.param(m, 2)));
         // Writes require canAuthorWorkbench (W6; a no-op on Personal — no Subject is ever attached there).
         api.post("/components/([^/]+)", ApiContext.withCapability("canAuthorWorkbench", (e, m) -> createComponent(api, e, ApiContext.name(m), api.body(e))));
         api.put("/components/([^/]+)/([^/]+)", ApiContext.withCapability("canAuthorWorkbench", (e, m) -> updateComponent(api, e, ApiContext.name(m), ApiContext.param(m, 2), api.body(e))));
-        api.delete("/components/([^/]+)/([^/]+)", ApiContext.withCapability("canAuthorWorkbench", (e, m) -> deleteComponent(api, ApiContext.name(m), ApiContext.param(m, 2))));
+        api.delete("/components/([^/]+)/([^/]+)", ApiContext.withCapability("canAuthorWorkbench", (e, m) -> deleteComponent(api, e, ApiContext.name(m), ApiContext.param(m, 2))));
         // MET-5 version history: list prior saved copies + restore one (restore is an authoring write).
-        api.get("/components/([^/]+)/([^/]+)/versions", (e, m) -> listVersions(api, ApiContext.name(m), ApiContext.param(m, 2)));
+        api.get("/components/([^/]+)/([^/]+)/versions", (e, m) -> listVersions(api, e, ApiContext.name(m), ApiContext.param(m, 2)));
         api.post("/components/([^/]+)/([^/]+)/versions/([^/]+)/restore", ApiContext.withCapability("canAuthorWorkbench",
                 (e, m) -> restoreVersion(api, e, ApiContext.name(m), ApiContext.param(m, 2), ApiContext.param(m, 3))));
         // T18 dry-run/test: preview a component over a sample through the production logic (scratch-only).
-        api.post("/components/transform/([^/]+)/test", (e, m) -> previewTransform(api, ApiContext.name(m), api.body(e)));
-        api.post("/components/grammar/([^/]+)/test", (e, m) -> previewGrammar(api, ApiContext.name(m), api.body(e)));
-        api.post("/components/schema/([^/]+)/test", (e, m) -> previewSchema(api, ApiContext.name(m), api.body(e)));
-        api.post("/components/sink/([^/]+)/test", (e, m) -> previewSink(api, ApiContext.name(m), api.body(e)));
+        api.post("/components/transform/([^/]+)/test", (e, m) -> previewTransform(api, e, ApiContext.name(m), api.body(e)));
+        api.post("/components/grammar/([^/]+)/test", (e, m) -> previewGrammar(api, e, ApiContext.name(m), api.body(e)));
+        api.post("/components/schema/([^/]+)/test", (e, m) -> previewSchema(api, e, ApiContext.name(m), api.body(e)));
+        api.post("/components/sink/([^/]+)/test", (e, m) -> previewSink(api, e, ApiContext.name(m), api.body(e)));
     }
 
     /** The registry root under the write root, or {@code null} when writes are disabled (no write root). */
@@ -79,12 +79,15 @@ final class ComponentRoutes implements RouteModule {
         m.put("modified", modified);
     }
 
-    /** {@code GET /components/{type}} — list components of a type (empty when no registry/write root). */
-    private Object componentList(ApiContext api, String type) {
+    /** {@code GET /components/{type}} — list components of a type (empty when no registry/write root).
+     *  Components shared away from this subject are filtered out (R3 — same list contract as SEC-7d). */
+    private Object componentList(ApiContext api, com.sun.net.httpserver.HttpExchange ex, String type) {
         Path root = componentRootOrNull(api);
         if (root == null) return List.of();
         try {
-            return new ComponentStore(root).list(type).stream().map(ComponentRoutes::componentDoc).toList();
+            return new ComponentStore(root).list(type).stream()
+                    .filter(c -> ComponentAccess.canView(ex, c.content()))
+                    .map(ComponentRoutes::componentDoc).toList();
         } catch (IllegalArgumentException e) {
             throw new ApiException(400, e.getMessage());
         }
@@ -103,6 +106,7 @@ final class ComponentRoutes implements RouteModule {
             throw new ApiException(400, e.getMessage());
         }
         if (c == null) throw new ApiException(404, "no " + type + " component '" + id + "'");
+        ComponentAccess.requireView(ex, type, id, c.content());   // R3: shared-away ⇒ indistinguishable 404
         // SEC-7(b): the only verbs on a registry component are the Workbench-authoring family.
         ApiContext.resourcePermissions(ex, java.util.Set.of("canAuthorWorkbench"));
         String etag = ETags.of(ContentHash.of(c.content()));
@@ -119,7 +123,8 @@ final class ComponentRoutes implements RouteModule {
         if (id == null || id.isBlank()) throw new ApiException(400, "body must include 'id' (or 'name')");
         if (componentExists(store, type, id))
             throw new ApiException(409, type + " component '" + id + "' already exists (use PUT to update)");
-        return writeComponent(store, ex, type, id, body);
+        // R3: validate the sharing envelope + stamp owner from the authenticated subject (provenance).
+        return writeComponent(store, ex, type, id, ComponentAccess.onCreate(ex, body));
     }
 
     /**
@@ -131,8 +136,10 @@ final class ComponentRoutes implements RouteModule {
         ComponentStore store = componentStore(api);
         ComponentRegistry.Component current = existing(store, type, id);
         if (current == null) throw new ApiException(404, "no " + type + " component '" + id + "'");
+        // R3: edit access against the current envelope, carry owner/shares forward, owner-only envelope changes.
+        Map<String, Object> merged = ComponentAccess.onUpdate(ex, type, id, current.content(), body);
         ETags.requireMatch(ex, ETags.of(ContentHash.of(current.content())));
-        return writeComponent(store, ex, type, id, body);
+        return writeComponent(store, ex, type, id, merged);
     }
 
     /** The current component or {@code null}; maps a bad type to the standard 400. */
@@ -145,9 +152,11 @@ final class ComponentRoutes implements RouteModule {
     }
 
     /** {@code DELETE /components/{type}/{id}} — safe-delete; 404 if absent, 409 if a flow references it. */
-    private Object deleteComponent(ApiContext api, String type, String id) throws IOException {
+    private Object deleteComponent(ApiContext api, com.sun.net.httpserver.HttpExchange ex, String type, String id) throws IOException {
         ComponentStore store = componentStore(api);
-        if (!componentExists(store, type, id)) throw new ApiException(404, "no " + type + " component '" + id + "'");
+        ComponentRegistry.Component current = existing(store, type, id);
+        if (current == null) throw new ApiException(404, "no " + type + " component '" + id + "'");
+        ComponentAccess.requireDelete(ex, type, id, current.content());   // R3: shared ⇒ owner-only delete
         List<String> refs = PipelineReferences.referencedBy(type + "/" + id, PipelineRoutes.liftedFlows(api.service()));
         if (!refs.isEmpty())
             throw new ApiException(409, type + " component '" + id + "' is referenced by flow(s): "
@@ -168,11 +177,13 @@ final class ComponentRoutes implements RouteModule {
     }
 
     /** {@code GET /components/{type}/{id}/versions} — prior saved copies, newest first (MET-5); 404 if absent. */
-    private Object listVersions(ApiContext api, String type, String id) {
+    private Object listVersions(ApiContext api, com.sun.net.httpserver.HttpExchange ex, String type, String id) {
         Path root = componentRootOrNull(api);
         if (root == null) return List.of();
         ComponentStore store = new ComponentStore(root);
-        if (!componentExists(store, type, id)) throw new ApiException(404, "no " + type + " component '" + id + "'");
+        ComponentRegistry.Component current = existing(store, type, id);
+        if (current == null) throw new ApiException(404, "no " + type + " component '" + id + "'");
+        ComponentAccess.requireView(ex, type, id, current.content());   // R3: history is as private as the doc
         try {
             return store.versions(type, id).stream().map(v -> versionDoc(type, id, v)).toList();
         } catch (IllegalArgumentException e) {
@@ -193,7 +204,8 @@ final class ComponentRoutes implements RouteModule {
         } catch (NumberFormatException e) {
             throw new ApiException(400, "version must be an integer, got '" + versionStr + "'");
         }
-        if (!componentExists(store, type, id)) throw new ApiException(404, "no " + type + " component '" + id + "'");
+        ComponentRegistry.Component current = existing(store, type, id);
+        if (current == null) throw new ApiException(404, "no " + type + " component '" + id + "'");
         Map<String, Object> content;
         try {
             content = store.versionContent(type, id, version).orElseThrow(
@@ -201,7 +213,8 @@ final class ComponentRoutes implements RouteModule {
         } catch (IllegalArgumentException e) {
             throw new ApiException(400, e.getMessage());
         }
-        return writeComponent(store, ex, type, id, content);
+        // R3: a restore is an update — edit access, envelope carried forward, owner-only envelope changes.
+        return writeComponent(store, ex, type, id, ComponentAccess.onUpdate(ex, type, id, current.content(), content));
     }
 
     /** The JSON shape for one archived version: identity + version metadata + the archived content. */
@@ -223,7 +236,7 @@ final class ComponentRoutes implements RouteModule {
      * operator. Never touches production output.
      */
     @SuppressWarnings("unchecked")
-    private Object previewTransform(ApiContext api, String id, Map<String, Object> body) {
+    private Object previewTransform(ApiContext api, com.sun.net.httpserver.HttpExchange ex, String id, Map<String, Object> body) {
         Path root = componentRootOrNull(api);
         ComponentRegistry.Component c;
         try {
@@ -232,6 +245,7 @@ final class ComponentRoutes implements RouteModule {
             throw new ApiException(400, e.getMessage());
         }
         if (c == null) throw new ApiException(404, "no transform component '" + id + "'");
+        ComponentAccess.requireView(ex, "transform", id, c.content());   // R3
         String type = ApiContext.str(c.content(), "type");
         if (type == null || !type.startsWith("transform."))
             throw new ApiException(422, "component '" + id + "' is not a transform ('type: transform.*' required)");
@@ -251,8 +265,8 @@ final class ComponentRoutes implements RouteModule {
      * dialect through the production {@code read_csv} on a throwaway DuckDB (T18, §7.2). 404 if absent, 400 on
      * empty input, 422 on a parse error. Never touches production output.
      */
-    private Object previewGrammar(ApiContext api, String id, Map<String, Object> body) {
-        ComponentRegistry.Component c = requireComponent(api, "grammar", id);
+    private Object previewGrammar(ApiContext api, com.sun.net.httpserver.HttpExchange ex, String id, Map<String, Object> body) {
+        ComponentRegistry.Component c = requireComponent(api, ex, "grammar", id);
         try {
             return ComponentPreview.grammar(c.content(), sampleText(body));
         } catch (IllegalArgumentException e) {
@@ -267,8 +281,8 @@ final class ComponentRoutes implements RouteModule {
      * component's typed fields, splitting {@code data} / {@code rejected}, on a throwaway DuckDB (T18, §7.2).
      * 404 if absent, 400 on a bad sample, 422 on a cast/SQL error. Never touches production output.
      */
-    private Object previewSchema(ApiContext api, String id, Map<String, Object> body) {
-        ComponentRegistry.Component c = requireComponent(api, "schema", id);
+    private Object previewSchema(ApiContext api, com.sun.net.httpserver.HttpExchange ex, String id, Map<String, Object> body) {
+        ComponentRegistry.Component c = requireComponent(api, ex, "schema", id);
         try {
             return ComponentPreview.schema(c.content(), ApiContext.sampleRows(body));
         } catch (IllegalArgumentException e) {
@@ -283,8 +297,8 @@ final class ComponentRoutes implements RouteModule {
      * (store/format/partition checks; row count + bounded sample, no write) (T18, §7.2). 404 if absent, 400 on
      * a bad sample.
      */
-    private Object previewSink(ApiContext api, String id, Map<String, Object> body) {
-        ComponentRegistry.Component c = requireComponent(api, "sink", id);
+    private Object previewSink(ApiContext api, com.sun.net.httpserver.HttpExchange ex, String id, Map<String, Object> body) {
+        ComponentRegistry.Component c = requireComponent(api, ex, "sink", id);
         try {
             return ComponentPreview.sink(c.content(), ApiContext.sampleRows(body));
         } catch (IllegalArgumentException e) {
@@ -293,7 +307,7 @@ final class ComponentRoutes implements RouteModule {
     }
 
     /** Load a component by {@code type}/{@code id} or fail with the standard 400/404 (shared by the preview handlers). */
-    private ComponentRegistry.Component requireComponent(ApiContext api, String type, String id) {
+    private ComponentRegistry.Component requireComponent(ApiContext api, com.sun.net.httpserver.HttpExchange ex, String type, String id) {
         Path root = componentRootOrNull(api);
         ComponentRegistry.Component c;
         try {
@@ -302,6 +316,7 @@ final class ComponentRoutes implements RouteModule {
             throw new ApiException(400, e.getMessage());
         }
         if (c == null) throw new ApiException(404, "no " + type + " component '" + id + "'");
+        ComponentAccess.requireView(ex, type, id, c.content());   // R3
         return c;
     }
 

@@ -2,6 +2,7 @@ package com.gamma.security;
 
 import com.gamma.control.AccessGrants;
 import com.gamma.control.Authenticator;
+import com.gamma.control.ComponentAccess;
 import com.gamma.control.Roles;
 import com.gamma.control.Subject;
 import com.nimbusds.jose.JWSAlgorithm;
@@ -72,6 +73,9 @@ public final class OidcAuthenticator implements Authenticator {
             var held = RoleMapper.roles(claims, rolesClaim).stream()
                     .map(r -> r.toLowerCase(java.util.Locale.ROOT)).filter(defs::containsKey).toList();
             capabilities.removeAll(AccessGrants.deniedCapabilities(ex, held));
+            // RBAC R3: expose the recognised role names server-internally so component sharing can
+            // match `subjectType: role` shares — the Subject itself stays capabilities-only.
+            ex.setAttribute(ComponentAccess.ATTR_HELD_ROLES, Set.copyOf(held));
             return Optional.of(new Subject(subjectId, Set.copyOf(capabilities),
                     RoleMapper.dataScopesFor(claims, rolesClaim, defs)));
         } catch (Exception e) {

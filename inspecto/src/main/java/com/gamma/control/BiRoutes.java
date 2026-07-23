@@ -42,7 +42,7 @@ final class BiRoutes implements RouteModule {
 
     @Override
     public void register(ApiContext api) {
-        api.get("/bi/datasets", (e, m) -> listDatasets(api));
+        api.get("/bi/datasets", (e, m) -> listDatasets(api, e));
         api.post("/bi/query", (e, m) -> biQuery(api, e, api.body(e)));
         // BI-8 template gallery: curated starter widget/dashboard sets, parameterized by dataset and
         // applied server-side into the component store (cross-space sharing stays BundleRoutes' job).
@@ -51,12 +51,14 @@ final class BiRoutes implements RouteModule {
                 BiTemplates.apply(api, ApiContext.name(m), api.body(e))));
     }
 
-    /** {@code GET /bi/datasets} — every persisted dataset component with its binding kind. */
-    private Object listDatasets(ApiContext api) throws IOException {
+    /** {@code GET /bi/datasets} — every persisted dataset component with its binding kind (datasets
+     *  shared away from this subject are filtered out, R3 — same contract as {@code /components}). */
+    private Object listDatasets(ApiContext api, HttpExchange ex) throws IOException {
         Path writeRoot = WriteGates.requireWriteRoot(api, "BI dataset listing");
         ComponentStore store = new ComponentStore(writeRoot.resolve("registry"));
         List<Map<String, Object>> out = new ArrayList<>();
         for (ComponentRegistry.Component c : store.list("dataset")) {
+            if (!ComponentAccess.canView(ex, c.content())) continue;
             Map<String, Object> m = new LinkedHashMap<>();
             m.put("id", c.name());
             Map<String, Object> cfg = c.content();
@@ -93,6 +95,8 @@ final class BiRoutes implements RouteModule {
         Map<String, Object> dataset = store.get("dataset", spec.dataset())
                 .map(ComponentRegistry.Component::content)
                 .orElseThrow(() -> new ApiException(404, "no dataset '" + spec.dataset() + "'"));
+        if (!ComponentAccess.canView(ex, dataset))   // R3: shared-away ⇒ indistinguishable from absence
+            throw new ApiException(404, "no dataset '" + spec.dataset() + "'");
         String relationSql;
         try {
             relationSql = DatasetRelation.relationSql(dataset, api.dataRoot(), new ViewStore(writeRoot.resolve("views")));

@@ -102,6 +102,13 @@ permission while the subject is a Lens (see Lens ⛔ above). *(Added 2026-07-14.
 ancestor, root default allow. Same word as the Role model's "named grant set" — intentionally aligned.
 UI copy in the Lens era says **Shown / Hidden / Inherit**. *(Added 2026-07-14.)*
 
+**Share** — One entry of a registry component's optional sharing envelope
+(`shares: [{subjectType: role|user, subjectId, access: view|edit}]`, plus `owner`): an intra-Space,
+per-subject access grant on that one component. Distinct from the **Exchange** family
+(Offer / Share Grant), which shares an item *across Spaces* — an Exchange grant names a consumer
+Space, a Share names a Role or user. No `shares` key = the component is unrestricted (legacy
+behavior). *(Added 2026-07-23, RBAC R3 — `superpower/rbac-abac-plan.md` §3.)*
+
 **Workbench** — The Builder surface for acquisition + processing authoring: Connections, Collectors, and
 Pipelines. *(Formalizes the informal use in §3 Stream.)*
 

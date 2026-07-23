@@ -143,10 +143,34 @@ the SEC-7d contract: 404, never 403 (no existence leak).
   `SessionService.init()` re-reads `/bootstrap` with the fresh bearer after a resume (the first,
   anonymous read carries no session slice), and the offline mock gained a
   `localStorage['inspecto.mockCapabilities']` override to exercise constrained subjects.
-- **R3 — sharing RBAC (datasets / widgets / dashboards).** Components gain optional
-  `owner` + `shares: [{subjectType: role|user, subjectId, access: view|edit}]` (additive TOON;
-  absent = today's behavior). Enforced in the component read/write routes via the decider.
-  Retires the BACKLOG §3/§6 "sharing RBAC" duplicate pair.
+- **R3 — sharing RBAC (datasets / widgets / dashboards). ✅ SHIPPED 2026-07-23.** As built:
+  registry components (every `ComponentStore` kind, not just the three headliners) accept an
+  optional `owner` + `shares: [{subjectType: role|user, subjectId, access: view|edit}]` envelope —
+  additive TOON keys inside the content, absent on every existing doc. Decision logic is core
+  `ComponentAccess` (package `com.gamma.control`): **no `shares` key ⇒ byte-identical today's
+  behavior** (`owner` alone is provenance, auto-stamped from the authenticated subject at create —
+  a bare owner must not silently privatize every authenticated create); once `shares` is present
+  the component is restricted — owner + `canConfigureAccess` holders (the governance escape hatch;
+  an orphaned IdP `sub` must never brick a doc) get full access, matching shares grant view/edit,
+  everyone else gets the SEC-7d contract: **404 indistinguishable from absence** on read AND
+  mutate, and list responses (`GET /components/{type}`, `GET /bi/datasets`) filter silently.
+  View-share writes and non-owner deletes/envelope-changes are 403 (existence already known).
+  Plain saves carry `owner`/`shares` forward when the body omits them (an edit-share save never
+  strips protection); envelope changes and deletes of a shared doc are owner/admin-only; version
+  history + restore + the `/test` previews honour the same gates. **Role matching keeps the
+  Subject capabilities-only (guideline 13):** `OidcAuthenticator` stamps the recognised
+  (table-backed, lowercased) role names on the exchange as `ComponentAccess.ATTR_HELD_ROLES` —
+  a server-internal seam mirroring `Roles.ATTR_CONFIG_ROOT`, never serialized; an Authenticator
+  that doesn't stamp it just matches no role shares (fail-closed). §8 Q4 resolved as-built: both
+  subject types shipped — `user` matches the opaque IdP `sub` (no user directory needed).
+  Malformed envelopes 422 on write; a hand-edited malformed stored share grants nothing.
+  Personal (no Authenticator) is fail-open: envelopes are inert, all routes unchanged. Tests:
+  `ControlApiComponentSharesTest` (real HTTP: owner stamp, 404-hiding, role/user shares,
+  carry-forward, admin bypass, fail-open) + `OidcAuthenticatorTest` held-roles stamp. Known
+  residuals (deliberate): direct `ComponentStore` writers (BiTemplates apply, bundle import,
+  Exchange snapshot) bypass the envelope — server-internal paths; row-level generalization of
+  this filter to other list families is A3's `RowScope`. Retired the BACKLOG §3/§6 "sharing
+  RBAC" duplicate pair.
 - **R4 — capability→route manifest. ✅ SHIPPED 2026-07-23.** As built: `CapabilityManifest`
   (core, package-private) declares all 70 gated registrations (`method + pattern → capability`,
   grouped by route class); `CapabilityManifestTest` source-scans the route files for
@@ -247,8 +271,10 @@ existing default-profile suite (fail-open must stay byte-identical).
    the spoofable header fully redundant).
 3. Policy authoring UX beyond TOON+validation (matrix editor? simulator/"why denied?" explain
    endpoint) — decide after A3 ships with real usage.
-4. Does R3 sharing need a `user` subjectType before any user directory exists (IdP `sub` as
-   opaque id), or roles-only in v1?
+4. ~~Does R3 sharing need a `user` subjectType before any user directory exists (IdP `sub` as
+   opaque id), or roles-only in v1?~~ **RESOLVED as-built 2026-07-23:** both shipped — `user`
+   matches the opaque IdP `sub` (`Subject.id()`), no directory needed; a share to an unknown id
+   simply never matches.
 5. **Final vendor split** — Keycloak as IdP + WSO2 APIM as gateway, or WSO2 Identity Server for
    both? R0's standards-only design keeps every combination viable; decide before the first
    gatewayed deployment (affects ops runbooks + the NFR-7 control evidence, not code).
