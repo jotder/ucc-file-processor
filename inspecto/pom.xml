@@ -130,7 +130,8 @@
              Exclusions keep OFFLINE resolution clean: the default binaries version (14.10.1) and
              commons-codec 1.15 are NOT cached, and flyway/liquibase/junit4/mockito/slf4j-simple are
              unwanted, so we strip them and pin the cached windows-amd64 16.4.0 binary, commons-codec
-             1.18.0 and postgresql 42.7.4 explicitly. -->
+             1.18.0 and postgresql 42.7.4 explicitly. (commons-io is also stripped+pinned to 2.20.0, but for
+             a different reason — it IS cached, just too old for embedded-postgres; see its inline note below.) -->
         <dependency>
             <groupId>io.zonky.test</groupId>
             <artifactId>embedded-postgres</artifactId>
@@ -143,6 +144,7 @@
                 <exclusion><groupId>org.mockito</groupId><artifactId>mockito-core</artifactId></exclusion>
                 <exclusion><groupId>org.slf4j</groupId><artifactId>slf4j-simple</artifactId></exclusion>
                 <exclusion><groupId>commons-codec</groupId><artifactId>commons-codec</artifactId></exclusion>
+                <exclusion><groupId>commons-io</groupId><artifactId>commons-io</artifactId></exclusion>
                 <exclusion><groupId>org.postgresql</groupId><artifactId>postgresql</artifactId></exclusion>
                 <exclusion><groupId>io.zonky.test.postgres</groupId><artifactId>embedded-postgres-binaries-windows-amd64</artifactId></exclusion>
                 <exclusion><groupId>io.zonky.test.postgres</groupId><artifactId>embedded-postgres-binaries-darwin-amd64</artifactId></exclusion>
@@ -160,6 +162,16 @@
             <groupId>commons-codec</groupId>
             <artifactId>commons-codec</artifactId>
             <version>1.18.0</version>
+            <scope>test</scope>
+        </dependency>
+        <!-- embedded-postgres 2.0.7 declares commons-io 2.11.0 directly (Maven nearest-wins), but its
+             EmbeddedPostgres.extractTxz uses IOIterator (commons-io >= 2.12) -> NoClassDefFoundError at
+             test time. Its own tree also wants 2.20.0 transitively (omitted for the 2.11.0 conflict), so we
+             exclude its commons-io above and pin the cached 2.20.0 it expects explicitly here. Test scope. -->
+        <dependency>
+            <groupId>commons-io</groupId>
+            <artifactId>commons-io</artifactId>
+            <version>2.20.0</version>
             <scope>test</scope>
         </dependency>
         <dependency>
