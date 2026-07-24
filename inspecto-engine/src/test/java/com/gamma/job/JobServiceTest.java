@@ -239,7 +239,10 @@ class JobServiceTest {
             JobRun s2 = await(() -> js.lastRunOf("s2").filter(r -> "SUCCESS".equals(r.status())).orElse(null));
             assertEquals("SUCCESS", s1.status());
             assertEquals("SUCCESS", s2.status());
-            assertEquals(1, js.availableRunPermits(), "permit released after both runs finish");
+            // The permit is released in a finally on the worker thread, which can lag a few nanos behind
+            // the SUCCESS status flip above — so wait for it to recycle rather than reading it synchronously.
+            assertNotNull(await(() -> js.availableRunPermits() == 1 ? s1 : null),
+                "permit released after both runs finish");
         } finally {
             System.clearProperty("jobs.packs.dir");
             System.clearProperty("jobs.maxConcurrentRuns");
