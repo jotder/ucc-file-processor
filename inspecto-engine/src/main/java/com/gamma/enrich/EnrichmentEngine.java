@@ -274,7 +274,28 @@ public final class EnrichmentEngine {
         String format = (p.output() == null || p.output().format() == null)
                 ? "CSV" : p.output().format().toUpperCase(Locale.ROOT);
         String glob = p.dirs().database() + "/**/*." + SqlViews.ext(format);
-        return SqlViews.reader(format, glob, true);
+        String reader = SqlViews.reader(format, glob, true);
+        // Reference Phase-2 P1: an `upsert` reference store is append-only (a version row per batch);
+        // derive the current view at read time — latest __valid_from wins per key, delete tombstones
+        // dropped, system columns stripped. A `replace` store is read verbatim (today's behaviour).
+        return (p.reference().load() == PipelineConfig.Load.UPSERT) ? currentView(reader) : reader;
+    }
+
+    /** The system columns an `upsert` reference store carries (§2.1) — stripped from the current view. */
+    private static final String REF_SYSTEM_COLUMNS = "__key_hash, __valid_from, __op, __batch_id";
+
+    /**
+     * The current-view read over an append-only upsert reference store: pick the latest version per
+     * {@code __key_hash} ({@code QUALIFY row_number() ORDER BY __valid_from DESC = 1}), drop keys whose
+     * winning version is a {@code delete} tombstone, and strip the system columns — so downstream
+     * transforms see exactly the current dimension rows. Returned as an aliased subquery the caller
+     * splices after {@code SELECT * FROM }.
+     */
+    private static String currentView(String reader) {
+        return "(SELECT * EXCLUDE (" + REF_SYSTEM_COLUMNS + ") FROM ("
+                + "SELECT * FROM " + reader
+                + " QUALIFY row_number() OVER (PARTITION BY __key_hash ORDER BY __valid_from DESC) = 1"
+                + ") WHERE __op != 'delete') AS _ref_current";
     }
 
     /** {@code COUNT(*)} of the materialised transform result. */

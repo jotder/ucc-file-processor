@@ -86,10 +86,23 @@ interface BatchIngestStrategy {
                                  String batchId, Map<Integer, String> srcIdToFile) throws Exception {
         DecisionRuleApplier.Result applied = DecisionRuleApplier.apply(
                 conn, table, cfg, dbDir, baseName, partCols, batchId, srcIdToFile);
-        List<PartitionOutput> mainOut = PartitionWriter.write(conn, table, dbDir,
-                cfg.output().format(), cfg.output().compression(), baseName, partCols);
+
+        // Reference Phase-2 P1: a `produces: reference` pipeline with `load: upsert` writes an
+        // append-only versioned store — each batch stamps system columns (__key_hash/__valid_from/
+        // __op/__batch_id), folds out within-batch key duplicates, and reveals under a batch-unique
+        // file stem so prior versions survive (latest-version-wins is derived at read time by the
+        // enrichment current view). `load: replace` (the default) is untouched — plain overwrite.
+        String writeTable = table;
+        String writeBase  = baseName;
+        if (cfg.producesReference() && cfg.reference().load() == PipelineConfig.Load.UPSERT) {
+            writeTable = "__ref_versioned";
+            stampReferenceVersions(conn, table, writeTable, cfg.reference().key(), batchId);
+            writeBase = baseName + "__v_" + batchId;   // batch-unique ⇒ append, never overwrite
+        }
+        List<PartitionOutput> mainOut = PartitionWriter.write(conn, writeTable, dbDir,
+                cfg.output().format(), cfg.output().compression(), writeBase, partCols);
         List<LineageRow> mainLineage = LineageCollector.collect(
-                conn, table, batchId, srcIdToFile, mainOut, partCols);
+                conn, writeTable, batchId, srcIdToFile, mainOut, partCols);
         if (applied.outputs().isEmpty() && applied.lineage().isEmpty())
             return new Written(mainOut, mainLineage);
         List<PartitionOutput> outputs = new java.util.ArrayList<>(applied.outputs());
@@ -97,6 +110,43 @@ interface BatchIngestStrategy {
         List<LineageRow> lineage = new java.util.ArrayList<>(applied.lineage());
         lineage.addAll(mainLineage);
         return new Written(outputs, lineage);
+    }
+
+    /**
+     * Reference Phase-2 P1 (design (c) — append-only, latest-version-wins): materialise {@code dst}
+     * from {@code src} with the reference system columns appended and within-batch key duplicates
+     * folded out. Each surviving row carries {@code __key_hash} (canonical hash of the declared
+     * {@code reference.key} columns), {@code __valid_from} (load instant), {@code __op} ({@code 'upsert'}
+     * on the ingest path — {@code 'delete'} tombstones are honoured by the read-side current view but
+     * are not produced here in P1) and {@code __batch_id}. The lineage tag {@code __src_id} is kept so
+     * {@link PartitionWriter}'s default exclude and {@link LineageCollector} keep working unchanged.
+     *
+     * <p>Within-batch dedup keeps one row per {@code __key_hash} ({@code QUALIFY row_number() = 1}); a
+     * batch that delivers the same key twice writes a single version. The winner is arbitrary in P1
+     * (no {@code order_by} column yet — the plan's optional latest-by-column is a later refinement).
+     */
+    static void stampReferenceVersions(Connection conn, String src, String dst,
+                                       List<String> keyCols, String batchId) throws SQLException {
+        if (keyCols == null || keyCols.isEmpty())
+            throw new IllegalStateException(
+                    "reference load 'upsert' requires a non-empty reference.key (config validation should "
+                    + "have rejected this pipeline before execution)");
+        StringBuilder hash = new StringBuilder("md5(concat_ws(chr(31)");
+        for (String k : keyCols)
+            hash.append(", COALESCE(CAST(\"").append(k.replace("\"", "\"\"")).append("\" AS VARCHAR), '')");
+        hash.append("))");
+        String hashExpr = hash.toString();
+        String sql = "CREATE TABLE \"" + dst + "\" AS SELECT *, "
+                + hashExpr + " AS __key_hash, "
+                + "now()::TIMESTAMP AS __valid_from, "
+                + "'upsert' AS __op, "
+                + "'" + batchId.replace("'", "''") + "' AS __batch_id "
+                + "FROM \"" + src + "\" "
+                + "QUALIFY row_number() OVER (PARTITION BY " + hashExpr + ") = 1";
+        try (Statement st = conn.createStatement()) {
+            st.execute("DROP TABLE IF EXISTS \"" + dst + "\"");
+            st.execute(sql);
+        }
     }
 
     /**

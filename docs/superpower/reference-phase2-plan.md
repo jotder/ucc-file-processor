@@ -1,8 +1,8 @@
 # Reference Phase-2 Engine Semantics — implementation plan
 
-**Status: IN FLIGHT — P0 + P4 SHIPPED 2026-07-24 (config model + Catalog Stream grouping, both
-GAUNTLET-green, additive/inert). P1–P3 remain (engine semantics). Multi-session build; plan stays in
-`superpower/` until the last phase lands.**
+**Status: IN FLIGHT — P0 + P1 + P4 SHIPPED 2026-07-24 (config model + `upsert` engine + Catalog Stream
+grouping, all GAUNTLET-green). P2 (`scd2` as-of view) + P3 (compaction + `refresh_seconds` timer)
+remain. Multi-session build; plan stays in `superpower/` until the last phase lands.**
 
 _Shipped this shift (P0+P4): the `reference:` block (`load: replace|upsert|scd2` + `key` + `refresh_seconds`)
 and the `stream:` membership key on `PipelineConfig`, mirrored in `ConfigSpecs.pipeline()` (enum +
@@ -125,7 +125,7 @@ Purely a **Catalog model** change, orthogonal to load semantics:
 | Phase | Scope | Verify |
 |---|---|---|
 | **P0 ✅** | Config model: `reference:` block + `stream:` key, spec validation, parsing — `load: replace` default, no engine behavior change | ✅ SHIPPED 2026-07-24 — `PipelineConfigReferenceTest` (14) + `ConfigSpecsTest`/`ConfigLoaderTest` (declarative mirror) + column-exists + back-compat all green. Column-exists check enforced parser-side when a schema is resolved (skipped for draft-without-schema). |
-| **P1** | `upsert`: system columns on append, within-batch dedup fold, current-view read in `EnrichmentEngine.referenceReader` | unit: two batches, changed + unchanged + new keys → current view = expected rows; tombstone via `__op=delete` |
+| **P1 ✅** | `upsert`: system columns on append, within-batch dedup fold, current-view read in `EnrichmentEngine.referenceReader` | ✅ SHIPPED 2026-07-24 — `BatchIngestStrategy.stampReferenceVersions` (system cols + within-batch dedup + batch-unique file stem ⇒ append) gated on `producesReference() && reference().load()==UPSERT`; `EnrichmentEngine.currentView` (latest-per-`__key_hash`, `__op='delete'` dropped, system cols stripped) on the by-name read. `ReferenceVersionStampTest` (2) + `ReferenceUpsertCurrentViewTest` (1: two batches, changed+unchanged+new+tombstone) green. |
 | **P2** | `scd2` history surface: as-of view + `EnrichmentConfig.Reference.asOf`; row content-hash skip | as-of query returns the version valid at t; identical re-delivery adds no version |
 | **P3** | Compaction task (MaterializeTask idiom) + `refresh_seconds` timer + cache read-path switch | compacted store = current view exactly; timer cancel-on-unregister test; read amplification bounded |
 | **P4 ✅** | Stream grouping (catalog) — separable | ✅ SHIPPED 2026-07-24 — collapse model in `MetadataGraphBuilder`; `MetadataGraphServiceTest` proves shared `stream:` → one node + `members[]`, and 1:1 default keeps label/attrs byte-for-byte (no `members[]`). Applies to STREAM origins only (references keep `ref:<pipeline>`). `/catalog/streams` is a separate per-collector projection, untouched. |
@@ -150,3 +150,5 @@ focused sessions (P0+P4 could be one; P1 one; P2+P3 one to two).
 | D2 | Config field names (`reference:`/`key`/`load`/`refresh_seconds`, `stream:`) | **Resolved & shipped (P0)** — confirmed GLOSSARY §3/§6-B conformant (Reference/Stream canonical; `load`/`key` per §3+§5); no synonyms coined |
 | D3 | P4 ships separately? | **Resolved: yes** — shipped alongside P0 this shift, own commit; collapse node model (members keep child nodes) |
 | D4 | History retention default for `scd2` (keep-forever vs horizon) | Defer to P3; default keep-forever, compaction `history_days` param |
+| D5 | How a delete tombstone (`__op='delete'`) enters the store on the ingest path | **Deferred (not in P1).** P1's write path always stamps `__op='upsert'`; the current view merely *honours* an existing `delete` version (drops the key). No source→`__op` mapping convention is defined yet — decide the input signal (reserved column? Decision Rule consequence?) when a real delete-feed use case lands. |
+| D6 | Within-batch dedup tie-break when a key appears twice in one batch | **Resolved (P1): arbitrary** (`QUALIFY row_number()=1`, no `ORDER BY`). The plan's optional latest-by-`order_by` column is a later refinement; add it only when a batch can legitimately carry ordered same-key versions. |

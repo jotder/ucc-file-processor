@@ -108,6 +108,32 @@ default ⇒ every existing pipeline parses/runs identically):
   origins only — references keep `ref:<pipeline>`. `/catalog/streams` is a separate per-collector
   projection and is unaffected.
 
+### Reference Phase-2 P1 — `upsert` engine (append-only, latest-wins; 2026-07-24)
+
+Design (c) from the plan (§2): a `produces: reference` + `load: upsert` store is **append-only Parquet,
+latest-version-wins**, the current view derived at read time. `load: replace` (default) is untouched.
+
+- **Write** (`BatchIngestStrategy.stampReferenceVersions`, called from `writeAndTrace` — the single tail
+  every ingest strategy routes through, so all paths get it): gated on
+  `cfg.producesReference() && cfg.reference().load()==UPSERT`, it materialises `__ref_versioned` from
+  the `transformed` table with the §2.1 system columns appended — `__key_hash`
+  (`md5(concat_ws(chr(31), COALESCE(CAST(key AS VARCHAR),'')…))`), `__valid_from` (`now()`), `__op`
+  (always `'upsert'` on the ingest path — see below), `__batch_id` — and folds within-batch key dupes
+  via `QUALIFY row_number() OVER (PARTITION BY <hash>) = 1` (tie-break arbitrary — D6). `__src_id` is
+  kept so `PartitionWriter`'s default exclude + `LineageCollector` are unchanged. The write reveals
+  under a **batch-unique file stem** (`<base>__v_<batchId>`) so versions accumulate instead of
+  overwriting — append via unique filename, not a new writer mode.
+- **Read** (`EnrichmentEngine.currentView`, in `referenceReader`'s by-name branch when the bound
+  pipeline is `UPSERT`): `SELECT * EXCLUDE(__key_hash,__valid_from,__op,__batch_id) FROM (… QUALIFY
+  row_number() OVER (PARTITION BY __key_hash ORDER BY __valid_from DESC)=1) WHERE __op != 'delete'` —
+  latest version per key, tombstoned keys dropped, system columns stripped. `path:` refs and `replace`
+  stores read verbatim (today's behaviour).
+- **Deferred:** how a `delete` tombstone *enters* the store on the ingest path is **not** built (D5) —
+  P1 always stamps `'upsert'`; the current view merely honours a `delete` version if one exists. SCD-2
+  as-of history is P2; compaction + `refresh_seconds` timer is P3.
+- Tests: `ReferenceVersionStampTest` (stamp + within-batch dedup) · `ReferenceUpsertCurrentViewTest`
+  (two batches — changed + unchanged + new key + delete tombstone → current view = expected).
+
 ## Engine fixes the live walks surfaced (apply beyond onboarding)
 
 1. `SqlBuilder.appendCoalesce` with empty `date_formats` emitted zero-arg `COALESCE()::DATE` —
