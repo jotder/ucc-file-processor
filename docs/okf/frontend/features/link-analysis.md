@@ -56,11 +56,21 @@ distinct ([`GLOSSARY.md`](../../../GLOSSARY.md) §11): this studio works on **P3
   `link-analysis.component`. It slots into the existing filter pipeline — kind-filter → time-filter →
   `collapseBranches` → the shared `displayed()` graph-view binding — so no new filtering mechanism was
   needed; resets on a fresh query and via "Clear search & filters", and participates in undo/redo like
-  the other presentation filters. Remaining V2 (BACKLOG): **collaboration** — of which **version history + sharing are
-  frontend-only wiring** (backend `/components/{type}/{id}/versions` + `restore` and RBAC component
-  shares already exist; `ComponentsService.versions/restore` are wired), while **per-view comments need a
-  new backend** (no Component-attached note model — `ObjectNote` is keyed to Incidents/Cases, so a
-  saved-view comment path would re-key that model by component `type`+`id`).
+  the other presentation filters. **2026-07-24 also shipped version history**: each saved view in the
+  toolbar "Saved views" menu is now a small submenu (Load view · Version history), the history entry
+  opening the shared `ComponentHistoryDialog` (`inspecto/components/component-history.dialog`) with
+  `{type:'link-analysis-view', id, label}` — the same dialog the widget/query/dataset/dashboard hosts
+  use, working as-is because `link-analysis-view` is a `ComponentStore` WRITABLE_TYPE (so
+  `/components/{type}/{id}/versions` + `restore` apply); a successful restore reloads the view list.
+  Frontend-only (`ComponentsService.versions/restore` were already wired). Remaining V2 (BACKLOG):
+  **collaboration** — **per-view comments need a new backend** (no Component-attached note model —
+  `ObjectNote` is keyed to Incidents/Cases, so a saved-view comment path would re-key that model by
+  component `type`+`id`); **sharing is NOT frontend-only** after all — the UI share path
+  (`OfferShareDialog` → `ExchangeService.offer` + the mock `exchange.handler`) is hard-typed to
+  `dataset`/`widget`, and `ComponentsService` carries no owner/shares field, so sharing a saved view
+  needs the Exchange seam widened backend-side plus a product call on whether saved views belong in the
+  Exchange (the R3 RBAC component-shares envelope is a distinct server-side mechanism, not surfaced in
+  the UI `ComponentsService`).
 * **Investigation pivot** (ui-design-review R8, 2026-07-20) — a node resolving an `objectRef` offers
   "View on map" (pivots to Geo Map Analysis with the same record); see
   [Investigation Pivot](investigation-pivot.md) for the shared contract.

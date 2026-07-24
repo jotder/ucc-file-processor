@@ -16,6 +16,7 @@ import { ToastrService } from 'ngx-toastr';
 import { firstValueFrom } from 'rxjs';
 import { PipelineSummary, PipelinesService, apiErrorMessage } from 'app/inspecto/api';
 import { InspectoAlertComponent } from 'app/inspecto/components/alert.component';
+import { ComponentHistoryDialog } from 'app/inspecto/components/component-history.dialog';
 import { InspectoEmptyStateComponent } from 'app/inspecto/components/empty-state.component';
 import { InspectoSkeletonComponent } from 'app/inspecto/components/skeleton.component';
 import { DataTableComponent } from 'app/inspecto/data-table';
@@ -827,5 +828,17 @@ export class LinkAnalysisComponent implements OnInit {
         this.layoutId.set(view.layout ?? 'dagre');
         this.queryPanel?.patchFormFromView(view);
         await this.execute(view.sourceId, view.query);
+    }
+
+    /** Prior saved copies of a view — a Component like any other, so the shared history dialog works
+     *  as-is (`link-analysis-view` is a WRITABLE_TYPE, so /components versioning applies). A restore
+     *  archives the current copy first (reversible); reload the list so a renamed restore shows through. */
+    openHistory(view: LinkAnalysisView): void {
+        this.dialog
+            .open(ComponentHistoryDialog, { data: { type: 'link-analysis-view', id: view.id, label: view.name } })
+            .afterClosed()
+            .subscribe((restored) => {
+                if (restored) this.reloadViews();
+            });
     }
 }

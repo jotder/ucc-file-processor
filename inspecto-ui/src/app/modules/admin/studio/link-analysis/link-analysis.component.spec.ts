@@ -427,4 +427,26 @@ describe('LinkAnalysisComponent', () => {
         expect(queried.length).toBeGreaterThan(1);
         expect(c.sourceId()).toBe('entity-projection');
     });
+
+    it('opens the shared version-history dialog for a saved view and reloads on restore', async () => {
+        const view: LinkAnalysisView = { id: 'ring', name: 'Ring', sourceId: 'entity-projection', query: {} };
+        const { fixture } = create({ views: [view] });
+        fixture.detectChanges();
+        const c = fixture.componentInstance;
+        const dialog = fixture.debugElement.injector.get(MatDialog);
+        const reloadSpy = vi.spyOn(c, 'reloadViews');
+
+        // restore succeeded → dialog closes true → the list is reloaded
+        const openSpy = vi.spyOn(dialog, 'open').mockReturnValue({ afterClosed: () => of(true) } as never);
+        c.openHistory(view);
+        expect((openSpy.mock.calls[0][1] as { data: unknown }).data).toEqual({
+            type: 'link-analysis-view', id: 'ring', label: 'Ring',
+        });
+        expect(reloadSpy).toHaveBeenCalledTimes(1);
+
+        // closed without restoring → no reload
+        openSpy.mockReturnValue({ afterClosed: () => of(undefined) } as never);
+        c.openHistory(view);
+        expect(reloadSpy).toHaveBeenCalledTimes(1);
+    });
 });

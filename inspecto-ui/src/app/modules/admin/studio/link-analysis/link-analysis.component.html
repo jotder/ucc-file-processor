@@ -128,7 +128,8 @@
             <mat-menu #viewsMenu="matMenu">
                 @if (views().length) {
                     @for (v of views(); track v.id) {
-                        <button mat-menu-item (click)="loadView(v)" [attr.aria-label]="'Load view ' + v.name">
+                        <button mat-menu-item [matMenuTriggerFor]="viewActions" [matMenuTriggerData]="{ view: v }"
+                                [attr.aria-label]="'Actions for view ' + v.name">
                             <mat-icon svgIcon="heroicons_outline:folder-open"></mat-icon>
                             <span>{{ v.name }}</span>
                         </button>
@@ -136,6 +137,20 @@
                 } @else {
                     <div class="text-secondary px-4 py-2 text-sm">Nothing saved yet.</div>
                 }
+            </mat-menu>
+
+            <!-- per-view actions (shared submenu, parameterized by the row's view) -->
+            <mat-menu #viewActions="matMenu">
+                <ng-template matMenuContent let-view="view">
+                    <button mat-menu-item (click)="loadView(view)" [attr.aria-label]="'Load view ' + view.name">
+                        <mat-icon svgIcon="heroicons_outline:folder-open"></mat-icon>
+                        <span>Load view</span>
+                    </button>
+                    <button mat-menu-item (click)="openHistory(view)" [attr.aria-label]="'Version history for ' + view.name">
+                        <mat-icon svgIcon="heroicons_outline:clock"></mat-icon>
+                        <span>Version history</span>
+                    </button>
+                </ng-template>
             </mat-menu>
 
             <inspecto-transfer-menu [items]="transferItems()" [allowedKinds]="['link-analysis-view']" (changed)="reloadViews()" label="Import / export saved views" />
