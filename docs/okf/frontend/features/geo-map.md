@@ -33,7 +33,14 @@ Geocoder — never "marker/pin" in model names).
   `POST /inv/projection`): valid-WGS84 point projection with a `skipped` count, and the O/D route fold
   as a `GROUP BY` (summed weight), scaling past the ~5k-point browser cap. Plain SQL — the DuckDB
   `spatial` extension is **deliberately deferred** (no geometry op is needed, and the hardened
-  `SqlSandbox` disables extension loading); see `docs/BACKLOG.md`. **2026-07-24 SHIPPED the UI wiring**
+  `SqlSandbox` disables extension loading); see `docs/BACKLOG.md`. **Client perf follow-ons
+  (progressive loading, worker-side binning) CLOSED as obsoleted 2026-07-24** — the aggregation fold +
+  the hard `GEO_POINT_CAP = 5000` (`geo-projection.ts`, both paths) keep the client at ≤5k features set
+  in one `setData`, which MapLibre's native GPU heatmap + internal clustering worker handle with no
+  render-path bottleneck; `gridDensity()` is a tested-but-unwired pure binner (the live heatmap is 100%
+  MapLibre-native) so there is nothing to offload, and the UI has no Web Worker infra. Revisit only if
+  the 5k cap is deliberately raised (a product call that would defeat the aggregation's purpose); the
+  modest candidate then is worker-izing the O(n²) toolbox analyses, not binning. See `docs/BACKLOG.md`. **2026-07-24 SHIPPED the UI wiring**
   — `DatasetGeoSource`/`RouteProjectionGeoSource` (`geo-projection.ts`) are now **backend-first**,
   mirroring `EntityProjectionGraphSource`/`InvService`: each calls the new `GeoService`
   (`inspecto/api/geo.service.ts`, `POST /geo/projection`|`/geo/routes`) first, folding the server's
