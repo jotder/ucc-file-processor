@@ -42,6 +42,9 @@ final class MetadataGraphBuilder {
         Map<String, MetadataNode> nodes = new LinkedHashMap<>();
         List<MetadataEdge> edges = new ArrayList<>();
         Map<String, String> pipelineByDbRoot = new LinkedHashMap<>();
+        // Member pipelines per Stream origin id — a Stream may group several pipelines (P4). Used
+        // after the loop to stamp a members[] attr on grouped nodes only (a 1:1 Stream stays untouched).
+        Map<String, List<String>> streamMembers = new LinkedHashMap<>();
 
         // ── sources, schemas, columns, event tables ──────────────────────────────
         for (PipelineConfig cfg : cs.pipelines()) {
@@ -52,19 +55,30 @@ final class MetadataGraphBuilder {
 
             // produces:reference ⇒ the origin registers as a standalone Reference Dataset (dimension
             // origin, id ref:<pipeline>) instead of a Stream; schemas/tables hang off it identically.
+            // For a Stream origin the id is the logical stream: name (GLOSSARY §3 membership, P4) —
+            // default = the pipeline's own name, so pipelines that don't set stream: stay strictly 1:1.
             boolean isReference = cfg.producesReference();
-            String originId = isReference ? IdScheme.producedReference(pipeline) : IdScheme.stream(pipeline);
-            Map<String, Object> srcAttrs = new LinkedHashMap<>();
-            srcAttrs.put("pipeline", pipeline);
-            // Lifecycle for the Catalog origin tabs (Draft/Live) — mirrors /catalog/streams'
-            // collector projection so the References tab can show the same column.
-            srcAttrs.put("active", cfg.active());
-            if (cfg.dirs().poll() != null) srcAttrs.put("pollDir", cfg.dirs().poll());
-            if (dbRoot != null) srcAttrs.put("database", dbRoot);
-            if (isReference && outFormat != null && !outFormat.isBlank()) srcAttrs.put("format", outFormat);
-            nodes.put(originId, new MetadataNode(
-                    originId, isReference ? NodeKind.REFERENCE_DATASET : NodeKind.STREAM,
-                    cfg.identity().name(), Description.EMPTY, srcAttrs));
+            boolean grouped = !isReference && !cfg.stream().equals(pipeline);
+            String originId = isReference
+                    ? IdScheme.producedReference(pipeline)
+                    : IdScheme.stream(cfg.stream());
+            if (!isReference) streamMembers.computeIfAbsent(originId, k -> new ArrayList<>()).add(pipeline);
+            // Create the origin node once; when a Stream is shared, later members only add their
+            // schemas/tables to it (each child carries its own source=pipeline attr, so per-member
+            // identity is preserved). A 1:1 origin is byte-for-byte identical to before.
+            if (!nodes.containsKey(originId)) {
+                Map<String, Object> srcAttrs = new LinkedHashMap<>();
+                srcAttrs.put("pipeline", pipeline);
+                // Lifecycle for the Catalog origin tabs (Draft/Live) — mirrors /catalog/streams'
+                // collector projection so the References tab can show the same column.
+                srcAttrs.put("active", cfg.active());
+                if (cfg.dirs().poll() != null) srcAttrs.put("pollDir", cfg.dirs().poll());
+                if (dbRoot != null) srcAttrs.put("database", dbRoot);
+                if (isReference && outFormat != null && !outFormat.isBlank()) srcAttrs.put("format", outFormat);
+                nodes.put(originId, new MetadataNode(
+                        originId, isReference ? NodeKind.REFERENCE_DATASET : NodeKind.STREAM,
+                        grouped ? cfg.stream() : cfg.identity().name(), Description.EMPTY, srcAttrs));
+            }
 
             PipelineConfig.Schemas s = cfg.schemas();
             if (s.segments() != null && !s.segments().isEmpty()) {
@@ -83,6 +97,18 @@ final class MetadataGraphBuilder {
                 String key = firstNonBlank(SchemaProjection.canonicalName(s.single()), "main");
                 addSchemaAndEvent(originId, pipeline, key, s.single(), null, dbRoot, outFormat, nodes, edges);
             }
+        }
+
+        // ── grouped Stream membership (P4): stamp members[] only where a Stream groups >1 pipeline,
+        //    so a 1:1 Stream node keeps exactly the attrs it had before this feature.
+        for (Map.Entry<String, List<String>> e : streamMembers.entrySet()) {
+            if (e.getValue().size() <= 1) continue;
+            MetadataNode n = nodes.get(e.getKey());
+            if (n == null) continue;
+            Map<String, Object> attrs = new LinkedHashMap<>(n.attrs());
+            attrs.put("members", List.copyOf(e.getValue()));
+            nodes.put(e.getKey(),
+                    new MetadataNode(n.id(), n.kind(), n.label(), n.description(), attrs, n.overlay()));
         }
 
         // ── transformed tables + references (nodes) ───────────────────────────────

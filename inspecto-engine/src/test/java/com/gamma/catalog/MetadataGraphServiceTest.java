@@ -263,4 +263,64 @@ class MetadataGraphServiceTest {
                 "unresolved by-name declaration recorded");
         assertTrue(hasEdge(g, "ref:ORPHAN/region_dim", "xform:ORPHAN", EdgeKind.JOINS_INTO));
     }
+
+    // ── stream: grouping (Reference Phase-2, P4) ──────────────────────────────────
+
+    /** A minimal Stream pipeline named {@code name}, optionally a member of logical {@code stream}. */
+    private static PipelineConfig streamPipeline(Path dir, String name, String stream) throws Exception {
+        Path schema = dir.resolve(name + "_schema.toon");
+        Files.writeString(schema, PipelineConfigBatchTest.miniSchema());   // table "mini"
+        Path toon = dir.resolve(name + "_pipeline.toon");
+        String d = dir.toString().replace("\\", "/");
+        String lc = name.toLowerCase();
+        Files.writeString(toon, """
+                name: %s
+                %s
+                dirs:
+                  poll: %s/%s_inbox
+                  database: %s/%s_db
+                output:
+                  format: CSV
+                processing:
+                  threads: 1
+                  schema_file: "%s"
+                """.formatted(name, stream == null ? "" : "stream: " + stream,
+                d, lc, d, lc, schema.toString().replace("\\", "/")));
+        return PipelineConfig.load(toon.toString());
+    }
+
+    @Test
+    void pipelinesSharingAStreamGroupUnderOneNode(@TempDir Path dir) throws Exception {
+        Fixture f = new Fixture();
+        f.pipelines.add(streamPipeline(dir, "MEDIATION_A", "mediation"));
+        f.pipelines.add(streamPipeline(dir, "MEDIATION_B", "mediation"));
+        MetadataGraph g = new MetadataGraphService(f).structural();
+        Set<String> ids = ids(g.nodes());
+
+        // one shared Stream node; no per-pipeline Stream nodes
+        assertTrue(ids.contains("stream:mediation"), ids.toString());
+        assertFalse(ids.contains("stream:mediation_a"), "member pipeline does not get its own Stream node");
+        assertFalse(ids.contains("stream:mediation_b"));
+
+        // both members' event tables hang off the one Stream (per-member identity kept in child ids)
+        assertTrue(hasEdge(g, "stream:mediation", "event:mediation_a/mini", EdgeKind.EMITS));
+        assertTrue(hasEdge(g, "stream:mediation", "event:mediation_b/mini", EdgeKind.EMITS));
+        assertTrue(hasEdge(g, "stream:mediation", "schema:mediation_a/mini", EdgeKind.DECLARES));
+
+        // members[] records the grouping
+        Object members = new MetadataGraphService(f).node("stream:mediation").attrs().get("members");
+        assertTrue(members instanceof List<?> l && l.contains("mediation_a") && l.contains("mediation_b"),
+                "members[] lists both pipelines: " + members);
+    }
+
+    @Test
+    void defaultStreamStaysOneToOneWithoutMembersAttr(@TempDir Path dir) throws Exception {
+        Fixture f = new Fixture();
+        f.pipelines.add(streamPipeline(dir, "SOLO", null));   // no stream: → strict 1:1
+        MetadataNode n = new MetadataGraphService(f).node("stream:solo");
+        assertNotNull(n);
+        assertEquals(NodeKind.STREAM, n.kind());
+        assertEquals("SOLO", n.label(), "a 1:1 Stream keeps the pipeline display name as its label");
+        assertNull(n.attrs().get("members"), "a 1:1 Stream carries no members[] attr (byte-for-byte)");
+    }
 }
