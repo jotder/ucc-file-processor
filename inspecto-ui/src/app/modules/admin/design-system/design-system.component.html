@@ -355,5 +355,58 @@
             </div>
             <pre class="bg-default text-secondary mt-3 overflow-x-auto rounded-lg p-4 text-xs leading-relaxed"><code>{{ snippets.mapView }}</code></pre>
         </section>
+
+        <!-- ── Menu favorites (personal client-local overlay) ───────────────────────────── -->
+        <section>
+            <h2 class="mb-3 text-xl font-semibold">Menu favorites</h2>
+            <p class="text-secondary mb-4 text-sm">
+                A <b>personal, client-local</b> overlay (<code>inspecto/menu/menu-favorites.ts</code>,
+                localStorage <code>inspecto.menuFavorites.v1</code> keyed by space) — <b>never</b> PUT to
+                the server, distinct from the authored menu tree. A star toggle on each leaf row
+                (<code>aria-pressed</code>, mirroring the sql-editor favorites idiom) drives a virtual
+                top-of-sidebar “Favorites” group (<code>favoritesNavGroup</code> in
+                <code>menu-nav.ts</code>, prepended by <code>NavigationService</code>): it resolves
+                favorite ids against the current tree, drops stale/deleted leaves, and re-ids children
+                <code>fav-&lt;id&gt;</code> to avoid colliding with their <code>menu-&lt;id&gt;</code> origin.
+            </p>
+            <div class="bg-card rounded-2xl p-6 shadow">
+                <div class="mb-2 text-sm font-medium">Leaf rows (click the star to favorite)</div>
+                <ul class="divide-y">
+                    @for (item of favDemoItems; track item.id) {
+                        <li class="flex items-center gap-3 py-2">
+                            <mat-icon class="icon-size-5 text-secondary" [svgIcon]="item.icon"></mat-icon>
+                            <span class="flex-auto text-sm">{{ item.label }}</span>
+                            <button
+                                type="button"
+                                class="text-secondary hover:text-primary"
+                                [attr.aria-pressed]="isFav(item.id)"
+                                [attr.aria-label]="(isFav(item.id) ? 'Unfavorite ' : 'Favorite ') + item.label"
+                                (click)="toggleFav(item.id)"
+                            >
+                                <mat-icon
+                                    class="icon-size-5"
+                                    [svgIcon]="isFav(item.id) ? 'heroicons_solid:star' : 'heroicons_outline:star'"
+                                ></mat-icon>
+                            </button>
+                        </li>
+                    }
+                </ul>
+                <div class="mt-4">
+                    <div class="mb-2 text-sm font-medium">Virtual “Favorites” sidebar group</div>
+                    @if (favIds().size) {
+                        <div class="flex flex-wrap gap-2">
+                            @for (item of favDemoItems; track item.id) {
+                                @if (isFav(item.id)) {
+                                    <inspecto-chip variant="soft" tone="primary">{{ item.label }}</inspecto-chip>
+                                }
+                            }
+                        </div>
+                    } @else {
+                        <p class="text-secondary text-sm">No favorites — the group is hidden when empty.</p>
+                    }
+                </div>
+            </div>
+            <pre class="bg-default text-secondary mt-3 overflow-x-auto rounded-lg p-4 text-xs leading-relaxed"><code>{{ snippets.menuFavorites }}</code></pre>
+        </section>
     </div>
 </div>

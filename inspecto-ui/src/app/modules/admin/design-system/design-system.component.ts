@@ -212,6 +212,25 @@ export class DesignSystemComponent {
         routes: [],
     };
 
+    // ── Menu favorites (personal client-local overlay) ───────────────────────────────────────
+    readonly favDemoItems = [
+        { id: 'revenue_overview', label: 'Revenue dashboard', icon: 'heroicons_outline:presentation-chart-line' },
+        { id: 'top_usages', label: 'Top usages', icon: 'heroicons_outline:signal' },
+        { id: 'fraud_categories', label: 'Fraud categories', icon: 'heroicons_outline:chart-pie' },
+    ];
+    /** Demo-only favorite set (the real overlay persists to localStorage per space, never to the server). */
+    readonly favIds = signal<Set<string>>(new Set(['revenue_overview']));
+    isFav(id: string): boolean {
+        return this.favIds().has(id);
+    }
+    toggleFav(id: string): void {
+        this.favIds.update((s) => {
+            const next = new Set(s);
+            next.has(id) ? next.delete(id) : next.add(id);
+            return next;
+        });
+    }
+
     // ── Snippets (copy-paste) ────────────────────────────────────────────────────────────────
     readonly snippets = {
         badge: `<inspecto-status-badge [value]="event.level" />\n// in an ag-Grid cellRenderer:\ncellRenderer: (p) => statusBadgeHtml(p.value)`,
@@ -224,6 +243,7 @@ export class DesignSystemComponent {
         schemaForm: `// declare the attributes once (tier: required | optional | advanced)\nconst SPECS: AttributeSpec[] = [\n  { key: 'name', label: 'Source id', type: 'identifier', tier: 'required' },\n  { key: 'host', label: 'Host', type: 'string', tier: 'required',\n    dependsOn: { key: 'protocol', equals: 'sftp' } },\n  { key: 'parallel_fetch', label: 'Parallel fetch', type: 'number', tier: 'advanced', default: 4 },\n];\n\n<inspecto-schema-form #sf [specs]="specs" [initial]="existingConfig" />\n// on submit: if (!sf.validate()) return;  const config = sf.value();`,
         dataTable: `<!-- one component, four tiers; logic lives in inspecto/data-table/{core,sql} + inspecto/query -->\n<!-- standard: icon toolbar (columns · search · export) -->\n<!-- pro: + a CodeMirror SQL editor (runs offline via AlaSQL) + filter builder -->\n<!-- proMax: + "save as rule" (parameterized :fieldValue template) -->\n<inspecto-data-table\n  [tier]="'pro'"                 // 'mini' | 'standard' | 'pro' | 'proMax'\n  [rows]="rows"\n  [columns]="columnDefs"         // optional; omitted ⇒ one column per row key\n  [rowActions]="actions"\n  sourceName="cdr"\n  (rowClick)="open($event)"\n  (ruleSaved)="onRuleSaved($event)" />  // pro max`,
         mapView: `<!-- offline MapLibre host (bundled Natural Earth basemap, no network) -->\n<inspecto-map-view\n  [data]="geoData"          // GeoData { points, routes }; null ⇒ unmounted (show an empty state)\n  [fill]="true"             // grow into a flex column (default: 62vh page band)\n  (pointClick)="open($event)" />\n// colours live in theme/map-tokens.ts (the map's chart-tokens analog)`,
+        menuFavorites: `// personal, client-local overlay — never PUT to the server (inspecto/menu/menu-favorites.ts)\n// storage key: inspecto.menuFavorites.v1, keyed by space id\nfavIds = signal<Set<string>>(loadForSpace());\ntoggleFavorite(id): void { /* mutate the set, persist to localStorage */ }\n\n<!-- a star toggle on each leaf row (aria-pressed, mirrors the sql-editor favorites idiom) -->\n<button [attr.aria-pressed]="isFav(id)" (click)="toggleFavorite(id)"\n        [attr.aria-label]="isFav(id) ? 'Unfavorite' : 'Favorite'">\n  <mat-icon [svgIcon]="isFav(id) ? 'heroicons_solid:star' : 'heroicons_outline:star'" />\n</button>\n\n// a virtual top-of-sidebar "Favorites" group (favoritesNavGroup in menu-nav.ts), prepended in\n// NavigationService: resolves ids against the current tree, drops stale/deleted, re-ids fav-<id>.`,
     };
     copy(text: string): void {
         navigator.clipboard?.writeText(text).then(
