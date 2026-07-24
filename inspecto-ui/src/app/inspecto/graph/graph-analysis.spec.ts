@@ -3,20 +3,39 @@ import type { G6GraphData } from './graph-types';
 import {
     ANALYSIS_NODE_CAP,
     allPaths,
+    articulationPoints,
     betweennessCentrality,
+    bridges,
+    cliques,
+    closenessCentrality,
     collapseBranches,
     connectedComponents,
     degreeCentrality,
     descendants,
     detectCommunities,
+    edgeWeight,
+    egoNetwork,
+    eigenvectorCentrality,
     explainNode,
     filterByKinds,
+    findCycles,
+    hits,
     isForest,
+    jaccardSimilarity,
+    kCore,
+    katzCentrality,
+    linkPrediction,
     louvainCommunities,
     matchPattern,
+    maxFlow,
+    maximumSpanningForest,
     neighborhood,
+    pageRank,
     searchNodes,
     shortestPath,
+    suspicionScore,
+    triangleCount,
+    weightedShortestPath,
 } from './graph-analysis';
 
 const node = (id: string, kind = 'entity', label = id): G6GraphData['nodes'][0] => ({ id, data: { label, kind } });
@@ -286,5 +305,200 @@ describe('matchPattern', () => {
     it('caps the number of matches', () => {
         const star: G6GraphData = { nodes: ['c', 'm0', 'm1', 'm2'].map((id) => node(id)), edges: ['m0', 'm1', 'm2'].map((t) => edge('c', t)) };
         expect(matchPattern(star, [{}, {}], { limit: 2 })).toHaveLength(2);
+    });
+});
+
+// ── V2: advanced traversal ──
+
+describe('edgeWeight', () => {
+    it('reads the folded-count suffix, the runtime count, or defaults to 1', () => {
+        expect(edgeWeight(edge('a', 'b'))).toBe(1);
+        expect(edgeWeight(edge('a', 'b', 'calls · 3'))).toBe(3);
+        expect(edgeWeight({ id: 'e', source: 'a', target: 'b', data: { kind: 'calls', count: 4 } as never })).toBe(4);
+    });
+});
+
+describe('weightedShortestPath', () => {
+    /** Direct a→c (weight 1) vs. the stronger two-hop a→b→c (weight 5 each). */
+    const wg: G6GraphData = {
+        nodes: ['a', 'b', 'c'].map((id) => node(id)),
+        edges: [edge('a', 'c', 'link'), edge('a', 'b', 'link · 5'), edge('b', 'c', 'link · 5')],
+    };
+
+    it('prefers the strongest-tie route over the fewest-hops route', () => {
+        expect(weightedShortestPathIds(wg, 'a', 'c')).toEqual(['a', 'b', 'c']);
+        expect(shortestPath(wg, 'a', 'c', 'out')!.nodeIds).toEqual(['a', 'c']); // fewest hops disagrees
+    });
+
+    it('returns null when disconnected and trivial for self', () => {
+        expect(weightedShortestPath(wg, 'a', 'zzz')).toBeNull();
+        expect(weightedShortestPath(wg, 'a', 'a')).toEqual({ nodeIds: ['a'], edgeIds: [] });
+    });
+
+    function weightedShortestPathIds(gr: G6GraphData, from: string, to: string): string[] | null {
+        return weightedShortestPath(gr, from, to, 'out')?.nodeIds ?? null;
+    }
+});
+
+describe('findCycles', () => {
+    it('finds each directed cycle once (canonicalized to its smallest member)', () => {
+        const cycles = findCycles(g); // a→b→c→d→a and a→c→d→a
+        expect(cycles).toHaveLength(2);
+        expect(cycles.every((c) => c.nodeIds.includes('a'))).toBe(true);
+        expect(cycles.every((c) => c.edgeIds.length === c.nodeIds.length)).toBe(true);
+    });
+
+    it('detects self-loops and honors the limit', () => {
+        const selfLoop: G6GraphData = { nodes: [node('s')], edges: [edge('s', 's', 'x')] };
+        expect(findCycles(selfLoop)).toEqual([{ nodeIds: ['s'], edgeIds: ['s->s:x'] }]);
+        expect(findCycles(g, { limit: 1 })).toHaveLength(1);
+    });
+});
+
+describe('articulationPoints / bridges', () => {
+    const line: G6GraphData = { nodes: ['p', 'q', 'r'].map((id) => node(id)), edges: [edge('p', 'q'), edge('q', 'r')] };
+    const tri: G6GraphData = { nodes: ['p', 'q', 'r'].map((id) => node(id)), edges: [edge('p', 'q'), edge('q', 'r'), edge('r', 'p')] };
+
+    it('finds the cut vertex and cut edges of a path', () => {
+        expect(articulationPoints(line)).toEqual(['q']);
+        expect(bridges(line)).toEqual(['p->q:link', 'q->r:link']);
+    });
+
+    it('a cycle has no cut points', () => {
+        expect(articulationPoints(tri)).toEqual([]);
+        expect(bridges(tri)).toEqual([]);
+    });
+});
+
+describe('egoNetwork', () => {
+    it('is the 1-hop induced subgraph including neighbor-to-neighbor edges', () => {
+        const ego = egoNetwork(g, 'b');
+        expect(ego.nodes.map((n) => n.id).sort()).toEqual(['a', 'b', 'c']);
+        expect(ego.edges.map((e) => e.id).sort()).toEqual(['a->b:link', 'a->c:link', 'b->c:link']);
+    });
+});
+
+// ── V2: algorithm library ──
+
+describe('pageRank', () => {
+    it('ranks the well-cited sink highest and stays a distribution', () => {
+        const star: G6GraphData = { nodes: ['hub', 'm0', 'm1', 'm2'].map((id) => node(id)), edges: ['m0', 'm1', 'm2'].map((s) => edge(s, 'hub')) };
+        const pr = pageRank(star);
+        expect(pr[0].id).toBe('hub');
+        expect(pr.reduce((s, x) => s + x.score, 0)).toBeCloseTo(1, 5);
+    });
+});
+
+describe('closenessCentrality', () => {
+    it('ranks the central node of a path highest', () => {
+        const line: G6GraphData = { nodes: ['p', 'q', 'r'].map((id) => node(id)), edges: [edge('p', 'q'), edge('q', 'r')] };
+        expect(closenessCentrality(line)[0].id).toBe('q');
+    });
+});
+
+describe('eigenvector / katz centrality', () => {
+    const star: G6GraphData = { nodes: ['c', 'l1', 'l2', 'l3'].map((id) => node(id)), edges: ['l1', 'l2', 'l3'].map((l) => edge('c', l)) };
+    it('both rank the hub of a star highest', () => {
+        expect(eigenvectorCentrality(star)[0].id).toBe('c');
+        expect(katzCentrality(star)[0].id).toBe('c');
+    });
+});
+
+describe('hits', () => {
+    it('separates hubs from authorities', () => {
+        const h: G6GraphData = { nodes: ['h', 'h2', 'a1', 'a2'].map((id) => node(id)), edges: [edge('h', 'a1'), edge('h', 'a2'), edge('h2', 'a1')] };
+        const { hubs, authorities } = hits(h);
+        expect(authorities[0].id).toBe('a1'); // two in-links
+        expect(hubs[0].id).toBe('h'); // points at both authorities
+    });
+});
+
+describe('kCore / triangleCount', () => {
+    /** A 4-clique a1..a4 plus a pendant leaf p off a1. */
+    const clique4 = ['a1', 'a2', 'a3', 'a4'];
+    const cliqueEdges = (ids: string[]): G6GraphData['edges'] => ids.flatMap((s, i) => ids.slice(i + 1).map((t) => edge(s, t)));
+    const withLeaf: G6GraphData = { nodes: [...clique4, 'p'].map((id) => node(id)), edges: [...cliqueEdges(clique4), edge('a1', 'p')] };
+
+    it('kCore gives the clique core 3 and the leaf core 1', () => {
+        const core = new Map(kCore(withLeaf).map((s) => [s.id, s.score]));
+        expect(clique4.every((id) => core.get(id) === 3)).toBe(true);
+        expect(core.get('p')).toBe(1);
+    });
+
+    it('triangleCount counts a triangle once per member', () => {
+        const tri: G6GraphData = { nodes: ['p', 'q', 'r'].map((id) => node(id)), edges: [edge('p', 'q'), edge('q', 'r'), edge('r', 'p')] };
+        expect(triangleCount(tri).every((s) => s.score === 1)).toBe(true);
+    });
+});
+
+describe('cliques', () => {
+    it('finds maximal cliques of at least the requested size, largest first', () => {
+        const cliqueEdges = (ids: string[]): G6GraphData['edges'] => ids.flatMap((s, i) => ids.slice(i + 1).map((t) => edge(s, t)));
+        const two: G6GraphData = {
+            nodes: ['a1', 'a2', 'a3', 'a4', 'b1', 'b2', 'b3'].map((id) => node(id)),
+            edges: [...cliqueEdges(['a1', 'a2', 'a3', 'a4']), ...cliqueEdges(['b1', 'b2', 'b3'])],
+        };
+        const found = cliques(two);
+        expect(found[0]).toEqual(['a1', 'a2', 'a3', 'a4']);
+        expect(found).toContainEqual(['b1', 'b2', 'b3']);
+    });
+});
+
+describe('maxFlow', () => {
+    it('computes flow and returns the saturated min-cut', () => {
+        const net: G6GraphData = {
+            nodes: ['s', 'a', 'b', 't'].map((id) => node(id)),
+            edges: [edge('s', 'a', 'x · 2'), edge('a', 't', 'x · 2'), edge('s', 'b', 'x · 3'), edge('b', 't', 'x · 1')],
+        };
+        const { value, minCut } = maxFlow(net, 's', 't');
+        expect(value).toBe(3);
+        expect(minCut.edgeIds.length).toBeGreaterThan(0);
+    });
+
+    it('is empty for an absent or equal endpoint', () => {
+        const net: G6GraphData = { nodes: [node('s'), node('t')], edges: [edge('s', 't')] };
+        expect(maxFlow(net, 's', 's').value).toBe(0);
+        expect(maxFlow(net, 's', 'zzz').value).toBe(0);
+    });
+});
+
+describe('maximumSpanningForest', () => {
+    it('keeps the strongest edges without forming a cycle', () => {
+        const tri: G6GraphData = { nodes: ['p', 'q', 'r'].map((id) => node(id)), edges: [edge('p', 'q', 'w · 3'), edge('q', 'r', 'w · 2'), edge('r', 'p', 'w · 1')] };
+        const msf = maximumSpanningForest(tri);
+        expect(msf.edgeIds).toEqual(['p->q:w · 3', 'q->r:w · 2']); // the weakest r→p edge is dropped
+    });
+});
+
+describe('jaccardSimilarity / linkPrediction', () => {
+    /** a and b both link to c and d, but not to each other. */
+    const shared: G6GraphData = { nodes: ['a', 'b', 'c', 'd'].map((id) => node(id)), edges: [edge('a', 'c'), edge('a', 'd'), edge('b', 'c'), edge('b', 'd')] };
+
+    it('jaccard ranks the co-associated node highest', () => {
+        const sim = jaccardSimilarity(shared, 'a');
+        expect(sim[0].id).toBe('b');
+        expect(sim[0].score).toBe(1); // identical neighbor sets
+    });
+
+    it('link prediction proposes the missing a↔b edge', () => {
+        const pred = linkPrediction(shared, { method: 'common-neighbors' });
+        expect(pred[0]).toMatchObject({ source: 'a', target: 'b', score: 2 });
+    });
+});
+
+describe('suspicionScore', () => {
+    it('ranks a hub node highest with a 0–100 explainable score', () => {
+        const scores = suspicionScore(g);
+        expect(['a', 'c']).toContain(scores[0].id); // the two degree-3 hubs
+        expect(scores[0].score).toBeGreaterThan(0);
+        expect(scores[0].score).toBeLessThanOrEqual(100);
+        expect(scores[0].factors).toHaveProperty('betweenness');
+    });
+
+    it('honors custom factor weights and the node cap', () => {
+        const only = suspicionScore(g, { degree: 1, betweenness: 0, pageRank: 0, core: 0, triangles: 0 });
+        expect(only[0].factors.degree).toBeGreaterThan(0);
+        const big: G6GraphData = { nodes: Array.from({ length: ANALYSIS_NODE_CAP + 1 }, (_, i) => node(`n${i}`)), edges: [] };
+        expect(() => suspicionScore(big)).toThrow(/capped/);
     });
 });
