@@ -81,6 +81,12 @@ former root reference docs** (each index lists them):
   **NFR-7 certifications plan, DRAFT 2026-07-23** (SOC 2 Type I → II → ISO 27001 → FedRAMP
   800-53 alignment/ATO-support; HIPAA/PCI scoping statements only); control-level coverage in
   §2b, workstreams C1–C6, sequencing sign-off pending.
+- [`superpower/deployment-topology-plan.md`](superpower/deployment-topology-plan.md) — **deployment
+  topology & operations plan, DRAFT 2026-07-24** — the client-facing deployment offering: tiers T1–T4
+  (workstation → single hardened server → gateway-fronted Enterprise → active/passive DR) mapped 1:1 to
+  edition flavors, security overlay matrix (TLS, IAM-delegated Kerberos/SSO, secrets/KMS), scaling + RPO/RTO
+  posture, per-tier deployment plans, script workstreams SCR-1..11, preflight + post-deploy verification
+  blocks; decision asks D1–D8 pending stakeholder sign-off.
 - [`superpower/living-operational-system.md`](superpower/living-operational-system.md) — standing
   **architecture north-star** (seven networks over one Component metamodel); R1–R6 all shipped.
 - [`superpower/geo-map-case-studies.md`](superpower/geo-map-case-studies.md) — Geo Map CS1–CS5

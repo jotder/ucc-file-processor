@@ -27,8 +27,13 @@ Geocoder — never "marker/pin" in model names).
 * **Saved investigations** — a **Geo View** (Component kind `geo-map-view`: GeoSource + GeoQuery +
   display options + camera) via the shared `inspecto/investigation` lib (SavedViewStore, detail dialog,
   `uniqueNameValidator`).
-* **Status** — UI shipped, metadata-first (mock-backed data); the DuckDB-spatial backend + geo Widget
-  via the `VizPlugin` seam are Phase 4.
+* **Status** — UI shipped; the geo Widget via the `VizPlugin` seam shipped (Phase 4a). **Server-side
+  projection shipped** — `GeoRoutes` (`POST /geo/projection`, `POST /geo/routes`) is the DuckDB-side
+  fold of `projectPoints`/`projectRoutes` (mirrors [Link Analysis](link-analysis.md)'s
+  `POST /inv/projection`): valid-WGS84 point projection with a `skipped` count, and the O/D route fold
+  as a `GROUP BY` (summed weight), scaling past the ~5k-point browser cap. Plain SQL — the DuckDB
+  `spatial` extension is **deliberately deferred** (no geometry op is needed, and the hardened
+  `SqlSandbox` disables extension loading); see `docs/BACKLOG.md`.
 * **Investigation pivot** (ui-design-review R8, 2026-07-20) — a point resolving an `objectRef` offers
   "View in graph" (pivots to Link Analysis with the same record); see
   [Investigation Pivot](investigation-pivot.md) for the shared contract.
