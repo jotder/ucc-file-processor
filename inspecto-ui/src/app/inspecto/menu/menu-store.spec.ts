@@ -19,17 +19,21 @@ describe('MenuStore', () => {
         expect(s.find(rev)?.children?.[0].id).toBe(top);
     });
 
-    it('seeds a starter example: one menu → sub-menu → a placed report', () => {
+    it('seeds the Telecom starter example: Revenue (Overview + TopX) and FMS (menu-builder-plan O3)', () => {
         const s = store();
         const top = s.seedExample();
-        const menu = s.find(top)!;
-        expect(s.nodes()).toHaveLength(1);
-        expect(menu.title).toBe('Revenue');
-        const sub = menu.children![0];
-        expect(sub.title).toBe('Overview');
-        const leaf = sub.children![0];
-        expect(leaf.binding).toEqual({ kind: 'dashboard', componentId: 'revenue_overview' });
-        expect(leaf.children).toBeUndefined();
+        const revenue = s.find(top)!;
+        expect(s.nodes()).toHaveLength(2);
+        expect(revenue.title).toBe('Revenue');
+        const [overview, topx] = revenue.children!;
+        expect(overview.title).toBe('Overview');
+        expect(overview.children![0].binding).toEqual({ kind: 'dashboard', componentId: 'revenue_overview' });
+        expect(topx.title).toBe('TopX');
+        expect(topx.children!.map((n) => n.title)).toEqual(['Top usages', 'Top billed', 'Top roamers']);
+        expect(topx.children!.every((n) => n.binding?.kind === 'widget')).toBe(true);
+        const fms = s.nodes()[1];
+        expect(fms.title).toBe('FMS');
+        expect(fms.children!.map((n) => n.binding?.kind)).toEqual(['dashboard', 'widget']);
     });
 
     it('attaches a leaf bound to a component (no children)', () => {

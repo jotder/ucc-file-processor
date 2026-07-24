@@ -114,16 +114,31 @@ export class MenuStore {
     }
 
     /**
-     * Populate a starter example — one menu with a sub-menu and a placed report — so a new Space has a
-     * copy-me template instead of a blank slate (menu-builder-plan O3). Built from the same ops the
-     * builder uses (normal id generation); the caller decides when to run it (opt-in, empty tree only).
-     * Returns the top-level menu's id.
+     * Populate a starter example so a new Space has a copy-me template instead of a blank slate
+     * (menu-builder-plan O3): the plan's motivating Telecom shape — `Revenue › Overview` +
+     * `Revenue › TopX › {top usages, top billed, top roamers}` and an `FMS` fraud group — spanning
+     * groups, sub-groups and both dashboard/widget bindings. The bound componentIds are illustrative
+     * (a leaf whose component doesn't exist yet simply routes to its placeholder — the point is the
+     * demo tree, not the demo data). Built from the same ops the builder uses (normal id generation);
+     * the caller decides when to run it (opt-in, empty tree only). Returns the first menu's id.
      */
     seedExample(): string {
         const revenue = this.addMenu('Revenue', 'heroicons_outline:banknotes');
         const overview = this.addSubMenu(revenue, 'Overview', 'heroicons_outline:chart-bar');
         this.attach(overview, 'Revenue dashboard', { kind: 'dashboard', componentId: 'revenue_overview' },
             'heroicons_outline:presentation-chart-line');
+        const topx = this.addSubMenu(revenue, 'TopX', 'heroicons_outline:arrow-trending-up');
+        this.attach(topx, 'Top usages', { kind: 'widget', componentId: 'top_usages' },
+            'heroicons_outline:signal');
+        this.attach(topx, 'Top billed', { kind: 'widget', componentId: 'top_billed' },
+            'heroicons_outline:receipt-percent');
+        this.attach(topx, 'Top roamers', { kind: 'widget', componentId: 'top_roamers' },
+            'heroicons_outline:globe-alt');
+        const fms = this.addMenu('FMS', 'heroicons_outline:shield-exclamation');
+        this.attach(fms, 'Fraud categories', { kind: 'dashboard', componentId: 'fraud_categories' },
+            'heroicons_outline:chart-pie');
+        this.attach(fms, 'Suspicious usage', { kind: 'widget', componentId: 'suspicious_usage' },
+            'heroicons_outline:eye');
         return revenue;
     }
 
