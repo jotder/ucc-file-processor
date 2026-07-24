@@ -18,8 +18,23 @@ distinct ([`GLOSSARY.md`](../../../GLOSSARY.md) §11): this studio works on **P3
   (column → source/target Entity, optional columns → Link type/attributes).
 * **Rendering** — the shared G6 host (`src/app/inspecto/graph/`), reused by the Catalog graph and the
   Geo co-location bridge. Nodes are canvas-drawn — verify inspector logic in unit tests, not preview clicks.
-* **Toolboxes** — Layout (11 G6 layouts; tree shapes gated to acyclic data) and Algorithm (Louvain
-  community detection, graph pattern matching), plus paths/neighborhood/centrality analysis.
+* **Toolboxes** — Layout (11 G6 layouts; tree shapes gated to acyclic data) and Algorithm, plus
+  paths/neighborhood/centrality analysis. The **V2 algorithm depth** (2026-07-24) lives in the pure,
+  framework-free `inspecto/graph/graph-analysis.ts` library (the extension seam — a new algorithm is a
+  pure `(g: G6GraphData, …) ⇒ result` drop-in) and is surfaced as accordion groups in
+  `link-analysis-toolbox.component`:
+  * *Advanced traversal* — `weightedShortestPath` (Dijkstra by tie strength, `edgeWeight` = folded
+    count), `findCycles` (canonicalized directed cycles), `articulationPoints`/`bridges` (Tarjan),
+    `egoNetwork`.
+  * *Algorithm library* — `pageRank`, closeness/eigenvector/katz centrality, `hits`, `kCore`,
+    `triangleCount`, `cliques` (Bron–Kerbosch), `maxFlow`+min-cut (Edmonds–Karp),
+    `maximumSpanningForest`, `jaccardSimilarity`, `linkPrediction`.
+  * *Suspicion scoring* — `suspicionScore`, an explainable 0–100 composite (degree/betweenness/
+    PageRank/k-core/triangles) with a per-node factor breakdown; the toolbox highlights the top decile.
+  * *Pattern packs* — a picker (`pattern-packs.ts`) that pre-fills the motif builder from parameterized
+    starter templates (layering chain, pass-through, inbound collector, forwarding relay, circular flow,
+    shared associates); packs whose shape isn't a path motif hint at the fitter tool (cycles/similarity).
+  Guarded by `ANALYSIS_NODE_CAP` (2000) where super-linear; 53 pure unit tests + 11 toolbox specs.
 * **Saved investigations** — a **Link-Analysis View** (Component kind `link-analysis-view`) via the
   shared `inspecto/investigation` lib; when its source is `entity-projection` it is renderable as a
   **Widget** (a Graph Visualization Type bound to a Dataset).
@@ -31,7 +46,15 @@ distinct ([`GLOSSARY.md`](../../../GLOSSARY.md) §11): this studio works on **P3
   /inv/schema/relationships` infers naming-convention FK suggestions across Datasets (`<base>_id` column
   → a Dataset named `<base>`, linked to its `id` column or a same-named column), so the Studio can
   pre-fill multi-mapping projections instead of requiring every column pair hand-picked. Self-references
-  (e.g. `manager_id`) are included; unusable Datasets are skipped, not fatal. Only V2+ items remain open.
+  (e.g. `manager_id`) are included; unusable Datasets are skipped, not fatal.
+  **2026-07-24 shipped four V2 tracks** (see Toolboxes above): advanced traversal, the algorithm
+  library, suspicion scoring, and pattern packs. Remaining V2 (BACKLOG): **timeline** (a time slider
+  filtering edges by a temporal `attrs` column — decision-free design ready, needs the studio-shell UI
+  zone + a pure `filterByTime` helper) and **collaboration** — of which **version history + sharing are
+  frontend-only wiring** (backend `/components/{type}/{id}/versions` + `restore` and RBAC component
+  shares already exist; `ComponentsService.versions/restore` are wired), while **per-view comments need a
+  new backend** (no Component-attached note model — `ObjectNote` is keyed to Incidents/Cases, so a
+  saved-view comment path would re-key that model by component `type`+`id`).
 * **Investigation pivot** (ui-design-review R8, 2026-07-20) — a node resolving an `objectRef` offers
   "View on map" (pivots to Geo Map Analysis with the same record); see
   [Investigation Pivot](investigation-pivot.md) for the shared contract.
