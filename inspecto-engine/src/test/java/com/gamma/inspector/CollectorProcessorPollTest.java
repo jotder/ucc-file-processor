@@ -80,6 +80,27 @@ class CollectorProcessorPollTest {
     }
 
     @Test
+    void oldestInboxAgeSecondsReflectsLagAndIsZeroWhenEmpty(@TempDir Path dir) throws Exception {
+        Path toon = PipelineConfigBatchTestRef.writePipeline(dir, "");
+        PipelineConfig cfg = PipelineConfig.load(toon.toString());
+        String pollDir = cfg.dirs().poll();
+
+        // Empty/absent inbox → 0 lag (and blank/missing dirs are safe).
+        assertEquals(0.0, CollectorProcessor.oldestInboxAgeSeconds(pollDir), "no inbox → no lag");
+        assertEquals(0.0, CollectorProcessor.oldestInboxAgeSeconds(null), "null dir → no lag");
+
+        Path inbox = Path.of(pollDir);
+        Files.createDirectories(inbox);
+        Path f = inbox.resolve("waiting.csv");
+        Files.writeString(f, "ID,AMT,EVENT_DATE\nr,1.0,2020-04-03\n");
+        // Backdate the file 10 minutes so the age is a stable, positive value.
+        Files.setLastModifiedTime(f, java.nio.file.attribute.FileTime.fromMillis(System.currentTimeMillis() - 600_000));
+
+        double age = CollectorProcessor.oldestInboxAgeSeconds(pollDir);
+        assertTrue(age >= 590 && age <= 660, "≈600s lag for a 10-min-old waiting file, was " + age);
+    }
+
+    @Test
     void parallelScanSkipsAlreadyProcessedAndPicksUpNewFiles(@TempDir Path dir) throws Exception {
         // threads > 1 routes the candidate scan through the parallel duplicate-check
         // path; verify it still skips marked files exactly and only the newly-arrived

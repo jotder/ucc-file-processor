@@ -1056,9 +1056,12 @@ public final class CollectorService implements AutoCloseable {
      * @param running  whether this pipeline is mid-ingest right now ("under processing")
      * @param current  the file being ingested right now ("file index of total"); {@code null}
      *                 when the pipeline is not mid-file (v4.1.0, per-file in-flight visibility)
+     * @param oldestInboxAgeSeconds lag: seconds since the oldest waiting inbox file was modified
+     *                 ({@code 0} when the inbox is empty); the same signal as the
+     *                 {@code inspecto_inbox_oldest_seconds} metric (pipeline-graph §3.5 / T15)
      */
     public record InboxStatus(String pipeline, String inbox, int pending, boolean running,
-                              IngestProgress.Snapshot current) {}
+                              IngestProgress.Snapshot current, double oldestInboxAgeSeconds) {}
 
     /** Inbox/processing status for one registered pipeline; empty if no pipeline by that name. */
     public Optional<InboxStatus> inboxStatus(String pipelineName) {
@@ -1067,7 +1070,8 @@ public final class CollectorService implements AutoCloseable {
                 java.nio.file.Paths.get(cfg.dirs().poll()).toAbsolutePath().toString(),
                 CollectorProcessor.countPending(cfg),
                 running.contains(pipelineName),
-                IngestProgress.current(cfg.identity().pipelineName())));
+                IngestProgress.current(cfg.identity().pipelineName()),
+                CollectorProcessor.oldestInboxAgeSeconds(cfg.dirs().poll())));
     }
 
     /** List each registered pipeline with its current paused state and commit count. */

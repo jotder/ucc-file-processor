@@ -448,6 +448,28 @@ public class CollectorProcessor {
     }
 
     /**
+     * Seconds since the oldest regular file under {@code pollDir} was modified — the inbox <b>lag</b>
+     * signal (the age of the most-behind unprocessed file). {@code 0} when the inbox is empty or absent.
+     * The shared source of both the {@code inspecto_inbox_oldest_seconds} metric and the API/UI's
+     * {@code InboxStatus.oldestInboxAgeSeconds}; back-pressure's lag input (pipeline-graph §3.5 / T15).
+     */
+    public static double oldestInboxAgeSeconds(String pollDir) {
+        if (pollDir == null || pollDir.isBlank()) return 0;
+        java.nio.file.Path root = java.nio.file.Path.of(pollDir);
+        if (!Files.isDirectory(root)) return 0;
+        try (java.util.stream.Stream<java.nio.file.Path> w = Files.walk(root)) {
+            long oldest = w.filter(Files::isRegularFile)
+                    .mapToLong(p -> { try { return Files.getLastModifiedTime(p).toMillis(); }
+                                      catch (java.io.IOException e) { return Long.MAX_VALUE; } })
+                    .min().orElse(0L);
+            if (oldest == 0L || oldest == Long.MAX_VALUE) return 0;
+            return Math.max(0, (System.currentTimeMillis() - oldest) / 1000.0);
+        } catch (java.io.IOException e) {
+            return 0;
+        }
+    }
+
+    /**
      * Thrown by {@link #run(PipelineConfig)} when one or more batches failed.
      * {@link #main(String[])} catches this and exits with a non-zero status so
      * wrapper scripts can detect partial-failure runs without scraping logs.

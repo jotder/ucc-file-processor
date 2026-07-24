@@ -7,11 +7,7 @@ import com.gamma.metrics.MetricRegistry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.Map;
-import java.util.stream.Stream;
 
 /**
  * Wires observability (M4) onto a running {@link CollectorService}: it subscribes to the
@@ -84,24 +80,7 @@ public final class MetricsService {
             reg.setGauge("inspecto_quarantine_files", "Files currently in quarantine", labels,
                     svc.statusStore().quarantine(cfg).size());
             reg.setGauge("inspecto_inbox_oldest_seconds", "Age of the oldest unprocessed inbox file (lag)",
-                    labels, oldestInboxAgeSeconds(cfg.dirs().poll()));
-        }
-    }
-
-    /** Seconds since the oldest regular file under {@code pollDir} was modified; 0 if empty/absent. */
-    private static double oldestInboxAgeSeconds(String pollDir) {
-        if (pollDir == null || pollDir.isBlank()) return 0;
-        Path root = Path.of(pollDir);
-        if (!Files.isDirectory(root)) return 0;
-        try (Stream<Path> w = Files.walk(root)) {
-            long oldest = w.filter(Files::isRegularFile)
-                    .mapToLong(p -> { try { return Files.getLastModifiedTime(p).toMillis(); }
-                                      catch (IOException e) { return Long.MAX_VALUE; } })
-                    .min().orElse(0L);
-            if (oldest == 0L || oldest == Long.MAX_VALUE) return 0;
-            return Math.max(0, (System.currentTimeMillis() - oldest) / 1000.0);
-        } catch (IOException e) {
-            return 0;
+                    labels, com.gamma.inspector.CollectorProcessor.oldestInboxAgeSeconds(cfg.dirs().poll()));
         }
     }
 }
