@@ -126,6 +126,16 @@ local `.m2` from `C:/sandbox/agent-brainstorm`) — see `docs/superpower/agent-k
 - **Synchronous bus + `ingestLock` ⇒ deadlock** — the event bus publishes **synchronously on the publishing
   thread**, and `ingestLock` is held during a cycle. An event-triggered run dispatched **inline** would
   deadlock. Hand off to an off-bus virtual-thread pool (`triggerWorkers`) — same reason `JobService` hands off.
+  The last inline holdout, the pre-v1 legacy trigger/notify routes, moved off the request thread 2026-07-24
+  (`CollectorService.runPipelineOffThread` → submit to `triggerWorkers`, block for the result; the pre-v1
+  `200 RunResult` body is preserved). So no HTTP request thread holds `ingestLock` anymore.
+- **`JobService` total concurrency is bounded only when asked** — `-Djobs.maxConcurrentRuns` (default `0` =
+  unbounded) installs a `Semaphore` acquired on the **worker** thread inside `submitRun`/`submitAdhocRun`,
+  never the caller, so a full pool queues Runs rather than blocking cron/event/manual dispatch. Distinct from
+  the batch-ingest `maxConcurrentRuns` (`MultiCollectorProcessor`) and from same-job non-overlap (`LockingRunner`).
+- **Incident resolution is hard-gated backend-side** (I1, 2026-07-24) — `ObjectService.commit()` rejects
+  INCIDENT→RESOLVED (422) unless `attributes.postmortem` has a timeline + cause-analysis + corrective-action
+  entry and `dueAt` is set; mirrors the UI `mail-model.ts` `postmortemGaps` soft-warn. Keep the two in sync.
 - **`PartitionWriter` requires non-empty partition columns** (it emits `PARTITION_BY (...)`). The unpartitioned
   single-file `COPY` path lives in `PartitionSinkWriter`; the legacy writer is untouched.
 - **Flow seed = exactly one `source_store`** in Phase-A live execution (rejects 0 or >1; multi-source merge is
