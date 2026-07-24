@@ -57,7 +57,7 @@ final class ParameterResolver {
      *  resolved value didn't parse as its declared {@link ParamType} (both ⇒ REJECTED). */
     record Resolution(Map<String, String> resolved, List<String> missingRequired, List<String> invalidType) {}
 
-    private static final Pattern DATE_FN = Pattern.compile("\\$(day|month)\\(\\s*(-?\\d+)\\s*\\)");
+    private static final Pattern DATE_FN = Pattern.compile("\\$(day|month|year)\\(\\s*(-?\\d+)\\s*\\)");
     private static final Pattern UPSTREAM =
             Pattern.compile("\\$upstream\\(([^)]+)\\)\\.artifact\\(([^)]+)\\)\\.(\\w+)");
 
@@ -124,7 +124,11 @@ final class ParameterResolver {
     static String deduce(String expr, Context ctx) {
         switch (expr) {
             case "$today":         return LocalDate.ofInstant(ctx.fireTime(), ctx.zone()).toString();
+            case "$yesterday":     return LocalDate.ofInstant(ctx.fireTime(), ctx.zone()).minusDays(1).toString();
+            case "$tomorrow":      return LocalDate.ofInstant(ctx.fireTime(), ctx.zone()).plusDays(1).toString();
             case "$now":           return ctx.fireTime().toString();
+            case "$now.epoch_seconds": return String.valueOf(ctx.fireTime().getEpochSecond());
+            case "$now.epoch_millis":  return String.valueOf(ctx.fireTime().toEpochMilli());
             case "$run.id":        return ctx.runId();
             case "$run.fire_time": return ctx.fireTime().toString();
             case "$run.actor":     return ctx.actor();
@@ -140,7 +144,12 @@ final class ParameterResolver {
                 if (m.matches()) {
                     LocalDate base = LocalDate.ofInstant(ctx.fireTime(), ctx.zone());
                     int n = Integer.parseInt(m.group(2));
-                    return ("day".equals(m.group(1)) ? base.plusDays(n) : base.plusMonths(n)).toString();
+                    LocalDate shifted = switch (m.group(1)) {
+                        case "day"   -> base.plusDays(n);
+                        case "month" -> base.plusMonths(n);
+                        default      -> base.plusYears(n);   // "year"
+                    };
+                    return shifted.toString();
                 }
                 Matcher u = UPSTREAM.matcher(expr);
                 if (u.matches()) return upstreamAttr(ctx, u.group(1).trim(), u.group(2).trim(), u.group(3));

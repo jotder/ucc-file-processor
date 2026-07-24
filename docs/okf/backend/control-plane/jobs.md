@@ -61,7 +61,8 @@ Design of record (all phases + resolved decisions + TOON config gallery):
   non-blank string) — a mismatch (e.g. a `bind: $signal.count` extracting `"n/a"` for a required INTEGER)
   goes into `Resolution.invalidType()` and REJECTS the Run the same way a missing required parameter does,
   instead of the raw string reaching a Job's own `Integer.parseInt`/etc. and throwing uncaught mid-run.
-  `$`-context includes `$today`/`$day(-n)`, `$run.*`, `$job.last_success_time` (the natural
+  `$`-context includes `$today`/`$yesterday`/`$tomorrow`, the offset family `$day(-n)`/`$month(-n)`/`$year(-n)`,
+  `$now` + its numeric forms `$now.epoch_seconds`/`$now.epoch_millis`, `$run.*`, `$job.last_success_time` (the natural
   namespaces never conflate: `$name` (run time) · `${param}` in `*_job_template.toon` (authoring time) ·
   `${ENV:KEY}` (config-load-time secret, never logged).
 * **Signals** — one ledger (`Signal` envelope: ULID, dotted type, source Ref, correlationId, severity,

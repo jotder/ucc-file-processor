@@ -46,10 +46,16 @@ class ParameterResolverTest {
     void deducesTheBuiltInDollarContext() {
         var c = ctx(Optional.of(LocalDateTime.parse("2026-07-07T06:00:04")));
         assertEquals("2026-07-08", ParameterResolver.deduce("$today", c));
+        assertEquals("2026-07-07", ParameterResolver.deduce("$yesterday", c));
+        assertEquals("2026-07-09", ParameterResolver.deduce("$tomorrow", c));
         assertEquals("2026-07-07", ParameterResolver.deduce("$day(-1)", c));
         assertEquals("2026-07-09", ParameterResolver.deduce("$day(1)", c));
         assertEquals("2026-06-08", ParameterResolver.deduce("$month(-1)", c));
+        assertEquals("2025-07-08", ParameterResolver.deduce("$year(-1)", c));
+        assertEquals("2027-07-08", ParameterResolver.deduce("$year(1)", c));
         assertEquals("2026-07-08T06:00:00Z", ParameterResolver.deduce("$now", c));
+        assertEquals("1783490400", ParameterResolver.deduce("$now.epoch_seconds", c));
+        assertEquals("1783490400000", ParameterResolver.deduce("$now.epoch_millis", c));
         assertEquals("run-1", ParameterResolver.deduce("$run.id", c));
         assertEquals("2026-07-08T06:00:00Z", ParameterResolver.deduce("$run.fire_time", c));
         assertEquals("cron", ParameterResolver.deduce("$run.actor", c));
