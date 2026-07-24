@@ -136,6 +136,13 @@ local `.m2` from `C:/sandbox/agent-brainstorm`) — see `docs/superpower/agent-k
 - **Incident resolution is hard-gated backend-side** (I1, 2026-07-24) — `ObjectService.commit()` rejects
   INCIDENT→RESOLVED (422) unless `attributes.postmortem` has a timeline + cause-analysis + corrective-action
   entry and `dueAt` is set; mirrors the UI `mail-model.ts` `postmortemGaps` soft-warn. Keep the two in sync.
+- **T15 back-pressure's "per-cycle admission cap" doesn't exist yet** — `pipeline-graph-design.md` §3.5's
+  table reads as if a per-cycle intake cap already exists (the thing T15 would halve); it doesn't.
+  `CollectorProcessor.collect()` admits ALL matching candidates every cycle; `batch.max_files` only bounds
+  *batch size* within an already-admitted set. Building T15 means creating the cap first, then the
+  halving+hysteresis controller (likely in `PipelineScheduler.runCycle()`). The lag signal it would read is
+  now shared (`CollectorProcessor.oldestInboxAgeSeconds`, 2026-07-24 — also backs `InboxStatus` and the
+  `inspecto_inbox_oldest_seconds` metric), but the admission-cap half is unbuilt.
 - **`PartitionWriter` requires non-empty partition columns** (it emits `PARTITION_BY (...)`). The unpartitioned
   single-file `COPY` path lives in `PartitionSinkWriter`; the legacy writer is untouched.
 - **Flow seed = exactly one `source_store`** in Phase-A live execution (rejects 0 or >1; multi-source merge is
