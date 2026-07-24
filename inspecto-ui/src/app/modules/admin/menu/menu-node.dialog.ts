@@ -1,14 +1,16 @@
-import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { toSignal } from '@angular/core/rxjs-interop';
+import { MatAutocompleteModule } from '@angular/material/autocomplete';
 import { MatButtonModule } from '@angular/material/button';
 import { MAT_DIALOG_DATA, MatDialogModule, MatDialogRef } from '@angular/material/dialog';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
-import { MatSelectModule } from '@angular/material/select';
 import { uniqueNameValidator } from 'app/inspecto/investigation/unique-name';
+import { HEROICONS_OUTLINE_IDS, heroiconOutline } from 'app/inspecto/menu/heroicons-outline-ids';
 
-/** A small curated set of menu icons (gamma heroicons) — enough for business menus without a full picker. */
+/** A small curated set of menu icons surfaced first (nicer labels); the picker also searches the full set. */
 export const MENU_ICON_CHOICES: { value: string; label: string }[] = [
     { value: 'heroicons_outline:banknotes', label: 'Revenue' },
     { value: 'heroicons_outline:shield-exclamation', label: 'Fraud / risk' },
@@ -22,6 +24,15 @@ export const MENU_ICON_CHOICES: { value: string; label: string }[] = [
     { value: 'heroicons_outline:folder', label: 'Folder' },
     { value: 'heroicons_outline:squares-2x2', label: 'Overview' },
     { value: 'heroicons_outline:phone', label: 'Telecom' },
+];
+
+/** Full picker option list: the curated few first (with friendly labels), then every other outline icon
+ *  (label = its bare id). Deduped so a curated icon isn't repeated. */
+const CURATED_VALUES = new Set(MENU_ICON_CHOICES.map((c) => c.value));
+const ALL_ICON_OPTIONS: { value: string; label: string }[] = [
+    ...MENU_ICON_CHOICES,
+    ...HEROICONS_OUTLINE_IDS.map((id) => ({ value: heroiconOutline(id), label: id }))
+        .filter((o) => !CURATED_VALUES.has(o.value)),
 ];
 
 export interface MenuNodeDialogData {
@@ -43,12 +54,12 @@ export interface MenuNodeDialogResult {
     standalone: true,
     imports: [
         ReactiveFormsModule,
+        MatAutocompleteModule,
         MatButtonModule,
         MatDialogModule,
         MatFormFieldModule,
         MatIconModule,
         MatInputModule,
-        MatSelectModule,
     ],
     changeDetection: ChangeDetectionStrategy.OnPush,
     template: `
@@ -66,17 +77,31 @@ export interface MenuNodeDialogResult {
                     }
                 </mat-form-field>
 
+                <!-- Searchable icon picker over the full heroicons-outline set (menu-builder-plan O2).
+                     Free text filters; only a real icon id is accepted (else the control errors). -->
                 <mat-form-field subscriptSizing="dynamic">
                     <mat-label>Icon (optional)</mat-label>
-                    <mat-select formControlName="icon">
-                        <mat-option [value]="null">None</mat-option>
-                        @for (opt of icons; track opt.value) {
+                    @if (selectedIcon()) {
+                        <mat-icon matPrefix class="icon-size-5 ml-1 mr-2" [svgIcon]="selectedIcon()!"></mat-icon>
+                    }
+                    <input
+                        matInput
+                        formControlName="icon"
+                        [matAutocomplete]="auto"
+                        placeholder="Search icons — e.g. chart, phone, shield"
+                        aria-label="Menu icon"
+                    />
+                    <mat-autocomplete #auto="matAutocomplete">
+                        @for (opt of filteredIcons(); track opt.value) {
                             <mat-option [value]="opt.value">
                                 <mat-icon class="icon-size-5 mr-2 align-middle" [svgIcon]="opt.value"></mat-icon>
                                 {{ opt.label }}
                             </mat-option>
                         }
-                    </mat-select>
+                    </mat-autocomplete>
+                    @if (form.controls.icon.hasError('unknownIcon')) {
+                        <mat-error>Pick an icon from the list.</mat-error>
+                    }
                 </mat-form-field>
             </mat-dialog-content>
             <mat-dialog-actions align="end">
@@ -90,14 +115,43 @@ export class MenuNodeDialog {
     readonly data = inject<MenuNodeDialogData>(MAT_DIALOG_DATA);
     readonly ref = inject<MatDialogRef<MenuNodeDialog, MenuNodeDialogResult>>(MatDialogRef);
     private fb = inject(FormBuilder);
-    readonly icons = MENU_ICON_CHOICES;
+
+    private static readonly VALID_ICONS = new Set(ALL_ICON_OPTIONS.map((o) => o.value));
+
+    /** Blank is allowed (no icon); any non-blank value must be a known icon id. */
+    private static iconValidator(c: { value: unknown }): { unknownIcon: true } | null {
+        const v = String(c.value ?? '').trim();
+        return v === '' || MenuNodeDialog.VALID_ICONS.has(v) ? null : { unknownIcon: true };
+    }
 
     readonly form = this.fb.group({
         title: [
             this.data.title ?? '',
             [Validators.required, uniqueNameValidator(() => this.data.takenTitles)],
         ],
-        icon: [this.data.icon ?? null],
+        icon: [this.data.icon ?? '', [MenuNodeDialog.iconValidator]],
+    });
+
+    /** The current icon control value as a live signal, for the prefix preview + option filtering. */
+    private readonly iconValue = toSignal(this.form.controls.icon.valueChanges, {
+        initialValue: this.form.controls.icon.value,
+    });
+
+    /** The svgIcon to preview in the field prefix — only when the value is a real icon. */
+    readonly selectedIcon = computed(() => {
+        const v = String(this.iconValue() ?? '').trim();
+        return MenuNodeDialog.VALID_ICONS.has(v) ? v : null;
+    });
+
+    /** Options narrowed by the typed text (matches the bare id / label / full value), capped for the panel. */
+    readonly filteredIcons = computed(() => {
+        const q = String(this.iconValue() ?? '').trim().toLowerCase();
+        // When the value is exactly a selected icon, show the full list (so the panel isn't a 1-row dead end).
+        const term = MenuNodeDialog.VALID_ICONS.has(q) ? '' : q;
+        const matches = term
+            ? ALL_ICON_OPTIONS.filter((o) => o.label.toLowerCase().includes(term) || o.value.toLowerCase().includes(term))
+            : ALL_ICON_OPTIONS;
+        return matches.slice(0, 60);
     });
 
     save(): void {
@@ -106,6 +160,7 @@ export class MenuNodeDialog {
             return;
         }
         const { title, icon } = this.form.getRawValue();
-        this.ref.close({ title: String(title).trim(), icon: icon ?? undefined });
+        const iconValue = String(icon ?? '').trim();
+        this.ref.close({ title: String(title).trim(), icon: iconValue || undefined });
     }
 }

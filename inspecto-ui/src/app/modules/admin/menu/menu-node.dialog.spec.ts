@@ -42,4 +42,35 @@ describe('MenuNodeDialog', () => {
         c.save();
         expect(ref.close).toHaveBeenCalledWith({ title: 'Revenue', icon: 'heroicons_outline:banknotes' });
     });
+
+    it('accepts any real icon from the full set, not just the curated few', () => {
+        const { c, ref } = make({ heading: 'Add menu', takenTitles: [] });
+        c.form.controls.title.setValue('Servers');
+        c.form.controls.icon.setValue('heroicons_outline:server-stack'); // not in MENU_ICON_CHOICES
+        c.save();
+        expect(ref.close).toHaveBeenCalledWith({ title: 'Servers', icon: 'heroicons_outline:server-stack' });
+    });
+
+    it('rejects an unknown icon value inline and does not close', () => {
+        const { c, ref } = make({ heading: 'Add menu', takenTitles: [] });
+        c.form.controls.title.setValue('X');
+        c.form.controls.icon.setValue('heroicons_outline:not-a-real-icon');
+        c.save();
+        expect(c.form.controls.icon.hasError('unknownIcon')).toBe(true);
+        expect(ref.close).not.toHaveBeenCalled();
+    });
+
+    it('allows a blank icon (optional) and saves without one', () => {
+        const { c, ref } = make({ heading: 'Add menu', takenTitles: [] });
+        c.form.controls.title.setValue('No icon');
+        c.save();
+        expect(ref.close).toHaveBeenCalledWith({ title: 'No icon', icon: undefined });
+    });
+
+    it('filters the picker options by the typed term (id or label)', () => {
+        const { c } = make({ heading: 'Add menu', takenTitles: [] });
+        c.form.controls.icon.setValue('phone');
+        expect(c.filteredIcons().length).toBeGreaterThan(0);
+        expect(c.filteredIcons().every((o) => o.value.includes('phone') || o.label.toLowerCase().includes('phone'))).toBe(true);
+    });
 });
