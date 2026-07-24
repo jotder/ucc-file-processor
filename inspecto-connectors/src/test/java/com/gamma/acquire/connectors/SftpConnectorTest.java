@@ -22,10 +22,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
-import java.io.IOException;
 import java.io.InputStream;
-import java.net.ServerSocket;
-import java.net.Socket;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -33,9 +30,6 @@ import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -446,7 +440,7 @@ class SftpConnectorTest {
             try (CollectorConnector c = new SftpConnector(profileWithProxy(proxy), null)) {
                 assertEquals(1, c.discover(anyCsv()).size(), "SFTP works when routed through the SOCKS5 proxy");
             }
-            assertEquals("127.0.0.1:" + port, relay.lastConnectTarget(2000),
+            assertEquals("127.0.0.1:" + port, relay.firstConnectTarget(2000),
                     "the proxy actually relayed a CONNECT to the real SFTP server, proving the tunnel was used");
         }
     }
@@ -463,94 +457,6 @@ class SftpConnectorTest {
             assertTrue(ex.getMessage().contains("SOCKS5"), "rejection explains only SOCKS5 is supported: " + ex.getMessage());
         } finally {
             c.close();
-        }
-    }
-
-    /** A minimal single-connection SOCKS5 (no-auth) relay: accepts one client, honours the handshake +
-     *  CONNECT request, records the requested target, then pipes bytes to/from a real TCP connection to
-     *  that target until either side closes. Just enough of RFC 1928 to prove {@link SocksProxySocketFactory}
-     *  actually tunnels through a proxy rather than connecting directly. */
-    private static final class MiniSocks5Relay implements AutoCloseable {
-        private final ServerSocket listener;
-        private final Thread thread;
-        private final AtomicReference<String> target = new AtomicReference<>();
-        private final CountDownLatch targetKnown = new CountDownLatch(1);
-
-        private MiniSocks5Relay(ServerSocket listener) {
-            this.listener = listener;
-            this.thread = new Thread(this::serveOne, "mini-socks5-relay");
-            this.thread.setDaemon(true);
-            this.thread.start();
-        }
-
-        static MiniSocks5Relay start() throws IOException {
-            ServerSocket ss = new ServerSocket(0, 1, java.net.InetAddress.getByName("127.0.0.1"));
-            return new MiniSocks5Relay(ss);
-        }
-
-        int port() { return listener.getLocalPort(); }
-
-        /** The last {@code host:port} a client asked this relay to CONNECT to, waiting up to {@code timeoutMs}. */
-        String lastConnectTarget(long timeoutMs) throws InterruptedException {
-            targetKnown.await(timeoutMs, TimeUnit.MILLISECONDS);
-            return target.get();
-        }
-
-        private void serveOne() {
-            try (Socket client = listener.accept()) {
-                var in = client.getInputStream();
-                var out = client.getOutputStream();
-
-                // Greeting: VER, NMETHODS, METHODS... — reply "no auth" unconditionally.
-                int ver = in.read(), nMethods = in.read();
-                in.readNBytes(new byte[nMethods], 0, nMethods);
-                if (ver != 5) return;
-                out.write(new byte[]{5, 0});
-                out.flush();
-
-                // Request: VER, CMD, RSV, ATYP, DST.ADDR, DST.PORT.
-                in.read(); in.read(); in.read();   // ver, cmd, rsv
-                int atyp = in.read();
-                String host;
-                if (atyp == 1) {   // IPv4
-                    byte[] addr = in.readNBytes(4);
-                    host = (addr[0] & 0xff) + "." + (addr[1] & 0xff) + "." + (addr[2] & 0xff) + "." + (addr[3] & 0xff);
-                } else if (atyp == 3) {   // domain
-                    int len = in.read();
-                    host = new String(in.readNBytes(len), StandardCharsets.US_ASCII);
-                } else {
-                    return;   // IPv6 unused by this test
-                }
-                int p = (in.read() << 8) | in.read();
-                target.set(host + ":" + p);
-                targetKnown.countDown();
-
-                try (Socket upstream = new Socket(host, p)) {
-                    out.write(new byte[]{5, 0, 0, 1, 0, 0, 0, 0, 0, 0});   // success, dummy BND.ADDR/PORT
-                    out.flush();
-                    Thread relayUp = new Thread(() -> relay(client, upstream));
-                    relayUp.setDaemon(true);
-                    relayUp.start();
-                    relay(upstream, client);
-                    relayUp.join(2000);
-                }
-            } catch (Exception ignore) {
-                // best-effort test relay — a closed/failed leg just ends this method
-            }
-        }
-
-        private static void relay(Socket from, Socket to) {
-            try {
-                from.getInputStream().transferTo(to.getOutputStream());
-            } catch (IOException ignore) {
-                // normal once either side closes
-            }
-        }
-
-        @Override
-        public void close() throws IOException {
-            listener.close();
-            thread.interrupt();
         }
     }
 }

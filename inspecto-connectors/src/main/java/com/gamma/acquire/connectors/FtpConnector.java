@@ -266,6 +266,10 @@ public final class FtpConnector implements CollectorConnector {
                 InetSocketAddress local = tunnel.localEndpoint();
                 host = local.getHostString();
                 port = local.getPort();
+            } else if (profile.proxy() != null) {
+                // Proxy dial-through: only meaningful direct-to-target. A bastion tunnel above already
+                // rewrote host/port to a local loopback forward, so proxying that connect would defeat it.
+                applyProxy(client, profile.proxy());
             }
             client.connect(host, port);   // FTPSClient negotiates AUTH TLS (explicit) / TLS-first (implicit) here
             if (!FTPReply.isPositiveCompletion(client.getReplyCode())) {
@@ -302,6 +306,24 @@ public final class FtpConnector implements CollectorConnector {
             throw new AcquisitionException("Cannot connect " + scheme().toUpperCase() + " to "
                     + profile.host() + ": " + e.getMessage(), e);
         }
+    }
+
+    /**
+     * Route the FTP/FTPS control connection through {@code proxy} (2026-07-24 — extends the SFTP connector's
+     * 2026-07-20 proxy dial-through to commons-net). Only {@code SOCKS5} is supported: commons-net's
+     * {@link org.apache.commons.net.SocketClient#setSocketFactory} lets a plain JDK {@link java.net.Socket}
+     * constructed with a SOCKS {@link java.net.Proxy} tunnel the subsequent {@code connect(host, port)}
+     * transparently, so {@link SocksProxySocketFactory} needs no protocol handshake of its own — and FTPS
+     * negotiates its TLS session on top of that already-proxied socket. {@code HTTP} is rejected fail-closed
+     * rather than silently ignored — this connector has no HTTP {@code CONNECT} handshake implementation (yet).
+     */
+    private void applyProxy(FTPClient client, ConnectionProfile.Proxy proxy) throws AcquisitionException {
+        String type = proxy.type() == null ? "" : proxy.type().trim().toUpperCase(java.util.Locale.ROOT);
+        if (!"SOCKS5".equals(type)) {
+            throw new AcquisitionException(scheme().toUpperCase() + " connector supports proxy type SOCKS5 only (got '"
+                    + proxy.type() + "') for profile targeting " + profile.host());
+        }
+        client.setSocketFactory(new SocksProxySocketFactory(proxy.host(), proxy.port()));
     }
 
     /** A plain {@link FTPClient}, or an {@link FTPSClient} (explicit/implicit) when {@code options.tls} is set. */

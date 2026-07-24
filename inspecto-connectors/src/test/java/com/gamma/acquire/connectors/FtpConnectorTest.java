@@ -1,5 +1,6 @@
 package com.gamma.acquire.connectors;
 
+import com.gamma.acquire.AcquisitionException;
 import com.gamma.acquire.ConnectionProfile;
 import com.gamma.acquire.ConnectionWorkbench;
 import com.gamma.acquire.ConnectionWorkbench.ProbeCheck;
@@ -19,6 +20,7 @@ import org.apache.ftpserver.usermanager.impl.WritePermission;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Timeout;
 import org.junit.jupiter.api.io.TempDir;
 
 import java.io.InputStream;
@@ -77,8 +79,17 @@ class FtpConnectorTest {
                 "user", "pw", Map.of(), null);
     }
 
+    private ConnectionProfile profileWithProxy(ConnectionProfile.Proxy proxy) {
+        return new ConnectionProfile("test-ftp", "ftp", "127.0.0.1", port, null, "",
+                "user", "pw", Map.of(), null, proxy);
+    }
+
     private CollectorConnector connector() {
         return new FtpConnector(profile(), null);
+    }
+
+    private static DiscoveryContext anyCsv() {
+        return new DiscoveryContext(List.of("*.csv"), List.of(), DiscoveryContext.UNBOUNDED);
     }
 
     // ── connection workbench (probe · explore · sample) ─────────────────────────
@@ -192,6 +203,34 @@ class FtpConnectorTest {
             c.post(rf, new PostAction(PostAction.Kind.RENAME, null, Map.of()));
             assertFalse(Files.exists(serverRoot.resolve("r.csv")));
             assertTrue(Files.exists(serverRoot.resolve("processed_r.csv")), "renamed in place");
+        }
+    }
+
+    // ── proxy dial-through (2026-07-24) ──────────────────────────────────────────
+
+    @Test
+    @Timeout(30)   // a broken tunnel would otherwise block on an FTP data connection indefinitely
+    void dialsThroughASocks5ProxyToTheRealFtpServer() throws Exception {
+        Files.writeString(serverRoot.resolve("a.csv"), "ID\n1\n");
+        try (MiniSocks5Relay relay = MiniSocks5Relay.start()) {
+            ConnectionProfile.Proxy proxy = new ConnectionProfile.Proxy("SOCKS5", "127.0.0.1", relay.port(), null, null);
+            try (CollectorConnector c = new FtpConnector(profileWithProxy(proxy), null)) {
+                assertEquals(1, c.discover(anyCsv()).size(), "FTP works when the control connection is routed through the SOCKS5 proxy");
+            }
+            assertEquals("127.0.0.1:" + port, relay.firstConnectTarget(2000),
+                    "the proxy relayed the control-connection CONNECT to the real FTP server, proving the tunnel was used");
+        }
+    }
+
+    @Test
+    void httpProxyTypeIsRejectedFailClosedNotSilentlyIgnored() throws Exception {
+        // A nonsense proxy host — if this were silently ignored (direct connect) the assertion below would
+        // still pass by connecting straight to the real server, masking the bug. Asserting fail-fast, not
+        // "still works", is the point: an HTTP proxy dial-through isn't implemented and must say so loudly.
+        ConnectionProfile.Proxy proxy = new ConnectionProfile.Proxy("HTTP", "127.0.0.1", 1, null, null);
+        try (CollectorConnector c = new FtpConnector(profileWithProxy(proxy), null)) {
+            AcquisitionException ex = assertThrows(AcquisitionException.class, () -> c.discover(anyCsv()));
+            assertTrue(ex.getMessage().contains("SOCKS5"), "rejection explains only SOCKS5 is supported: " + ex.getMessage());
         }
     }
 }
