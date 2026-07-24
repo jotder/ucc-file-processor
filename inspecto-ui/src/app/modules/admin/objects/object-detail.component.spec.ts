@@ -86,6 +86,49 @@ describe('ObjectDetailComponent', () => {
         expect(fixture.componentInstance.loading).toBe(false);
     });
 
+    it('builds the member timeline: CONTAINS members merged, comments newest-first, attributed', () => {
+        const graph = {
+            root: 'obj-9', depth: 1,
+            nodes: [
+                { id: 'obj-9', objectType: 'CASE', title: 'Fraud ring', status: 'INVESTIGATING' },
+                { id: 'inc-1', objectType: 'INCIDENT', title: 'Redemption spike', status: 'OPEN' },
+                { id: 'inc-2', objectType: 'INCIDENT', title: 'Geo anomaly', status: 'OPEN' },
+                { id: 'other', objectType: 'ALERT', title: 'Unrelated', status: 'OPEN' },
+            ],
+            edges: [
+                { from: 'obj-9', to: 'inc-1', relationship: 'CONTAINS' },
+                { from: 'obj-9', to: 'inc-2', relationship: 'contains' },
+                { from: 'obj-9', to: 'other', relationship: 'RELATED' },
+            ],
+        };
+        const commentsById: Record<string, unknown[]> = {
+            'inc-1': [{ id: 'c1', author: 'alice', body: 'first', createdAt: 100 }],
+            'inc-2': [{ id: 'c2', author: 'bob', body: 'later', createdAt: 300 }],
+        };
+        const { fixture } = create({
+            graph: () => of(graph),
+            comments: vi.fn((mid: string) => of(commentsById[mid] ?? [])),
+        });
+        const c = fixture.componentInstance;
+        c.loadMemberTimeline();
+        // Only the two CONTAINS members (not the RELATED alert) contribute.
+        expect(c.members.map((m) => m.id)).toEqual(['inc-1', 'inc-2']);
+        expect(c.memberTimeline.map((t) => t.body)).toEqual(['later', 'first']); // newest-first
+        expect(c.memberTimeline[0].memberTitle).toBe('Geo anomaly');
+        expect(c.memberTimelineLoaded).toBe(true);
+    });
+
+    it('member timeline empty-states when the object contains nothing', () => {
+        const { fixture } = create({
+            graph: () => of({ root: 'obj-9', depth: 1, nodes: [{ id: 'obj-9', objectType: 'CASE', title: 'X', status: 'OPEN' }], edges: [] }),
+        });
+        const c = fixture.componentInstance;
+        c.loadMemberTimeline();
+        expect(c.members).toEqual([]);
+        expect(c.memberTimeline).toEqual([]);
+        expect(c.memberTimelineLoaded).toBe(true);
+    });
+
     it('renders the overview with no a11y violations', async () => {
         const { fixture } = create();
         fixture.detectChanges();

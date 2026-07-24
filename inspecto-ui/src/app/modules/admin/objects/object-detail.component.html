@@ -103,6 +103,42 @@
                 </div>
             </mat-tab>
 
+            <!-- Member timeline (a Case's contained incidents' activity, merged chronologically) -->
+            <mat-tab label="Member timeline">
+                <div class="pt-6">
+                    @if (memberTimeline.length) {
+                        <div class="text-secondary mb-3 text-sm">
+                            {{ memberTimeline.length }} activity entr{{ memberTimeline.length === 1 ? 'y' : 'ies' }}
+                            across {{ members.length }} member{{ members.length === 1 ? '' : 's' }}, newest first
+                        </div>
+                        <div class="flex flex-col divide-y divide-gray-100 dark:divide-gray-800">
+                            @for (t of memberTimeline; track t.memberId + ':' + t.createdAt + ':' + t.author) {
+                                <div class="flex flex-wrap items-start gap-x-3 py-2 text-sm">
+                                    <span class="text-secondary w-44 shrink-0 tabular-nums">{{ fmt(t.createdAt) }}</span>
+                                    <button
+                                        type="button"
+                                        class="text-primary w-44 shrink-0 truncate text-left"
+                                        [attr.aria-label]="'Open ' + t.memberTitle"
+                                        (click)="onNodeClick(t.memberId)"
+                                    >
+                                        {{ t.memberTitle }}
+                                    </button>
+                                    <span class="min-w-0 flex-auto">
+                                        <span class="text-secondary">{{ t.author }}:</span>
+                                        <span class="whitespace-pre-wrap">{{ t.body }}</span>
+                                    </span>
+                                </div>
+                            }
+                        </div>
+                    } @else if (memberTimelineLoaded) {
+                        <inspecto-empty-state
+                            icon="heroicons_outline:queue-list"
+                            message="No member activity — this {{ obj?.objectType?.toLowerCase() || 'object' }} contains no other objects with comments yet."
+                        ></inspecto-empty-state>
+                    }
+                </div>
+            </mat-tab>
+
             <!-- Events -->
             <mat-tab label="Events">
                 <div class="pt-6">

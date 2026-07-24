@@ -8,8 +8,10 @@ import { MatInputModule } from '@angular/material/input';
 import { MatTabsModule } from '@angular/material/tabs';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { ActivatedRoute, Router } from '@angular/router';
+import { forkJoin, of } from 'rxjs';
+import { catchError, map } from 'rxjs/operators';
 import { ToastrService } from 'ngx-toastr';
-import { apiErrorMessage, EventRow, EventsService, NodeKind, ObjectGraph, ObjectNote, ObjectsService, OperationalObject } from 'app/inspecto/api';
+import { apiErrorMessage, EventRow, EventsService, NodeKind, ObjectGraph, ObjectGraphNode, ObjectNote, ObjectsService, OperationalObject } from 'app/inspecto/api';
 import { InspectoBreadcrumbComponent } from 'app/inspecto/components/breadcrumb.component';
 import { InspectoEmptyStateComponent } from 'app/inspecto/components/empty-state.component';
 import { InspectoSkeletonComponent } from 'app/inspecto/components/skeleton.component';
@@ -19,7 +21,17 @@ import { G6GraphData } from 'app/modules/admin/catalog/catalog-graph';
 import { GraphViewComponent } from 'app/modules/admin/catalog/graph-view.component';
 import { ObjectLinkDialog } from './object-link.dialog';
 
-type TabKey = 'overview' | 'graph' | 'events' | 'comments' | 'attachments';
+type TabKey = 'overview' | 'graph' | 'timeline' | 'events' | 'comments' | 'attachments';
+
+/** One entry in the auto member-timeline: a member's comment, tagged with the member it came from. */
+interface MemberTimelineEntry {
+    memberId: string;
+    memberTitle: string;
+    memberType: string;
+    author: string;
+    body: string;
+    createdAt: number;
+}
 
 /**
  * Operational-object detail (Phase 2–4) — one object with its lifecycle actions, its correlation
@@ -63,6 +75,7 @@ export class ObjectDetailComponent implements OnInit {
     readonly tabs: { id: TabKey; label: string }[] = [
         { id: 'overview', label: 'Overview' },
         { id: 'graph', label: 'Graph' },
+        { id: 'timeline', label: 'Member timeline' },
         { id: 'events', label: 'Events' },
         { id: 'comments', label: 'Comments' },
         { id: 'attachments', label: 'Attachments' },
@@ -77,6 +90,11 @@ export class ObjectDetailComponent implements OnInit {
     relatedEvents: EventRow[] = [];
     eventsLoaded = false;
     g6: G6GraphData | null = null;
+
+    /** Member objects (depth-1 CONTAINS children) + their merged comment timeline. */
+    members: ObjectGraphNode[] = [];
+    memberTimeline: MemberTimelineEntry[] = [];
+    memberTimelineLoaded = false;
 
     readonly commentForm: FormGroup = this.fb.group({
         body: ['', Validators.required],
@@ -128,9 +146,60 @@ export class ObjectDetailComponent implements OnInit {
 
     onTabChange(): void {
         if (this.activeTab === 'graph') this.loadGraph();
+        else if (this.activeTab === 'timeline') this.loadMemberTimeline();
         else if (this.activeTab === 'events') this.loadEvents();
         else if (this.activeTab === 'comments') this.loadComments();
         else if (this.activeTab === 'attachments') this.loadAttachments();
+    }
+
+    /**
+     * Auto member-timeline: the depth-1 members this object CONTAINS (a Case's incidents), with each
+     * member's comment thread merged into one chronological (newest-first) activity view, attributed by
+     * member. Built entirely from existing id-keyed endpoints (`graph` + per-member `comments`) — no new
+     * backend. An object with no members (e.g. a lone incident) shows an empty state.
+     */
+    loadMemberTimeline(): void {
+        this.memberTimelineLoaded = false;
+        this.api.graph(this.id, 1).subscribe({
+            next: (g) => {
+                // Members = depth-1 nodes this object CONTAINS (excluding self); fall back to any linked
+                // node so the view is still useful if a deployment uses a different containment verb.
+                const contained = new Set(
+                    g.edges.filter((e) => e.from === this.id && e.relationship?.toUpperCase() === 'CONTAINS').map((e) => e.to),
+                );
+                this.members = g.nodes.filter((n) => n.id !== this.id && (contained.size === 0 || contained.has(n.id)));
+                if (!this.members.length) {
+                    this.memberTimeline = [];
+                    this.memberTimelineLoaded = true;
+                    return;
+                }
+                forkJoin(
+                    this.members.map((m) =>
+                        this.api.comments(m.id).pipe(
+                            map((cs) =>
+                                cs.map((c): MemberTimelineEntry => ({
+                                    memberId: m.id,
+                                    memberTitle: m.title || m.id,
+                                    memberType: m.objectType,
+                                    author: c.author || 'unknown',
+                                    body: c.body,
+                                    createdAt: c.createdAt,
+                                })),
+                            ),
+                            catchError(() => of([] as MemberTimelineEntry[])),
+                        ),
+                    ),
+                ).subscribe((perMember) => {
+                    this.memberTimeline = perMember.flat().sort((a, b) => b.createdAt - a.createdAt);
+                    this.memberTimelineLoaded = true;
+                });
+            },
+            error: () => {
+                this.members = [];
+                this.memberTimeline = [];
+                this.memberTimelineLoaded = true;
+            },
+        });
     }
 
     /** Events sharing this object's correlation id — the engine-level timeline behind the object. */
