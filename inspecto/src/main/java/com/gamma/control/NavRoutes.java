@@ -26,7 +26,7 @@ final class NavRoutes implements RouteModule {
 
     @Override
     public void register(ApiContext api) {
-        api.get("/nav/menus", (e, m) -> readMenus(api));
+        api.get("/nav/menus", (e, m) -> ETags.respond(e, readMenus(api)));
         api.put("/nav/menus", ApiContext.withCapability("canAuthorWorkbench",
                 (e, m) -> writeMenus(api, api.body(e))));
     }

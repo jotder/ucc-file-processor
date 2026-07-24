@@ -139,4 +139,32 @@ class ControlApiMetadataV1Test {
             assertEquals(304, cached.statusCode(), "unchanged bootstrap ⇒ 304 on the hot path");
         }
     }
+
+    // ── config/metadata singleton documents now share the /bootstrap conditional-GET idiom ──────────
+
+    /** Every per-space authored config/metadata document the UI re-reads is now ETag'd (via the shared
+     *  {@code ETags.respond} wrapper): each emits a strong content-hash ETag on GET, and a repeat GET
+     *  carrying that {@code If-None-Match} short-circuits to a bodiless 304. */
+    @Test
+    void configDocumentsAreConditionalGets(@TempDir Path cfg, @TempDir Path root) throws Exception {
+        try (Ctx c = open(cfg, root)) {
+            for (String path : List.of("/nav/menus", "/settings/branding", "/settings/geo", "/config/icon-map",
+                    "/access/roles", "/access/policies", "/access/catalog", "/access/profiles")) {
+                HttpResponse<String> got = client.send(req(c.port, "/api/v1" + path).GET().build(),
+                        BodyHandlers.ofString());
+                assertEquals(200, got.statusCode(), path + " → " + got.body());
+                String etag = got.headers().firstValue("ETag").orElse(null);
+                assertNotNull(etag, path + " is ETag'd (cacheable config document)");
+                assertTrue(etag.startsWith("\"sha256:"), path + " ETag is a strong content hash: " + etag);
+
+                HttpResponse<String> cached = client.send(
+                        req(c.port, "/api/v1" + path, "If-None-Match", etag).GET().build(),
+                        BodyHandlers.ofString());
+                assertEquals(304, cached.statusCode(), path + " unchanged ⇒ 304");
+                assertTrue(cached.body().isEmpty(), path + " 304 carries no body");
+                assertEquals(etag, cached.headers().firstValue("ETag").orElse(null),
+                        path + " 304 echoes the ETag");
+            }
+        }
+    }
 }

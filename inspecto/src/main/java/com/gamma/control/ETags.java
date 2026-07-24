@@ -45,6 +45,21 @@ final class ETags {
         return ApiContext.HANDLED;
     }
 
+    /**
+     * Conditional-GET in one call: derive a strong {@link ContentHash} ETag for {@code body}, honour
+     * {@code If-None-Match} (→ a bodiless 304 via {@link #notModified}), otherwise set the header and
+     * return {@code body} unchanged for normal serialization. Collapses the three-line read-side idiom
+     * ({@link #of}/{@link #isFresh}/{@link #set}) that {@code /bootstrap} and {@code GET
+     * /components/{type}/{id}} spell out. Read-side only — writes still call {@link #requireMatch}.
+     * The hash captures any body variance (e.g. a per-subject field), so a changed body can never 304.
+     */
+    static Object respond(HttpExchange ex, Object body) throws IOException {
+        String etag = of(ContentHash.of(body));
+        if (isFresh(ex, etag)) return notModified(ex, etag);
+        set(ex, etag);
+        return body;
+    }
+
     /** An {@code If-*} header may be a comma-separated tag list; match any (a weak {@code W/} prefix is ignored). */
     private static boolean matches(String header, String etag) {
         for (String tag : header.split(",")) {

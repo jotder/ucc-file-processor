@@ -35,7 +35,14 @@ WSO2-style gateway + external IAM can front it later without reshaping routes. D
   server.
 * **Optimistic concurrency (W3)** — Components carry a `ContentHash` (parity-pinned with the UI's
   `content-hash.ts`); reads return `ETag`, conditional reads honor `If-None-Match`, writes require
-  `If-Match`. See [component registry](../components/component-registry.md).
+  `If-Match`. See [component registry](../components/component-registry.md). The read-side idiom is a
+  one-line `ETags.respond(ex, body)` wrapper (`ETags.java`) — hash the body → `If-None-Match` 304 →
+  set the header → return body-or-`HANDLED`; the hash captures any body variance, so a changed body
+  never yields a false 304. **Extended 2026-07-24** beyond `/bootstrap` + `GET /components/{type}/{id}`
+  to the per-space authored config/metadata singleton documents the UI re-reads on load/space-switch:
+  `GET /nav/menus`, `/settings/branding`, `/settings/geo`, `/config/icon-map`, and
+  `/access/roles|policies|catalog|profiles`. (List/paginated routes are deliberately left out — the
+  cursor page varies per query; further singleton reads can adopt `ETags.respond` as demanded.)
 * **Bootstrap (W3/W6)** — `GET /bootstrap` returns the metadata-first boot document, including
   `features.authMode`, which drives the UI's OIDC flow (no-op on Personal).
 * **Queries (W4)** — the query catalog + `POST /queries/{id}/run`; see [queries](queries.md).

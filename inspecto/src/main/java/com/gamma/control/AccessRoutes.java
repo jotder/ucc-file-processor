@@ -40,16 +40,16 @@ final class AccessRoutes implements RouteModule {
 
     @Override
     public void register(ApiContext api) {
-        api.get("/access/roles", (e, m) -> roles(api));
+        api.get("/access/roles", (e, m) -> ETags.respond(e, roles(api)));
         api.put("/access/roles", ApiContext.withCapability("canConfigureAccess",
                 (e, m) -> saveRoles(api, api.body(e))));
-        api.get("/access/policies", (e, m) -> policies(api));
+        api.get("/access/policies", (e, m) -> ETags.respond(e, policies(api)));
         api.put("/access/policies", ApiContext.withCapability("canConfigureAccess",
                 (e, m) -> savePolicies(api, api.body(e))));
-        api.get("/access/catalog", (e, m) -> catalog(api));
+        api.get("/access/catalog", (e, m) -> ETags.respond(e, catalog(api)));
         api.put("/access/catalog", ApiContext.withCapability("canConfigureAccess",
                 (e, m) -> saveCatalog(api, api.body(e))));
-        api.get("/access/profiles", (e, m) -> profiles(api));
+        api.get("/access/profiles", (e, m) -> ETags.respond(e, profiles(api)));
         api.put("/access/profiles/([^/]+)", ApiContext.withCapability("canConfigureAccess",
                 (e, m) -> saveProfile(api, ApiContext.name(m), api.body(e))));
         api.delete("/access/profiles/([^/]+)", ApiContext.withCapability("canConfigureAccess",

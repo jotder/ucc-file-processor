@@ -33,13 +33,13 @@ final class SettingsRoutes implements RouteModule {
 
     @Override
     public void register(ApiContext api) {
-        api.get("/settings/branding", (e, m) -> readBranding(api));
+        api.get("/settings/branding", (e, m) -> ETags.respond(e, readBranding(api)));
         api.put("/settings/branding", ApiContext.withCapability("canAuthorWorkbench",
                 (e, m) -> writeBranding(api, api.body(e))));
-        api.get("/settings/geo", (e, m) -> readGeo(api));
+        api.get("/settings/geo", (e, m) -> ETags.respond(e, readGeo(api)));
         api.put("/settings/geo", ApiContext.withCapability("canAuthorWorkbench",
                 (e, m) -> writeGeo(api, api.body(e))));
-        api.get("/config/icon-map", (e, m) -> readIconMap(api));
+        api.get("/config/icon-map", (e, m) -> ETags.respond(e, readIconMap(api)));
         api.put("/config/icon-map", ApiContext.withCapability("canAuthorWorkbench",
                 (e, m) -> writeIconMap(api, api.body(e))));
     }
