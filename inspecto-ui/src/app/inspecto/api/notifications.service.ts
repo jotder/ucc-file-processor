@@ -44,6 +44,22 @@ export interface NotificationChannel {
     createdAt: number;
 }
 
+/** An authored notification rule (GET/POST /notifications/rules) — the event→notification mapping an
+ *  operator can add/override at runtime; checked ahead of the backend's built-in defaults. */
+export interface NotificationRule {
+    id: string;
+    /** The event type this rule fires on (e.g. BATCH_FAILED, job.custom) — case-insensitive. */
+    eventType: string;
+    /** Minimum severity, or null/absent for any. */
+    minLevel?: 'INFO' | 'WARN' | 'ERROR' | string | null;
+    /** Notification category (also the preference key gating delivery). */
+    category: string;
+    titleTemplate?: string;
+    bodyTemplate?: string;
+    dedupeKeyTemplate?: string;
+    enabled: boolean;
+}
+
 /** One delivery-ledger entry: a notification handed to one channel (GET /notifications/deliveries) — C4. */
 export interface ChannelDelivery {
     id: string;
@@ -162,6 +178,28 @@ export class NotificationsService {
     /** Delete a channel (DELETE /notifications/channels/{id}). */
     deleteChannel(id: string): Observable<unknown> {
         return this.http.delete(apiUrl(`/notifications/channels/${encodeURIComponent(id)}`));
+    }
+
+    // ── authored notification rules (mirror of the channels CRUD) ──────────────
+
+    /** The operator-authored rules (GET /notifications/rules). */
+    rules(): Observable<NotificationRule[]> {
+        return this.http.get<NotificationRule[]>(apiUrl('/notifications/rules'));
+    }
+
+    /** Create a rule (POST /notifications/rules); 409 on a duplicate id, 422 on missing fields. */
+    createRule(rule: NotificationRule): Observable<NotificationRule> {
+        return this.http.post<NotificationRule>(apiUrl('/notifications/rules'), rule);
+    }
+
+    /** Update a rule — edit or enable/disable (PUT /notifications/rules/{id}). */
+    updateRule(id: string, patch: Partial<NotificationRule>): Observable<NotificationRule> {
+        return this.http.put<NotificationRule>(apiUrl(`/notifications/rules/${encodeURIComponent(id)}`), patch);
+    }
+
+    /** Delete a rule (DELETE /notifications/rules/{id}). */
+    deleteRule(id: string): Observable<unknown> {
+        return this.http.delete(apiUrl(`/notifications/rules/${encodeURIComponent(id)}`));
     }
 
     /** The delivery ledger, newest-first (GET /notifications/deliveries). */

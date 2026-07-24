@@ -5,10 +5,12 @@ import { draftReferenceRows, draftStreamRows } from './onboarding.handler';
 import {
     NOTIFICATION_CHANNELS_COLL,
     NOTIFICATION_DELIVERIES_COLL,
+    NOTIFICATION_RULES_COLL,
     NOTIFICATIONS_COLL,
     type ChannelDelivery,
     type NotificationChannel,
 } from '../notify';
+import type { NotificationRule } from '../../api/notifications.service';
 
 /**
  * The demo catch-all mock domain — the port of the old `demo-mock` interceptor: every endpoint not
@@ -383,6 +385,8 @@ const NOTIF_DELETE = /\/notifications\/([^/]+)$/;
 const NOTIF_PREFS = /\/notifications\/preferences$/;
 const NOTIF_CHANNELS = /\/notifications\/channels$/;
 const NOTIF_CHANNEL_ONE = /\/notifications\/channels\/([^/]+)$/;
+const NOTIF_RULES = /\/notifications\/rules$/;
+const NOTIF_RULE_ONE = /\/notifications\/rules\/([^/]+)$/;
 const NOTIF_DELIVERIES = /\/notifications\/deliveries$/;
 const CATALOG_TABLES_RE = /\/catalog$/;
 const CATALOG_KPIS_RE = /\/catalog\/kpis$/;
@@ -492,6 +496,38 @@ export function demoHandler(flags: MockFlags): MockHandler {
         }
         if (method === 'DELETE' && (m = match(url, NOTIF_CHANNEL_ONE))) {
             store.delete(space, NOTIFICATION_CHANNELS_COLL, m[1]);
+            return json({ deleted: m[1] });
+        }
+        // Authored notification rules — CRUD over the store, mirroring channels (and the real backend's
+        // gates: 422 missing fields, 409 duplicate, 404 unknown; PUT is a full replace, id from the path).
+        if (method === 'GET' && NOTIF_RULES.test(url)) {
+            return json(store.list<NotificationRule>(space, NOTIFICATION_RULES_COLL));
+        }
+        if (method === 'POST' && NOTIF_RULES.test(url)) {
+            const b = (req.body ?? {}) as Partial<NotificationRule>;
+            if (!b.id || !b.eventType || !b.category) return error(422, 'id, eventType and category are required');
+            if (store.get(space, NOTIFICATION_RULES_COLL, b.id)) return error(409, `rule ${b.id} already exists`);
+            const rule: NotificationRule = {
+                id: b.id, eventType: b.eventType, minLevel: b.minLevel ?? null, category: b.category,
+                titleTemplate: b.titleTemplate, bodyTemplate: b.bodyTemplate,
+                dedupeKeyTemplate: b.dedupeKeyTemplate, enabled: b.enabled !== false,
+            };
+            return json(store.put(space, NOTIFICATION_RULES_COLL, rule.id, rule));
+        }
+        if (method === 'PUT' && (m = match(url, NOTIF_RULE_ONE))) {
+            if (!store.get(space, NOTIFICATION_RULES_COLL, m[1])) return error(404, `rule ${m[1]} not found`);
+            const b = (req.body ?? {}) as Partial<NotificationRule>;
+            if (!b.eventType || !b.category) return error(422, 'eventType and category are required');
+            const next: NotificationRule = {
+                id: m[1], eventType: b.eventType, minLevel: b.minLevel ?? null, category: b.category,
+                titleTemplate: b.titleTemplate, bodyTemplate: b.bodyTemplate,
+                dedupeKeyTemplate: b.dedupeKeyTemplate, enabled: b.enabled !== false,
+            };
+            return json(store.put(space, NOTIFICATION_RULES_COLL, next.id, next));
+        }
+        if (method === 'DELETE' && (m = match(url, NOTIF_RULE_ONE))) {
+            if (!store.get(space, NOTIFICATION_RULES_COLL, m[1])) return error(404, `rule ${m[1]} not found`);
+            store.delete(space, NOTIFICATION_RULES_COLL, m[1]);
             return json({ deleted: m[1] });
         }
         if (method === 'GET' && NOTIF_DELIVERIES.test(url)) {

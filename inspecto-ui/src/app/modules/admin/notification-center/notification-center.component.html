@@ -38,6 +38,32 @@
                 </div>
             </mat-tab>
 
+            <!-- Rules (authored event→notification mappings; checked ahead of the built-in defaults) -->
+            <mat-tab label="Rules">
+                <div class="flex flex-col gap-4 pt-6">
+                    <div class="flex items-center justify-end gap-2">
+                        <button mat-icon-button (click)="loadRules()" matTooltip="Refresh" aria-label="Refresh rules">
+                            <mat-icon svgIcon="heroicons_outline:arrow-path"></mat-icon>
+                        </button>
+                        <button mat-flat-button color="primary" (click)="openRuleForm()">
+                            <mat-icon svgIcon="heroicons_outline:plus"></mat-icon>
+                            <span class="ml-2">New rule</span>
+                        </button>
+                    </div>
+                    <inspecto-data-table
+                        tier="standard"
+                        sourceName="notification-rules"
+                        exportName="notification-rules"
+                        [rows]="rules"
+                        [columns]="ruleCols"
+                        [rowActions]="ruleActions"
+                        [loading]="loadingRules"
+                        noRowsTitle="No authored rules"
+                        noRowsHint="Built-in rules still fire. Author a rule to override a built-in's copy, cover a new event type, or mute one."
+                    />
+                </div>
+            </mat-tab>
+
             <!-- Deliveries -->
             <mat-tab label="Deliveries">
                 <div class="flex flex-col gap-4 pt-6">

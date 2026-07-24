@@ -4,7 +4,7 @@ import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import { of, throwError } from 'rxjs';
 import { describe, expect, it, vi } from 'vitest';
 import { GammaConfigService } from '@gamma/services/config';
-import { ChannelDelivery, NotificationChannel, NotificationsService } from 'app/inspecto/api';
+import { ChannelDelivery, NotificationChannel, NotificationRule, NotificationsService } from 'app/inspecto/api';
 import { InspectoConfirmService } from 'app/inspecto/confirm.service';
 import { InspectoGridThemeService } from 'app/inspecto/grid';
 import { expectNoA11yViolations } from 'app/inspecto/testing/a11y';
@@ -17,6 +17,15 @@ const CHANNEL: NotificationChannel = {
     target: 'ops@example.com',
     enabled: true,
     createdAt: 1,
+};
+
+const RULE: NotificationRule = {
+    id: 'custom_batch',
+    eventType: 'BATCH_FAILED',
+    minLevel: null,
+    category: 'ops',
+    titleTemplate: 'Custom title',
+    enabled: true,
 };
 
 const DELIVERY: ChannelDelivery = {
@@ -38,6 +47,9 @@ async function create(overrides: Partial<Record<keyof NotificationsService, unkn
         deliveries: vi.fn(() => of([DELIVERY])),
         updateChannel: vi.fn((id: string, p: Partial<NotificationChannel>) => of({ ...CHANNEL, ...p })),
         deleteChannel: vi.fn(() => of({})),
+        rules: vi.fn(() => of([{ ...RULE }])),
+        updateRule: vi.fn((id: string, p: Partial<NotificationRule>) => of({ ...RULE, ...p })),
+        deleteRule: vi.fn(() => of({})),
         // The embedded Preferences tab loads the grid through the same service.
         preferences: () => of([]),
         ...overrides,
@@ -91,6 +103,26 @@ describe('NotificationCenterComponent', () => {
         await fixture.componentInstance.remove(CHANNEL);
         expect(api.deleteChannel).toHaveBeenCalledWith('ops_email');
         expect(api.channels).toHaveBeenCalledTimes(2);
+    });
+
+    it('loads the authored rules on init', async () => {
+        const { fixture } = await create();
+        expect(fixture.componentInstance.rules).toEqual([{ ...RULE }]);
+    });
+
+    it('toggles a rule optimistically, sending the FULL rule (server PUT is a full replace)', async () => {
+        const { fixture, api } = await create();
+        const c = fixture.componentInstance;
+        c.toggleRule(c.rules[0]);
+        expect(api.updateRule).toHaveBeenCalledWith('custom_batch', { ...RULE, enabled: false });
+        expect(c.rules[0].enabled).toBe(false);
+    });
+
+    it('deletes a rule after the destructive confirm and reloads', async () => {
+        const { fixture, api } = await create();
+        await fixture.componentInstance.removeRule(RULE);
+        expect(api.deleteRule).toHaveBeenCalledWith('custom_batch');
+        expect(api.rules).toHaveBeenCalledTimes(2);
     });
 
     it('renders with no a11y violations', async () => {

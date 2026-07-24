@@ -10,6 +10,7 @@ import {
     apiErrorMessage,
     ChannelDelivery,
     NotificationChannel,
+    NotificationRule,
     NotificationsService,
     optimisticMutate,
 } from 'app/inspecto/api';
@@ -19,13 +20,16 @@ import { DataTableComponent } from 'app/inspecto/data-table';
 import { fmtDateTime, InspectoRowAction } from 'app/inspecto/grid';
 import { NotificationPreferencesComponent } from 'app/modules/admin/notification-preferences/notification-preferences.component';
 import { ChannelFormDialog, ChannelFormResult } from './channel-form.dialog';
+import { RuleFormDialog, RuleFormResult } from './rule-form.dialog';
 
 /**
  * Notification center (C4) — one Ops surface for the whole notification story: **Channels**
  * (author the email/webhook endpoints alert & incident notifications fan out to — delivery is
- * mocked, nothing is really contacted), **Deliveries** (the append-only ledger of what was handed
- * to which channel and why), and **Preferences** (the per-user category × channel grid, moved in
- * from its old standalone pane whose route now redirects here).
+ * mocked, nothing is really contacted), **Rules** (authored event→notification mappings, checked
+ * ahead of the server's built-in defaults — override a built-in's copy, cover a new event type,
+ * or mute one), **Deliveries** (the append-only ledger of what was handed to which channel and
+ * why), and **Preferences** (the per-user category × channel grid, moved in from its old
+ * standalone pane whose route now redirects here).
  */
 @Component({
     selector: 'app-notification-center',
@@ -49,8 +53,10 @@ export class NotificationCenterComponent implements OnInit {
 
     channels: NotificationChannel[] = [];
     deliveries: ChannelDelivery[] = [];
+    rules: NotificationRule[] = [];
     loadingChannels = false;
     loadingDeliveries = false;
+    loadingRules = false;
 
     readonly channelCols: ColDef<NotificationChannel>[] = [
         { field: 'id', headerName: 'Channel', flex: 1 },
@@ -92,9 +98,35 @@ export class NotificationCenterComponent implements OnInit {
         },
     ];
 
+    readonly ruleCols: ColDef<NotificationRule>[] = [
+        { field: 'id', headerName: 'Rule', flex: 1 },
+        { field: 'eventType', headerName: 'Event type', flex: 1, minWidth: 160 },
+        { field: 'minLevel', headerName: 'Min severity', width: 130, valueFormatter: (p) => p.value || 'Any' },
+        { field: 'category', headerName: 'Category', width: 120 },
+        { field: 'titleTemplate', headerName: 'Title', flex: 2, minWidth: 180, valueFormatter: (p) => p.value || '—' },
+        {
+            field: 'enabled',
+            headerName: 'State',
+            width: 120,
+            cellRenderer: (p: ICellRendererParams<NotificationRule>) =>
+                statusBadgeHtml(p.value ? 'ENABLED' : 'DISABLED'),
+        },
+    ];
+
+    readonly ruleActions: InspectoRowAction<NotificationRule>[] = [
+        { icon: 'heroicons_outline:pencil-square', hint: 'Edit rule', onClick: (r) => this.openRuleForm(r) },
+        {
+            icon: 'heroicons_outline:power',
+            hint: (r) => (r.enabled ? 'Disable' : 'Enable'),
+            onClick: (r) => this.toggleRule(r),
+        },
+        { icon: 'heroicons_outline:trash', hint: 'Delete rule', onClick: (r) => this.removeRule(r) },
+    ];
+
     ngOnInit(): void {
         this.loadChannels();
         this.loadDeliveries();
+        this.loadRules();
     }
 
     loadChannels(): void {
@@ -157,6 +189,68 @@ export class NotificationCenterComponent implements OnInit {
                 this.channels = [...this.channels];
             },
             onError: (e) => this.toastr.error(apiErrorMessage(e, 'Toggle failed')),
+        });
+    }
+
+    loadRules(): void {
+        this.loadingRules = true;
+        this.api.rules().subscribe({
+            next: (r) => {
+                this.rules = r;
+                this.loadingRules = false;
+            },
+            error: () => {
+                this.rules = [];
+                this.loadingRules = false;
+                this.toastr.error('Failed to load rules');
+            },
+        });
+    }
+
+    openRuleForm(rule?: NotificationRule): void {
+        this.dialog
+            .open(RuleFormDialog, {
+                data: { rule, existingIds: this.rules.map((r) => r.id) },
+                width: '560px',
+                maxHeight: '85vh',
+            })
+            .afterClosed()
+            .subscribe((r?: RuleFormResult) => {
+                if (r?.saved) this.loadRules();
+            });
+    }
+
+    /** Reversible flip → optimistic (§10). The server PUT is a full replace, so send the whole rule. */
+    toggleRule(rule: NotificationRule): void {
+        const prev = rule.enabled;
+        optimisticMutate({
+            apply: () => {
+                rule.enabled = !prev;
+                this.rules = [...this.rules];
+            },
+            commit: this.api.updateRule(rule.id, { ...rule, enabled: !prev }),
+            reconcile: (r) => {
+                rule.enabled = r.enabled;
+                this.rules = [...this.rules];
+            },
+            rollback: () => {
+                rule.enabled = prev;
+                this.rules = [...this.rules];
+            },
+            onError: (e) => this.toastr.error(apiErrorMessage(e, 'Toggle failed')),
+        });
+    }
+
+    async removeRule(rule: NotificationRule): Promise<void> {
+        if (!(await this.confirm.confirmDestructive(`Delete rule "${rule.id}"?`, { title: 'Delete rule' }))) {
+            return;
+        }
+        this.api.deleteRule(rule.id).subscribe({
+            next: () => {
+                this.toastr.success(`Deleted "${rule.id}"`);
+                this.loadRules();
+            },
+            error: (e) => this.toastr.error(apiErrorMessage(e, 'Delete failed')),
         });
     }
 

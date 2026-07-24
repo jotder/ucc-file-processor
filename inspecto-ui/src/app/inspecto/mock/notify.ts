@@ -10,6 +10,7 @@ import { MockStore } from './mock-store';
 export const NOTIFICATIONS_COLL = 'notification';
 export const NOTIFICATION_CHANNELS_COLL = 'notification-channel';
 export const NOTIFICATION_DELIVERIES_COLL = 'notification-delivery';
+export const NOTIFICATION_RULES_COLL = 'notification-rule';
 
 // Channel/delivery shapes are the canonical api ones (notifications.service.ts) — re-exported for handlers.
 export type { ChannelDelivery, NotificationChannel };
