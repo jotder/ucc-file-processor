@@ -266,6 +266,17 @@ upstream drip-feeding + the caps above. **Indicative sizing** (validate in the P
 | T3 | 8–16 vCPU · 32–64 GB · SSD 250 GB+ | 4 vCPU · 16 GB, PITR | + gateway/IAM hosts per vendor sizing |
 | T4 | T3 × 2 sites | + streaming replica | + replication bandwidth ≈ daily delta |
 
+**Future — Enterprise horizontal scale (roadmap, not offered today).** For Enterprise estates that outgrow
+vertical scaling, the intended future direction is **multi-replica / horizontally-autoscaled pods with load
+distribution** (active/active) behind the gateway — the T3 stack replicated `N`-wide instead of the
+single-writer node of today. It is the same escape hatch NFR-8 records, gated on the identical prerequisites:
+a distributed / leader-elected scheduler (today's in-JVM `ingestLock` and job scheduler are per-process only),
+**all** durable state on shared backends (Postgres for every store; the DuckDB/Parquet file tier relocated off
+per-node local disk so no replica owns local files), and per-request work distribution. Until those ship, >1
+replica against a shared `spaces/` volume corrupts state, so the supported multi-instance posture stays
+**active/passive** (T4). A priced roadmap conversation, not a configuration knob — and the natural landing
+place for the container work in SCR-11 / D1 once it graduates past "K8s out of scope."
+
 ---
 
 ## 5. Fault tolerance & disaster recovery
