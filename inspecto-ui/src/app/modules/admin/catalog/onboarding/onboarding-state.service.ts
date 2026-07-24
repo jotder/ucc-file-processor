@@ -8,7 +8,8 @@ import { mergeBlock } from './onboarding-config-utils';
 export type OnboardingStageId = 'collection' | 'parsing' | 'schema' | 'enrichment' | 'keys' | 'publish';
 
 /** Computed, never stored: readiness is derived from the config blocks (+ the last save's findings) on
- *  every read. `blocked` = the stage's last save returned an ERROR-severity Finding still to resolve. */
+ *  every read. `blocked` = an ERROR-severity Finding attributed to this stage (by fieldPath prefix)
+ *  is still to resolve. */
 export type StageStatus = 'empty' | 'configured' | 'validated' | 'blocked';
 
 export interface OnboardingStage {
@@ -66,11 +67,13 @@ export class OnboardingStateService {
      *  draft itself; null = none authored yet (the stage is optional). */
     readonly enrichmentConfig = signal<Record<string, unknown> | null>(null);
 
-    /** Findings retained from each stage's last save (the server `POST /config/write` result). A stage
-     *  with an ERROR-severity finding reads as `blocked` in {@link stageStatus}; a later clean save
-     *  clears it. Findings are whole-config, so they are attributed to the stage that triggered the
-     *  save (`activeStageId` at save time) — the small, honest heuristic (precise per-field attribution
-     *  would need a dedicated per-stage validate feed). */
+    /** Findings retained from the last save (the server `POST /config/write` result), attributed to
+     *  stages by `fieldPath` prefix (`collector.*` → collection, `parsing.*` → parsing, `processing.*` →
+     *  schema/keys, `output.*`/`active` → publish); a finding without a matching prefix (blank path,
+     *  cross-field rules) falls back to the stage that triggered the save. Every save validates the
+     *  whole config, so all pipeline-stage buckets are replaced per save — a clean save clears stale
+     *  findings on every stage, not just the active one. A stage with an ERROR-severity finding reads
+     *  as `blocked` in {@link stageStatus}. */
     readonly stageFindings = signal<Partial<Record<OnboardingStageId, Finding[]>>>({});
 
     /** The active pane's unsaved-changes probe (registered on init, cleared on destroy). */
@@ -183,9 +186,18 @@ export class OnboardingStateService {
             tap({
                 next: (r) => {
                     this.config.set(next);
-                    // Retain the findings against the stage that triggered the save (clears it clean).
+                    // Route each finding to its stage by fieldPath prefix (fallback: the saving stage);
+                    // replace every pipeline-stage bucket — the save validated the whole config.
                     const findings = r.findings ?? [];
-                    this.stageFindings.update((m) => ({ ...m, [this.activeStageId()]: findings }));
+                    const schemaStage: OnboardingStageId = this.kind() === 'reference' ? 'keys' : 'schema';
+                    const buckets: Partial<Record<OnboardingStageId, Finding[]>> = {
+                        collection: [], parsing: [], schema: [], keys: [], publish: [],
+                    };
+                    for (const f of findings) {
+                        const stage = this.stageForPath(f.fieldPath ?? '', schemaStage) ?? this.activeStageId();
+                        (buckets[stage] ??= []).push(f);
+                    }
+                    this.stageFindings.update((m) => ({ ...m, ...buckets }));
                     if (findings.length) {
                         this.toastr.warning(
                             `${findings[0].message}${findings.length > 1 ? ` (+${findings.length - 1} more)` : ''}`,
@@ -199,6 +211,17 @@ export class OnboardingStateService {
                 },
             }),
         );
+    }
+
+    /** The stage a finding's dotted `fieldPath` belongs to, by config-block prefix — the pipeline
+     *  block→stage map (`processing.*` authors the schema artifact, whose stage id differs by kind).
+     *  Null for blank/cross-field paths (caller falls back to the saving stage). */
+    private stageForPath(path: string, schemaStage: OnboardingStageId): OnboardingStageId | null {
+        if (path.startsWith('collector')) return 'collection';
+        if (path.startsWith('parsing')) return 'parsing';
+        if (path.startsWith('processing')) return schemaStage;
+        if (path.startsWith('output') || path === 'active') return 'publish';
+        return null;
     }
 
     /**

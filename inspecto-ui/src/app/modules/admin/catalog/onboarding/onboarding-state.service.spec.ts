@@ -160,6 +160,46 @@ describe('OnboardingStateService', () => {
         expect(s.lifecycle()).toBe('Ready');
     });
 
+    it('routes findings to their stage by fieldPath prefix, not the stage that saved', () => {
+        const write = vi.fn(() => of({ findings: [
+            { severity: 'ERROR', fieldPath: 'collector.connector', message: 'bad connector' },
+            { severity: 'ERROR', fieldPath: 'output.format', message: 'bad format' },
+            { severity: 'ERROR', fieldPath: '', message: 'cross-field' },
+        ] }));
+        const s = create({ write } as unknown as Partial<ConfigService>);
+        s.config.set({
+            name: 'x', collector: { connector: 'local' }, parsing: { frontend: 'delimited' },
+            processing: { schema_file: 's.toon' }, output: { format: 'CSV' },
+        });
+        s.activeStageId.set('parsing'); // the SAVE came from parsing…
+        s.saveBlock({ parsing: { frontend: 'delimited' } }).subscribe();
+        // …but the findings land on the stages their fieldPaths name.
+        expect(s.stageStatus().collection).toBe('blocked');
+        expect(s.blockingMessage('collection')).toBe('bad connector');
+        expect(s.stageStatus().publish).toBe('blocked');
+        // A blank fieldPath (cross-field rule) falls back to the saving stage.
+        expect(s.blockingMessage('parsing')).toBe('cross-field');
+
+        // A clean save clears EVERY pipeline stage's findings, not just the active one.
+        write.mockReturnValue(of({ findings: [] }));
+        s.saveBlock({ parsing: { frontend: 'delimited' } }).subscribe();
+        expect(s.stageStatus().collection).toBe('configured');
+        expect(s.stageStatus().publish).toBe('configured');
+        expect(s.blockingMessage('parsing')).toBeNull();
+    });
+
+    it('processing findings land on keys for a Reference, schema for a Stream', () => {
+        const write = vi.fn(() => of({ findings: [
+            { severity: 'ERROR', fieldPath: 'processing.schema_file', message: 'no schema' },
+        ] }));
+        const s = create({ write } as unknown as Partial<ConfigService>);
+        s.config.set({ name: 'r', produces: 'reference', processing: { schema_file: 's.toon' } });
+        s.activeStageId.set('collection');
+        s.saveBlock({ collector: { connector: 'local' } }).subscribe();
+        expect(s.stageStatus().keys).toBe('blocked');
+        expect(s.blockingMessage('keys')).toBe('no schema');
+    });
+
     it('a WARNING finding toasts but does not block the stage', () => {
         const write = vi.fn(() => of({ findings: [{ severity: 'WARNING', fieldPath: 'parsing.x', message: 'heads up' }] }));
         const s = create({ write } as unknown as Partial<ConfigService>);
