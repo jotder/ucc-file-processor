@@ -82,9 +82,14 @@ a listed object is atomic ⇒ `readiness` is always `READY`.
   transparently with no protocol handshake of our own); ignored when an SSH bastion `tunnel` is also
   configured (the tunnel already rewrites the dial target to a local loopback forward). `HTTP` proxy type
   is rejected fail-closed for SFTP — a JDK socket can't transparently CONNECT-tunnel an arbitrary protocol
-  the way it can for SOCKS, so this needs its own handshake, not yet built. **Still not dialing through
-  any proxy:** FTP/FTPS (`commons-net` `FTPClient` needs its own socket-factory-equivalent wiring) and the
-  JDBC-based connectors (proxying is driver-URL-param territory, not a uniform hook).
+  the way it can for SOCKS, so this needs its own handshake, not yet built. **2026-07-24 SHIPPED FTP/FTPS
+  dial-through too:** `FtpConnector.applyProxy` calls the same `SocksProxySocketFactory` via commons-net's
+  `FTPClient.setSocketFactory` — same SOCKS5-only / HTTP-fail-closed contract, same tunnel-precedence rule,
+  and it covers both `ftp` and `ftps` schemes since they share one client class (FTPS just layers TLS on
+  top of the already-proxied socket). Test-only note: FTP opens a *second*, separate passive data connection
+  through the same factory (unlike SFTP, which multiplexes everything over one), so the shared test fixture
+  `MiniSocks5Relay` had to become multi-connection to avoid hanging on the data channel. **Still not dialing
+  through any proxy:** the JDBC-based connectors (proxying is driver-URL-param territory, not a uniform hook).
 * **Secrets are never literals** — `SecretResolver` (`com/gamma/acquire/SecretResolver.java`) resolves
   `${ENV:VAR}` / `${SYS:prop}` / `${FILE:/path}` / `${KEYSTORE:alias}` / `${NAME}` at connect time, never at
   load; `isResolvable()` powers the test endpoint without exposing values. `${FILE:…}` reads a mounted secret
