@@ -128,10 +128,13 @@ and archived**; as-built facts distilled to `okf/backend/modules/reactor.md`. He
 ~~M1 parent `dependencyManagement`~~ **SHIPPED 2026-07-21** (`73ea9a1`) · M2 `CollectorService`
 decomposition **CLOSED — won't-do (maintainability-only; see §5 triage 2026-07-22)** ·
 ~~M3 `agent.spi` facade~~ **SHIPPED 2026-07-21** (`fc772f0d` + `f7d148a4` — as a `@PublicApi` contract
-freeze on the agent-consumed core surface, deliberately NOT a wrapping facade) · M4 UI Fuse-leftover
-removal (~25.8k lines) · M5 coverage
-baseline · ~~M6 repo-clutter sweep~~ **SHIPPED 2026-07-21** (`b554048` — most already done by prior
-shifts; only the stale `HANDOVER-multi-space.md` + a mangled root build-log remained).
+freeze on the agent-consumed core surface, deliberately NOT a wrapping facade) ·
+~~M4 UI Fuse-leftover removal (~25.8k lines)~~ **SHIPPED 2026-07-21** (`80d6366` + `427e240`) ·
+~~M5 coverage baseline~~ **SHIPPED 2026-07-21** (`eeb4d5f` — jacoco `coverage` profile hoisted to the
+parent POM so every module instruments under `mvn -Pcoverage test`; +30 deterministic unit tests on the
+near-untested intelligence/hosted modules) · ~~M6 repo-clutter sweep~~ **SHIPPED 2026-07-21**
+(`b554048` — most already done by prior shifts; only the stale `HANDOVER-multi-space.md` + a mangled
+root build-log remained).
 
 ~~M7 **agent durable-store consolidation**~~ **SHIPPED 2026-07-21** (`0865cb4`): extracted a generic
 `DurableJsonlRing<T>` base (per-payload `Codec<T>`) + a shared `AgentWriteRoot` resolver in a new
