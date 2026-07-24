@@ -16,7 +16,8 @@ export interface SavedViewCodec<TView extends { id: string }> {
  * A saved-investigation store over the components seam — the generalization of the
  * `link-analysis-view` list/save/remove pattern. Each studio keeps a thin `@Injectable`
  * service that delegates to one of these with its kind + codec (`geo-map-view`,
- * `link-analysis-view`, …). Mock-served until the backend `ComponentStore` enum widens.
+ * `link-analysis-view`, …). Both kinds are in the backend `ComponentStore.WRITABLE_TYPES`
+ * (INV-1/INV-2), so this persists server-side; the offline mock store answers the same contract.
  */
 export class SavedViewStore<TView extends { id: string }> {
     constructor(

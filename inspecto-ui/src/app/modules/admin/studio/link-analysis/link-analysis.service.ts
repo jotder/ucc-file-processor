@@ -7,8 +7,9 @@ import { GraphDisplayOptions, GraphLayoutId } from 'app/modules/admin/catalog/gr
 
 /**
  * A saved investigation — a **Link-Analysis View** (GLOSSARY §11), persisted as the
- * `link-analysis-view` component kind (mock-served by the unified store; the real backend
- * `ComponentStore` enum is still closed — same constraint as every new kind).
+ * `link-analysis-view` component kind. Backed server-side since INV-1 (2026-07-08):
+ * `link-analysis-view` is in `ComponentStore.WRITABLE_TYPES` with generic `/components` CRUD +
+ * version history, so views persist through the real backend as well as the offline mock store.
  */
 export interface LinkAnalysisView {
     id: string;
