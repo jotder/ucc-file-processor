@@ -127,8 +127,26 @@ The graded workbench surface the UI froze mock-first (`connection-probe.service.
   identifier-quoted `schema.table` (so a crafted name can't break out of the query), reusing `JdbcRows`. The
   JDBC connect/URL/tunnel/secret logic is shared with `DbExportConnector` via the package-private
   `DbConnections.open(profile)` helper.
-* **Not implemented** (report as skipped/501): `s3`, `gcs`, `azure`, `kafka` workbenches — each can adopt
-  the same `CollectorConnectorFactory.workbench` hook when demanded.
+* **S3 / GCS / Azure Blob** (`AbstractObjectStoreWorkbench` + nested `Workbench` classes in the three
+  connectors, shipped 2026-07-24): explore is a delimiter-based ({@code delimiter=/}) single-level listing —
+  each store's own ListObjectsV2/Objects:list/List-Blobs call returns "common prefixes" as pseudo-directories
+  (`ResourceNode.Kind.DIR`) and objects directly under the prefix as files, reusing
+  `AbstractRemoteWorkbench.jail` for the same segment-wise path-escape defense as SFTP/FTP; **sample fetches
+  the whole object to a throwaway temp dir only when the listed size is ≤ 8 MiB** (`SAMPLE_FETCH_CAP`, same
+  discipline as the remote-file workbenches); **WRITE is always *skipped*** — a workbench never writes a
+  scratch object into someone's production bucket/container to prove write access (the `DbConnectionWorkbench`
+  discipline). AUTHENTICATE/READ/LIST are a cheap 1-key listing call.
+* **Kafka** (`KafkaConnectionWorkbench`, shipped 2026-07-24): unlike `KafkaConnector` (always bound to one
+  configured topic), the workbench browses the whole broker — explore walks a `topic → partition` tree
+  (topics from `listTopics`, partitions from `partitionsFor`; both `ResourceNode.Kind.DIR`/`FILE` since Kafka
+  has no dedicated tree-node kind); sample assigns+seeks a throwaway consumer from each partition's beginning
+  offset and drains up to `limit` records into `{partition, offset, timestamp, key, value}` rows — critically
+  this consumer **never touches the acquisition ledger watermark**, so a sample can never disturb or be
+  disturbed by the real ingest frontier. **WRITE is always *skipped*** — a workbench never produces a probe
+  record onto a topic.
+* Tests: `S3ConnectionWorkbenchTest` / `GcsConnectionWorkbenchTest` / `AzureBlobConnectionWorkbenchTest` (an
+  in-process JDK `HttpServer` stub per store, mirroring the existing `*ConnectorTest` pattern) and
+  `KafkaConnectionWorkbenchTest` (kafka-clients' in-jar `MockConsumer`, mirroring `KafkaConnectorTest`).
 * Historical route naming: the archived `acquire-controller-service-design.md` §3 proposed enriching
   `POST /components/connection/{id}/test` instead — the UI's frozen `/connections/{id}/probe|explore|sample`
   paths won (the plan predates the UI contract).

@@ -3,6 +3,7 @@ package com.gamma.acquire.connectors;
 import com.gamma.acquire.AcquisitionException;
 import com.gamma.acquire.CollectorConnector;
 import com.gamma.acquire.ConnectionProfile;
+import com.gamma.acquire.ConnectionWorkbench;
 import com.gamma.acquire.DiscoveryContext;
 import com.gamma.acquire.PostAction;
 import com.gamma.acquire.RemoteFile;
@@ -319,5 +320,70 @@ public final class GcsConnector implements CollectorConnector {
     private static Instant parseInstant(String s) {
         if (s == null || s.isBlank()) return null;
         try { return Instant.parse(s.trim()); } catch (java.time.format.DateTimeParseException e) { return null; }
+    }
+
+    // ── connection workbench (probe · explore · sample) ─────────────────────────
+
+    /** The {@link ConnectionWorkbench} view of a GCS profile — contributed via {@link GcsConnectorFactory}. */
+    static ConnectionWorkbench workbench(ConnectionProfile profile) {
+        return new Workbench(new GcsConnector(profile));
+    }
+
+    private static final class Workbench extends AbstractObjectStoreWorkbench {
+        private final GcsConnector conn;
+
+        Workbench(GcsConnector conn) { this.conn = conn; }
+
+        @Override
+        String authProbe() throws AcquisitionException {
+            conn.execute("GET", "/storage/v1/b/" + enc(conn.bucket) + "/o", Map.of("maxResults", "1"),
+                    Map.of(), null, "probe bucket");
+            return "bucket listable";
+        }
+
+        @Override
+        List<Entry> list(String relPrefix) throws AcquisitionException {
+            String fullPrefix = conn.prefix + (relPrefix.isEmpty() ? "" : relPrefix + "/");
+            List<Entry> out = new ArrayList<>();
+            String pageToken = null;
+            do {
+                Map<String, String> query = new LinkedHashMap<>();
+                query.put("maxResults", String.valueOf(MAX_RESULTS_PAGE));
+                query.put("delimiter", "/");
+                if (!fullPrefix.isEmpty()) query.put("prefix", fullPrefix);
+                if (pageToken != null) query.put("pageToken", pageToken);
+                HttpResponse<byte[]> resp = conn.execute("GET", "/storage/v1/b/" + enc(conn.bucket) + "/o", query,
+                        Map.of(), null, "list objects");
+                JsonObject doc = parseJson(resp.body());
+                pageToken = str(doc, "nextPageToken");
+
+                if (doc.get("prefixes") instanceof JsonArray prefixes) {
+                    for (int i = 0; i < prefixes.size(); i++) {
+                        String p = prefixes.get(i).getAsString();
+                        String rel = p.startsWith(fullPrefix) ? p.substring(fullPrefix.length()) : p;
+                        rel = rel.endsWith("/") ? rel.substring(0, rel.length() - 1) : rel;
+                        if (!rel.isBlank()) out.add(new Entry(rel, true, null, null));
+                    }
+                }
+                if (doc.get("items") instanceof JsonArray items) {
+                    for (int i = 0; i < items.size(); i++) {
+                        JsonObject o = items.get(i).getAsJsonObject();
+                        String name = str(o, "name");
+                        if (name == null || name.equals(fullPrefix)) continue;
+                        String rel = name.startsWith(fullPrefix) ? name.substring(fullPrefix.length()) : name;
+                        if (rel.isBlank() || rel.contains("/")) continue;   // delimiter should already exclude these
+                        long size = parseLong(str(o, "size"), RemoteFile.SIZE_UNKNOWN);
+                        out.add(new Entry(rel, false, size, str(o, "updated")));
+                    }
+                }
+            } while (pageToken != null);
+            return out;
+        }
+
+        @Override
+        InputStream openObject(String relKey, Long size) throws AcquisitionException {
+            String path = "/storage/v1/b/" + enc(conn.bucket) + "/o/" + enc(conn.prefix + relKey);
+            return conn.executeStreaming(path, Map.of("alt", "media"), Map.of(), "open " + relKey).body();
+        }
     }
 }

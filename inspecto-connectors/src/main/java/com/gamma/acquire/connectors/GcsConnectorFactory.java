@@ -3,6 +3,7 @@ package com.gamma.acquire.connectors;
 import com.gamma.acquire.CollectorConnector;
 import com.gamma.acquire.CollectorConnectorFactory;
 import com.gamma.acquire.ConnectionProfile;
+import com.gamma.acquire.ConnectionWorkbench;
 import com.gamma.etl.PipelineConfig;
 
 /**
@@ -31,5 +32,10 @@ public final class GcsConnectorFactory implements CollectorConnectorFactory {
             throw new IllegalArgumentException("gcs source '" + cfg.collector().id()
                     + "' requires source.connection to reference a *_connection.toon profile (bucket + service-account key)");
         return new GcsConnector(profile);
+    }
+
+    @Override
+    public ConnectionWorkbench workbench(ConnectionProfile profile) {
+        return GcsConnector.workbench(profile);
     }
 }

@@ -1,6 +1,7 @@
 package com.gamma.acquire.connectors;
 
 import com.gamma.acquire.ConnectionProfile;
+import com.gamma.acquire.ConnectionWorkbench;
 import com.gamma.acquire.CollectorConnector;
 import com.gamma.acquire.CollectorConnectorFactory;
 import com.gamma.etl.PipelineConfig;
@@ -28,5 +29,10 @@ public final class AzureBlobConnectorFactory implements CollectorConnectorFactor
             throw new IllegalArgumentException("azure source '" + cfg.collector().id()
                     + "' requires source.connection to reference a *_connection.toon profile (account/key/container)");
         return new AzureBlobConnector(profile);
+    }
+
+    @Override
+    public ConnectionWorkbench workbench(ConnectionProfile profile) {
+        return AzureBlobConnector.workbench(profile);
     }
 }

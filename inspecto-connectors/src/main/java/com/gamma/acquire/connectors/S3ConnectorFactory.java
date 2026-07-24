@@ -1,6 +1,7 @@
 package com.gamma.acquire.connectors;
 
 import com.gamma.acquire.ConnectionProfile;
+import com.gamma.acquire.ConnectionWorkbench;
 import com.gamma.acquire.CollectorConnector;
 import com.gamma.acquire.CollectorConnectorFactory;
 import com.gamma.etl.PipelineConfig;
@@ -28,5 +29,10 @@ public final class S3ConnectorFactory implements CollectorConnectorFactory {
             throw new IllegalArgumentException("s3 source '" + cfg.collector().id()
                     + "' requires source.connection to reference a *_connection.toon profile (endpoint/credentials)");
         return new S3Connector(profile);
+    }
+
+    @Override
+    public ConnectionWorkbench workbench(ConnectionProfile profile) {
+        return S3Connector.workbench(profile);
     }
 }

@@ -2,6 +2,7 @@ package com.gamma.acquire.connectors;
 
 import com.gamma.acquire.AcquisitionException;
 import com.gamma.acquire.ConnectionProfile;
+import com.gamma.acquire.ConnectionWorkbench;
 import com.gamma.acquire.DiscoveryContext;
 import com.gamma.acquire.PostAction;
 import com.gamma.acquire.RemoteFile;
@@ -320,5 +321,70 @@ public final class S3Connector implements CollectorConnector {
     private static Instant parseInstant(String s) {
         if (s == null || s.isBlank()) return null;
         try { return Instant.parse(s.trim()); } catch (java.time.format.DateTimeParseException e) { return null; }
+    }
+
+    // ── connection workbench (probe · explore · sample) ─────────────────────────
+
+    /** The {@link ConnectionWorkbench} view of an S3 profile — contributed via {@link S3ConnectorFactory}. */
+    static ConnectionWorkbench workbench(ConnectionProfile profile) {
+        return new Workbench(new S3Connector(profile));
+    }
+
+    private static final class Workbench extends AbstractObjectStoreWorkbench {
+        private final S3Connector conn;
+
+        Workbench(S3Connector conn) { this.conn = conn; }
+
+        @Override
+        String authProbe() throws AcquisitionException {
+            conn.execute("GET", "/" + conn.bucket, Map.of("list-type", "2", "max-keys", "1"), Map.of(), null,
+                    "probe bucket");
+            return "bucket listable";
+        }
+
+        @Override
+        List<Entry> list(String relPrefix) throws AcquisitionException {
+            String fullPrefix = conn.prefix + (relPrefix.isEmpty() ? "" : relPrefix + "/");
+            List<Entry> out = new ArrayList<>();
+            String continuation = null;
+            do {
+                Map<String, String> query = new LinkedHashMap<>();
+                query.put("list-type", "2");
+                query.put("max-keys", String.valueOf(MAX_KEYS_PAGE));
+                query.put("delimiter", "/");
+                if (!fullPrefix.isEmpty()) query.put("prefix", fullPrefix);
+                if (continuation != null) query.put("continuation-token", continuation);
+                HttpResponse<byte[]> resp = conn.execute("GET", "/" + conn.bucket, query, Map.of(), null, "list objects");
+                Document doc = parseXml(resp.body());
+                continuation = text(doc.getDocumentElement(), "NextContinuationToken");
+                if (!"true".equalsIgnoreCase(text(doc.getDocumentElement(), "IsTruncated"))) continuation = null;
+
+                NodeList cps = doc.getElementsByTagName("CommonPrefixes");
+                for (int i = 0; i < cps.getLength(); i++) {
+                    String p = text((Element) cps.item(i), "Prefix");
+                    if (p == null) continue;
+                    String rel = p.startsWith(fullPrefix) ? p.substring(fullPrefix.length()) : p;
+                    rel = rel.endsWith("/") ? rel.substring(0, rel.length() - 1) : rel;
+                    if (!rel.isBlank()) out.add(new Entry(rel, true, null, null));
+                }
+                NodeList contents = doc.getElementsByTagName("Contents");
+                for (int i = 0; i < contents.getLength(); i++) {
+                    Element c = (Element) contents.item(i);
+                    String key = text(c, "Key");
+                    if (key == null || key.equals(fullPrefix)) continue;   // the placeholder key for the prefix itself
+                    String rel = key.startsWith(fullPrefix) ? key.substring(fullPrefix.length()) : key;
+                    if (rel.isBlank() || rel.contains("/")) continue;      // delimiter should already exclude these
+                    long size = parseLong(text(c, "Size"), RemoteFile.SIZE_UNKNOWN);
+                    out.add(new Entry(rel, false, size, text(c, "LastModified")));
+                }
+            } while (continuation != null);
+            return out;
+        }
+
+        @Override
+        InputStream openObject(String relKey, Long size) throws AcquisitionException {
+            String path = "/" + conn.bucket + "/" + AwsSigV4.uriEncode(conn.prefix + relKey, false);
+            return conn.executeStreaming(path, Map.of(), "open " + relKey).body();
+        }
     }
 }

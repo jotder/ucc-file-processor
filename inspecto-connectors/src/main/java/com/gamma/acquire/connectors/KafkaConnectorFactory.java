@@ -1,6 +1,7 @@
 package com.gamma.acquire.connectors;
 
 import com.gamma.acquire.ConnectionProfile;
+import com.gamma.acquire.ConnectionWorkbench;
 import com.gamma.acquire.CollectorConnector;
 import com.gamma.acquire.CollectorConnectorFactory;
 import com.gamma.etl.PipelineConfig;
@@ -29,5 +30,10 @@ public final class KafkaConnectorFactory implements CollectorConnectorFactory {
             throw new IllegalArgumentException("kafka source '" + cfg.collector().id()
                     + "' requires source.connection to reference a *_connection.toon profile (brokers/topic)");
         return new KafkaConnector(profile, KafkaConsumer::new);
+    }
+
+    @Override
+    public ConnectionWorkbench workbench(ConnectionProfile profile) {
+        return new KafkaConnectionWorkbench(profile);
     }
 }

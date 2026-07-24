@@ -2,6 +2,7 @@ package com.gamma.acquire.connectors;
 
 import com.gamma.acquire.AcquisitionException;
 import com.gamma.acquire.ConnectionProfile;
+import com.gamma.acquire.ConnectionWorkbench;
 import com.gamma.acquire.DiscoveryContext;
 import com.gamma.acquire.PostAction;
 import com.gamma.acquire.RemoteFile;
@@ -332,6 +333,73 @@ public final class AzureBlobConnector implements CollectorConnector {
             return Instant.from(DateTimeFormatter.RFC_1123_DATE_TIME.parse(s.trim()));
         } catch (java.time.format.DateTimeParseException e) {
             return null;
+        }
+    }
+
+    // ── connection workbench (probe · explore · sample) ─────────────────────────
+
+    /** The {@link ConnectionWorkbench} view of an Azure Blob profile — contributed via {@link AzureBlobConnectorFactory}. */
+    static ConnectionWorkbench workbench(ConnectionProfile profile) {
+        return new Workbench(new AzureBlobConnector(profile));
+    }
+
+    private static final class Workbench extends AbstractObjectStoreWorkbench {
+        private final AzureBlobConnector conn;
+
+        Workbench(AzureBlobConnector conn) { this.conn = conn; }
+
+        @Override
+        String authProbe() throws AcquisitionException {
+            conn.execute("GET", "/" + conn.container,
+                    Map.of("restype", "container", "comp", "list", "maxresults", "1"), Map.of(), null,
+                    "probe container");
+            return "container listable";
+        }
+
+        @Override
+        List<Entry> list(String relPrefix) throws AcquisitionException {
+            String fullPrefix = conn.prefix + (relPrefix.isEmpty() ? "" : relPrefix + "/");
+            List<Entry> out = new ArrayList<>();
+            String marker = null;
+            do {
+                Map<String, String> query = new LinkedHashMap<>();
+                query.put("restype", "container");
+                query.put("comp", "list");
+                query.put("maxresults", String.valueOf(MAX_RESULTS_PAGE));
+                query.put("delimiter", "/");
+                if (!fullPrefix.isEmpty()) query.put("prefix", fullPrefix);
+                if (marker != null) query.put("marker", marker);
+                HttpResponse<byte[]> resp = conn.execute("GET", "/" + conn.container, query, Map.of(), null, "list blobs");
+                Document doc = parseXml(resp.body());
+                marker = text(doc.getDocumentElement(), "NextMarker");
+                if (marker != null && marker.isBlank()) marker = null;
+
+                NodeList bps = doc.getElementsByTagName("BlobPrefix");
+                for (int i = 0; i < bps.getLength(); i++) {
+                    String p = text((Element) bps.item(i), "Name");
+                    if (p == null) continue;
+                    String rel = p.startsWith(fullPrefix) ? p.substring(fullPrefix.length()) : p;
+                    rel = rel.endsWith("/") ? rel.substring(0, rel.length() - 1) : rel;
+                    if (!rel.isBlank()) out.add(new Entry(rel, true, null, null));
+                }
+                NodeList blobs = doc.getElementsByTagName("Blob");
+                for (int i = 0; i < blobs.getLength(); i++) {
+                    Element b = (Element) blobs.item(i);
+                    String name = text(b, "Name");
+                    if (name == null || name.equals(fullPrefix)) continue;
+                    String rel = name.startsWith(fullPrefix) ? name.substring(fullPrefix.length()) : name;
+                    if (rel.isBlank() || rel.contains("/")) continue;   // delimiter should already exclude these
+                    long size = parseLong(text(b, "Content-Length"), RemoteFile.SIZE_UNKNOWN);
+                    out.add(new Entry(rel, false, size, text(b, "Last-Modified")));
+                }
+            } while (marker != null);
+            return out;
+        }
+
+        @Override
+        InputStream openObject(String relKey, Long size) throws AcquisitionException {
+            String path = "/" + conn.container + "/" + AwsSigV4.uriEncode(conn.prefix + relKey, false);
+            return conn.executeStreaming(path, Map.of(), "open " + relKey).body();
         }
     }
 }
