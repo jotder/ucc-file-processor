@@ -8,6 +8,8 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
 import { MatMenuModule, MatMenuTrigger } from '@angular/material/menu';
+import { MatSelectModule } from '@angular/material/select';
+import { MatSliderModule } from '@angular/material/slider';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { ActivatedRoute, Router } from '@angular/router';
 import { ToastrService } from 'ngx-toastr';
@@ -26,6 +28,7 @@ import {
     collapseBranches,
     descendants,
     filterByKinds,
+    filterByTime,
     isForest,
     emptyHistory,
     mergeGraphs,
@@ -70,6 +73,8 @@ function uniqueNameValidator(taken: () => string[]): ValidatorFn {
 interface PresentationSnapshot {
     search: string;
     kindFilter: string[];
+    timeColumn: string;
+    timeCutoff: number | null;
     collapsedRoots: string[];
     nodeLabels: boolean;
     edgeLabels: boolean;
@@ -92,7 +97,8 @@ interface PresentationSnapshot {
     changeDetection: ChangeDetectionStrategy.OnPush,
     imports: [
         ReactiveFormsModule, MatButtonModule, MatButtonToggleModule, MatCheckboxModule, MatDialogModule,
-        MatFormFieldModule, MatIconModule, MatInputModule, MatMenuModule, MatTooltipModule,
+        MatFormFieldModule, MatIconModule, MatInputModule, MatMenuModule, MatSelectModule, MatSliderModule,
+        MatTooltipModule,
         InspectoAlertComponent, InspectoEmptyStateComponent, InspectoSkeletonComponent, GraphViewComponent,
         DataTableComponent, TransferMenuComponent, LinkAnalysisToolboxComponent, LinkAnalysisQueryPanelComponent,
     ],
@@ -209,10 +215,36 @@ export class LinkAnalysisComponent implements OnInit {
     });
     /** Collapsed branch roots — their downstream nodes are hidden until expanded. */
     readonly collapsedRoots = signal<string[]>([]);
-    /** The kind-filtered graph BEFORE branch collapsing (collapse/expand decisions read this). */
+
+    // ── timeline filter (BACKLOG V2 §3: a time slider filtering edges by a temporal `attrs` column) ──
+    /** The `attrs` column to filter on; '' = timeline off. */
+    readonly timeColumn = signal('');
+    /** Cutoff (epoch millis) — edges dated after this are hidden; `null` until the slider is touched. */
+    readonly timeCutoff = signal<number | null>(null);
+    /** Every edge-`attrs` key present anywhere in the loaded graph — the column picker's options. */
+    readonly attrColumns = computed<string[]>(() => {
+        const g = this.graph();
+        if (!g) return [];
+        return [...new Set(g.edges.flatMap((e) => Object.keys(e.data.attrs ?? {})))].sort();
+    });
+    /** [min, max] epoch millis of every parseable date in the selected column — the slider's rail. */
+    readonly timeExtent = computed<[number, number] | null>(() => {
+        const g = this.graph();
+        const col = this.timeColumn();
+        if (!g || !col) return null;
+        const times = g.edges
+            .map((e) => Date.parse(e.data.attrs?.[col] ?? ''))
+            .filter((t) => Number.isFinite(t));
+        return times.length ? [Math.min(...times), Math.max(...times)] : null;
+    });
+    /** The kind- and time-filtered graph BEFORE branch collapsing (collapse/expand decisions read this). */
     private readonly baseGraph = computed<G6GraphData | null>(() => {
         const g = this.graph();
-        return g ? filterByKinds(g, this.kindFilter(), []) : null;
+        if (!g) return null;
+        const kindFiltered = filterByKinds(g, this.kindFilter(), []);
+        const col = this.timeColumn();
+        const cutoff = this.timeCutoff();
+        return col && cutoff != null ? filterByTime(kindFiltered, col, cutoff) : kindFiltered;
     });
     readonly displayed = computed<G6GraphData | null>(() => {
         const g = this.baseGraph();
@@ -364,6 +396,8 @@ export class LinkAnalysisComponent implements OnInit {
         this.toolbox?.reset();
         this.search.set('');
         this.collapsedRoots.set([]);
+        this.timeColumn.set('');
+        this.timeCutoff.set(null);
         this.history.set(emptyHistory()); // a fresh graph invalidates prior undo/redo snapshots
         try {
             const g = await source.query(q);
@@ -455,7 +489,9 @@ export class LinkAnalysisComponent implements OnInit {
 
     private snapshotPresentation(): PresentationSnapshot {
         return {
-            search: this.search(), kindFilter: this.kindFilter(), collapsedRoots: this.collapsedRoots(),
+            search: this.search(), kindFilter: this.kindFilter(),
+            timeColumn: this.timeColumn(), timeCutoff: this.timeCutoff(),
+            collapsedRoots: this.collapsedRoots(),
             nodeLabels: this.nodeLabels(), edgeLabels: this.edgeLabels(),
             nodeColors: this.nodeColors(), edgeColors: this.edgeColors(),
             nodeShapes: this.nodeShapes(), edgePatterns: this.edgePatterns(), edgeSizes: this.edgeSizes(),
@@ -466,6 +502,8 @@ export class LinkAnalysisComponent implements OnInit {
     private restorePresentation(s: PresentationSnapshot): void {
         this.search.set(s.search);
         this.kindFilter.set(s.kindFilter);
+        this.timeColumn.set(s.timeColumn);
+        this.timeCutoff.set(s.timeCutoff);
         this.collapsedRoots.set(s.collapsedRoots);
         this.nodeLabels.set(s.nodeLabels);
         this.edgeLabels.set(s.edgeLabels);
@@ -680,10 +718,29 @@ export class LinkAnalysisComponent implements OnInit {
         return !this.kindFilter().length || this.kindFilter().includes(kind);
     }
 
+    /** Pick the timeline's `attrs` column (or '' to turn it off); resets the cutoff to the column's max. */
+    setTimeColumn(col: string): void {
+        this.recordHistory();
+        this.timeColumn.set(col);
+        this.timeCutoff.set(col ? (this.timeExtent()?.[1] ?? null) : null);
+    }
+
+    /** Move the timeline cutoff (epoch millis, from the slider). Not recorded per-drag (like search). */
+    setTimeCutoff(cutoff: number): void {
+        this.timeCutoff.set(cutoff);
+    }
+
+    /** Short date-time label for the timeline slider readout. */
+    timeLabel(t: number): string {
+        return new Date(t).toISOString().slice(0, 16).replace('T', ' ');
+    }
+
     clearFilters(): void {
         this.recordHistory();
         this.kindFilter.set([]);
         this.search.set('');
+        this.timeColumn.set('');
+        this.timeCutoff.set(null);
         this.emphasis.set(null);
     }
 

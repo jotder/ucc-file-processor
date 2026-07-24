@@ -48,9 +48,15 @@ distinct ([`GLOSSARY.md`](../../../GLOSSARY.md) §11): this studio works on **P3
   pre-fill multi-mapping projections instead of requiring every column pair hand-picked. Self-references
   (e.g. `manager_id`) are included; unusable Datasets are skipped, not fatal.
   **2026-07-24 shipped four V2 tracks** (see Toolboxes above): advanced traversal, the algorithm
-  library, suspicion scoring, and pattern packs. Remaining V2 (BACKLOG): **timeline** (a time slider
-  filtering edges by a temporal `attrs` column — decision-free design ready, needs the studio-shell UI
-  zone + a pure `filterByTime` helper) and **collaboration** — of which **version history + sharing are
+  library, suspicion scoring, and pattern packs. **2026-07-24 also shipped the timeline**: a pure
+  `filterByTime(g, attrCol, cutoff)` in `graph-analysis.ts` (edges only — an edge survives only when its
+  `attrs[attrCol]` parses as a date on or before the cutoff; nodes are untouched, same non-mutating
+  contract as `filterByKinds`) plus a toolbar "Timeline" menu (column picker over every `attrs` key seen
+  in the loaded graph + a `mat-slider` cutoff, rail bounds from that column's parseable date extent) in
+  `link-analysis.component`. It slots into the existing filter pipeline — kind-filter → time-filter →
+  `collapseBranches` → the shared `displayed()` graph-view binding — so no new filtering mechanism was
+  needed; resets on a fresh query and via "Clear search & filters", and participates in undo/redo like
+  the other presentation filters. Remaining V2 (BACKLOG): **collaboration** — of which **version history + sharing are
   frontend-only wiring** (backend `/components/{type}/{id}/versions` + `restore` and RBAC component
   shares already exist; `ComponentsService.versions/restore` are wired), while **per-view comments need a
   new backend** (no Component-attached note model — `ObjectNote` is keyed to Incidents/Cases, so a

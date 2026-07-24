@@ -464,6 +464,24 @@ export function filterByKinds(g: G6GraphData, nodeKinds: string[], edgeKinds: st
     return { nodes, edges };
 }
 
+/**
+ * Timeline filter (Link Analysis V2 — BACKLOG §3): keep only edges whose `attrCol` attribute parses
+ * as a date on or before `cutoff` (epoch millis); nodes are left untouched (mirrors {@link filterByKinds}'s
+ * pure, non-mutating contract, but this axis trims edges only — a node with no surviving edges just
+ * goes unconnected, same as a kind-filtered graph). An edge missing the column, or whose value doesn't
+ * parse as a date, is dropped (unknown-time edges don't survive a cutoff). `attrCol` empty = no filter.
+ */
+export function filterByTime(g: G6GraphData, attrCol: string, cutoff: number): G6GraphData {
+    if (!attrCol) return g;
+    const edges = g.edges.filter((e) => {
+        const raw = e.data.attrs?.[attrCol];
+        if (raw == null) return false;
+        const t = Date.parse(raw);
+        return Number.isFinite(t) && t <= cutoff;
+    });
+    return { nodes: g.nodes, edges };
+}
+
 /** One step of a {@link matchPattern} motif. `undefined` kind = wildcard; on step 0 edge fields are ignored. */
 export interface PatternStep {
     /** The kind the node at this step must be; wildcard when absent. */

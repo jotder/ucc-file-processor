@@ -18,6 +18,7 @@ import {
     eigenvectorCentrality,
     explainNode,
     filterByKinds,
+    filterByTime,
     findCycles,
     hits,
     isForest,
@@ -193,6 +194,35 @@ describe('searchNodes / filterByKinds', () => {
     it('filters edges by kind; empty filters are a no-op', () => {
         expect(filterByKinds(typed, [], ['uses']).edges).toHaveLength(2);
         expect(filterByKinds(typed, [], [])).toEqual(typed);
+    });
+});
+
+describe('filterByTime', () => {
+    const timed: G6GraphData = {
+        nodes: [node('a'), node('b'), node('c')],
+        edges: [
+            { ...edge('a', 'b', 'calls'), data: { kind: 'calls', attrs: { when: '2026-01-01T00:00:00Z' } } },
+            { ...edge('b', 'c', 'calls'), data: { kind: 'calls', attrs: { when: '2026-06-01T00:00:00Z' } } },
+            { ...edge('a', 'c', 'calls'), data: { kind: 'calls', attrs: { when: 'not-a-date' } } },
+            { ...edge('c', 'a', 'calls'), data: { kind: 'calls' } }, // no attrs at all
+        ],
+    };
+
+    it('keeps only edges whose attr column parses to a date on or before the cutoff', () => {
+        const cutoff = Date.parse('2026-03-01T00:00:00Z');
+        const f = filterByTime(timed, 'when', cutoff);
+        expect(f.nodes).toEqual(timed.nodes); // nodes untouched
+        expect(f.edges.map((e) => e.id)).toEqual([edge('a', 'b', 'calls').id]);
+    });
+
+    it('drops edges missing the column or with an unparseable value', () => {
+        const cutoff = Date.parse('2027-01-01T00:00:00Z');
+        const f = filterByTime(timed, 'when', cutoff);
+        expect(f.edges.map((e) => e.id)).toEqual([edge('a', 'b', 'calls').id, edge('b', 'c', 'calls').id]);
+    });
+
+    it('an empty attrCol is a no-op', () => {
+        expect(filterByTime(timed, '', Date.now())).toEqual(timed);
     });
 });
 

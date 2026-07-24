@@ -71,6 +71,34 @@
                     }
                 </mat-menu>
 
+                <!-- timeline: filter edges by a temporal `attrs` column cut off at a point in time -->
+                @if (attrColumns().length) {
+                    <button mat-icon-button [matMenuTriggerFor]="timelineMenu" [color]="timeColumn() ? 'primary' : undefined"
+                            matTooltip="Timeline" [attr.aria-label]="'Filter edges by time' + (timeColumn() ? ' (filter active)' : '')">
+                        <mat-icon svgIcon="heroicons_outline:clock"></mat-icon>
+                    </button>
+                    <mat-menu #timelineMenu="matMenu">
+                        <div class="flex w-80 flex-col gap-2 px-4 py-2" (click)="$event.stopPropagation()" aria-label="Timeline filter">
+                            <mat-form-field subscriptSizing="dynamic">
+                                <mat-label>Time column</mat-label>
+                                <mat-select [value]="timeColumn()" (selectionChange)="setTimeColumn($event.value)">
+                                    <mat-option value="">Off</mat-option>
+                                    @for (c of attrColumns(); track c) {
+                                        <mat-option [value]="c">{{ c }}</mat-option>
+                                    }
+                                </mat-select>
+                            </mat-form-field>
+                            @if (timeColumn() && timeExtent(); as ext) {
+                                <span class="text-secondary text-xs">Up to {{ timeLabel(timeCutoff() ?? ext[1]) }}</span>
+                                <mat-slider [min]="ext[0]" [max]="ext[1]" [step]="60000" discrete [displayWith]="timeLabel">
+                                    <input matSliderThumb [value]="timeCutoff() ?? ext[1]"
+                                           (valueChange)="setTimeCutoff($event)" aria-label="Timeline cutoff" />
+                                </mat-slider>
+                            }
+                        </div>
+                    </mat-menu>
+                }
+
                 <!-- graph-algorithms toolbox (opens the bottom Analysis tab) -->
                 <button mat-icon-button (click)="openAnalysis()"
                         [color]="bottomOpen() && bottomTab() === 'analysis' ? 'primary' : undefined"
@@ -78,7 +106,7 @@
                     <mat-icon svgIcon="heroicons_outline:beaker"></mat-icon>
                 </button>
 
-                @if (search() || kindFilter().length) {
+                @if (search() || kindFilter().length || timeColumn()) {
                     <button mat-icon-button (click)="clearFilters()" matTooltip="Clear search & filters" aria-label="Clear search and filters">
                         <mat-icon svgIcon="heroicons_outline:x-mark"></mat-icon>
                     </button>

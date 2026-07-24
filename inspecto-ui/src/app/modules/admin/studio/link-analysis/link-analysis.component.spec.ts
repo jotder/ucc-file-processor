@@ -104,6 +104,40 @@ describe('LinkAnalysisComponent', () => {
         expect(c.displayed()?.nodes).toHaveLength(5);
     });
 
+    it('timeline: filters edges by a temporal attrs column, resets on a fresh run and via clearFilters', async () => {
+        const timedGraph: G6GraphData = {
+            nodes: GRAPH.nodes,
+            edges: [
+                { id: 'a->b', source: 'a', target: 'b', data: { kind: 'link', attrs: { when: '2026-01-01T00:00:00Z' } } },
+                { id: 'b->c', source: 'b', target: 'c', data: { kind: 'link', attrs: { when: '2026-06-01T00:00:00Z' } } },
+                { id: 'd->e', source: 'd', target: 'e', data: { kind: 'link' } }, // no attrs
+            ],
+        };
+        const { fixture } = create({ graph: timedGraph });
+        fixture.detectChanges();
+        await runQuery(fixture);
+        const c = fixture.componentInstance;
+
+        expect(c.attrColumns()).toEqual(['when']);
+        c.setTimeColumn('when');
+        expect(c.timeColumn()).toBe('when');
+        expect(c.timeExtent()).toEqual([Date.parse('2026-01-01T00:00:00Z'), Date.parse('2026-06-01T00:00:00Z')]);
+        expect(c.timeCutoff()).toBe(Date.parse('2026-06-01T00:00:00Z')); // defaults to the extent max — nothing hidden yet
+
+        c.setTimeCutoff(Date.parse('2026-03-01T00:00:00Z'));
+        expect(c.displayed()?.edges.map((e) => e.id)).toEqual(['a->b']); // b->c is after cutoff, d->e has no attrs
+
+        c.clearFilters();
+        expect(c.timeColumn()).toBe('');
+        expect(c.displayed()?.edges).toHaveLength(3);
+
+        c.setTimeColumn('when');
+        c.setTimeCutoff(Date.parse('2026-03-01T00:00:00Z'));
+        await runQuery(fixture); // a fresh query resets the timeline like the other presentation filters
+        expect(c.timeColumn()).toBe('');
+        expect(c.timeCutoff()).toBeNull();
+    });
+
     it('offers a pivot to the map for a node carrying an objectRef (ui-design-review R8)', async () => {
         const graphWithRef: G6GraphData = {
             nodes: [...GRAPH.nodes, { id: 'f', data: { label: 'F', kind: 'entity', objectRef: { id: 'case-1', type: 'CASE' } } }],
