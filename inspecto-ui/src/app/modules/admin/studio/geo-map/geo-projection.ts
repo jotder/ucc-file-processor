@@ -3,14 +3,19 @@ import { firstValueFrom } from 'rxjs';
 import {
     GeoData, GeoPoint, GeoProjection, GeoQuery, GeoRoute, GeoSource, RouteProjection, validCoordinate,
 } from 'app/inspecto/geo';
+import { GeoProjectionResult, GeoService } from 'app/inspecto/api';
 import { DatasetsService } from 'app/modules/admin/studio/datasets/datasets.service';
 import { datasetRows } from 'app/modules/admin/studio/link-analysis/entity-projection';
 
 /**
  * The `dataset` **GeoSource**: project a Dataset's rows onto the map — each row with a valid
- * WGS84 lat/lon becomes a {@link GeoPoint}. Client-side over the same offline row seam the
- * Dataset editor and the entity-projection use (`datasetRows`); the real backend projection is
- * Phase 4 (docs/superpower/geo-map-analysis-plan.md).
+ * WGS84 lat/lon becomes a {@link GeoPoint}. Since Phase 4 (`GeoRoutes`, 2026-07-22) this is
+ * **backend-first**: `POST /geo/projection` does the DuckDB-side fold over the real Dataset
+ * (scaling far beyond the browser's {@link GEO_POINT_CAP}) and {@link foldServerResult} maps the
+ * result into the identical `GeoPoint` shape. When the backend is unavailable (offline demo — the
+ * mock answers 501, or a pre-Phase-4 backend) it falls back to the original client-side fold over
+ * the Dataset editor's sample rows, byte-identical to the mock-first behaviour. Mirrors the Link
+ * Analysis studio's `EntityProjectionGraphSource`/`InvService` backend-first pattern.
  */
 
 /** Above this many points the projection truncates (and says so) rather than melt the map. */
@@ -137,33 +142,79 @@ export function projectRoutes(rows: Record<string, unknown>[], p: RouteProjectio
     return { points: [...points.values()], routes: [...routes.values()], truncated, skipped };
 }
 
-/** The pluggable source: Dataset (by `projection.datasetId`) → rows → {@link projectPoints}. */
+/** Fold a server `/geo/projection`|`/geo/routes` result into the same `ProjectedGeo` shape as the client fold. */
+function foldServerResult(res: GeoProjectionResult): ProjectedGeo {
+    return {
+        points: res.points.map((p) => ({
+            id: p.id, lat: p.lat, lon: p.lon, kind: p.kind, label: p.label, time: p.time, attrs: p.attrs,
+        })),
+        routes: res.routes.map((r) => ({ id: r.id, from: r.from, to: r.to, kind: r.kind, label: r.kind, weight: r.weight })),
+        truncated: res.truncated,
+        skipped: res.skipped,
+    };
+}
+
+/** The pluggable source: backend-first ({@code POST /geo/projection}); Dataset rows → {@link projectPoints} on failure. */
 export class DatasetGeoSource implements GeoSource {
     readonly id = 'dataset' as const;
     readonly label = 'Locations (from a Dataset)';
-    constructor(private datasets: DatasetsService) {}
+    constructor(private datasets: DatasetsService, private geo: GeoService) {}
 
     async query(q: GeoQuery): Promise<ProjectedGeo> {
-        if (!q.projection?.datasetId) throw new Error('The dataset source needs a Dataset mapping.');
-        const ds = await firstValueFrom(this.datasets.get(q.projection.datasetId));
-        const out = projectPoints(datasetRows(ds), q.projection);
-        if (isGeoProjectionError(out)) throw new Error(out.error);
-        return out;
+        const p = q.projection;
+        if (!p?.datasetId) throw new Error('The dataset source needs a Dataset mapping.');
+        if (!p.latCol || !p.lonCol) throw new Error('The mapping needs a latitude and a longitude column.');
+        try {
+            const res = await firstValueFrom(this.geo.project({
+                dataset: p.datasetId,
+                latCol: p.latCol,
+                lonCol: p.lonCol,
+                entityCol: p.entityCol || undefined,
+                kindCol: p.kindCol || undefined,
+                timeCol: p.timeCol || undefined,
+            }));
+            return foldServerResult(res);
+        } catch {
+            // Offline / mock (501) or an older backend: the original client-side sample fold.
+            const ds = await firstValueFrom(this.datasets.get(p.datasetId));
+            const out = projectPoints(datasetRows(ds), p);
+            if (isGeoProjectionError(out)) throw new Error(out.error);
+            return out;
+        }
     }
 }
 
-/** The `od-routes` source: Dataset (by `routes.datasetId`) → rows → {@link projectRoutes}. */
+/** The `od-routes` source: backend-first ({@code POST /geo/routes}); Dataset rows → {@link projectRoutes} on failure. */
 export class RouteProjectionGeoSource implements GeoSource {
     readonly id = 'od-routes' as const;
     readonly label = 'Routes (origin → destination)';
-    constructor(private datasets: DatasetsService) {}
+    constructor(private datasets: DatasetsService, private geo: GeoService) {}
 
     async query(q: GeoQuery): Promise<ProjectedGeo> {
-        if (!q.routes?.datasetId) throw new Error('The routes source needs a Dataset mapping.');
-        const ds = await firstValueFrom(this.datasets.get(q.routes.datasetId));
-        const out = projectRoutes(datasetRows(ds), q.routes);
-        if (isGeoProjectionError(out)) throw new Error(out.error);
-        return out;
+        const p = q.routes;
+        if (!p?.datasetId) throw new Error('The routes source needs a Dataset mapping.');
+        if (!p.fromLatCol || !p.fromLonCol || !p.toLatCol || !p.toLonCol) {
+            throw new Error('The mapping needs origin and destination latitude/longitude columns.');
+        }
+        try {
+            const res = await firstValueFrom(this.geo.routes({
+                dataset: p.datasetId,
+                fromLatCol: p.fromLatCol,
+                fromLonCol: p.fromLonCol,
+                toLatCol: p.toLatCol,
+                toLonCol: p.toLonCol,
+                fromCol: p.fromCol || undefined,
+                toCol: p.toCol || undefined,
+                kindCol: p.kindCol || undefined,
+            }));
+            return foldServerResult(res);
+        } catch {
+            // Offline / mock (501) or an older backend: the original client-side sample fold.
+            const ds = await firstValueFrom(this.datasets.get(p.datasetId));
+            const out = projectRoutes(datasetRows(ds), p);
+            if (isGeoProjectionError(out)) throw new Error(out.error);
+            return out;
+        }
     }
 }
 
@@ -171,7 +222,7 @@ export class RouteProjectionGeoSource implements GeoSource {
 @Injectable({ providedIn: 'root' })
 export class GeoSourcesService {
     readonly sources: GeoSource[] = [
-        new DatasetGeoSource(inject(DatasetsService)),
-        new RouteProjectionGeoSource(inject(DatasetsService)),
+        new DatasetGeoSource(inject(DatasetsService), inject(GeoService)),
+        new RouteProjectionGeoSource(inject(DatasetsService), inject(GeoService)),
     ];
 }

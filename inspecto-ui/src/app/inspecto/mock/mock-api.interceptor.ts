@@ -14,6 +14,7 @@ import { demoHandler } from './handlers/demo.handler';
 import { decisionRulesHandler } from './handlers/decision-rules.handler';
 import { exchangeHandler } from './handlers/exchange.handler';
 import { expectationsHandler } from './handlers/expectations.handler';
+import { geoHandler } from './handlers/geo.handler';
 import { healthHandler } from './handlers/health.handler';
 import { invHandler } from './handlers/inv.handler';
 import { jobsHandler } from './handlers/jobs.handler';
@@ -67,6 +68,7 @@ const HANDLERS: MockHandler[] = [
     opsHandler(flags),
     expectationsHandler(flags),
     invHandler(flags),
+    geoHandler(flags),
     dashboardShareHandler(flags), // mint side of BI-6 share (POST /dashboards/{id}/share)
     publicDashboardsHandler(flags),
     biTemplatesHandler(flags),

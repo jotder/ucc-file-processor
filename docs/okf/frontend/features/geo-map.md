@@ -33,7 +33,14 @@ Geocoder — never "marker/pin" in model names).
   `POST /inv/projection`): valid-WGS84 point projection with a `skipped` count, and the O/D route fold
   as a `GROUP BY` (summed weight), scaling past the ~5k-point browser cap. Plain SQL — the DuckDB
   `spatial` extension is **deliberately deferred** (no geometry op is needed, and the hardened
-  `SqlSandbox` disables extension loading); see `docs/BACKLOG.md`.
+  `SqlSandbox` disables extension loading); see `docs/BACKLOG.md`. **2026-07-24 SHIPPED the UI wiring**
+  — `DatasetGeoSource`/`RouteProjectionGeoSource` (`geo-projection.ts`) are now **backend-first**,
+  mirroring `EntityProjectionGraphSource`/`InvService`: each calls the new `GeoService`
+  (`inspecto/api/geo.service.ts`, `POST /geo/projection`|`/geo/routes`) first, folding the server's
+  aggregated rows into the identical `GeoPoint`/`GeoRoute` shapes; on any failure (offline demo — the
+  mock `geo.handler.ts` answers 501, or a pre-Phase-4 backend) it falls back to the original
+  client-side sample fold, byte-identical to the prior behaviour. No point-count threshold — same
+  simple try/backend-then/catch-fallback shape as the Link Analysis precedent, not a size-gated switch.
 * **Investigation pivot** (ui-design-review R8, 2026-07-20) — a point resolving an `objectRef` offers
   "View in graph" (pivots to Link Analysis with the same record); see
   [Investigation Pivot](investigation-pivot.md) for the shared contract.
