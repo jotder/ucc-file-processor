@@ -280,8 +280,10 @@ data (SCD), deduplicated from incremental or full-dump loads. It is the **lookup
 Transform / Enrichment joins it into a Stream's facts. (Lineage NodeKind `REFERENCE_DATASET`; ≈ dimension
 table.) *Production seam (2026-07-16):* a pipeline may **produce** one (`produces: reference` in its TOON,
 node id `ref:<pipeline>`), and an Enrichment then binds it **by name** (`references.<alias>.ref:`) instead of
-a file path — v1 load semantics are full-replace; the cached/SCD nature above remains the Phase-2 engine
-backlog.
+a file path — v1 load semantics are full-replace; the `reference: {load: replace|upsert|scd2, key,
+refresh_seconds}` load-semantics + `stream:` grouping *config surface* is now authorable (Reference
+Phase-2 P0/P4, 2026-07-24), but the cached/SCD **engine** mechanics (append + current-view/as-of reads,
+compaction) remain the Phase-2 backlog.
 
 **Matrix** — The **intended user-facing name** for a summary / cube / roll-up data asset. It **is a Derived
 Table** (so it lives inside the **Dataset** umbrella) — "Matrix" is the label the Catalog and Studio are meant

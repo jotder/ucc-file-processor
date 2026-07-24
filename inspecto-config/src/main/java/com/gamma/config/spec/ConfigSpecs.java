@@ -60,6 +60,21 @@ public final class ConfigSpecs {
                 FieldSpec.enumField("produces", "Produces", List.of("stream", "reference"), "stream",
                         "What the output registers as in the Catalog: an event/fact Stream (default) or a "
                                 + "Reference Dataset (dimension/lookup) that enrichments can bind by name."),
+                FieldSpec.of("stream", "Stream", FieldType.STRING,
+                        "Logical Catalog Stream this pipeline is a member of (GLOSSARY §3 grouping); default = "
+                                + "the pipeline's own name (strict 1:1). Pipelines sharing one name group under a "
+                                + "single Stream in the catalog graph."),
+                FieldSpec.enumField("reference.load", "Reference load mode",
+                        List.of("replace", "upsert", "scd2"), "replace",
+                        "How a produces:reference dataset is loaded: replace (full-replace, today's default), "
+                                + "upsert (latest-version-wins by reference.key) or scd2 (slowly-changing history). "
+                                + "upsert/scd2 require reference.key."),
+                FieldSpec.of("reference.key", "Reference key columns", FieldType.LIST,
+                        "Declared identity columns for upsert/scd2 dedup + versioning; each must exist in the "
+                                + "pipeline schema."),
+                FieldSpec.withDefault("reference.refresh_seconds", "Reference refresh seconds", FieldType.INT, 0,
+                        "0 = re-materialize on collect only (today); >0 arms a periodic compaction/re-materialize "
+                                + "timer (Phase-3)."),
                 FieldSpec.required("dirs.poll", "Poll directory", FieldType.FILEPATH,
                         "Directory watched for incoming files. All managed dirs must live outside it."),
                 FieldSpec.required("dirs.database", "Output database directory", FieldType.FILEPATH,
@@ -147,6 +162,24 @@ public final class ConfigSpecs {
                             }
                             Object segs = at(raw, "processing.segments");
                             return segs instanceof Map<?, ?> m && !m.isEmpty();
+                        }),
+                new CrossFieldRule(
+                        "reference-upsert-requires-key",
+                        "reference.load=upsert|scd2 requires a non-empty reference.key (the identity columns "
+                                + "to dedup/version on).",
+                        Severity.ERROR,
+                        List.of("reference.load", "reference.key"),
+                        raw -> {
+                            String load = str(raw, "reference.load");
+                            if (load == null
+                                    || !(load.equalsIgnoreCase("upsert") || load.equalsIgnoreCase("scd2"))) {
+                                return true;   // replace/absent → no key required
+                            }
+                            Object key = at(raw, "reference.key");
+                            if (key instanceof List<?> l) {
+                                return !l.isEmpty();
+                            }
+                            return key != null && !key.toString().isBlank();
                         }),
                 new CrossFieldRule(
                         "threads-x-duckdb-threads-oversubscription",

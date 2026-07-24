@@ -1,6 +1,15 @@
 # Reference Phase-2 Engine Semantics — implementation plan
 
-**Status: DRAFT 2026-07-24 (design-first; planning session only — no code yet). Multi-session build.**
+**Status: IN FLIGHT — P0 + P4 SHIPPED 2026-07-24 (config model + Catalog Stream grouping, both
+GAUNTLET-green, additive/inert). P1–P3 remain (engine semantics). Multi-session build; plan stays in
+`superpower/` until the last phase lands.**
+
+_Shipped this shift (P0+P4): the `reference:` block (`load: replace|upsert|scd2` + `key` + `refresh_seconds`)
+and the `stream:` membership key on `PipelineConfig`, mirrored in `ConfigSpecs.pipeline()` (enum +
+`reference-upsert-requires-key` rule); `MetadataGraphBuilder` now groups pipelines sharing a `stream:` under
+one `stream:<logical>` node (collapse model — members keep their own schema/event nodes; a 1:1 Stream is
+byte-for-byte unchanged, no `members[]` attr). `load: replace` is the default ⇒ every existing pipeline is
+untouched. As-built → `docs/okf/backend/control-plane/onboarding-authoring.md`._
 Backlog origin: §3 *Onboarding (Stream/Reference)* — "Reference Phase-2 engine semantics: cache/upsert/SCD
 versioning + refresh scheduling, row-level dedup, Stream grouping (GLOSSARY §3/§6-B roadmap)".
 GLOSSARY §6-B itself records: *"v1 load semantics are full-replace; the cached/SCD nature above remains
@@ -115,11 +124,11 @@ Purely a **Catalog model** change, orthogonal to load semantics:
 
 | Phase | Scope | Verify |
 |---|---|---|
-| **P0** | Config model: `reference:` block + `stream:` key, spec validation, parsing — `load: replace` default, no engine behavior change | reactor green; new `PipelineConfig`/spec tests; authored-TOON back-compat test (old files parse identically) |
+| **P0 ✅** | Config model: `reference:` block + `stream:` key, spec validation, parsing — `load: replace` default, no engine behavior change | ✅ SHIPPED 2026-07-24 — `PipelineConfigReferenceTest` (14) + `ConfigSpecsTest`/`ConfigLoaderTest` (declarative mirror) + column-exists + back-compat all green. Column-exists check enforced parser-side when a schema is resolved (skipped for draft-without-schema). |
 | **P1** | `upsert`: system columns on append, within-batch dedup fold, current-view read in `EnrichmentEngine.referenceReader` | unit: two batches, changed + unchanged + new keys → current view = expected rows; tombstone via `__op=delete` |
 | **P2** | `scd2` history surface: as-of view + `EnrichmentConfig.Reference.asOf`; row content-hash skip | as-of query returns the version valid at t; identical re-delivery adds no version |
 | **P3** | Compaction task (MaterializeTask idiom) + `refresh_seconds` timer + cache read-path switch | compacted store = current view exactly; timer cancel-on-unregister test; read amplification bounded |
-| **P4** | Stream grouping (catalog) — separable | 1:1 default unchanged (graph snapshot test); grouped node with members when `stream:` set |
+| **P4 ✅** | Stream grouping (catalog) — separable | ✅ SHIPPED 2026-07-24 — collapse model in `MetadataGraphBuilder`; `MetadataGraphServiceTest` proves shared `stream:` → one node + `members[]`, and 1:1 default keeps label/attrs byte-for-byte (no `members[]`). Applies to STREAM origins only (references keep `ref:<pipeline>`). `/catalog/streams` is a separate per-collector projection, untouched. |
 
 Each phase lands independently GAUNTLET-green (`mvn -o clean test`, full reactor). Estimated 3–4
 focused sessions (P0+P4 could be one; P1 one; P2+P3 one to two).
@@ -138,6 +147,6 @@ focused sessions (P0+P4 could be one; P1 one; P2+P3 one to two).
 | # | Decision | Status |
 |---|---|---|
 | D1 | Versioned-state storage | **Resolved: (c)** append-only + latest-wins + compaction — §2 |
-| D2 | Config field names (`reference:`/`key`/`load`/`refresh_seconds`, `stream:`) | Drafted §3/§6; **confirm against GLOSSARY §3/§6-B wording before build** (binding vocabulary) |
-| D3 | P4 ships separately? | Recommended yes — §6 |
+| D2 | Config field names (`reference:`/`key`/`load`/`refresh_seconds`, `stream:`) | **Resolved & shipped (P0)** — confirmed GLOSSARY §3/§6-B conformant (Reference/Stream canonical; `load`/`key` per §3+§5); no synonyms coined |
+| D3 | P4 ships separately? | **Resolved: yes** — shipped alongside P0 this shift, own commit; collapse node model (members keep child nodes) |
 | D4 | History retention default for `scd2` (keep-forever vs horizon) | Defer to P3; default keep-forever, compaction `history_days` param |

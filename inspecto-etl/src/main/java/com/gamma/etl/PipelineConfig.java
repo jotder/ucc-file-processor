@@ -515,6 +515,66 @@ public final class PipelineConfig {
         }
     }
 
+    /**
+     * How a {@code produces: reference} pipeline's Reference Dataset is loaded ({@code reference.load:},
+     * Reference Phase-2; absent ⇒ {@link #REPLACE} = exactly today's behaviour). {@link #REPLACE}
+     * rewrites the whole partition each run (v1 full-replace semantics); {@link #UPSERT} keeps the
+     * latest version per declared {@code reference.key} (latest-version-wins); {@link #SCD2}
+     * additionally preserves superseded versions as slowly-changing-dimension history. {@code UPSERT}
+     * and {@code SCD2} require a non-empty {@code reference.key}. The engine mechanics land in later
+     * phases (P1/P2); P0 only carries and validates the config.
+     */
+    @PublicApi(since = "5.2.0")
+    public enum Load {
+        /** Full-replace — the default; rewrites the partition each run (v1 semantics). */
+        REPLACE,
+        /** Latest-version-wins per {@code reference.key} (needs a key). */
+        UPSERT,
+        /** SCD-2 history: keeps superseded versions as well as the current one (needs a key). */
+        SCD2;
+
+        /** Parse the {@code reference.load:} value; blank/absent ⇒ {@link #REPLACE}, else must match. */
+        public static Load from(String s) {
+            if (s == null || s.isBlank()) return REPLACE;
+            return switch (s.trim().toUpperCase(Locale.ROOT)) {
+                case "REPLACE" -> REPLACE;
+                case "UPSERT"  -> UPSERT;
+                case "SCD2"    -> SCD2;
+                default -> throw new IllegalArgumentException(
+                        "reference.load must be 'replace', 'upsert' or 'scd2', got: '" + s + "'");
+            };
+        }
+
+        /** Whether this load mode needs a declared {@code reference.key} (upsert/scd2 do). */
+        public boolean requiresKey() { return this != REPLACE; }
+    }
+
+    /**
+     * The optional {@code reference:} block on a {@code produces: reference} pipeline (Reference
+     * Phase-2; additive). Declares the load semantics of the produced Reference Dataset. <b>Never
+     * null</b> — absent ⇒ {@link #DEFAULT} (full-replace, no key, no refresh timer), i.e. today's
+     * behaviour, so every existing pipeline parses and runs identically. The block is only meaningful
+     * when {@code produces: reference}; on a Stream pipeline it is inert.
+     *
+     * @param key            declared identity columns (empty unless upsert/scd2); each must exist in
+     *                       the pipeline schema (validated at parse when a schema is resolved)
+     * @param load           {@link Load#REPLACE} (default) | {@link Load#UPSERT} | {@link Load#SCD2}
+     * @param refreshSeconds {@code 0} = re-materialize on collect only (today); {@code >0} arms a
+     *                       periodic compaction/re-materialize timer (Phase-3 — parsed/stored now)
+     */
+    @PublicApi(since = "5.2.0")
+    public record Reference(List<String> key, Load load, int refreshSeconds) {
+        /** Full-replace, no key, no refresh timer — exactly the pre-Phase-2 behaviour. */
+        public static final Reference DEFAULT = new Reference(List.of(), Load.REPLACE, 0);
+        public Reference {
+            key = (key == null) ? List.of() : List.copyOf(key);
+            if (load == null) load = Load.REPLACE;
+            if (refreshSeconds < 0) refreshSeconds = 0;
+        }
+        /** Whether a periodic refresh/compaction timer should be armed (Phase-3). */
+        public boolean refreshEnabled() { return refreshSeconds > 0; }
+    }
+
     // ── grouped state + accessors ──────────────────────────────────────────────
 
     private final Identity   identity;
@@ -542,6 +602,21 @@ public final class PipelineConfig {
 
     /** What the output registers as in the Catalog ({@code produces:}, v5.1.0; default STREAM). */
     private final Produces produces;
+
+    /**
+     * The {@code reference:} block load semantics (Reference Phase-2; never null, {@link Reference#DEFAULT}
+     * when absent). Only meaningful for a {@code produces: reference} pipeline; inert otherwise.
+     */
+    private final Reference reference;
+
+    /**
+     * The logical Catalog <b>Stream</b> this pipeline is a member of ({@code stream:}, Reference
+     * Phase-2 / GLOSSARY §3; never null). Defaults to the pipeline's own name, preserving today's
+     * strict 1:1 pipeline↔Stream mapping; several pipelines sharing one {@code stream:} name are
+     * grouped under a single Stream in the catalog graph (P4). Normalised like the pipeline name
+     * (lowercased, spaces→underscores) and validated as a SQL identifier.
+     */
+    private final String stream;
 
     /**
      * The optional entry-node {@code trigger:} block (T13 / §3.6) verbatim, or {@code null} when absent.
@@ -591,6 +666,10 @@ public final class PipelineConfig {
     public Produces       produces()   { return produces; }
     /** Whether this pipeline's output is a Reference Dataset ({@code produces: reference}). */
     public boolean producesReference() { return produces == Produces.REFERENCE; }
+    /** The {@code reference:} load semantics; never null ({@link Reference#DEFAULT} when absent). */
+    public Reference       reference()  { return reference; }
+    /** The logical Catalog Stream this pipeline belongs to ({@code stream:}, default = pipeline name). */
+    public String          stream()     { return stream; }
     /** The raw entry-node {@code trigger:} block (T13), or {@code null} when absent (⇒ default poll). */
     public Map<String, Object> triggerConfig() { return trigger; }
     /** The schema/grammar/segment files this config referenced at parse time (for change-watching). */
@@ -636,6 +715,8 @@ public final class PipelineConfig {
         this.statusDirToPrepare = b.statusDirToPrepare;
         this.active = b.active;
         this.produces = b.produces;
+        this.reference = b.reference;
+        this.stream = b.stream;
         this.trigger = b.trigger;
         this.referencedFiles = List.copyOf(b.referencedFiles);
     }
@@ -677,6 +758,8 @@ public final class PipelineConfig {
         this.statusDirToPrepare = src.statusDirToPrepare;
         this.active = src.active;
         this.produces = src.produces;
+        this.reference = src.reference;
+        this.stream = src.stream;
         this.trigger = src.trigger;
         this.referencedFiles = src.referencedFiles;
     }
@@ -747,6 +830,8 @@ public final class PipelineConfig {
         String runTimestamp  = "";
         boolean active       = false;   // opt-in: a pipeline runs only with `active: true`
         Produces produces    = Produces.STREAM;   // catalog product; `produces: reference` ⇒ Reference Dataset
+        Reference reference  = Reference.DEFAULT;  // `reference:` block; full-replace/no-key when absent
+        String   stream;                           // logical Catalog Stream; parser defaults it to pipelineName
         Map<String, Object> trigger = null;   // optional entry-node trigger: block (T13); null ⇒ default poll
         final List<Path> referencedFiles = new ArrayList<>();   // schema/grammar/segment files read at parse
         String pollDir       = "";

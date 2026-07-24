@@ -100,6 +100,30 @@ class ConfigLoaderTest {
     }
 
     @Test
+    void referenceLoadEnumAndKeyRuleSurfaceThroughLoader() {
+        ConfigSpec spec = ConfigSpecs.pipeline();
+        Map<String, Object> base = Map.of("name", "REGION_DIM",
+                "dirs", Map.of("poll", "/in", "database", "/out"),
+                "processing", Map.of("threads", 1));
+
+        // bad load enum → per-field ERROR anchored at reference.load
+        Map<String, Object> badEnum = new java.util.HashMap<>(base);
+        badEnum.put("reference", Map.of("load", "merge"));
+        assertTrue(hasFindingAt(errors(loader.validate(spec, badEnum)), "reference.load"));
+
+        // upsert without key → cross-field ERROR
+        Map<String, Object> noKey = new java.util.HashMap<>(base);
+        noKey.put("reference", Map.of("load", "upsert"));
+        assertTrue(errors(loader.validate(spec, noKey)).stream()
+                .anyMatch(f -> f.message().contains("reference.key")));
+
+        // upsert with key → clean
+        Map<String, Object> ok = new java.util.HashMap<>(base);
+        ok.put("reference", Map.of("load", "upsert", "key", List.of("customer_id")));
+        assertTrue(errors(loader.validate(spec, ok)).isEmpty());
+    }
+
+    @Test
     void enrichmentDraftValidates() {
         ConfigSpec spec = ConfigSpecs.enrichment();
         Map<String, Object> missing = Map.of(

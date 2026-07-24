@@ -151,6 +151,29 @@ class ConfigSpecsTest {
         assertTrue(fire(p, "duplicate-check-retention", disabled).isEmpty());
     }
 
+    @Test
+    void referenceUpsertRequiresKey() {
+        ConfigSpec p = ConfigSpecs.pipeline();
+        // upsert / scd2 without a key → ERROR (mirrors the PipelineConfig parser throw)
+        assertTrue(fire(p, "reference-upsert-requires-key",
+                Map.of("reference", Map.of("load", "upsert"))).isPresent());
+        assertEquals(Severity.ERROR, fire(p, "reference-upsert-requires-key",
+                Map.of("reference", Map.of("load", "scd2"))).orElseThrow().severity());
+
+        // upsert / scd2 with a non-empty key → ok
+        assertTrue(fire(p, "reference-upsert-requires-key",
+                Map.of("reference", Map.of("load", "upsert", "key", List.of("customer_id")))).isEmpty());
+
+        // replace (or absent reference) never needs a key
+        assertTrue(fire(p, "reference-upsert-requires-key",
+                Map.of("reference", Map.of("load", "replace"))).isEmpty());
+        assertTrue(fire(p, "reference-upsert-requires-key", Map.of()).isEmpty());
+
+        // an empty key list under upsert is still a violation
+        assertTrue(fire(p, "reference-upsert-requires-key",
+                Map.of("reference", Map.of("load", "upsert", "key", List.of()))).isPresent());
+    }
+
     // ── enrichment + job rules ──────────────────────────────────────────────────
 
     @Test

@@ -8,7 +8,9 @@ import com.gamma.etl.PipelineConfig.FixedWidth;
 import com.gamma.etl.PipelineConfig.GapDetection;
 import com.gamma.etl.PipelineConfig.Guarantee;
 import com.gamma.etl.PipelineConfig.Incremental;
+import com.gamma.etl.PipelineConfig.Load;
 import com.gamma.etl.PipelineConfig.PostActionConfig;
+import com.gamma.etl.PipelineConfig.Reference;
 import com.gamma.etl.PipelineConfig.Retry;
 import com.gamma.etl.PipelineConfig.Stability;
 import com.gamma.util.ToonHelper;
@@ -50,6 +52,10 @@ final class PipelineConfigParser {
     static PipelineConfig parse(Map<String, Object> raw, String sourceLabel) throws IOException {
         Builder b = new Builder();
 
+        // Column names declared by whatever schema path resolves below (raw.fields[].name ∪
+        // mapping.rules[].targetColumn), accumulated so a reference.key can be checked against them.
+        Set<String> declaredColumns = new LinkedHashSet<>();
+
         // ── identity ──────────────────────────────────────────────────────────
         b.name          = String.valueOf(raw.get("name"));
         b.pipelineName  = b.name.toLowerCase().replace(' ', '_');
@@ -66,6 +72,18 @@ final class PipelineConfigParser {
         // Reference Dataset (dimension/lookup origin) instead of a Stream; enrichments bind it by name.
         Object produces = raw.get("produces");
         b.produces = PipelineConfig.Produces.from(produces == null ? null : produces.toString());
+
+        // ── logical Catalog Stream membership (Reference Phase-2 / GLOSSARY §3; absent ⇒ 1:1) ──
+        // Default = the pipeline's own name (today's strict 1:1 pipeline↔Stream mapping, unchanged and
+        // unvalidated for back-compat); an explicit stream: is normalised like the name and validated as
+        // a SQL identifier because it becomes a catalog node id (stream:<name>) shared by its members.
+        Object streamRaw = raw.get("stream");
+        if (streamRaw != null && !streamRaw.toString().isBlank()) {
+            b.stream = streamRaw.toString().trim().toLowerCase().replace(' ', '_');
+            Identifiers.validate(b.stream, "stream");
+        } else {
+            b.stream = b.pipelineName;
+        }
 
         // ── entry-node trigger (T13 / §3.6; absent ⇒ default poll = today's behaviour) ──
         // Carried verbatim; the live loop (CollectorService) classifies it via PipelineTrigger into
@@ -250,6 +268,7 @@ final class PipelineConfigParser {
                 Map<String, Object> schema = (Map<String, Object>)
                         JToon.decode(Files.readString(Paths.get(schemaPath), StandardCharsets.UTF_8));
                 Identifiers.validateSchema(schema, "segment[" + key + "]");
+                declaredColumns.addAll(columnNamesOf(schema));
                 b.segmentSchemas.put(key, schema);
             }
             log.info("[CONFIG] Plugin ingester: {}  segments: {}",
@@ -281,6 +300,7 @@ final class PipelineConfigParser {
                 Map<String, Object> schemaCfg = (Map<String, Object>)
                         JToon.decode(Files.readString(Paths.get(schemaPath), StandardCharsets.UTF_8));
                 Identifiers.validateSchema(schemaCfg, "schemas[col=" + colCount + "]");
+                declaredColumns.addAll(columnNamesOf(schemaCfg));
                 if (table != null && !table.isBlank())
                     Identifiers.validate(table, "schemas[col=" + colCount + "].table");
                 validateFixedWidthSelectors(b.fixedWidth, schemaCfg, "schemas[col=" + colCount + "]");
@@ -316,9 +336,34 @@ final class PipelineConfigParser {
                 b.singleSchema = (Map<String, Object>)
                         JToon.decode(Files.readString(Paths.get(schemaPath), StandardCharsets.UTF_8));
                 Identifiers.validateSchema(b.singleSchema, "schema_file");
+                declaredColumns.addAll(columnNamesOf(b.singleSchema));
                 validateFixedWidthSelectors(b.fixedWidth, b.singleSchema, "schema_file");
                 validateTextRegexSelectors(b.textRegex, b.singleSchema, "schema_file");
             }
+        }
+
+        // ── reference load semantics (Reference Phase-2; absent ⇒ full-replace = today's behaviour) ──
+        // Only meaningful on a `produces: reference` pipeline; parsed regardless (inert otherwise). The
+        // upsert/scd2 modes need a declared key, and each key column must exist in the resolved schema
+        // (skipped when no schema is resolved yet, e.g. a draft). Mirrors the ConfigSpecs.pipeline()
+        // enum + `reference-upsert-requires-key` CrossFieldRule (the two paths are kept in sync).
+        Map<String, Object> refBlock = (Map<String, Object>) raw.get("reference");
+        if (refBlock != null) {
+            List<String> key = strList(refBlock.get("key"));
+            Load load = Load.from(opt(refBlock, "load", "replace"));
+            int refreshSeconds = toInt(refBlock.getOrDefault("refresh_seconds", 0));
+            if (load.requiresKey()) {
+                if (key.isEmpty())
+                    throw new IllegalArgumentException("Config error in " + sourceLabel
+                            + ": reference.load '" + load.name().toLowerCase()
+                            + "' requires a non-empty reference.key (the identity columns to dedup/version on)");
+                for (String k : key)
+                    if (!declaredColumns.isEmpty() && !declaredColumns.contains(k))
+                        throw new IllegalArgumentException("Config error in " + sourceLabel
+                                + ": reference.key column '" + k + "' is not declared in the pipeline schema "
+                                + declaredColumns);
+            }
+            b.reference = new Reference(key, load, refreshSeconds);
         }
 
         // ── source / connector (additive; absent ⇒ implicit LOCAL reading dirs.poll) ──────────────
@@ -555,6 +600,28 @@ final class PipelineConfigParser {
             if (!s.isEmpty()) out.add(s);
         }
         return out;
+    }
+
+    /**
+     * Collect the column names a schema map declares — the union of {@code raw.fields[].name} and
+     * {@code mapping.rules[].targetColumn}. Kept here (rather than reusing the engine-side
+     * {@code SchemaProjection}) so the etl module stays dependency-free; used to check a
+     * {@code reference.key} against the pipeline schema. Empty for a null/malformed schema.
+     */
+    @SuppressWarnings("unchecked")
+    private static Set<String> columnNamesOf(Map<String, Object> schema) {
+        Set<String> cols = new LinkedHashSet<>();
+        if (schema == null) return cols;
+        if (schema.get("raw") instanceof Map<?, ?> raw && raw.get("fields") instanceof List<?> fields) {
+            for (Object f : fields)
+                if (f instanceof Map<?, ?> fm && fm.get("name") != null) cols.add(fm.get("name").toString());
+        }
+        if (schema.get("mapping") instanceof Map<?, ?> mapping && mapping.get("rules") instanceof List<?> rules) {
+            for (Object r : rules)
+                if (r instanceof Map<?, ?> rm && rm.get("targetColumn") != null)
+                    cols.add(rm.get("targetColumn").toString());
+        }
+        return cols;
     }
 
     /**

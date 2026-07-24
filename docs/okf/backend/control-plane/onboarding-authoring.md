@@ -82,6 +82,32 @@ Hive-partitioned glob over the producer's `dirs.database` in its output format).
 carry `attrs.active` (P3) so `/catalog/references` rows expose Draft/Live. The bare `EnrichJob`
 path passes no pipeline context — by-name refs there fail with a clear error (deliberate).
 
+### Reference Phase-2 load semantics + Stream grouping (config model, 2026-07-24)
+
+Two additive, backward-compatible pipeline-config keys (Reference Phase-2 plan P0+P4; `load: replace`
+default ⇒ every existing pipeline parses/runs identically):
+
+- **`reference:` block** (`PipelineConfig.Reference`, never null → `DEFAULT` when absent) — the load
+  semantics of a `produces: reference` dataset: `load: replace|upsert|scd2` (`PipelineConfig.Load`,
+  default `REPLACE` = today's full-replace), `key: [cols]` (identity columns), `refresh_seconds` (0 =
+  on-collect only; >0 arms a Phase-3 compaction timer). `upsert`/`scd2` **require** a non-empty `key`
+  and each key column must exist in the resolved schema — enforced parser-side
+  (`PipelineConfigParser`, eager `IllegalArgumentException`; column check skipped for a
+  draft-without-schema) **and** mirrored declaratively in `ConfigSpecs.pipeline()` (the
+  `reference.load` enum + the `reference-upsert-requires-key` `CrossFieldRule`), the two paths kept in
+  sync by convention + tests. The block is inert on a Stream pipeline. **Engine mechanics
+  (append + current-view read, SCD-2 history, compaction) are P1–P3 — still backlog; P0 only carries
+  and validates the config.**
+- **`stream:` key** (`PipelineConfig.stream()`, GLOSSARY §3 membership) — the logical Catalog Stream a
+  pipeline belongs to; default = the pipeline's own name (strict 1:1, unvalidated for back-compat), an
+  explicit value is normalised (lowercase, spaces→`_`) and validated as a SQL identifier. In
+  `MetadataGraphBuilder`, pipelines sharing a `stream:` collapse under **one** `stream:<logical>` node
+  (label = the logical name, `members[]` = the member pipelines); each member keeps its own
+  `schema:`/`event:`/`col:` nodes (child `source=<pipeline>` attr preserves per-member identity). A 1:1
+  Stream is byte-for-byte unchanged (label = pipeline display name, no `members[]`). Applies to STREAM
+  origins only — references keep `ref:<pipeline>`. `/catalog/streams` is a separate per-collector
+  projection and is unaffected.
+
 ## Engine fixes the live walks surfaced (apply beyond onboarding)
 
 1. `SqlBuilder.appendCoalesce` with empty `date_formats` emitted zero-arg `COALESCE()::DATE` —
