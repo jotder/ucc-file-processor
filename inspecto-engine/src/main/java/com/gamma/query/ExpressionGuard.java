@@ -17,9 +17,16 @@ import java.util.regex.Pattern;
  *   <li><b>Function-call whitelist</b> — an identifier followed by {@code (} must be a named scalar
  *       function, which kills {@code read_parquet(…)}/UDF calls by name.</li>
  * </ol>
- * Row-level only by design: no aggregates (that is the Measure layer), no window functions, no
- * subqueries. Unknown <em>columns</em> are not resolved here — DuckDB's binder rejects them cleanly at
- * query time.
+ * <p><b>Window functions (v2).</b> The relation wrap is a projection ({@code SELECT *, (expr) AS "n"
+ * FROM (base)}), so a per-row <em>window</em> function is safe there but a bare aggregate is not (it
+ * would collapse the group). A {@link #WINDOW_FUNCTIONS window-function} name is therefore callable
+ * <em>only</em> when its call is immediately followed by a valid {@code OVER (…)} clause; the same names
+ * used bare (no {@code OVER}) never lex as calls, so a plain {@code sum(x)}/{@code avg(x)} is still
+ * rejected — aggregation stays the Measure layer's job. The {@code OVER} clause admits only
+ * {@code PARTITION BY}/{@code ORDER BY} over columns, scalar functions, and {@code ASC}/{@code DESC}/
+ * {@code NULLS FIRST|LAST}; explicit frame clauses ({@code ROWS|RANGE BETWEEN …}) are deliberately not
+ * supported. Still no subqueries — the {@code DENIED} deny-set is checked ahead of every other rule.
+ * Unknown <em>columns</em> are not resolved here — DuckDB's binder rejects them cleanly at query time.
  */
 public final class ExpressionGuard {
 
@@ -51,6 +58,18 @@ public final class ExpressionGuard {
             "upper", "lower", "trim", "ltrim", "rtrim", "length", "substr", "substring",
             "concat", "replace", "cast", "try_cast");
 
+    /** Functions callable ONLY as a window call — the call must be immediately followed by {@code OVER (…)}
+     *  (rule 3 + window rule). The windowed aggregates ({@code sum}/{@code avg}/{@code count}/{@code min}/
+     *  {@code max}) are deliberately absent from {@link #FUNCTIONS}, so used bare they stay rejected. */
+    private static final Set<String> WINDOW_FUNCTIONS = Set.of(
+            "sum", "avg", "count", "min", "max",
+            "row_number", "rank", "dense_rank", "percent_rank", "cume_dist",
+            "ntile", "lag", "lead", "first_value", "last_value", "nth_value");
+
+    /** Bare words allowed only inside an {@code OVER (…)} clause (never call targets). */
+    private static final Set<String> WINDOW_KEYWORDS = Set.of(
+            "partition", "by", "order", "asc", "desc", "nulls", "first", "last");
+
     /** The type names a {@code cast(x AS type)} may target. */
     private static final Set<String> TYPES = Set.of(
             "integer", "int", "bigint", "smallint", "double", "float", "real", "decimal",
@@ -77,8 +96,12 @@ public final class ExpressionGuard {
         Matcher m = TOKEN.matcher(e);
         int pos = 0;
         int parens = 0;
-        String prevWord = null;     // last identifier-ish token, to pair with a following '('
-        boolean afterAs = false;    // inside cast(x AS <type>) — the next word must be a type
+        String prevWord = null;      // last identifier-ish token, to pair with a following '('
+        boolean afterAs = false;     // inside cast(x AS <type>) — the next word must be a type
+        boolean expectOver = false;  // a window call just closed — the next token MUST be 'over'
+        boolean expectOverParen = false;  // 'over' just seen — the next token MUST be '('
+        int windowOpenDepth = -1;    // parens depth inside a window fn's arg list (to detect its close)
+        int windowSpecDepth = -1;    // parens depth inside the OVER (…) clause (window keywords legal here)
         while (pos < e.length()) {
             if (!m.find(pos) || m.start() != pos)
                 throw new IllegalArgumentException("illegal character in expression at: '"
@@ -87,17 +110,43 @@ public final class ExpressionGuard {
             pos = m.end();
             if (tok.isBlank()) continue;
 
-            if (tok.equals("(")) {
+            // A window call must be followed by OVER (…). These two gates run before anything else so a
+            // bare aggregate/window call (no OVER) can never slip through as a normal expression.
+            if (expectOver) {
+                if (!(tok.matches("[A-Za-z_][A-Za-z0-9_]*") && tok.equalsIgnoreCase("over")))
+                    throw new IllegalArgumentException("a window function must be followed by an OVER (…) clause");
+                expectOver = false;
+                expectOverParen = true;
+                prevWord = null;
+                continue;
+            }
+            if (expectOverParen) {
+                if (!tok.equals("("))
+                    throw new IllegalArgumentException("OVER must be followed by '('");
+                expectOverParen = false;
                 parens++;
-                if (prevWord != null && !FUNCTIONS.contains(prevWord))
+                windowSpecDepth = parens;
+                prevWord = null;
+                continue;
+            }
+
+            if (tok.equals("(")) {
+                boolean windowCall = prevWord != null && WINDOW_FUNCTIONS.contains(prevWord);
+                if (prevWord != null && !FUNCTIONS.contains(prevWord) && !windowCall)
                     throw new IllegalArgumentException("function '" + prevWord + "' is not allowed"
                             + " (allowed: " + String.join(", ", FUNCTIONS.stream().sorted().toList()) + ")");
+                parens++;
+                if (windowCall) windowOpenDepth = parens;
                 prevWord = null;
                 continue;
             }
             if (tok.equals(")")) {
+                boolean closingWindowCall = windowOpenDepth != -1 && parens == windowOpenDepth;
+                boolean closingWindowSpec = windowSpecDepth != -1 && parens == windowSpecDepth;
                 if (--parens < 0) throw new IllegalArgumentException("unbalanced ')' in expression");
                 prevWord = null;
+                if (closingWindowCall) { expectOver = true; windowOpenDepth = -1; }
+                if (closingWindowSpec) windowSpecDepth = -1;
                 continue;
             }
 
@@ -114,6 +163,12 @@ public final class ExpressionGuard {
                     continue;
                 }
                 if (w.equals("as")) { afterAs = true; prevWord = null; continue; }
+                // window keywords are only meaningful inside the OVER (…) clause; elsewhere they lex as
+                // ordinary column refs (a DuckDB bind error at worst — never a structural break).
+                if (windowSpecDepth != -1 && parens >= windowSpecDepth && WINDOW_KEYWORDS.contains(w)) {
+                    prevWord = null;
+                    continue;
+                }
                 // a flow keyword is never a call target; anything else may be a column ref OR a function
                 // name — resolved when the next token is '('
                 prevWord = FLOW_KEYWORDS.contains(w) ? null : w;
@@ -124,6 +179,8 @@ public final class ExpressionGuard {
         }
         if (parens != 0) throw new IllegalArgumentException("unbalanced '(' in expression");
         if (afterAs) throw new IllegalArgumentException("dangling AS in expression");
+        if (expectOver) throw new IllegalArgumentException("a window function must be followed by an OVER (…) clause");
+        if (expectOverParen) throw new IllegalArgumentException("OVER must be followed by '('");
         return e;
     }
 }

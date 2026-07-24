@@ -50,10 +50,19 @@ A calculated column is caller-authored SQL **fragment** text spliced inside the 
   **keyword deny-set** for bare identifiers (`select from where … drop create attach copy pragma …`)
   — this kills scalar-subquery smuggling; (3) a **function-call whitelist** (`abs round coalesce
   upper substr cast try_cast …`) — `read_parquet(`, `glob(`, UDFs are rejected by name; `cast` types
-  are themselves whitelisted. Deliberate v1 cuts: no quoted identifiers, no window/aggregate
-  functions (aggregation is the Measure layer's job), no subqueries ever. Rationale: DuckDB has no
-  offline-safe Java parser; the three-rule model is a provably closed surface — grow the whitelist,
-  never "parse harder".
+  are themselves whitelisted. Deliberate v1 cuts: no quoted identifiers, no subqueries ever.
+  Rationale: DuckDB has no offline-safe Java parser; the three-rule model is a provably closed surface
+  — grow the whitelist, never "parse harder".
+* **Window functions (v2, 2026-07-24).** A `WINDOW_FUNCTIONS` set (`sum avg count min max row_number
+  rank dense_rank percent_rank cume_dist ntile lag lead first_value last_value nth_value`) is callable
+  **only when the call is immediately followed by a valid `OVER (…)` clause** — the state machine
+  gates `expectOver`/`expectOverParen` right after a window call's close-paren, so a bare aggregate
+  (`sum(x)` with no `OVER`) still fails exactly as before (the windowed aggregates are absent from the
+  scalar `FUNCTIONS` set). This is row-safe because the wrap is a projection (`SELECT *, (expr) …`),
+  where a per-row window value is legal alongside `*` but a group-collapsing bare aggregate is not. The
+  `OVER` clause admits only `PARTITION BY`/`ORDER BY` over columns + scalar functions + `ASC`/`DESC`/
+  `NULLS FIRST|LAST` (explicit `ROWS|RANGE` frame clauses are deliberately unsupported); the `DENIED`
+  deny-set is still checked ahead of the window-keyword rule, so no subquery smuggles in inside `OVER`.
 * **Enforcement point** — `dataset` config gains `calculated: [{name, expr}]`;
   `DatasetRelation.relationSql` wraps `SELECT *, (expr) AS "name" FROM (<base>) AS __base`. Bad
   name/expr throws → **422 at every route, fail-closed** — enforced at relation-build time so every

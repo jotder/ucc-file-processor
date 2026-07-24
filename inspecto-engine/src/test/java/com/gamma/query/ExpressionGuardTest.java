@@ -49,6 +49,30 @@ class ExpressionGuardTest {
     }
 
     @Test
+    void acceptsWindowFunctionsWithAnOverClause() {
+        ok("sum(amount) OVER (PARTITION BY region ORDER BY day)");
+        ok("row_number() OVER (ORDER BY amount DESC)");
+        ok("avg(amount) OVER (PARTITION BY region)");
+        ok("rank() OVER (ORDER BY amount DESC NULLS LAST)");
+        ok("count(*) OVER ()");
+        ok("lag(amount) OVER (ORDER BY day) - amount");            // window expr then arithmetic
+        ok("sum(amount) OVER (ORDER BY day) / 100");
+        ok("sum(round(amount, 2)) OVER (PARTITION BY region)");    // scalar fn inside the window arg
+    }
+
+    @Test
+    void killsBareAggregatesAndMalformedWindowClauses() {
+        bad("sum(amount)", "windowed aggregate used bare (no OVER)");
+        bad("avg(amount)", "windowed aggregate used bare (no OVER)");
+        bad("count(*)", "count(*) used bare (no OVER)");
+        bad("row_number()", "window function used bare (no OVER)");
+        bad("sum(amount) OVER region", "OVER must be followed by '('");
+        bad("sum(amount) over_by (ORDER BY day)", "the token after a window call must be exactly OVER");
+        bad("over(x)", "'over' is not a callable function");
+        bad("sum(amount) OVER (ORDER BY (select 1))", "DENIED words are rejected even inside the OVER clause");
+    }
+
+    @Test
     void killsStatementAndLexicalEscapes() {
         bad("1; DROP TABLE t", "semicolon never lexes");
         bad("amount -- comment", "line comment never lexes");

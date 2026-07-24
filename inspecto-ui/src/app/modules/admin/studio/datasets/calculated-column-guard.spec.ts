@@ -61,6 +61,21 @@ describe('checkCalculatedExpr', () => {
     it('rejects an expression over the length cap', () => {
         expect(checkCalculatedExpr('a'.repeat(501))).toMatch(/exceeds/);
     });
+
+    it('allows a window function with an OVER clause', () => {
+        expect(checkCalculatedExpr('sum(amt) OVER (PARTITION BY region ORDER BY day)')).toBeNull();
+        expect(checkCalculatedExpr('row_number() OVER (ORDER BY amt DESC)')).toBeNull();
+        expect(checkCalculatedExpr('lag(amt) OVER (ORDER BY day) - amt')).toBeNull();
+        expect(checkCalculatedExpr('count(*) OVER ()')).toBeNull();
+    });
+
+    it('rejects a bare aggregate or a malformed window clause', () => {
+        expect(checkCalculatedExpr('sum(amt)')).toMatch(/OVER/i);
+        expect(checkCalculatedExpr('avg(amt)')).toMatch(/OVER/i);
+        expect(checkCalculatedExpr('row_number()')).toMatch(/OVER/i);
+        expect(checkCalculatedExpr('sum(amt) OVER region')).toMatch(/OVER must be followed/i);
+        expect(checkCalculatedExpr('sum(amt) OVER (ORDER BY (select 1))')).toMatch(/not allowed/i);
+    });
 });
 
 describe('checkCalculatedName', () => {

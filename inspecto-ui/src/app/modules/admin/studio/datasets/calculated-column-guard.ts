@@ -33,6 +33,17 @@ const FUNCTIONS = new Set([
     'concat', 'replace', 'cast', 'try_cast',
 ]);
 
+/** Functions callable ONLY as a window call — must be immediately followed by `OVER (…)`. The windowed
+ *  aggregates are deliberately absent from FUNCTIONS, so used bare they stay rejected. */
+const WINDOW_FUNCTIONS = new Set([
+    'sum', 'avg', 'count', 'min', 'max',
+    'row_number', 'rank', 'dense_rank', 'percent_rank', 'cume_dist',
+    'ntile', 'lag', 'lead', 'first_value', 'last_value', 'nth_value',
+]);
+
+/** Bare words allowed only inside an `OVER (…)` clause (never call targets). */
+const WINDOW_KEYWORDS = new Set(['partition', 'by', 'order', 'asc', 'desc', 'nulls', 'first', 'last']);
+
 /** The type names a `cast(x AS type)` may target. */
 const TYPES = new Set([
     'integer', 'int', 'bigint', 'smallint', 'double', 'float', 'real', 'decimal',
@@ -53,6 +64,10 @@ export function checkCalculatedExpr(expr: string): string | null {
     let parens = 0;
     let prevWord: string | null = null;
     let afterAs = false;
+    let expectOver = false;      // a window call just closed — the next token MUST be 'over'
+    let expectOverParen = false; // 'over' just seen — the next token MUST be '('
+    let windowOpenDepth = -1;    // parens depth inside a window fn's arg list (to detect its close)
+    let windowSpecDepth = -1;    // parens depth inside the OVER (…) clause (window keywords legal here)
     while (pos < e.length) {
         TOKEN.lastIndex = pos;
         const m = TOKEN.exec(e);
@@ -61,17 +76,42 @@ export function checkCalculatedExpr(expr: string): string | null {
         pos += tok.length;
         if (!tok.trim()) continue;
 
-        if (tok === '(') {
+        // A window call must be followed by OVER (…) — gated before anything else so a bare
+        // aggregate/window call (no OVER) can never slip through as a normal expression.
+        if (expectOver) {
+            if (!(IDENT.test(tok) && tok.toLowerCase() === 'over'))
+                return 'A window function must be followed by an OVER (…) clause.';
+            expectOver = false;
+            expectOverParen = true;
+            prevWord = null;
+            continue;
+        }
+        if (expectOverParen) {
+            if (tok !== '(') return "OVER must be followed by '('.";
+            expectOverParen = false;
             parens++;
-            if (prevWord !== null && !FUNCTIONS.has(prevWord))
+            windowSpecDepth = parens;
+            prevWord = null;
+            continue;
+        }
+
+        if (tok === '(') {
+            const windowCall = prevWord !== null && WINDOW_FUNCTIONS.has(prevWord);
+            if (prevWord !== null && !FUNCTIONS.has(prevWord) && !windowCall)
                 return `Function '${prevWord}' is not allowed (allowed: ${[...FUNCTIONS].sort().join(', ')}).`;
+            parens++;
+            if (windowCall) windowOpenDepth = parens;
             prevWord = null;
             continue;
         }
         if (tok === ')') {
+            const closingWindowCall = windowOpenDepth !== -1 && parens === windowOpenDepth;
+            const closingWindowSpec = windowSpecDepth !== -1 && parens === windowSpecDepth;
             parens--;
             if (parens < 0) return "Unbalanced ')' in expression.";
             prevWord = null;
+            if (closingWindowCall) { expectOver = true; windowOpenDepth = -1; }
+            if (closingWindowSpec) windowSpecDepth = -1;
             continue;
         }
 
@@ -90,6 +130,12 @@ export function checkCalculatedExpr(expr: string): string | null {
                 prevWord = null;
                 continue;
             }
+            // window keywords are only meaningful inside the OVER (…) clause; elsewhere they lex as
+            // ordinary column refs (a DuckDB bind error at worst — never a structural break).
+            if (windowSpecDepth !== -1 && parens >= windowSpecDepth && WINDOW_KEYWORDS.has(w)) {
+                prevWord = null;
+                continue;
+            }
             // a flow keyword is never a call target; anything else may be a column ref OR a function
             // name — resolved when the next token is '('
             prevWord = FLOW_KEYWORDS.has(w) ? null : w;
@@ -100,6 +146,8 @@ export function checkCalculatedExpr(expr: string): string | null {
     }
     if (parens !== 0) return "Unbalanced '(' in expression.";
     if (afterAs) return 'Dangling AS in expression.';
+    if (expectOver) return 'A window function must be followed by an OVER (…) clause.';
+    if (expectOverParen) return "OVER must be followed by '('.";
     return null;
 }
 
