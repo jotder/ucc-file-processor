@@ -36,6 +36,17 @@ class InMemoryObjectStoreTest {
     }
 
     @Test
+    void deleteRemovesAndRequiresExisting() {
+        InMemoryObjectStore store = new InMemoryObjectStore();
+        OperationalObject o = obj(ObjectType.ALERT, "OPEN", 100);
+        store.create(o);
+        store.delete(o.id());
+        assertTrue(store.get(o.id()).isEmpty());
+        assertThrows(NoSuchElementException.class, () -> store.delete(o.id()));
+        assertThrows(NoSuchElementException.class, () -> store.delete("missing"));
+    }
+
+    @Test
     void queryFiltersSortsNewestFirstAndPages() {
         InMemoryObjectStore store = new InMemoryObjectStore();
         store.create(obj(ObjectType.ALERT, "OPEN", 100));

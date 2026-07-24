@@ -42,6 +42,13 @@ public interface ObjectStore extends AutoCloseable {
      */
     OperationalObject update(OperationalObject obj);
 
+    /**
+     * Physically remove an object. Throws {@link java.util.NoSuchElementException} if no object with
+     * this id exists. Does not cascade to links/notes/attachments referencing the object — callers
+     * that need cascading cleanup must do so themselves.
+     */
+    void delete(String id);
+
     /** Release resources (e.g. the DuckDB connection). Idempotent; no-op for in-memory. */
     @Override
     default void close() {}

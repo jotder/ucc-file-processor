@@ -46,6 +46,12 @@ public final class InMemoryObjectStore implements ObjectStore {
     }
 
     @Override
+    public synchronized void delete(String id) {
+        if (byId.remove(id) == null)
+            throw new NoSuchElementException("no object with id '" + id + "'");
+    }
+
+    @Override
     public synchronized List<OperationalObject> query(ObjectQuery query) {
         List<OperationalObject> matched = new ArrayList<>();
         for (OperationalObject o : byId.values()) {

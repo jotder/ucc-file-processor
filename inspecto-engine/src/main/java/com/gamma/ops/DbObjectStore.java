@@ -127,6 +127,17 @@ public final class DbObjectStore implements ObjectStore, com.gamma.util.Browsabl
     }
 
     @Override
+    public synchronized void delete(String id) {
+        try (PreparedStatement ps = conn.prepareStatement("DELETE FROM " + TABLE + " WHERE id = ?")) {
+            ps.setString(1, id);
+            if (ps.executeUpdate() == 0)
+                throw new NoSuchElementException("no object with id '" + id + "'");
+        } catch (SQLException e) {
+            throw new IllegalStateException("could not delete object " + id + ": " + e.getMessage(), e);
+        }
+    }
+
+    @Override
     public synchronized List<OperationalObject> query(ObjectQuery q) {
         List<String> where = new ArrayList<>();
         List<Object> params = new ArrayList<>();

@@ -4,6 +4,8 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import java.util.NoSuchElementException;
+
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
@@ -68,6 +70,16 @@ class DbObjectStoreTest {
         assertEquals(1, store.query(ObjectQuery.builder().status("open").build()).size());
         assertEquals(2000, store.query(ObjectQuery.recent(10)).get(0).createdAt(), "newest-first");
         assertEquals(1, store.query(ObjectQuery.builder().correlationId("pipe").limit(1).build()).size());
+    }
+
+    @Test
+    void deleteRemovesAndRequiresExisting() {
+        OperationalObject o = alert("OPEN", 1000);
+        store.create(o);
+        store.delete(o.id());
+        assertTrue(store.get(o.id()).isEmpty());
+        assertThrows(NoSuchElementException.class, () -> store.delete(o.id()));
+        assertThrows(NoSuchElementException.class, () -> store.delete("missing"));
     }
 
     @Test
