@@ -36,6 +36,11 @@
                                         }
                                     </mat-select>
                                 </mat-form-field>
+                                <mat-button-toggle-group [value]="pathMetric()" (change)="pathMetric.set($event.value)"
+                                                         aria-label="Path metric">
+                                    <mat-button-toggle value="hops">Fewest hops</mat-button-toggle>
+                                    <mat-button-toggle value="weighted">Strongest ties</mat-button-toggle>
+                                </mat-button-toggle-group>
                                 <button mat-stroked-button (click)="runPath()" [disabled]="!pathFrom() || !pathTo()">
                                     <mat-icon svgIcon="heroicons_outline:arrows-right-left"></mat-icon>
                                     Find shortest path
@@ -110,11 +115,19 @@
                         }
                         @case ('centrality') {
                             <div class="flex flex-wrap items-center gap-2">
-                                <mat-button-toggle-group [value]="centralityMetric()" (change)="centralityMetric.set($event.value)"
-                                                         aria-label="Centrality metric">
-                                    <mat-button-toggle value="degree">Degree</mat-button-toggle>
-                                    <mat-button-toggle value="betweenness">Betweenness</mat-button-toggle>
-                                </mat-button-toggle-group>
+                                <mat-form-field subscriptSizing="dynamic" class="w-56">
+                                    <mat-label>Metric</mat-label>
+                                    <mat-select [value]="centralityMetric()" (valueChange)="centralityMetric.set($event)">
+                                        <mat-option value="degree">Degree</mat-option>
+                                        <mat-option value="betweenness">Betweenness</mat-option>
+                                        <mat-option value="closeness">Closeness</mat-option>
+                                        <mat-option value="eigenvector">Eigenvector</mat-option>
+                                        <mat-option value="katz">Katz</mat-option>
+                                        <mat-option value="pagerank">PageRank</mat-option>
+                                        <mat-option value="hub">HITS — hub</mat-option>
+                                        <mat-option value="authority">HITS — authority</mat-option>
+                                    </mat-select>
+                                </mat-form-field>
                                 <button mat-stroked-button (click)="runCentrality()">
                                     <mat-icon svgIcon="heroicons_outline:star"></mat-icon>
                                     Rank nodes
@@ -185,8 +198,229 @@
                                 </ul>
                             }
                         }
+                        @case ('cycles') {
+                            <div class="flex flex-wrap items-center gap-2">
+                                <button mat-stroked-button (click)="runCycles()">
+                                    <mat-icon svgIcon="heroicons_outline:arrow-path"></mat-icon>
+                                    Find cycles
+                                </button>
+                                <span class="text-sm text-secondary">Directed loops — circular flow, forwarding loops.</span>
+                            </div>
+                            @if (cycles().length) {
+                                <ul class="mt-1 flex flex-col gap-1 text-sm" aria-label="Cycles">
+                                    @for (c of cycles(); track $index) {
+                                        <li>
+                                            <button class="underline-offset-2 hover:underline" (click)="focusCycle(c)">{{ cycleLabel(c) }}</button>
+                                        </li>
+                                    }
+                                </ul>
+                            }
+                        }
+                        @case ('cut-points') {
+                            <div class="flex flex-wrap items-center gap-2">
+                                <button mat-stroked-button (click)="runCutPoints()">
+                                    <mat-icon svgIcon="heroicons_outline:scissors"></mat-icon>
+                                    Find cut points
+                                </button>
+                                <span class="text-sm text-secondary">Nodes / links whose removal splits the graph.</span>
+                            </div>
+                            @if (cutNodes().length) {
+                                <div class="mt-1 text-sm">
+                                    <span class="font-medium">Articulation nodes:</span>
+                                    @for (id of cutNodes(); track id) {
+                                        <button class="ml-1 underline-offset-2 hover:underline" (click)="focusNode(id)">{{ label(id) }}</button>
+                                    }
+                                </div>
+                            }
+                            @if (cutEdges().length) {
+                                <p class="text-sm"><span class="font-medium">Bridges:</span> {{ cutEdges().length }} link(s) highlighted.</p>
+                            }
+                        }
+                        @case ('cohesion') {
+                            <div class="flex flex-wrap items-center gap-2">
+                                <mat-form-field subscriptSizing="dynamic" class="w-48">
+                                    <mat-label>Method</mat-label>
+                                    <mat-select [value]="cohesionMetric()" (valueChange)="cohesionMetric.set($event)">
+                                        <mat-option value="k-core">k-core</mat-option>
+                                        <mat-option value="triangles">Triangle count</mat-option>
+                                        <mat-option value="cliques">Cliques</mat-option>
+                                    </mat-select>
+                                </mat-form-field>
+                                <button mat-stroked-button (click)="runCohesion()">
+                                    <mat-icon svgIcon="heroicons_outline:cube"></mat-icon>
+                                    Analyze
+                                </button>
+                            </div>
+                            @if (cohesionRanking().length) {
+                                <table class="mt-1 w-full max-w-md text-sm">
+                                    <caption class="sr-only">Nodes by {{ cohesionMetric() }}</caption>
+                                    <thead>
+                                        <tr class="text-left">
+                                            <th scope="col" class="py-1">Node</th>
+                                            <th scope="col" class="py-1 text-right">Score</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @for (r of cohesionRanking(); track r.id) {
+                                            <tr>
+                                                <td class="py-0.5">
+                                                    <button class="underline-offset-2 hover:underline" (click)="focusNode(r.id)">{{ r.label }}</button>
+                                                </td>
+                                                <td class="py-0.5 text-right tabular-nums">{{ r.score | number: '1.0-2' }}</td>
+                                            </tr>
+                                        }
+                                    </tbody>
+                                </table>
+                            }
+                            @if (cliquesResult().length) {
+                                <ul class="mt-1 flex flex-col gap-1 text-sm" aria-label="Cliques">
+                                    @for (c of cliquesResult(); track $index; let i = $index) {
+                                        <li>
+                                            <button class="underline-offset-2 hover:underline" (click)="focusClique(c)">
+                                                Clique {{ i + 1 }} ({{ c.length }}) — {{ cliqueLabel(c) }}
+                                            </button>
+                                        </li>
+                                    }
+                                </ul>
+                            }
+                        }
+                        @case ('similarity') {
+                            <div class="flex flex-wrap items-center gap-2">
+                                <mat-form-field subscriptSizing="dynamic" class="w-56">
+                                    <mat-label>Node</mat-label>
+                                    <mat-select [value]="similarityFor()" (valueChange)="similarityFor.set($event)">
+                                        @for (n of nodeOptions(); track n.id) {
+                                            <mat-option [value]="n.id">{{ n.label }}</mat-option>
+                                        }
+                                    </mat-select>
+                                </mat-form-field>
+                                <button mat-stroked-button (click)="runSimilarity()" [disabled]="!similarityFor()">
+                                    <mat-icon svgIcon="heroicons_outline:sparkles"></mat-icon>
+                                    Find similar
+                                </button>
+                                <button mat-stroked-button (click)="runPrediction()">
+                                    <mat-icon svgIcon="heroicons_outline:link"></mat-icon>
+                                    Predict links
+                                </button>
+                            </div>
+                            @if (similarityResult().length) {
+                                <table class="mt-1 w-full max-w-md text-sm">
+                                    <caption class="sr-only">Nodes by Jaccard similarity</caption>
+                                    <thead>
+                                        <tr class="text-left">
+                                            <th scope="col" class="py-1">Node</th>
+                                            <th scope="col" class="py-1 text-right">Similarity</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @for (r of similarityResult(); track r.id) {
+                                            <tr>
+                                                <td class="py-0.5">
+                                                    <button class="underline-offset-2 hover:underline" (click)="focusNode(r.id)">{{ r.label }}</button>
+                                                </td>
+                                                <td class="py-0.5 text-right tabular-nums">{{ r.score | number: '1.0-2' }}</td>
+                                            </tr>
+                                        }
+                                    </tbody>
+                                </table>
+                            }
+                            @if (predictions().length) {
+                                <ul class="mt-1 flex flex-col gap-1 text-sm" aria-label="Predicted links">
+                                    @for (p of predictions(); track $index) {
+                                        <li>
+                                            <button class="underline-offset-2 hover:underline" (click)="focusPrediction(p)">
+                                                {{ p.sourceLabel }} ↔ {{ p.targetLabel }} ({{ p.score | number: '1.0-2' }})
+                                            </button>
+                                        </li>
+                                    }
+                                </ul>
+                            }
+                        }
+                        @case ('flow') {
+                            <div class="flex flex-wrap items-center gap-2">
+                                <mat-form-field subscriptSizing="dynamic" class="w-48">
+                                    <mat-label>Source</mat-label>
+                                    <mat-select [value]="flowFrom()" (valueChange)="flowFrom.set($event)">
+                                        @for (n of nodeOptions(); track n.id) {
+                                            <mat-option [value]="n.id">{{ n.label }}</mat-option>
+                                        }
+                                    </mat-select>
+                                </mat-form-field>
+                                <mat-form-field subscriptSizing="dynamic" class="w-48">
+                                    <mat-label>Sink</mat-label>
+                                    <mat-select [value]="flowTo()" (valueChange)="flowTo.set($event)">
+                                        @for (n of nodeOptions(); track n.id) {
+                                            <mat-option [value]="n.id">{{ n.label }}</mat-option>
+                                        }
+                                    </mat-select>
+                                </mat-form-field>
+                                <button mat-stroked-button (click)="runFlow()" [disabled]="!flowFrom() || !flowTo()">
+                                    <mat-icon svgIcon="heroicons_outline:beaker"></mat-icon>
+                                    Max flow / min cut
+                                </button>
+                                <button mat-stroked-button (click)="runSpanningForest()">
+                                    <mat-icon svgIcon="heroicons_outline:share"></mat-icon>
+                                    Strongest backbone
+                                </button>
+                            </div>
+                            @if (flowResult(); as f) {
+                                <p class="mt-1 text-sm" role="status">Max flow = {{ f.value | number: '1.0-2' }}; {{ f.minCut.edgeIds.length }} min-cut link(s) highlighted.</p>
+                            }
+                            @if (spanningForest(); as msf) {
+                                <p class="mt-1 text-sm" role="status">Backbone: {{ msf.edgeIds.length }} strongest link(s) spanning {{ msf.nodeIds.length }} node(s).</p>
+                            }
+                        }
+                        @case ('scoring') {
+                            <div class="flex flex-wrap items-center gap-2">
+                                <button mat-stroked-button (click)="runScoring()">
+                                    <mat-icon svgIcon="heroicons_outline:shield-exclamation"></mat-icon>
+                                    Score nodes
+                                </button>
+                                <span class="text-sm text-secondary">Composite risk from degree, betweenness, PageRank, k-core, triangles.</span>
+                            </div>
+                            @if (suspicion().length) {
+                                <table class="mt-1 w-full max-w-md text-sm">
+                                    <caption class="sr-only">Nodes by suspicion score</caption>
+                                    <thead>
+                                        <tr class="text-left">
+                                            <th scope="col" class="py-1">Node</th>
+                                            <th scope="col" class="py-1 text-right">Score</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @for (r of suspicion(); track r.id) {
+                                            <tr>
+                                                <td class="py-0.5">
+                                                    <button class="underline-offset-2 hover:underline" (click)="focusNode(r.id)">{{ r.label }}</button>
+                                                </td>
+                                                <td class="py-0.5 text-right tabular-nums">{{ r.score | number: '1.0-0' }}</td>
+                                            </tr>
+                                        }
+                                    </tbody>
+                                </table>
+                            }
+                        }
                         @case ('pattern') {
                             <p class="text-sm text-secondary">Match a path motif — a start node, then one hop per step.</p>
+                            <div class="flex flex-wrap items-center gap-2">
+                                <mat-form-field subscriptSizing="dynamic" class="w-64">
+                                    <mat-label>Pattern pack</mat-label>
+                                    <mat-select [value]="loadedPack()?.id ?? ''" (valueChange)="loadPatternPack($event)">
+                                        <mat-option [value]="''">Custom motif</mat-option>
+                                        @for (p of patternPacks; track p.id) {
+                                            <mat-option [value]="p.id">{{ p.label }}</mat-option>
+                                        }
+                                    </mat-select>
+                                </mat-form-field>
+                            </div>
+                            @if (loadedPack(); as pack) {
+                                <p class="text-sm text-secondary" role="status">
+                                    {{ pack.description }}
+                                    @if (pack.tool) {
+                                        <span class="font-medium"> Better served by the {{ pack.tool }} tool.</span>
+                                    }
+                                </p>
+                            }
                             <div class="flex flex-col gap-2">
                                 @for (step of patternSteps(); track $index; let i = $index) {
                                     <div class="flex flex-wrap items-center gap-2">

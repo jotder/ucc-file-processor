@@ -169,6 +169,94 @@ describe('LinkAnalysisToolboxComponent', () => {
         expect(c.centralityMetric()).toBe('betweenness');
     });
 
+    it('weighted path prefers strongest ties; centrality supports the extended metric set', () => {
+        const wg: G6GraphData = {
+            nodes: ['a', 'b', 'c'].map((id) => ({ id, data: { label: id.toUpperCase(), kind: 'entity' } })),
+            edges: [
+                { id: 'a->c', source: 'a', target: 'c', data: { kind: 'link' } },
+                { id: 'a->b', source: 'a', target: 'b', data: { kind: 'link · 5' } },
+                { id: 'b->c', source: 'b', target: 'c', data: { kind: 'link · 5' } },
+            ],
+        };
+        const { c } = make(wg);
+        c.pathFrom.set('a');
+        c.pathTo.set('c');
+        c.pathMetric.set('weighted');
+        c.runPath();
+        expect(c.pathResult()?.hops).toEqual(['a', 'b', 'c']); // strongest ties, not fewest hops
+        c.pathMetric.set('hops');
+        c.runPath();
+        expect(c.pathResult()?.hops).toEqual(['a', 'c']);
+
+        for (const metric of ['closeness', 'eigenvector', 'katz', 'pagerank', 'hub', 'authority'] as const) {
+            c.centralityMetric.set(metric);
+            c.runCentrality();
+            expect(c.ranking().length).toBeGreaterThan(0);
+        }
+    });
+
+    it('V2 groups: cycles, cut points, cohesion, similarity, flow and scoring all run', () => {
+        // triangle a-b-c plus two pendants x,y hanging off the hub a.
+        const gr: G6GraphData = {
+            nodes: ['a', 'b', 'c', 'x', 'y'].map((id) => ({ id, data: { label: id.toUpperCase(), kind: 'entity' } })),
+            edges: [
+                { id: 'a->b', source: 'a', target: 'b', data: { kind: 'link' } },
+                { id: 'b->c', source: 'b', target: 'c', data: { kind: 'link' } },
+                { id: 'c->a', source: 'c', target: 'a', data: { kind: 'link' } },
+                { id: 'x->a', source: 'x', target: 'a', data: { kind: 'link' } },
+                { id: 'y->a', source: 'y', target: 'a', data: { kind: 'link' } },
+            ],
+        };
+        const { c } = make(gr);
+
+        c.runCycles();
+        expect(c.cycles().length).toBeGreaterThan(0);
+        expect(c.toolBadge('cycles')).toMatch(/found/);
+
+        c.runCutPoints();
+        expect(c.cutNodes()).toContain('a'); // removing the hub isolates x and y
+
+        c.cohesionMetric.set('k-core');
+        c.runCohesion();
+        expect(c.cohesionRanking().length).toBeGreaterThan(0);
+        c.cohesionMetric.set('cliques');
+        c.runCohesion();
+        expect(c.cliquesResult().some((cl) => cl.length === 3)).toBe(true); // the a-b-c triangle
+
+        c.similarityFor.set('x');
+        c.runSimilarity();
+        expect(c.similarityResult()[0].id).toBe('y'); // x and y share exactly neighbor a
+        c.runPrediction();
+        expect(c.predictions().length).toBeGreaterThan(0);
+
+        c.flowFrom.set('x');
+        c.flowTo.set('c');
+        c.runFlow();
+        expect(c.flowResult()?.value).toBeGreaterThan(0);
+        c.runSpanningForest();
+        expect(c.spanningForest()?.edgeIds.length).toBeGreaterThan(0);
+
+        c.runScoring();
+        expect(c.suspicion()[0].id).toBe('a'); // the hub scores highest
+        expect(c.suspicion()[0].score).toBeGreaterThan(0);
+    });
+
+    it('pattern packs: loading a pack fills the motif and exposes its hint', () => {
+        const { c } = make();
+        c.loadPatternPack('layering-chain');
+        expect(c.loadedPack()?.id).toBe('layering-chain');
+        expect(c.patternSteps()).toHaveLength(4); // A → B → C → D
+        // editing a loaded step must not mutate the shared catalog
+        c.updatePatternStep(1, { nodeKind: 'account' });
+        expect(c.patternPacks.find((p) => p.id === 'layering-chain')!.steps[1].nodeKind).toBeUndefined();
+
+        c.loadPatternPack('circular-flow');
+        expect(c.loadedPack()?.tool).toBe('cycles');
+
+        c.loadPatternPack(''); // back to a custom motif
+        expect(c.loadedPack()).toBeNull();
+    });
+
     it('renders with no a11y violations', async () => {
         const { fixture } = make();
         fixture.detectChanges();
