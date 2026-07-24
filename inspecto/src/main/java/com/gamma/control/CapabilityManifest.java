@@ -83,6 +83,9 @@ final class CapabilityManifest {
             new Entry("POST", "/notifications/channels", Roles.CAN_AUTHOR_WORKBENCH),
             new Entry("PUT", "/notifications/channels/([^/]+)", Roles.CAN_AUTHOR_WORKBENCH),
             new Entry("DELETE", "/notifications/channels/([^/]+)", Roles.CAN_AUTHOR_WORKBENCH),
+            new Entry("POST", "/notifications/rules", Roles.CAN_AUTHOR_WORKBENCH),
+            new Entry("PUT", "/notifications/rules/([^/]+)", Roles.CAN_AUTHOR_WORKBENCH),
+            new Entry("DELETE", "/notifications/rules/([^/]+)", Roles.CAN_AUTHOR_WORKBENCH),
             // ObjectRoutes
             new Entry("POST", "/cases/rules", Roles.CAN_AUTHOR_WORKBENCH),
             new Entry("DELETE", "/cases/rules/([^/]+)", Roles.CAN_AUTHOR_WORKBENCH),

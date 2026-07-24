@@ -384,7 +384,10 @@ public final class CollectorService implements AutoCloseable {
         // else the global -Dassist.write.root). Resolved live at dispatch time so channel edits take effect
         // without a restart; best-effort (a missing root / unreadable registry yields no destinations).
         this.notificationService = new com.gamma.notify.NotificationService(
-                notifications, com.gamma.notify.NotificationRules.defaults(), notificationPreferences,
+                notifications,
+                new com.gamma.notify.NotificationRules(
+                        com.gamma.notify.NotificationRules.defaults().rules(), this::persistedRules),
+                notificationPreferences,
                 this::persistedChannels);
         this.notificationSubscriber = notificationService::onEvent;
         this.eventLog.addSubscriber(notificationSubscriber);
@@ -426,6 +429,31 @@ public final class CollectorService implements AutoCloseable {
             return new com.gamma.pipeline.ComponentStore(writeRoot.resolve("registry")).list("channel").stream()
                     .map(c -> {
                         try { return com.gamma.notify.ChannelConfig.fromMap(c.content(), 0L); }
+                        catch (RuntimeException malformed) { return null; }
+                    })
+                    .filter(java.util.Objects::nonNull)
+                    .toList();
+        } catch (RuntimeException unreadable) {
+            return java.util.List.of();
+        }
+    }
+
+    /** The operator's authored {@link com.gamma.notify.NotificationRule}s for this space (admin CRUD),
+     *  read live from {@code <write-root>/registry} — mirrors {@link #persistedChannels()}. Best-effort:
+     *  no write root, an unreadable registry, or a malformed entry yields no (that) rule, never an
+     *  exception. Checked ahead of the built-in rules by {@link com.gamma.notify.NotificationRules#forEvent}. */
+    private java.util.List<com.gamma.notify.NotificationRule> persistedRules() {
+        java.nio.file.Path writeRoot = root.config();
+        if (writeRoot == null) {
+            String wr = System.getProperty("assist.write.root");
+            writeRoot = (wr == null || wr.isBlank()) ? null : java.nio.file.Path.of(wr);
+        }
+        if (writeRoot == null) return java.util.List.of();
+        try {
+            return new com.gamma.pipeline.ComponentStore(writeRoot.resolve("registry")).list("notification-rule")
+                    .stream()
+                    .map(c -> {
+                        try { return com.gamma.notify.NotificationRule.fromMap(c.content()); }
                         catch (RuntimeException malformed) { return null; }
                     })
                     .filter(java.util.Objects::nonNull)

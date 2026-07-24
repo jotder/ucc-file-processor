@@ -63,7 +63,11 @@ public final class ComponentStore {
                     // Notification channel destinations (NotificationRoutes /notifications/channels* admin
                     // CRUD, 2026-07-18): the managed record of where a channel delivers; live delivery still
                     // resolves channels from notify.* JVM flags (ChannelConfig).
-                    "channel");
+                    "channel",
+                    // Authored notification rules (NotificationRoutes /notifications/rules* admin CRUD): an
+                    // operator-defined event→notification mapping, checked ahead of the built-in
+                    // NotificationRules.defaults() at dispatch time.
+                    "notification-rule");
 
     private static final String TOON = ".toon";
     private static final Pattern SAFE_ID = Pattern.compile("[A-Za-z0-9][A-Za-z0-9._-]*");

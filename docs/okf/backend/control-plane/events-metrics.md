@@ -73,7 +73,22 @@ timestamp: 2026-07-16T00:00:00Z
   for `FLOW_CONSERVATION_IMBALANCE` (category `ops`, `minLevel=WARN` so both `LOSS`/ERROR and
   `AMPLIFICATION`/WARN reach the feed, matching that `EventObjectBridge` opens an ALERT object for both
   kinds). Closes the gap `docs/ops/provenance-conservation-verification.md` flagged (OPS-5 product Q).
-  Rules stay code-only in `defaults()` (no authorable `notifications` TOON section yet).
+* **Authorable notification rules** (2026-07-24) — an operator can now add/override notification rules
+  at runtime, not just channels. `NotificationRule` gained an `id` + `enabled` flag and
+  `fromMap`/`toMap` (mirrors `ChannelConfig`); `NotificationRoutes` exposes `/notifications/rules*`
+  admin CRUD (`GET/POST` + `PUT/DELETE /{id}`, `canAuthorWorkbench`, the same 503/422/409/404 gate
+  order as channels — id bound from the path, unknown `minLevel` → 422) persisting a new
+  `notification-rule` ComponentStore kind (added to `ComponentStore.WRITABLE_TYPES` +
+  `ComponentRegistry.TYPE_BY_DIR`). `NotificationRules` now takes a `Supplier<List<NotificationRule>>`
+  overlay resolved at dispatch time and checked **ahead of** the built-in `defaults()` in `forEvent`,
+  wired from `CollectorService.persistedRules()` (per-space, live-reloaded, best-effort — a missing
+  root / unreadable registry / malformed entry yields no rule, never an exception). So an authored
+  rule for an already-covered event type overrides the built-in's copy/routing, a rule for a new event
+  type extends coverage, and `enabled:false` mutes a built-in via a shadowing authored rule — all
+  without a recompile. Chose a ComponentStore kind over a boot-scanned TOON file to match the adjacent
+  `channel` CRUD precedent. Tests: `NotificationRulesTest` (overlay-first ordering, disabled fall-
+  through, new-type coverage), `NotificationRuleTest` (`fromMap`/`toMap`), `ControlApiNotificationRulesTest`
+  (real-HTTP CRUD + gates). Still open: no UI editor yet (backend + HTTP only).
 * Deferred to editions/follow-ons: delivery-status webhooks, digest batching, time-based retention
   sweep, GeoIP, auth-gated security-event triggers / per-user prefs.
 

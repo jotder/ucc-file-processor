@@ -2,6 +2,7 @@ package com.gamma.control;
 
 import com.gamma.notify.ChannelConfig;
 import com.gamma.notify.Notification;
+import com.gamma.notify.NotificationRule;
 import com.gamma.notify.NotificationService;
 import com.gamma.notify.NotificationStore;
 import com.gamma.pipeline.ComponentRegistry;
@@ -51,6 +52,15 @@ final class NotificationRoutes implements RouteModule {
                 (e, m) -> updateChannel(api, ApiContext.name(m), api.body(e))));
         api.delete("/notifications/channels/([^/]+)", ApiContext.withCapability("canAuthorWorkbench",
                 (e, m) -> deleteChannel(api, ApiContext.name(m))));
+        // Authored notification rules admin CRUD (same shape as channels above; registered before the
+        // /notifications/{id} routes below for the same reason — "rules/{id}" is two segments).
+        api.get("/notifications/rules", (e, m) -> listRules(api));
+        api.post("/notifications/rules", ApiContext.withCapability("canAuthorWorkbench",
+                (e, m) -> createRule(api, api.body(e))));
+        api.put("/notifications/rules/([^/]+)", ApiContext.withCapability("canAuthorWorkbench",
+                (e, m) -> updateRule(api, ApiContext.name(m), api.body(e))));
+        api.delete("/notifications/rules/([^/]+)", ApiContext.withCapability("canAuthorWorkbench",
+                (e, m) -> deleteRule(api, ApiContext.name(m))));
         api.delete("/notifications/([^/]+)", (e, m) -> {
             if (!store(api).archive(ApiContext.name(m)))
                 throw new ApiException(404, "no notification '" + ApiContext.name(m) + "'");
@@ -159,6 +169,82 @@ final class NotificationRoutes implements RouteModule {
             throws IOException {
         try {
             return store.write(CHANNEL_TYPE, id, content).content();
+        } catch (IllegalArgumentException e) {
+            throw new ApiException(422, e.getMessage());
+        }
+    }
+
+    // ── authored notification rules (admin CRUD; persisted as `notification-rule` components per space) ──
+
+    private static final String RULE_TYPE = "notification-rule";
+
+    /** {@code GET /notifications/rules} — the operator-authored rules (empty when no write root). */
+    private static Object listRules(ApiContext api) {
+        Path root = api.writeRoot();
+        if (root == null) return List.of();
+        return new ComponentStore(root.resolve("registry")).list(RULE_TYPE).stream()
+                .map(ComponentRegistry.Component::content).toList();
+    }
+
+    /** {@code POST /notifications/rules} — create; 422 missing fields, 409 duplicate id. */
+    private static Object createRule(ApiContext api, Map<String, Object> body) throws IOException {
+        ComponentStore store = ruleStore(api);
+        NotificationRule rule = parseRule(body);
+        if (existsRule(store, rule.id()))
+            throw new ApiException(409, "rule '" + rule.id() + "' already exists (use PUT to update)");
+        return writeRule(store, rule.id(), rule.toMap());
+    }
+
+    /** {@code PUT /notifications/rules/{id}} — replace; 404 unknown. The id is immutable (bound from the path). */
+    private static Object updateRule(ApiContext api, String id, Map<String, Object> body) throws IOException {
+        ComponentStore store = ruleStore(api);
+        existingRule(store, id);
+        Map<String, Object> patched = new LinkedHashMap<>(body);
+        patched.put("id", id);   // storage key is bound from the path, never a stale body id
+        return writeRule(store, id, parseRule(patched).toMap());
+    }
+
+    /** {@code DELETE /notifications/rules/{id}} — 404 unknown, else {@code {deleted:id}}. */
+    private static Object deleteRule(ApiContext api, String id) throws IOException {
+        ComponentStore store = ruleStore(api);
+        existingRule(store, id);
+        store.delete(RULE_TYPE, id);
+        return Map.of("deleted", id);
+    }
+
+    private static ComponentStore ruleStore(ApiContext api) {
+        return new ComponentStore(WriteGates.requireWriteRoot(api, "notification rule write").resolve("registry"));
+    }
+
+    private static NotificationRule parseRule(Map<String, Object> body) {
+        try {
+            return NotificationRule.fromMap(body);
+        } catch (IllegalArgumentException e) {
+            throw new ApiException(422, e.getMessage());
+        }
+    }
+
+    private static boolean existsRule(ComponentStore store, String id) {
+        try {
+            return store.exists(RULE_TYPE, id);
+        } catch (IllegalArgumentException e) {
+            throw new ApiException(422, e.getMessage());
+        }
+    }
+
+    private static Map<String, Object> existingRule(ComponentStore store, String id) {
+        try {
+            return store.get(RULE_TYPE, id).map(ComponentRegistry.Component::content)
+                    .orElseThrow(() -> new ApiException(404, "rule '" + id + "' not found"));
+        } catch (IllegalArgumentException e) {
+            throw new ApiException(422, e.getMessage());
+        }
+    }
+
+    private static Map<String, Object> writeRule(ComponentStore store, String id, Map<String, Object> content)
+            throws IOException {
+        try {
+            return store.write(RULE_TYPE, id, content).content();
         } catch (IllegalArgumentException e) {
             throw new ApiException(422, e.getMessage());
         }
