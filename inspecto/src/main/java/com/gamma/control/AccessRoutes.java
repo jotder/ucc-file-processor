@@ -2,6 +2,7 @@ package com.gamma.control;
 
 import com.gamma.pipeline.ComponentRegistry;
 import com.gamma.pipeline.ComponentStore;
+import com.sun.net.httpserver.HttpExchange;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -9,6 +10,7 @@ import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
@@ -46,6 +48,11 @@ final class AccessRoutes implements RouteModule {
         api.get("/access/policies", (e, m) -> ETags.respond(e, policies(api)));
         api.put("/access/policies", ApiContext.withCapability("canConfigureAccess",
                 (e, m) -> savePolicies(api, api.body(e))));
+        // "Why denied?" dry-run for the caller's own session (BACKLOG §5). A GET (read action) on
+        // purpose: it changes nothing, and a POST would be a 'write' the very policy under test could
+        // deny at the route PEP — locking the denied subject out of the tool that explains their denial.
+        // Ungated like the /access reads above; on Personal/Standard (no engine) it returns {enabled:false}.
+        api.get("/access/explain", (e, m) -> explain(e));
         api.get("/access/catalog", (e, m) -> ETags.respond(e, catalog(api)));
         api.put("/access/catalog", ApiContext.withCapability("canConfigureAccess",
                 (e, m) -> saveCatalog(api, api.body(e))));
@@ -101,7 +108,11 @@ final class AccessRoutes implements RouteModule {
     // ── access policies (ABAC A2 — authorable allow/deny over attributes; evaluation is
     //    the Enterprise policy engine's job, A3) ─────────────────────────────────────
 
-    /** The authored policies (an unreadable doc is surfaced — the engine denies, fail-closed). */
+    /** The effective policies: authored rows ({@code source: authored}) plus the engine-resident seed
+     *  policies in force but never written to the doc ({@code source: seed} — e.g. the A4 space-isolation
+     *  denies), so an operator sees the built-in denies too (BACKLOG §5). A seed whose name an authored
+     *  policy overrides is shadowed (shown once, as authored). An unreadable doc is surfaced — the engine
+     *  denies, fail-closed. Seeds appear only on the Enterprise edition (the engine supplies them). */
     private Object policies(ApiContext api) {
         AccessPolicies.Doc doc = AccessPolicies.load(api.writeRoot());
         Map<String, Object> out = new LinkedHashMap<>();
@@ -110,8 +121,66 @@ final class AccessRoutes implements RouteModule {
             out.put("error", "access-policies.toon is unreadable — the policy engine denies (fail-closed) until it is fixed or re-saved");
             return out;
         }
-        out.put("policies", doc.policies().stream().map(AccessRoutes::policyShape).toList());
+        List<Map<String, Object>> rows = new java.util.ArrayList<>();
+        Set<String> authored = new LinkedHashSet<>();
+        for (AccessPolicies.Policy p : doc.policies()) {
+            authored.add(p.name());
+            rows.add(policyShape(p, "authored"));
+        }
+        AccessDeciders.active().ifPresent(d -> d.seededPolicies().stream()
+                .filter(p -> !authored.contains(p.name()))
+                .forEach(p -> rows.add(policyShape(p, "seed"))));
+        out.put("policies", rows);
         return out;
+    }
+
+    /** "Why denied?" dry-run for the current session's own subject (BACKLOG §5). Query:
+     *  {@code ?route=<path>&method=<GET|PUT|…>&resourceKind=<kind>} ({@code route} required,
+     *  {@code method} defaults GET, {@code resourceKind} optional for a row-level probe). Returns the
+     *  engine's decision + matched policy + a per-policy trace, enforcing/auditing nothing.
+     *  {@code {enabled:false}} when there is no policy engine (Personal/Standard) or no authenticated
+     *  subject on the request. Testing arbitrary resource attributes is the deferred "arbitrary subject"
+     *  feature — here {@code resource.space} defaults to the bound space, which the A4 seeds condition on. */
+    private Object explain(HttpExchange ex) {
+        Map<String, Object> out = new LinkedHashMap<>();
+        java.util.Optional<AccessDecider> decider = AccessDeciders.active();
+        if (decider.isEmpty()) {
+            out.put("enabled", false);
+            out.put("reason", "no access policy engine on this edition");
+            return out;
+        }
+        java.util.Optional<Subject> subject = ApiContext.subject(ex);
+        if (subject.isEmpty()) {
+            out.put("enabled", false);
+            out.put("reason", "no authenticated subject on this request");
+            return out;
+        }
+        String route = ApiContext.query(ex, "route");
+        if (route == null || route.isBlank()) throw new ApiException(422, "explain requires a 'route' to evaluate");
+        String method = ApiContext.query(ex, "method");
+        String action = ControlApi.actionFor((method == null ? "GET" : method).toUpperCase(Locale.ROOT), route);
+        String resourceKind = ApiContext.query(ex, "resourceKind");
+        AccessDecider.Explanation exp =
+                decider.get().explain(ex, subject.get(), action, route, resourceKind, Map.of());
+        out.put("enabled", true);
+        out.put("subject", subject.get().id());
+        out.put("action", action);
+        out.put("route", route);
+        if (resourceKind != null) out.put("resourceKind", resourceKind);
+        out.put("decision", exp.decision().name());
+        out.put("matchedPolicy", exp.matchedPolicy());
+        out.put("trace", exp.trace().stream().map(AccessRoutes::evalShape).toList());
+        return out;
+    }
+
+    private static Map<String, Object> evalShape(AccessDecider.Evaluation e) {
+        Map<String, Object> r = new LinkedHashMap<>();
+        r.put("name", e.name());
+        r.put("effect", e.effect());
+        r.put("source", e.source());
+        r.put("targeted", e.targeted());
+        r.put("conditionHeld", e.conditionHeld());
+        return r;
     }
 
     /** Full replace of the authored doc (settings-doc discipline). Conditions parse-gate here — a
@@ -123,7 +192,7 @@ final class AccessRoutes implements RouteModule {
         return policies(api);
     }
 
-    private static Map<String, Object> policyShape(AccessPolicies.Policy p) {
+    private static Map<String, Object> policyShape(AccessPolicies.Policy p, String source) {
         Map<String, Object> r = new LinkedHashMap<>();
         r.put("name", p.name());
         r.put("effect", p.effect());
@@ -132,6 +201,7 @@ final class AccessRoutes implements RouteModule {
         if (!p.resourceKinds().isEmpty()) target.put("resourceKinds", p.resourceKinds().stream().sorted().toList());
         if (!target.isEmpty()) r.put("target", target);
         if (!p.when().isBlank()) r.put("when", p.when());
+        r.put("source", source);
         return r;
     }
 

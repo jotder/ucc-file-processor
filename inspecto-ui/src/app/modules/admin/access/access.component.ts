@@ -36,6 +36,7 @@ import { InspectoAlertComponent } from 'app/inspecto/components/alert.component'
 import { TreeTableComponent } from 'app/inspecto/tree-table/tree-table.component';
 import { TreeNode } from 'app/inspecto/tree-table/tree-types';
 import { AccessCellState, AccessGrantCell } from './access-grant-cell.component';
+import { AccessPoliciesComponent } from './access-policies.component';
 import { AccessRolesComponent } from './access-roles.component';
 
 /** Per-lens working grants (lens id → sparse nodeId → allow|deny). */
@@ -62,6 +63,7 @@ type GrantsBySubject = Record<string, Record<string, AccessGrant>>;
         InspectoAlertComponent,
         TreeTableComponent,
         AccessRolesComponent,
+        AccessPoliciesComponent,
     ],
     templateUrl: './access.component.html',
 })

@@ -131,6 +131,28 @@ class ControlApiAccessPoliciesTest {
     }
 
     @Test
+    void authoredPoliciesCarryAnAuthoredSourceBadge(@TempDir Path dir) throws Exception {
+        // Seed rows only appear when the Enterprise engine supplies them (ControlApiPolicyEnforcementTest);
+        // on the core/Personal classpath every row is authored, tagged so the UI can render source badges.
+        try (Ctx c = open(dir, dir.resolve("cfg"))) {
+            JsonNode saved = json(send(c.port, "PUT", "/access/policies",
+                    "{\"policies\":[{\"name\":\"x\",\"effect\":\"deny\",\"when\":\"subject.id == 'nobody'\"}]}"));
+            assertEquals(1, saved.get("policies").size());
+            assertEquals("authored", saved.get("policies").get(0).get("source").asText());
+        }
+    }
+
+    @Test
+    void explainReportsDisabledWithoutAPolicyEngine(@TempDir Path dir) throws Exception {
+        // Core/Personal ship no AccessDecider — /access/explain is a no-op that says so, never a 500.
+        try (Ctx c = open(dir, null)) {
+            JsonNode r = json(send(c.port, "GET", "/access/explain?route=/objects", null));
+            assertFalse(r.get("enabled").asBoolean());
+            assertTrue(r.get("reason").asText().contains("no access policy engine"), r.get("reason").asText());
+        }
+    }
+
+    @Test
     void unreadableOnDiskDocIsSurfacedFailClosed(@TempDir Path dir) throws Exception {
         Path writeRoot = dir.resolve("cfg");
         try (Ctx c = open(dir, writeRoot)) {

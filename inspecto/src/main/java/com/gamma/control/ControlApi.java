@@ -646,9 +646,7 @@ public final class ControlApi implements AutoCloseable, ApiContext {
         AccessDecider decider = AccessDeciders.active().orElse(null);
         if (decider == null || PUBLIC_PATHS.contains(path) || path.startsWith("/public/dashboards/")) return;
         if (!(ex.getAttribute(ApiContext.ATTR_SUBJECT) instanceof Subject subject)) return;
-        String action = "GET".equals(method) || "HEAD".equals(method) ? "read"
-                : Roles.CAN_OPERATE_RUNS.equals(CapabilityManifest.capabilityFor(method, path)) ? "operate"
-                : "write";
+        String action = actionFor(method, path);
         ex.setAttribute(AccessDecider.ATTR_MATCHED_POLICY, null);   // clear stale; the decider re-stamps
         AccessDecider.Decision decision = decider.decide(ex, subject, action, path, null, Map.of());
         if (decision == AccessDecider.Decision.ABSTAIN) return;
@@ -656,6 +654,16 @@ public final class ControlApi implements AutoCloseable, ApiContext {
         boolean granted = decision == AccessDecider.Decision.ALLOW;
         AuditTrail.policyDecision(ex, granted, action, path, null, null, policy);
         if (!granted) throw new ApiException(403, ErrorCodes.PERMISSION_DENIED, "denied by access policy");
+    }
+
+    /** The ABAC action verb for a request — the single source of truth shared by the {@link #authorize}
+     *  PEP and the {@code POST /access/explain} dry-run ({@code AccessRoutes}): {@code read} for
+     *  GET/HEAD, {@code operate} when the route's manifest capability is {@code canOperateRuns}, else
+     *  {@code write}. */
+    static String actionFor(String method, String path) {
+        return "GET".equals(method) || "HEAD".equals(method) ? "read"
+                : Roles.CAN_OPERATE_RUNS.equals(CapabilityManifest.capabilityFor(method, path)) ? "operate"
+                : "write";
     }
 
     private void respond(HttpExchange ex, int status, Object body) throws IOException {

@@ -16,6 +16,8 @@ const CATALOG = /\/access\/catalog$/;
 const PROFILES = /\/access\/profiles$/;
 const PROFILE = /\/access\/profiles\/([^/?]+)$/;
 const ROLES = /\/access\/roles$/;
+const POLICIES = /\/access\/policies$/;
+const EXPLAIN = /\/access\/explain(\?|$)/;
 
 export const ACCESS_CATALOG_COLL = 'access-catalog';
 export const ACCESS_PROFILE_COLL = 'access-profiles';
@@ -40,10 +42,10 @@ const SEED_ROLES: { name: string; capabilities: string[] }[] = [
     { name: 'developer', capabilities: BUILDER },
     { name: 'operations', capabilities: OPS },
     { name: 'support', capabilities: OPS },
-    { name: 'admin', capabilities: ['canOnboardConnections', 'canConfigureAccess', 'canApproveShares'] },
-    { name: 'power', capabilities: ['canAuthorWorkbench', 'canAuthorAlertRules', 'canOperateRuns', 'canOfferDatasets', 'canRequestShares'] },
+    { name: 'admin', capabilities: ['canOnboardConnections', 'canConfigureAccess', 'canApproveShares', 'canTriageRequirements'] },
+    { name: 'power', capabilities: ['canAuthorWorkbench', 'canAuthorAlertRules', 'canOperateRuns', 'canOfferDatasets', 'canRequestShares', 'canTriageRequirements'] },
     { name: 'super', capabilities: [...KNOWN_CAPABILITIES] },
-    { name: 'business', capabilities: [] },
+    { name: 'business', capabilities: ['canTriageRequirements'] },
 ];
 
 interface RoleRow {
@@ -89,6 +91,15 @@ export function accessHandler(flags: MockFlags): MockHandler {
             }
             store.put(space, ACCESS_ROLES_COLL, 'authored', { id: 'authored', roles: authored });
             return json(effectiveRoles(authored));
+        }
+        // Access Policies (ABAC A2/A3): the offline mock represents the default, non-Enterprise edition
+        // — the policy engine isn't bundled, so there are no seed policies and explain is disabled
+        // (exactly what the real backend returns without inspecto-policy on the classpath).
+        if (method === 'GET' && POLICIES.test(url)) {
+            return json({ policies: [] });
+        }
+        if (method === 'GET' && EXPLAIN.test(url)) {
+            return json({ enabled: false, reason: 'no access policy engine on this edition' });
         }
         if (method === 'GET' && CATALOG.test(url)) {
             return json(store.get(space, ACCESS_CATALOG_COLL, 'catalog')

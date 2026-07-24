@@ -3,6 +3,7 @@ package com.gamma.control;
 import com.gamma.api.PublicApi;
 import com.sun.net.httpserver.HttpExchange;
 
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -50,4 +51,42 @@ public interface AccessDecider {
      */
     Decision decide(HttpExchange ex, Subject subject, String action, String route,
                     String resourceKind, Map<String, Object> resource);
+
+    /**
+     * Operability (BACKLOG §5): the engine-resident policies that are in force but never written to the
+     * authored {@code access-policies.toon} — e.g. the A4 seeded space-isolation denies. A read of the
+     * authored policies ({@code GET /access/policies}) surfaces these too, tagged as seeds, so an
+     * operator can see the built-in denies they never authored (and which an authored policy of the same
+     * name would override). Default empty — Personal/Standard classpaths carry no engine, and an engine
+     * with no seeds returns nothing. The returned policies are read-only descriptors.
+     */
+    default List<AccessPolicies.Policy> seededPolicies() {
+        return List.of();
+    }
+
+    /**
+     * "Why denied?" dry-run (BACKLOG §5): evaluate the same policy stack {@link #decide} would, for
+     * {@code subject} against a hypothetical {@code action}/{@code route}/{@code resource}, and return
+     * the final {@link Decision}, the matched policy name, and a per-policy {@link Evaluation} trace —
+     * <b>without enforcing or auditing</b>. The core exposes it at {@code POST /access/explain} for the
+     * current session's own subject. Default: an {@code ABSTAIN} with no evaluated policies (no engine).
+     */
+    default Explanation explain(HttpExchange ex, Subject subject, String action, String route,
+                                String resourceKind, Map<String, Object> resource) {
+        return new Explanation(Decision.ABSTAIN, null, List.of());
+    }
+
+    /** The outcome of an {@link #explain} dry-run: the combined {@code decision}, the {@code matchedPolicy}
+     *  name (null on {@code ABSTAIN}), and the ordered per-policy {@code trace}. */
+    record Explanation(Decision decision, String matchedPolicy, List<Evaluation> trace) {
+        public Explanation {
+            trace = List.copyOf(trace);
+        }
+    }
+
+    /** One policy's contribution to an {@link Explanation}: its {@code name}, {@code effect}
+     *  (allow/deny), {@code source} (authored | seed), whether the request's action+kind {@code targeted}
+     *  it, and whether its {@code when} condition {@code conditionHeld}. A policy decides the outcome
+     *  only when both {@code targeted} and {@code conditionHeld} are true. */
+    record Evaluation(String name, String effect, String source, boolean targeted, boolean conditionHeld) {}
 }

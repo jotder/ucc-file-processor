@@ -1,6 +1,8 @@
 package com.gamma.policy;
 
 import com.gamma.control.AccessDecider.Decision;
+import com.gamma.control.AccessDecider.Explanation;
+import com.gamma.control.AccessDecider.Evaluation;
 import com.gamma.control.ComponentAccess;
 import com.gamma.control.Roles;
 import com.gamma.control.Subject;
@@ -75,8 +77,87 @@ class PolicyEngineTest {
         }
     }
 
+    /** Same real-exchange round-trip as {@link #decide}, but for the {@link PolicyEngine#explain} dry-run. */
+    private static Explanation explain(Path configRoot, Set<String> heldRoles, String space, Subject subject,
+                                       String action, String resourceKind, Map<String, Object> resource) throws Exception {
+        HttpServer server = HttpServer.create(new InetSocketAddress(0), 0);
+        AtomicReference<Explanation> result = new AtomicReference<>();
+        CountDownLatch done = new CountDownLatch(1);
+        server.createContext("/", ex -> {
+            if (configRoot != null) ex.setAttribute(Roles.ATTR_CONFIG_ROOT, configRoot);
+            if (heldRoles != null) ex.setAttribute(ComponentAccess.ATTR_HELD_ROLES, heldRoles);
+            if (space != null) MDC.put(EventLog.SPACE_MDC_KEY, space);
+            try {
+                result.set(ENGINE.explain(ex, subject, action, "/route/under/test", resourceKind, resource));
+            } finally {
+                MDC.remove(EventLog.SPACE_MDC_KEY);
+            }
+            ex.sendResponseHeaders(204, -1);
+            ex.close();
+            done.countDown();
+        });
+        server.start();
+        try {
+            HttpClient.newHttpClient().send(
+                    HttpRequest.newBuilder(URI.create("http://localhost:" + server.getAddress().getPort() + "/"))
+                            .GET().build(), HttpResponse.BodyHandlers.discarding());
+            assertTrue(done.await(5, TimeUnit.SECONDS));
+            return result.get();
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    private static Evaluation traceOf(Explanation e, String name) {
+        return e.trace().stream().filter(v -> name.equals(v.name())).findFirst().orElse(null);
+    }
+
     private static Subject subject(String id) {
         return new Subject(id, Set.of("canOperateRuns"));
+    }
+
+    @Test
+    void seededPoliciesExposesTheSpaceIsolationDenies() {
+        List<String> names = ENGINE.seededPolicies().stream().map(com.gamma.control.AccessPolicies.Policy::name).toList();
+        assertEquals(List.of("space-isolation", "space-isolation-rows"), names);
+        assertTrue(ENGINE.seededPolicies().stream().allMatch(com.gamma.control.AccessPolicies.Policy::deny),
+                "the seeds are denies");
+    }
+
+    @Test
+    void explainMatchesDecideWithADenyOverridesTrace(@TempDir Path root) throws Exception {
+        writePolicies(root, List.of(
+                Map.of("name", "allow-everyone", "effect", "allow"),
+                Map.of("name", "freeze-mallory", "effect", "deny", "when", "subject.id == 'mallory'")));
+
+        Explanation ana = explain(root, null, null, subject("ana"), "write", null, Map.of());
+        assertEquals(Decision.ALLOW, ana.decision());
+        assertEquals("allow-everyone", ana.matchedPolicy());
+        assertTrue(traceOf(ana, "allow-everyone").conditionHeld());
+        assertFalse(traceOf(ana, "freeze-mallory").conditionHeld(), "ana isn't mallory — condition false");
+
+        Explanation mallory = explain(root, null, null, subject("mallory"), "write", null, Map.of());
+        assertEquals(Decision.DENY, mallory.decision(), "deny overrides");
+        assertEquals("freeze-mallory", mallory.matchedPolicy());
+        Evaluation freeze = traceOf(mallory, "freeze-mallory");
+        assertTrue(freeze.targeted() && freeze.conditionHeld());
+        assertEquals("authored", freeze.source());
+    }
+
+    @Test
+    void explainSurfacesSeedSourceAndUnreadableDoc(@TempDir Path root) throws Exception {
+        // No authored doc — the engine-resident seeds alone decide, and the trace tags them as seeds.
+        Subject visitor = new Subject("bob", Set.of(), null, Map.of("space", "beta"));
+        Explanation denied = explain(root, null, "alpha", visitor, "read", null, Map.of());
+        assertEquals(Decision.DENY, denied.decision());
+        assertEquals("space-isolation", denied.matchedPolicy());
+        assertEquals("seed", traceOf(denied, "space-isolation").source());
+
+        Files.writeString(root.resolve("access-policies.toon"), "policies: [ broken");
+        Explanation broken = explain(root, null, "alpha", visitor, "read", null, Map.of());
+        assertEquals(Decision.DENY, broken.decision());
+        assertEquals("<policies-unreadable>", broken.matchedPolicy());
+        assertTrue(broken.trace().isEmpty(), "a fail-closed deny needs no per-policy trace");
     }
 
     @Test

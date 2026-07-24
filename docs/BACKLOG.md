@@ -408,11 +408,16 @@ row-level deny only (row allow omitted as list-read noise) — read back via
 the plan was archived to `archived-documents/plans-archive/rbac-abac-plan.md` and the durable as-builts
 now live in the OKF concept `okf/backend/editions/auth-security.md`** (the current-knowledge home for
 this whole area — read it there, not the archived plan). **Residual opens (non-blocking, carried
-forward):** Q3 `canTriageRequirements` grant set (product) · X-Actor header retirement (overlaps the
-API-v1 row) · a policy-authoring UX beyond TOON+validation (matrix editor / "why denied?" explain
-endpoint, incl. seed-policy visibility in `GET /access/policies`) · final IdP/gateway vendor split
-(Keycloak + WSO2 APIM vs. WSO2 IS — ops/evidence, not code) · `package.ps1 -Edition Enterprise`
-packaging flavor (deferred while the file was another session's uncommitted edit — add once released).
+forward):** ~~Q3 `canTriageRequirements` grant set~~ **SHIPPED 2026-07-24** (Business+Power+Admin+Super in
+`Roles.SEED`, product sign-off) · ~~X-Actor header retirement~~ **already shipped** — the header is
+rejected outright on Standard/Enterprise (SEC-7a spoof guard in `ControlApi.authenticate`); only its full
+*removal* remains, client-migration-gated with the API-v1 legacy sunset · ~~seed-policy visibility in
+`GET /access/policies` + a "why denied?" explain endpoint~~ **SHIPPED 2026-07-24** (`AccessDecider.
+seededPolicies()`/`explain()` default-empty seams; `GET /access/explain` GET-not-POST dry-run;
+Settings ▸ Access ▸ Policies read-only tab) — the remaining policy-authoring UX (a matrix/create editor
+beyond TOON) is still open · final IdP/gateway vendor split (Keycloak + WSO2 APIM vs. WSO2 IS —
+ops/evidence, not code) · `package.ps1 -Edition Enterprise` packaging flavor (deferred while the file was
+another session's uncommitted edit — add once released).
 ~~Q1 `canOnboardConnections` → Admin split~~ RESOLVED+IMPLEMENTED 2026-07-22 · ~~Q4 Requirements SLA~~
 declined (revisit with roles).
 

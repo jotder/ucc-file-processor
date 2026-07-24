@@ -1,7 +1,7 @@
 import { HttpClient } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
 import { Observable } from 'rxjs';
-import { apiUrl } from './api-base';
+import { apiUrl, toParams } from './api-base';
 
 /**
  * Lens access configuration (`/access/*` — design `docs/superpower/lens-access-config-design.md`,
@@ -61,6 +61,47 @@ export interface RolesDoc {
     error?: string;
 }
 
+/** One Access Policy (ABAC A2/A3): an allow/deny over subject/resource/environment attributes. */
+export interface PolicyDef {
+    name: string;
+    effect: AccessGrant;
+    target?: { actions?: string[]; resourceKinds?: string[] };
+    when?: string;
+    /** GET only: `authored` = written to the doc; `seed` = an engine-resident built-in (A4 space
+     *  isolation) surfaced read-only so operators see the denies they never wrote. */
+    source?: 'authored' | 'seed';
+}
+
+/** `GET /access/policies` — authored policies plus the engine's seed policies (Enterprise only);
+ *  `error` set ⇔ the authored doc is unreadable (the engine denies, fail-closed) until fixed. */
+export interface PoliciesDoc {
+    policies: PolicyDef[];
+    error?: string;
+}
+
+/** One policy's contribution to an explain trace. A policy decides only when both are true. */
+export interface PolicyEvaluation {
+    name: string;
+    effect: string;
+    source: string;
+    targeted: boolean;
+    conditionHeld: boolean;
+}
+
+/** `GET /access/explain` — a "why denied?" dry-run for the caller's own session. `enabled:false`
+ *  when there is no policy engine (Personal/Standard) or no authenticated subject. */
+export interface ExplainResult {
+    enabled: boolean;
+    reason?: string;
+    subject?: string;
+    action?: string;
+    route?: string;
+    resourceKind?: string;
+    decision?: 'ALLOW' | 'DENY' | 'ABSTAIN';
+    matchedPolicy?: string | null;
+    trace?: PolicyEvaluation[];
+}
+
 @Injectable({ providedIn: 'root' })
 export class AccessService {
     private http = inject(HttpClient);
@@ -84,6 +125,19 @@ export class AccessService {
 
     deleteProfile(id: string): Observable<{ deleted: string }> {
         return this.http.delete<{ deleted: string }>(apiUrl(`/access/profiles/${encodeURIComponent(id)}`));
+    }
+
+    /** The effective policies — authored rows tagged `source:authored`, plus the engine's seed
+     *  policies tagged `source:seed` (Enterprise only). */
+    policies(): Observable<PoliciesDoc> {
+        return this.http.get<PoliciesDoc>(apiUrl('/access/policies'));
+    }
+
+    /** "Why denied?" dry-run for the current session against a hypothetical route/method/resource. */
+    explain(p: { route: string; method?: string; resourceKind?: string }): Observable<ExplainResult> {
+        return this.http.get<ExplainResult>(apiUrl('/access/explain'), {
+            params: toParams({ route: p.route, method: p.method, resourceKind: p.resourceKind }),
+        });
     }
 
     roles(): Observable<RolesDoc> {

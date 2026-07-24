@@ -97,6 +97,45 @@ public final class PolicyEngine implements AccessDecider {
         return verdict;
     }
 
+    /** The A4 seeded space-scoping denies — surfaced (read-only) by {@code GET /access/policies} so an
+     *  operator sees the built-in denies they never authored (BACKLOG §5 seed visibility). */
+    @Override
+    public List<AccessPolicies.Policy> seededPolicies() {
+        return SEED;
+    }
+
+    /** "Why denied?" dry-run (BACKLOG §5): the same deny-overrides evaluation as {@link #decide}, but
+     *  it evaluates <em>every</em> effective policy to build a full per-policy trace and never enforces,
+     *  stamps, or audits. Matches {@code decide}'s outcome exactly: an unreadable doc denies loudly; the
+     *  first matching {@code deny} names the DENY; otherwise the last matching {@code allow} names an
+     *  ALLOW; otherwise ABSTAIN. */
+    @Override
+    public Explanation explain(HttpExchange ex, Subject subject, String action, String route,
+                               String resourceKind, Map<String, Object> resource) {
+        AccessPolicies.Doc doc = AccessPolicies.effective(ex);
+        if (doc.unreadable())
+            return new Explanation(Decision.DENY, "<policies-unreadable>", List.of());
+
+        Map<String, Object> context = context(ex, subject, action, route, resourceKind, resource);
+        java.util.Set<String> authored = doc.policies().stream()
+                .map(AccessPolicies.Policy::name).collect(java.util.stream.Collectors.toSet());
+        List<Evaluation> trace = new java.util.ArrayList<>();
+        String denyName = null, allowName = null;
+        for (AccessPolicies.Policy p : effective(doc.policies())) {
+            boolean targeted = targets(p, action, resourceKind);
+            boolean held = targeted && p.condition().test(context);
+            trace.add(new Evaluation(p.name(), p.effect(),
+                    authored.contains(p.name()) ? "authored" : "seed", targeted, held));
+            if (held) {
+                if (p.deny()) { if (denyName == null) denyName = p.name(); }  // first deny names the DENY
+                else allowName = p.name();                                    // last matching allow wins
+            }
+        }
+        if (denyName != null) return new Explanation(Decision.DENY, denyName, trace);
+        if (allowName != null) return new Explanation(Decision.ALLOW, allowName, trace);
+        return new Explanation(Decision.ABSTAIN, null, trace);
+    }
+
     /** Authored policies overlaid on {@link #SEED} per policy name — an authored policy with a
      *  seed's name replaces that seed; unnamed seeds stay in force. Order-preserving, though the
      *  deny-overrides combining is order-insensitive in outcome. */

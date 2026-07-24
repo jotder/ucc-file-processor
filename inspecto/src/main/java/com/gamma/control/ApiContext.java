@@ -151,7 +151,9 @@ interface ApiContext {
      *  {@link #HEADER_AGENT_SESSION} (S6 — an agent-confirmed apply), the actor is {@code agent:<sessionId>}.
      *  Otherwise (Personal edition, or a public route no {@link Authenticator} ran on) the actor is the
      *  caller-supplied {@code X-Actor} header, defaulting to {@code appUser} — the historic auth-free
-     *  behaviour, unchanged. */
+     *  behaviour, unchanged. On Standard/Enterprise the header never reaches here: {@code ControlApi}'s
+     *  authenticate stage rejects any {@code X-Actor} outright (SEC-7a spoof guard), so the actor is
+     *  always the authenticated {@link Subject}. */
     static String actor(HttpExchange ex) {
         if (ex.getAttribute(ATTR_SUBJECT) instanceof Subject s) return s.id();
         String agentSession = ex.getRequestHeaders().getFirst(HEADER_AGENT_SESSION);

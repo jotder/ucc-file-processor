@@ -89,5 +89,11 @@
                 </div>
             </ng-template>
         </mat-tab>
+        <mat-tab label="Policies">
+            <!-- Lazy: the Policies pane loads its data when the tab is first opened (BACKLOG §5). -->
+            <ng-template matTabContent>
+                <app-access-policies />
+            </ng-template>
+        </mat-tab>
     </mat-tab-group>
 </div>

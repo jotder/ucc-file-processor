@@ -176,6 +176,65 @@ class ControlApiPolicyEnforcementTest {
     }
 
     @Test
+    void getAccessPoliciesSurfacesTheSeedPoliciesToo(@TempDir Path dir) throws Exception {
+        try (Ctx c = open(dir)) {
+            // no authored doc: the read still surfaces the engine-resident A4 seeds, tagged source:seed
+            var noDoc = JSON.readTree(send(c.port, "GET", "/access/policies", null, "root").body());
+            List<String> seedNames = noDoc.get("policies").findValuesAsText("name");
+            assertTrue(seedNames.contains("space-isolation") && seedNames.contains("space-isolation-rows"),
+                    "seed denies are visible to the operator: " + seedNames);
+            noDoc.get("policies").forEach(p -> assertEquals("seed", p.get("source").asText()));
+
+            // author a policy that overrides one seed by name + adds one of its own
+            writePolicies(c, List.of(
+                    Map.of("name", "space-isolation", "effect", "allow"),
+                    Map.of("name", "my-rule", "effect", "deny", "when", "subject.id == 'nobody'")));
+            var doc = JSON.readTree(send(c.port, "GET", "/access/policies", null, "root").body());
+            assertEquals("authored", byName(doc, "space-isolation").get("source").asText(),
+                    "an authored policy shadows the seed of the same name (shown once, as authored)");
+            assertEquals("authored", byName(doc, "my-rule").get("source").asText());
+            assertEquals("seed", byName(doc, "space-isolation-rows").get("source").asText(),
+                    "the un-overridden seed still shows");
+        }
+    }
+
+    @Test
+    void explainTellsTheSubjectWhyTheyAreDenied(@TempDir Path dir) throws Exception {
+        try (Ctx c = open(dir)) {
+            writePolicies(c, List.of(Map.of("name", "contractor-write-freeze", "effect", "deny",
+                    "target", Map.of("actions", List.of("write", "operate")),
+                    "when", "subject.employment == 'contractor'")));
+
+            // the denied contractor can still reach the (read) explain endpoint and see why
+            var denied = JSON.readTree(send(c.port, "GET",
+                    "/access/explain?route=/access/roles&method=PUT", null, "carl:contractor").body());
+            assertTrue(denied.get("enabled").asBoolean());
+            assertEquals("write", denied.get("action").asText());
+            assertEquals("DENY", denied.get("decision").asText());
+            assertEquals("contractor-write-freeze", denied.get("matchedPolicy").asText());
+            var freeze = byName2(denied.get("trace"), "contractor-write-freeze");
+            assertTrue(freeze.get("targeted").asBoolean() && freeze.get("conditionHeld").asBoolean());
+            assertEquals("authored", freeze.get("source").asText());
+
+            // a non-contractor is not denied by it — the same policy, condition false
+            var ana = JSON.readTree(send(c.port, "GET",
+                    "/access/explain?route=/access/roles&method=PUT", null, "ana").body());
+            assertNotEquals("DENY", ana.get("decision").asText());
+            assertFalse(byName2(ana.get("trace"), "contractor-write-freeze").get("conditionHeld").asBoolean());
+        }
+    }
+
+    private static com.fasterxml.jackson.databind.JsonNode byName(com.fasterxml.jackson.databind.JsonNode doc, String name) {
+        for (var p : doc.get("policies")) if (name.equals(p.get("name").asText())) return p;
+        return null;
+    }
+
+    private static com.fasterxml.jackson.databind.JsonNode byName2(com.fasterxml.jackson.databind.JsonNode trace, String name) {
+        for (var e : trace) if (name.equals(e.get("name").asText())) return e;
+        return null;
+    }
+
+    @Test
     void withoutAnyDocEveryRouteBehavesAsOnStandard(@TempDir Path dir) throws Exception {
         try (Ctx c = open(dir)) {
             assertEquals(200, send(c.port, "GET", "/objects", null, "ana").statusCode());

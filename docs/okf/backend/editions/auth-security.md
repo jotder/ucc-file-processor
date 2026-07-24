@@ -119,10 +119,25 @@ via `META-INF/services`. Personal/Standard never bundle it and behave byte-ident
   row-level *allow* is deliberately not audited (fires per surviving row — would flood list reads); ABSTAIN
   is not a policy decision and is never audited.
 
-Still-open (carried to [BACKLOG](../../../BACKLOG.md), non-blocking): RBAC grant set for
-`canTriageRequirements`; X-Actor header retirement; a policy-authoring UX beyond TOON+validation (matrix
-editor / "why denied?" explain, incl. seed-policy visibility); final IdP/gateway vendor split
-(Keycloak + WSO2 APIM vs. WSO2 IS); `package.ps1 -Edition Enterprise` packaging flavor.
+- **Policy operability (2026-07-24, BACKLOG §5 slice).** Two reads make the engine legible without
+  parsing TOON: `GET /access/policies` now surfaces the engine-resident seed denies too (via a widened
+  `AccessDecider.seededPolicies()` default-empty seam), each row tagged `source: authored|seed` — an
+  operator sees the built-in space-isolation denies they never wrote; and `GET /access/explain?route=&
+  method=&resourceKind=` is a side-effect-free "why denied?" dry-run for the **caller's own session**
+  (`AccessDecider.explain` → decision + matched policy + per-policy `{targeted, conditionHeld, source}`
+  trace, enforcing/auditing nothing). It is a GET on purpose — a POST would be a `write` the policy under
+  test could 403 at the route PEP, locking the denied subject out of their own explanation. Both are
+  Enterprise-only (the seam is default-empty; Personal/Standard show authored rows only and
+  `{enabled:false}`). UI: Settings ▸ Access ▸ **Policies** tab (read-only effective table + explain panel).
+- **Q3 `canTriageRequirements` grant (2026-07-24, product sign-off).** Seeded to Business + Power + Admin +
+  Super (`Roles.SEED`) — requirement triage is a business-analyst activity; Pipeline Developer/Operations
+  build/run rather than triage.
+
+Still-open (carried to [BACKLOG](../../../BACKLOG.md), non-blocking): a policy-**authoring** UX beyond
+TOON+validation (a matrix/create editor — the read-only visibility + explain above shipped, authoring did
+not); X-Actor is already rejected on Standard (the SEC-7a spoof guard), so only its full removal remains,
+client-migration-gated with the API-v1 legacy sunset; final IdP/gateway vendor split (Keycloak + WSO2 APIM
+vs. WSO2 IS); `package.ps1 -Edition Enterprise` packaging flavor.
 
 **The write-gate is separate from auth and stays in all editions.** `-Dassist.write.root` is a path-jailed
 filesystem gate on mutation routes (config writes, connection writes, authored-Pipeline CRUD): absent →
