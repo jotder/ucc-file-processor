@@ -48,6 +48,11 @@ public final class NotificationService implements AutoCloseable {
      *  dispatch time so channel edits take effect without a restart; {@code List::of} when none are wired. */
     private final Supplier<List<ChannelConfig>> channelConfigs;
     private final ExecutorService workers = Executors.newVirtualThreadPerTaskExecutor();
+    /** Per-destination digest buffers, keyed by {@link ChannelConfig#id()} — populated only for configs
+     *  with {@code digestMinutes > 0}; flushed as one combined notification when the window elapses. */
+    private final java.util.Map<String, DigestBuffer> digests = new java.util.LinkedHashMap<>();
+    /** Lazily-started single daemon timer that fires each buffer's one-shot flush; null until first use. */
+    private java.util.concurrent.ScheduledExecutorService digestTimer;
     private final CopyOnWriteArrayList<Consumer<Notification>> listeners = new CopyOnWriteArrayList<>();
     /** Callbacks run on {@link #close()} to unblock open SSE streams (each interrupts its blocked thread). */
     private final CopyOnWriteArrayList<Runnable> streamClosers = new CopyOnWriteArrayList<>();
@@ -166,12 +171,67 @@ public final class NotificationService implements AutoCloseable {
                 Notification toDeliver = cfg.template() == null || cfg.template().isBlank()
                         ? n
                         : n.withBody(NotificationTemplate.render(cfg.template(), NotificationRule.context(e)));
+                // Digest window: buffer instead of delivering; a one-shot timer flushes the batch as a
+                // single combined notification once the window elapses (0 = immediate, the default).
+                if (cfg.digestMinutes() > 0) {
+                    bufferForDigest(cfg, toDeliver);
+                    continue;
+                }
                 try { ch.deliver(toDeliver, cfg.target()); } catch (Exception ex) {
                     log.warn("channel {} → {} delivery failed: {}", ch.id(), cfg.target(), ex.getMessage());
                 }
             }
         } catch (RuntimeException ex) {
             log.warn("failed to dispatch notification for event {}: {}", e.eventId(), ex.getMessage());
+        }
+    }
+
+    // ── digest batching (per-destination, opt-in via ChannelConfig.digestMinutes) ───────────────────
+
+    /** One destination's pending digest: the config it was armed with and the buffered notifications. */
+    private record DigestBuffer(ChannelConfig cfg, java.util.List<Notification> pending) {}
+
+    /** Buffer {@code n} for {@code cfg}'s digest; the first buffered item arms a one-shot flush timer for
+     *  the config's window. Called from {@link #dispatch} (already {@code synchronized(this)}). */
+    private void bufferForDigest(ChannelConfig cfg, Notification n) {
+        DigestBuffer buf = digests.get(cfg.id());
+        if (buf == null) {
+            buf = new DigestBuffer(cfg, new java.util.ArrayList<>());
+            digests.put(cfg.id(), buf);
+            String id = cfg.id();
+            if (digestTimer == null) {
+                digestTimer = Executors.newSingleThreadScheduledExecutor(r -> {
+                    Thread t = new Thread(r, "inspecto-notify-digest");
+                    t.setDaemon(true);
+                    return t;
+                });
+            }
+            digestTimer.schedule(() -> flushDigest(id), cfg.digestMinutes(), java.util.concurrent.TimeUnit.MINUTES);
+        }
+        buf.pending().add(n);
+    }
+
+    /** Deliver + clear one destination's pending digest as a single combined notification (no-op when
+     *  empty/unknown). Package-private so tests can flush without waiting out the window. */
+    synchronized void flushDigest(String configId) {
+        DigestBuffer buf = digests.remove(configId);
+        if (buf == null || buf.pending().isEmpty()) return;
+        ChannelConfig cfg = buf.cfg();
+        NotificationChannel ch = channelByKind(cfg.kind());
+        if (ch == null) return;   // transport gone since arming — nothing to deliver through
+        java.util.List<Notification> batch = buf.pending();
+        StringBuilder body = new StringBuilder();
+        for (Notification item : batch) {
+            if (!body.isEmpty()) body.append('\n');
+            body.append("• ").append(item.title()).append(" — ").append(item.body());
+        }
+        Notification digest = Notification.create(batch.get(0).category(), "notification.digest", null,
+                "Digest: " + batch.size() + " notification" + (batch.size() == 1 ? "" : "s"),
+                body.toString(),
+                "digest:" + cfg.id() + ":" + System.nanoTime());
+        try { ch.deliver(digest, cfg.target()); } catch (Exception ex) {
+            log.warn("digest delivery to channel {} → {} failed ({} buffered): {}",
+                    ch.id(), cfg.target(), batch.size(), ex.getMessage());
         }
     }
 
@@ -190,5 +250,10 @@ public final class NotificationService implements AutoCloseable {
             try { r.run(); } catch (RuntimeException ignore) { /* best effort */ }
         }
         workers.close();   // drain in-flight dispatches
+        // Flush any pending digests rather than dropping them on shutdown, then stop the timer.
+        synchronized (this) {
+            for (String id : java.util.List.copyOf(digests.keySet())) flushDigest(id);
+            if (digestTimer != null) digestTimer.shutdownNow();
+        }
     }
 }

@@ -89,7 +89,22 @@ timestamp: 2026-07-16T00:00:00Z
   `channel` CRUD precedent. Tests: `NotificationRulesTest` (overlay-first ordering, disabled fall-
   through, new-type coverage), `NotificationRuleTest` (`fromMap`/`toMap`), `ControlApiNotificationRulesTest`
   (real-HTTP CRUD + gates). Still open: no UI editor yet (backend + HTTP only).
-* Deferred to editions/follow-ons: delivery-status webhooks, digest batching, time-based retention
+* **Digest batching** (2026-07-24) — opt-in per destination: `ChannelConfig` gained `digestMinutes`
+  (`0` = immediate delivery, the default; negative → 422 at CRUD time). For a config with a window,
+  `NotificationService.dispatch` buffers the (template-rendered) delivery into a per-destination
+  `DigestBuffer` instead of delivering; the first buffered item arms a one-shot timer (lazy single
+  daemon `ScheduledExecutorService`) that flushes the batch after the window as ONE combined
+  notification (`"Digest: N notifications"`, one `• title — body` line per item) through the matching
+  transport to the config's target. `close()` flushes pending digests rather than dropping them.
+  In-app feed copies stay per-event — only the external destination delivery batches. Package-private
+  `flushDigest(id)` is the test seam. Tests: `NotificationServiceTest` (buffer+combined flush,
+  empty-flush no-op), `ControlApiNotificationChannelsTest` (default/round-trip/negative-422).
+* **Delivery-status webhooks re-scoped** (2026-07-24) — per the archived plan this means **inbound**
+  provider callbacks (bounce/complaint/delivered for sent email, SES/SendGrid-style event webhooks),
+  not outbound push (the outbound `webhook` channel shipped 2026-07-22, `channel/WebhookChannel`).
+  Gated on a delivery-status model (`Notification`/store carry no status field) + a product call on
+  which statuses to track; Standard/Enterprise flavor territory. Not scheduled.
+* Deferred to editions/follow-ons: delivery-status webhooks (above), time-based retention
   sweep, GeoIP, auth-gated security-event triggers / per-user prefs.
 
 ## Alert-rule authoring (shipped 2026-07-09)

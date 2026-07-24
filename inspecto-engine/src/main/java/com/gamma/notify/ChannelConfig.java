@@ -8,22 +8,25 @@ import java.util.regex.Pattern;
  * A persisted notification-channel <em>destination</em> the operator manages through the
  * {@code /notifications/channels*} admin CRUD — {@code id}, {@code kind} (e.g. {@code EMAIL}/{@code WEBHOOK}),
  * the {@code target} deliveries go to (an address / a URL), an optional {@code description}, an
- * {@code enabled} flag, a {@code createdAt} stamp, and an optional per-channel {@code template} — a
+ * {@code enabled} flag, a {@code createdAt} stamp, an optional per-channel {@code template} — a
  * {@code {{var}}}-style body override ({@link NotificationTemplate}) rendered against the triggering
  * {@link NotificationRule}'s own context (event-signal-backbone-plan §4.5.1); blank/{@code null} falls
- * back to the rule's default body (see {@code NotificationService.dispatch}).
+ * back to the rule's default body (see {@code NotificationService.dispatch}) — and an optional
+ * {@code digestMinutes} window: {@code 0} (default) delivers each notification immediately; {@code >0}
+ * buffers deliveries for this destination and flushes them as one combined digest after the window.
  *
  * <p>Distinct from the {@link NotificationChannel} SPI interface (a delivery implementation) — this is the
  * managed record of where a channel points, persisted as a {@code channel} component per space.
  */
 public record ChannelConfig(String id, String kind, String target, String description,
-                            boolean enabled, long createdAt, String template) {
+                            boolean enabled, long createdAt, String template, int digestMinutes) {
 
     /**
      * Parse + validate a channel from a request/stored map. {@code id}/{@code kind}/{@code target} are
      * required (blank → {@link IllegalArgumentException} → 422); {@code enabled} defaults true; {@code
      * createdAt} is taken from the map when present (a round-tripped/updated record) else {@code
-     * defaultCreatedAt} (a fresh create); {@code template} is optional (blank/absent ⇒ {@code null}).
+     * defaultCreatedAt} (a fresh create); {@code template} is optional (blank/absent ⇒ {@code null});
+     * {@code digestMinutes} is optional (absent ⇒ {@code 0} = immediate delivery; negative → 422).
      * {@code kind=EMAIL} additionally requires {@code target} to be one or more comma-separated email
      * addresses — rejected here (422) rather than left to fail silently at SMTP dispatch time.
      */
@@ -35,8 +38,11 @@ public record ChannelConfig(String id, String kind, String target, String descri
         boolean enabled = !(m.get("enabled") instanceof Boolean b) || b;
         long createdAt = m.get("createdAt") instanceof Number n ? n.longValue() : defaultCreatedAt;
         String template = str(m, "template");
+        int digestMinutes = m.get("digestMinutes") instanceof Number n ? n.intValue() : 0;
+        if (digestMinutes < 0)
+            throw new IllegalArgumentException("digestMinutes must be >= 0 (0 = immediate delivery)");
         if ("email".equalsIgnoreCase(kind)) validateEmailTarget(target);
-        return new ChannelConfig(id, kind, target, description, enabled, createdAt, template);
+        return new ChannelConfig(id, kind, target, description, enabled, createdAt, template, digestMinutes);
     }
 
     /** {@code kind=EMAIL} target must be one or more comma-separated addresses — fail closed at creation
@@ -60,6 +66,7 @@ public record ChannelConfig(String id, String kind, String target, String descri
         m.put("enabled", enabled);
         m.put("createdAt", createdAt);
         m.put("template", template);
+        m.put("digestMinutes", digestMinutes);
         return m;
     }
 

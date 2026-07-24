@@ -165,7 +165,7 @@ class NotificationServiceTest {
             public void deliver(Notification n, String target) { targets.add(target); }
         };
         // A persisted EMAIL destination (kind matches the transport id, case-insensitively).
-        ChannelConfig cfg = new ChannelConfig("c1", "EMAIL", "ops@x.com", null, true, 0L, null);
+        ChannelConfig cfg = new ChannelConfig("c1", "EMAIL", "ops@x.com", null, true, 0L, null, 0);
         NotificationService svc = new NotificationService(store, NotificationRules.defaults(), prefs,
                 List.of(email), () -> List.of(cfg));
 
@@ -187,8 +187,8 @@ class NotificationServiceTest {
             public void deliver(Notification n) { }
             public void deliver(Notification n, String target) { targets.add(target); }
         };
-        ChannelConfig disabled = new ChannelConfig("c1", "EMAIL", "off@x.com", null, false, 0L, null);
-        ChannelConfig noTransport = new ChannelConfig("c2", "SLACK", "http://hook", null, true, 0L, null);
+        ChannelConfig disabled = new ChannelConfig("c1", "EMAIL", "off@x.com", null, false, 0L, null, 0);
+        ChannelConfig noTransport = new ChannelConfig("c2", "SLACK", "http://hook", null, true, 0L, null, 0);
         NotificationService svc = new NotificationService(store, NotificationRules.defaults(), prefs,
                 List.of(email), () -> List.of(disabled, noTransport));
 
@@ -211,7 +211,7 @@ class NotificationServiceTest {
             public void deliver(Notification n, String target) { delivered.add(n.body()); }
         };
         ChannelConfig cfg = new ChannelConfig("c1", "EMAIL", "ops@x.com", null, true, 0L,
-                "[{{type}}] {{message}}");
+                "[{{type}}] {{message}}", 0);
         NotificationService svc = new NotificationService(store, NotificationRules.defaults(), prefs,
                 List.of(email), () -> List.of(cfg));
 
@@ -223,5 +223,48 @@ class NotificationServiceTest {
                 "the channel's own template rendered instead of the rule's default body");
         assertEquals("Batch b1 failed: boom", store.recent(10).get(0).body(),
                 "the stored/in-app copy is unaffected — only the channel delivery used the override");
+    }
+
+    @Test
+    void digestWindowBuffersAndFlushesOneCombinedDelivery() {
+        NotificationStore store = new InMemoryNotificationStore();
+        NotificationPreferences prefs = new NotificationPreferences();
+        prefs.set("pipeline", Map.of(NotificationPreferences.IN_APP, true, NotificationPreferences.EMAIL, true));
+        List<Notification> delivered = new CopyOnWriteArrayList<>();
+        NotificationChannel email = new NotificationChannel() {
+            public String id() { return NotificationPreferences.EMAIL; }
+            public void deliver(Notification n) { }
+            public void deliver(Notification n, String target) { delivered.add(n); }
+        };
+        // A 60-minute digest window — far longer than the test, so only close()'s flush delivers.
+        ChannelConfig cfg = new ChannelConfig("c1", "EMAIL", "ops@x.com", null, true, 0L, null, 60);
+        NotificationService svc = new NotificationService(store, NotificationRules.defaults(), prefs,
+                List.of(email), () -> List.of(cfg));
+
+        svc.onEvent(batchFailed("orders", "b1", "boom"));
+        svc.onEvent(batchFailed("billing", "b2", "bang"));
+        svc.close();   // drains dispatch, then flushes the pending digest
+
+        assertEquals(2, store.recent(10).size(), "in-app copies still delivered per-event");
+        assertEquals(1, delivered.size(), "two buffered events flushed as ONE digest delivery");
+        Notification digest = delivered.get(0);
+        assertEquals("Digest: 2 notifications", digest.title());
+        assertTrue(digest.body().contains("Pipeline orders failed"), digest.body());
+        assertTrue(digest.body().contains("Pipeline billing failed"), digest.body());
+    }
+
+    @Test
+    void flushDigestIsANoOpWhenNothingIsBuffered() {
+        NotificationStore store = new InMemoryNotificationStore();
+        List<Notification> delivered = new CopyOnWriteArrayList<>();
+        NotificationChannel email = new NotificationChannel() {
+            public String id() { return NotificationPreferences.EMAIL; }
+            public void deliver(Notification n) { delivered.add(n); }
+        };
+        NotificationService svc = new NotificationService(store, NotificationRules.defaults(),
+                new NotificationPreferences(), List.of(email));
+        svc.flushDigest("no-such-config");
+        svc.close();
+        assertTrue(delivered.isEmpty());
     }
 }

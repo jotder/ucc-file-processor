@@ -79,6 +79,17 @@ class ControlApiNotificationChannelsTest {
             assertEquals(422, send(c.port, "POST", base,
                     "{\"id\":\"bad_mail\",\"kind\":\"EMAIL\",\"target\":\"not-an-address\"}").statusCode());
 
+            // digestMinutes: defaults 0 (immediate), authored value round-trips, negative fails closed
+            assertEquals(0, made.get("digestMinutes").asInt(), "digestMinutes defaults 0 = immediate");
+            assertEquals(30, json(send(c.port, "POST", base,
+                    "{\"id\":\"digest_mail\",\"kind\":\"EMAIL\",\"target\":\"d@example.com\",\"digestMinutes\":30}"))
+                    .get("digestMinutes").asInt(), "an authored digest window round-trips");
+            assertEquals(422, send(c.port, "POST", base,
+                    "{\"id\":\"neg\",\"kind\":\"EMAIL\",\"target\":\"n@example.com\",\"digestMinutes\":-5}")
+                    .statusCode(), "a negative digest window fails closed");
+            assertEquals("digest_mail", json(send(c.port, "DELETE", base + "/digest_mail", null))
+                    .get("deleted").asText());
+
             assertEquals(1, json(send(c.port, "GET", base, null)).size());
 
             // update — target changed, disabled, createdAt preserved; id bound from the path
