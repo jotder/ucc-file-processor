@@ -58,7 +58,14 @@ identically to what the UI authors and `ConditionTree` evaluates.
 (2026-07-19) always records a `decision-rule.create-alert` ledger signal, and additionally opens a
 deduped `ObjectType.INCIDENT` (one per rule) when its `params.severity` is `critical`/`error` — a lower
 severity stays signal-only. Reuses the same `ExpectationRoutes`-style dedup+open pattern as the
-Alert/Recon promotions (`events-metrics.md`, `reconciliation.md`).
+Alert/Recon promotions (`events-metrics.md`, `reconciliation.md`). **`create-incident`** (2026-07-24)
+is the explicit, author-selectable generalization of that promotion: it opens a managed
+`ObjectType.INCIDENT` directly at *any* severity (default `error`; `params.title` sets the title,
+default `Decision Rule <name>`) with no Alert Rule authoring, deduped to one open Incident per rule
+(same correlationId `decision-rule:<name>`, so it coalesces with a `create-alert` auto-promotion on the
+same rule). Non-breaking — `create-alert`'s existing high-severity auto-promotion is unchanged; authors
+who want an Incident at a warning severity, or without an Alert Rule, now pick `create-incident`
+instead of relying on the `create-alert` side effect.
 The **record-routing** consequences (`route`/`tag`/`quarantine`/`drop`) are applied by the engine
 itself, per batch, via `com.gamma.etl.DecisionRuleApplier` — invoked from
 `BatchIngestStrategy.writeAndTrace`, the shared tail of every ingest path (Java parse engine +

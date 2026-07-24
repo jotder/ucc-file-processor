@@ -178,6 +178,34 @@ class ControlApiDecisionRulesTest {
         }
     }
 
+    // ── apply: create-incident consequence (any-severity, deduped, no Alert Rule) ──
+
+    @Test
+    void applyCreateIncidentOpensIncidentAtAnySeverityDeduped(@TempDir Path cfg, @TempDir Path wr) throws Exception {
+        try (Ctx c = open(cfg, wr)) {
+            // A plain 'warning' severity — which create-alert would leave signal-only — opens an
+            // Incident here, because create-incident is the explicit, any-severity generalization.
+            String rule = "{\"name\":\"watch_orders\",\"targetType\":\"pipeline\",\"target\":\"orders\","
+                    + "\"consequences\":[{\"action\":\"create-incident\","
+                    + "\"params\":{\"title\":\"Orders under watch\",\"severity\":\"warning\"}}]}";
+            send(c.port, "POST", "/decision-rules", rule);
+
+            JsonNode consequence = json(send(c.port, "POST", "/decision-rules/watch_orders/apply", null))
+                    .get("executed").get(0);
+            assertEquals("executed", consequence.get("status").asText());
+            assertTrue(consequence.get("detail").asText().contains("Orders under watch"),
+                    consequence.get("detail").asText());
+
+            assertEquals(1, json(send(c.port, "GET", "/objects?type=INCIDENT", null)).size(),
+                    "create-incident opens a managed Incident regardless of severity");
+
+            // re-apply while the Incident is open → deduped, still one
+            send(c.port, "POST", "/decision-rules/watch_orders/apply", null);
+            assertEquals(1, json(send(c.port, "GET", "/objects?type=INCIDENT", null)).size(),
+                    "one open Incident per rule — re-apply does not clone it");
+        }
+    }
+
     // ── helpers ─────────────────────────────────────────────────────────────────
 
     private HttpResponse<String> send(int port, String method, String path, String body) throws Exception {

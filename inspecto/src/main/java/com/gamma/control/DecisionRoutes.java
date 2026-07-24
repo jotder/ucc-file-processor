@@ -36,8 +36,10 @@ import java.util.Map;
  * sample is the row source (see {@code docs/okf/backend/control-plane/decision-rules.md}).
  * {@code apply} executes each consequence against the platform primitive that already exists —
  * {@code emit-signal} onto this space's Signal Ledger, {@code start-job} via {@link JobService},
- * {@code trigger-pipeline} via {@code CollectorService#triggerRunAsync} — and emits a descriptive stub
- * signal for the remaining platform actions ({@code create-alert}, {@code render-widget},
+ * {@code trigger-pipeline} via {@code CollectorService#triggerRunAsync}, {@code create-incident} by
+ * opening a managed Incident (the author-selectable, any-severity generalization of the
+ * {@code create-alert} high-severity auto-promotion) — and emits a descriptive stub
+ * signal for the remaining platform actions ({@code render-widget},
  * {@code generate-report}, {@code invoke-api}), matching the mock's own scope; the routing actions
  * ({@code route}/{@code tag}/{@code quarantine}/{@code drop}) are record-level — {@code simulate}
  * counts the rows they would affect, and they take effect during live pipeline runs via
@@ -216,6 +218,25 @@ final class DecisionRoutes implements RouteModule {
                     detail = "triggered pipeline '" + pipelineId + "'";
                 } else {
                     detail = "no such pipeline '" + pipelineId + "'";
+                }
+            }
+            case "create-incident" -> {
+                // Explicit, author-selected Incident consequence — the generalized form of the
+                // create-alert high-severity auto-promotion above, usable at any severity and
+                // without also authoring an Alert Rule. Deduped to one open Incident per rule
+                // (correlationId = the rule), the same signal→Incident wiring the alert/recon
+                // paths use; a matching Incident already being open is a successful no-op.
+                String corr = "decision-rule:" + ruleName;
+                String title = paramStr(c, "title", "Decision Rule " + ruleName);
+                String severity = paramStr(c, "severity", "error");
+                status = "executed";
+                if (api.service().objects().active(ObjectType.INCIDENT, corr).isEmpty()) {
+                    api.service().objects().open(ObjectType.INCIDENT, title,
+                            "Raised by Decision Rule '" + ruleName + "'", severity, corr,
+                            Map.of("rule", ruleName, "decisionRule", ruleName, "severity", severity));
+                    detail = "opened Incident '" + title + "' (" + severity + ")";
+                } else {
+                    detail = "Incident already open for rule '" + ruleName + "'";
                 }
             }
             case "render-widget", "generate-report", "invoke-api" -> {

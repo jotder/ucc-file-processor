@@ -36,5 +36,6 @@ describe('describeConsequence', () => {
         expect(describeConsequence({ action: 'drop' })).toBe('Drop');
         expect(describeConsequence({ action: 'start-job', target: { kind: 'job', id: 'j1' } })).toBe('Start job j1');
         expect(describeConsequence({ action: 'emit-signal', params: { type: 'REVIEW' } })).toBe('Emit signal REVIEW');
+        expect(describeConsequence({ action: 'create-incident', params: { title: 'Orders under watch' } })).toBe('Open incident Orders under watch');
     });
 });

@@ -15,11 +15,11 @@ import type { Ref } from '../component-model/component-types';
 /** The record-routing actions (Drools-style) — a matching record is subjected to these. */
 export type RoutingAction = 'route' | 'tag' | 'quarantine' | 'drop';
 /** The platform actions — executed through the Execution / Signal networks (mock-first in this slice). */
-export type PlatformAction = 'emit-signal' | 'create-alert' | 'start-job' | 'trigger-pipeline' | 'render-widget' | 'generate-report' | 'invoke-api';
+export type PlatformAction = 'emit-signal' | 'create-alert' | 'create-incident' | 'start-job' | 'trigger-pipeline' | 'render-widget' | 'generate-report' | 'invoke-api';
 export type ConsequenceType = RoutingAction | PlatformAction;
 
 export const ROUTING_ACTIONS: RoutingAction[] = ['route', 'tag', 'quarantine', 'drop'];
-export const PLATFORM_ACTIONS: PlatformAction[] = ['emit-signal', 'create-alert', 'start-job', 'trigger-pipeline', 'render-widget', 'generate-report', 'invoke-api'];
+export const PLATFORM_ACTIONS: PlatformAction[] = ['emit-signal', 'create-alert', 'create-incident', 'start-job', 'trigger-pipeline', 'render-widget', 'generate-report', 'invoke-api'];
 
 /** One consequence a decision engine produces; a rule may stack several. */
 export interface Consequence {
@@ -47,6 +47,7 @@ export const CONSEQUENCE_LABELS: Record<ConsequenceType, string> = {
     drop: 'Drop',
     'emit-signal': 'Emit signal',
     'create-alert': 'Create alert',
+    'create-incident': 'Open incident',
     'start-job': 'Start job',
     'trigger-pipeline': 'Trigger pipeline',
     'render-widget': 'Render widget',
@@ -93,6 +94,7 @@ export function consequenceInputSpec(action: ConsequenceType): ConsequenceInputS
         case 'render-widget': return { show: true, label: 'Widget id', required: true, kind: 'target', targetKind: 'widget' };
         case 'emit-signal': return { show: true, label: 'Signal type', required: true, kind: 'param', paramKey: 'type' };
         case 'create-alert': return { show: true, label: 'Alert name', required: true, kind: 'param', paramKey: 'rule' };
+        case 'create-incident': return { show: true, label: 'Incident title', required: true, kind: 'param', paramKey: 'title' };
         case 'generate-report': return { show: true, label: 'Report name', required: true, kind: 'param', paramKey: 'name' };
         case 'invoke-api': return { show: true, label: 'API URL', required: true, kind: 'param', paramKey: 'url' };
     }
@@ -131,6 +133,7 @@ export function describeConsequence(c: Consequence): string {
         case 'drop': return 'Drop';
         case 'emit-signal': return `Emit signal ${(c.params?.['type'] as string) ?? ''}`.trim();
         case 'create-alert': return `Create alert ${(c.params?.['rule'] as string) ?? ''}`.trim();
+        case 'create-incident': return `Open incident ${(c.params?.['title'] as string) ?? ''}`.trim();
         case 'start-job': return `Start job ${c.target?.id ?? '?'}`;
         case 'trigger-pipeline': return `Trigger pipeline ${c.target?.id ?? '?'}`;
         case 'render-widget': return `Render widget ${c.target?.id ?? '?'}`;

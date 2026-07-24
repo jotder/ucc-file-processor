@@ -1,7 +1,9 @@
 import type { DecisionRule } from '../api/decision-rules.service';
+import type { OperationalObject } from '../api/objects.service';
 import { type Consequence, type ExecutedConsequence, describeConsequence } from '../decision/consequence';
 import type { Ref } from '../component-model/component-types';
 import type { SignalSeverity } from '../signal/signal';
+import { OPS_OBJECTS_COLL } from './handlers/ops.handler';
 import { MockStore } from './mock-store';
 import { emitSignal } from './signals';
 
@@ -48,6 +50,31 @@ function executeOne(
                 },
             });
             return { action: c.action, status: 'executed', detail: `alert ${ruleName}` };
+        }
+        case 'create-incident': {
+            // The explicit, any-severity Incident consequence — opens a managed Incident, deduped to
+            // one open per rule (correlationId), mirroring the backend DecisionRoutes.executeOne case
+            // and the Expectation-failure incident-raise idiom.
+            const title = String(c.params?.['title'] ?? `Decision Rule ${rule.name}`);
+            const severity = String(c.params?.['severity'] ?? 'error');
+            const alreadyOpen = store
+                .list<OperationalObject>(space, OPS_OBJECTS_COLL)
+                .some((o) => o.correlationId === correlationId && o.status !== 'CLOSED' && o.status !== 'RESOLVED');
+            if (alreadyOpen) return { action: c.action, status: 'executed', detail: `Incident already open for rule ${rule.name}` };
+            const obj: OperationalObject = {
+                id: `obj-${now}-${i}`, objectType: 'INCIDENT', title,
+                description: `Raised by Decision Rule "${rule.name}"`, status: 'OPEN', severity,
+                priority: undefined, owner: undefined, assignee: undefined, correlationId,
+                attributes: { rule: rule.name, decisionRule: rule.name, severity },
+                createdAt: now, updatedAt: now, closedAt: 0,
+            };
+            store.put(space, OPS_OBJECTS_COLL, obj.id, obj);
+            emitSignal(store, space, {
+                signalId: `dec-incident-${now}-${i}`, type: 'INCIDENT_OPENED', at: now, source, correlationId,
+                severity: severity.toUpperCase() === 'CRITICAL' ? 'critical' : 'error',
+                payload: { title, incidentId: obj.id, rule: rule.name },
+            });
+            return { action: c.action, status: 'executed', detail: `opened Incident "${title}" (${severity})` };
         }
         case 'start-job': {
             const job = c.target?.id;

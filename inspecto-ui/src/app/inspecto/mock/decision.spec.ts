@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest';
 import type { DecisionRule } from '../api/decision-rules.service';
 import type { Consequence } from '../decision/consequence';
 import type { Signal } from '../signal/signal';
+import type { OperationalObject } from '../api/objects.service';
 import { executeConsequences } from './decision';
+import { OPS_OBJECTS_COLL } from './handlers/ops.handler';
 import { MockStore } from './mock-store';
 import { SIGNALS_COLL } from './signals';
 
@@ -42,6 +44,19 @@ describe('executeConsequences', () => {
         expect(out[0].status).toBe('executed');
         expect(out[1].status).toBe('skipped');
         expect(store.list<Signal>('default', SIGNALS_COLL).some((s) => s.type === 'JOB_STARTED')).toBe(true);
+    });
+
+    it('create-incident opens a managed Incident (any severity), deduped to one open per rule', () => {
+        const store = new MockStore();
+        const r = rule([{ action: 'create-incident', params: { title: 'Orders under watch', severity: 'warning' } }]);
+        const out = executeConsequences(store, 'default', r);
+        expect(out[0]).toMatchObject({ action: 'create-incident', status: 'executed' });
+        const incidents = () => store.list<OperationalObject>('default', OPS_OBJECTS_COLL).filter((o) => o.objectType === 'INCIDENT');
+        expect(incidents().length).toBe(1);
+        expect(incidents()[0]).toMatchObject({ title: 'Orders under watch', status: 'OPEN', severity: 'warning' });
+        // re-apply while open → deduped, still one
+        executeConsequences(store, 'default', r);
+        expect(incidents().length).toBe(1);
     });
 
     it('routing actions are record-level — skipped here, no signal written', () => {
