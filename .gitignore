@@ -45,3 +45,6 @@ graphify-out/
 # Stray npm lockfile at the repo root (no root package.json; the UI's lockfile
 # lives in inspecto-ui/ and IS tracked)
 /package-lock.json
+
+# `mvn dependency:build-classpath` writes cp.txt into every module dir it touches
+cp.txt

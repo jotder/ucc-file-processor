@@ -31,6 +31,7 @@
 // branch is guarded by weaker rules than the other, which is exactly how the incident recurs.
 
 import { readFileSync, readdirSync, statSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, relative, sep } from 'node:path';
 
@@ -114,10 +115,31 @@ function* walk(dir) {
     }
 }
 
+// A COMMITTED-secret guard must scan what is committed. Walking the filesystem also read gitignored
+// build output — `file-processor-deploy/ui/chunk-*.js` produced four hits on a clean tree (minified
+// `withCredentials`/`apiKey` property assignments), so every shift that built the bundle then met a red
+// security gate on its own machine while CI, which has no such directory, stayed green. A guard that
+// cries wolf locally is a guard people learn to ignore. Falls back to the filesystem walk outside a
+// git checkout (a tarball export), where scanning too much beats scanning nothing.
+function* trackedFiles() {
+    let listed;
+    try {
+        listed = execFileSync('git', ['-C', repoRoot, 'ls-files', '-z'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+    } catch {
+        yield* walk(repoRoot);
+        return;
+    }
+    for (const rel of listed.split('\0')) {
+        if (rel) yield join(repoRoot, rel);
+    }
+}
+
 const violations = [];
-for (const file of walk(repoRoot)) {
+for (const file of trackedFiles()) {
     const rel = toPosix(relative(repoRoot, file));
     if (SKIP_FILES.has(rel) || SKIP_FILES.has(rel.slice(rel.lastIndexOf('/') + 1))) continue;
+    // walk() skips these by never descending; the tracked-file list has to filter them by path.
+    if (rel.split('/').slice(0, -1).some((seg) => SKIP_DIRS.has(seg))) continue;
     const dot = rel.lastIndexOf('.');
     if (dot < 0 || !EXTS.has(rel.slice(dot))) continue;
 
